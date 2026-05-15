@@ -11,7 +11,11 @@
 - ✅ TFM 升级到 net8.0-windows
 - ✅ LazyLoading 主项目编译通过（0 错误）
 - ✅ **Emuera.Xamarin 编译通过（0 错误）**（818→336→0）
-- ✅ 知识库已更新（8 个条目完整覆盖）
+- ✅ 知识库已更新（9 个条目完整覆盖）
+- 🔄 **Phase 2 运行时适配 — 启动中**
+  - ⚠️ 关键发现：编译通过≠可运行，三大运行时障碍待解决
+  - ⚠️ 执行顺序调整：2C→2B→2A→2D→2E（原计划 2A→2B→2C→2D→2E）
+  - 详见 [phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
 
 ---
 
@@ -37,8 +41,9 @@
 
 ## Phase 2：运行时适配 — 编译通过后的首个可执行阶段
 
-> **知识库参考**：[io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md)、[await-async.md](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md)
+> **知识库参考**：[io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md)、[await-async.md](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md)、[phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
 > **前置条件**：Phase 1 Round 3 完成（0 编译错误）
+> **执行顺序调整**：原计划 2A→2B→2C→2D→2E，依赖分析后调整为 **2C→2B→2A→2D→2E**（IPathProvider 是基础设施，应最先实现）
 
 ### 任务来源分析
 
@@ -400,6 +405,50 @@ SpriteAnimated (Phase 3A)
 | 鼠标位置 | `Control.MousePosition` (WinForms) | `IInputProvider.GetMousePosition()` | **转变实现方式** |
 | 鼠标按钮 | `Control.MouseButtons` (WinForms) | `IInputProvider.GetMouseButton()` | **转变实现方式** |
 | 触摸映射 | 不存在 | 短按=左键、长按=右键、返回键=ESC | **全新移植** |
+
+### 交互函数移植矩阵（2026-05 审计）
+
+> **详细分析**：[await-async.md](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md) 交互函数移植矩阵章节
+> **核心发现**：输入交互函数分三层——阻塞等待层（INPUT/WAIT，已可用）、轮询检测层（GETKEY/MOUSEB，需触屏映射）、桌面深度耦合层（INPUTMOUSEKEY/BINPUT/FLOWINPUT，需空实现）
+
+#### 全部输入交互函数清单
+
+| 系列 | 函数 | XEmuera 注册 | XEmuera 实现 | eratw 使用量 | 移植判定 |
+|------|------|:---:|:---:|:---:|------|
+| AWAIT | `AWAIT time` | ✅ | ✅ | 16次/11文件 | ✅ 保持现状 |
+| WAIT | `WAIT/WAITANYKEY/TWAIT/FORCEWAIT` | ✅ | ✅ | 大量 | ✅ 保持现状 |
+| INPUT | `INPUT/S(default, canClick, allowSkip)` | ✅ | ✅ | 大量 | ✅ 保持现状 |
+| TINPUT | `TINPUT/S time, default, ...` | ✅ | ✅ Timer | 45次/27文件 | ✅ 保持现状 |
+| ONEINPUT | `ONEINPUT/S default` | ✅ | ✅ | 6次/6文件 | ✅ 保持现状 |
+| TONEINPUT | `TONEINPUT/S time, default, ...` | ✅ | ✅ | 0次 | ✅ 保持现状 |
+| INPUTANY | `INPUTANY` | ✅ | ✅ | 0次 | ✅ 保持现状 |
+| GETKEY | `GETKEY keyCode` | ✅ | ⚠️ 返回0 | 24次/4文件 | **P0 触屏映射** |
+| GETKEYTRIGGERED | `GETKEYTRIGGERED keyCode` | ✅ | ⚠️ 返回0 | 18次/7文件 | **P0 触屏映射** |
+| MOUSEB | `MOUSEB` | ❌ | ❌ | 14次/3文件 | **P0 触屏映射** |
+| MOUSEX/Y | `MOUSEX/MOUSEY` | ✅ | ⚠️ 返回0 | 0次 | **P1 触屏映射** |
+| GETTEXTBOX | `GETTEXTBOX/SETTEXTBOX` | ✅ | ✅ | 3次/3文件 | ✅ 保持现状 |
+| INPUTMOUSEKEY | `INPUTMOUSEKEY timeLimit` | ✅ | ⚠️ | 1次/1文件 | **P2 降级：仅触屏点击+长按右键** |
+| BINPUT | `BINPUT/S(default, ...)` | ❌ | ❌ | 10次/2文件 | **P1 降级为 INPUT/INPUTS** |
+| FLOWINPUT | `FLOWINPUT/S default, ...` | ❌ | ❌ | 0次 | **P1 降级为 INPUT/INPUTS** |
+| ONEBINPUT | `ONEBINPUT/S default` | ❌ | ❌ | 0次 | **P3 降级为 ONEINPUT/ONEINPUTS** |
+
+#### 触屏映射方案
+
+| keycode | WinForms 语义 | 触摸屏映射 |
+|---------|-------------|-----------|
+| 1 (VK_LBUTTON) | 鼠标左键 | 短按触摸 |
+| 2 (VK_RBUTTON) | 鼠标右键 | 长按（XEmuera 已有 LongPressTimer） |
+| 4 (VK_MBUTTON) | 鼠标中键 | 无映射，永远返回0 |
+| 13 (VK_RETURN) | 回车 | Entry Completed 事件 |
+| 27 (VK_ESCAPE) | ESC | Android 返回键 |
+| 16/17/18 | Shift/Ctrl/Alt | 无映射，永远返回0 |
+
+#### 脚本实例验证
+
+| 脚本 | 交互模式 | 依赖函数 | 安卓可用性 |
+|------|---------|---------|-----------|
+| BADAPPLE | 帧同步播放器 | AWAIT+GETKEYTRIGGERED+GETTEXTBOX | ✅ GETKEYTRIGGERED映射后完全可用 |
+| qol_MAP | AWAIT+TINPUTS混合状态机 | AWAIT+MOUSEB+GETKEYTRIGGERED+TINPUTS | ⚠️ 悬停模式降级为动画一直播放（正确行为），快捷键Z/X/C/Y无映射 |
 
 ### 渲染系列的审查判定
 
