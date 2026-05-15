@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [3.8.2-xamarin.1] — 2026-05-15
+
+### Added
+
+- **Emuera.Xamarin 项目**（feature/xamarin 分支）
+  - 在 LazyLoading 仓库内新建 Xamarin.Forms + SkiaSharp 跨平台前端
+  - csproj 直接编译 LazyLoading 内核（Runtime/ + UI/），不复制文件
+  - 从 XEmuera-1 复制 Skia 平台层到 Platform/ 目录
+  - 排除不兼容内核文件（Sound/PluginSystem/JSON/Shape/Lang/Utils/Clipboard）
+  - 添加 IsExternalInit NuGet 包（解决 `init` 属性在 netstandard2.1 的问题）
+  - 批量替换平台层命名空间（26 个文件）
+  - 首次编译：129 个错误（主要分类：UI 层引用 ~80、netstandard2.1 不兼容 ~30、NuGet 缺失 ~10）
+
 ## [3.8.2](https://gitgud.io/minus010001/emuera_lazyloading_selfmodified_version) — 2026-05-15
 
 ### Fixed

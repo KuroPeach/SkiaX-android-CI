@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+	xmlns="http://xamarin.com/schemas/2014/forms"
+	xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+	xmlns:views="clr-namespace:XEmuera.Views"
+	xmlns:res="clr-namespace:XEmuera.Resources"
+	x:Class="XEmuera.Views.AboutPage">
+
+	<ListView
+		x:Name="AboutListView"
+		HasUnevenRows="True"
+		IsGroupingEnabled="True"
+		ItemSelected="ListView_ItemSelected">
+
+		<ListView.Header>
+
+			<StackLayout
+				Orientation="Vertical"
+				Padding="0,20,0,0">
+
+				<Frame
+					Padding="0"
+					WidthRequest="64"
+					HeightRequest="64"
+					CornerRadius="32"
+					IsClippedToBounds="True"
+					HorizontalOptions="Center">
+					<views:TintImageButton
+						Image="app_icon.png"
+						Clicked="AvatarImageButton_Clicked"/>
+				</Frame>
+
+				<StackLayout
+					Orientation="Vertical"
+					Spacing="0">
+
+					<Label
+						Text="{Binding AppName}"
+						FontSize="18"
+						TextColor="{StaticResource ZimaBlueColor}"
+						HorizontalOptions="Center" />
+
+					<Label
+						Text="{Binding Version}"
+						FontSize="13"
+						HorizontalOptions="Center" />
+
+				</StackLayout>
+			</StackLayout>
+		</ListView.Header>
+
+		<ListView.GroupHeaderTemplate>
+			<DataTemplate>
+				<ViewCell>
+					<Label
+						Text="{Binding GroupTitle}"
+						TextColor="HotPink"
+						FontSize="12"
+						Margin="5,0,0,5"
+						HeightRequest="30"
+						VerticalTextAlignment="End" />
+				</ViewCell>
+			</DataTemplate>
+		</ListView.GroupHeaderTemplate>
+
+		<ListView.ItemTemplate>
+			<DataTemplate>
+				<ViewCell>
+					<StackLayout
+						Padding="10"
+						Orientation="Horizontal">
+						<Label
+							Text="{Binding Text}" />
+						<Label
+							Text="{Binding Detail}"
+							FontSize="14"
+							HorizontalOptions="EndAndExpand" />
+
+					</StackLayout>
+				</ViewCell>
+			</DataTemplate>
+		</ListView.ItemTemplate>
+
+		<ListView.Footer>
+			<StackLayout
+				Orientation="Vertical"
+				Spacing="0">
+
+				<Label
+					Text="{x:Static res:StringsText.SoftwareUsageStatement}"
+					TextColor="HotPink"
+					FontSize="12"
+					Margin="5,0,0,5"
+					HeightRequest="30"
+					VerticalTextAlignment="End" />
+
+				<BoxView
+					BackgroundColor="HotPink"
+					HeightRequest="0.2" />
+
+				<StackLayout
+					Padding="10"
+					Orientation="Vertical"
+					Spacing="0">
+
+					<Label
+						Text="{x:Static res:StringsText.SoftwareUsageStatementDetail}"
+						FontSize="14" />
+
+				</StackLayout>
+			</StackLayout>
+		</ListView.Footer>
+	</ListView>
+</ContentPage>

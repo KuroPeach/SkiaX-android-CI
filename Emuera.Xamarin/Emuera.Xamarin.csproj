@@ -1,0 +1,143 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <RootNamespace>XEmuera</RootNamespace>
+    <AssemblyName>XEmuera</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>CS0436</NoWarn>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- 全局 using：消除 XEmuera.Drawing 与 System.Drawing 歧义 -->
+  <ItemGroup>
+    <Using Remove="System.Drawing.Font" />
+    <Using Remove="System.Drawing.FontStyle" />
+    <Using Remove="System.Drawing.Brush" />
+    <Using Remove="System.Drawing.Pen" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>False</Optimize>
+  </PropertyGroup>
+
+  <!-- ============================================================ -->
+  <!-- 内核：直接编译 LazyLoading 的 Runtime/ 目录                     -->
+  <!-- UI 层由 Platform/ 目录的 XEmuera-1 Skia 版本提供               -->
+  <!-- ============================================================ -->
+  <ItemGroup>
+    <Compile Include="..\Emuera\Runtime\**\*.cs" LinkBase="Runtime" />
+  </ItemGroup>
+
+  <!-- 内核 Runtime/ 排除项（仅排除 WinForms/Desktop 专用文件） -->
+  <ItemGroup>
+    <!-- WinForms/Desktop 音频 -->
+    <Compile Remove="..\Emuera\Runtime\Utils\Sound.NAudio.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\NAudio_LoopStream.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\SoundTouch_byMarkHeath\**" />
+    <!-- WinForms 插件系统 -->
+    <Compile Remove="..\Emuera\Runtime\Utils\PluginSystem\**" />
+    <!-- System.Drawing.Graphics / Drawing2D -->
+    <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Shape.cs" />
+    <!-- System.Windows.Forms -->
+    <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
+    <!-- System.Drawing.Bitmap/Icon -->
+    <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Utils.cs" />
+    <!-- ConsoleDivPart 依赖 Shape.cs -->
+    <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\ConsoleDivPart.cs" />
+    <!-- Creator.Method.cs 引用 PluginSystem -->
+    <Compile Remove="..\Emuera\Runtime\Script\Statements\Function\Creator.Method.cs" />
+  </ItemGroup>
+
+  <!-- LazyLoading 主项目入口（WinForms 专用） -->
+  <ItemGroup>
+    <Compile Remove="..\Emuera\Program.cs" />
+    <Compile Remove="..\Emuera\GlobalStatic.cs" />
+  </ItemGroup>
+
+  <!-- ============================================================ -->
+  <!-- 平台层：从 XEmuera-1 复制的 Skia/Xamarin 文件                  -->
+  <!-- ============================================================ -->
+  <ItemGroup>
+    <Compile Include="Platform\**\*.cs" />
+    <Compile Include="Drawing\**\*.cs" />
+    <Compile Include="Models\**\*.cs" />
+    <Compile Include="Views\**\*.cs" />
+    <Compile Include="Forms\**\*.cs" />
+    <Compile Include="Resources\**\*.cs" />
+    <Compile Include="Utils.cs" />
+    <Compile Include="VersionUpdate.cs" />
+    <Compile Include="App.xaml.cs" />
+    <Compile Include="MainPage.xaml.cs" />
+  </ItemGroup>
+
+  <!-- Platform 层排除项 -->
+  <ItemGroup>
+    <!-- WinForms 专用 -->
+    <Compile Remove="Platform\Forms\**" />
+    <!-- Lang.cs 与 LazyLoading 内核的 Lang.cs 冲突 -->
+    <Compile Remove="Platform\Lang.cs" />
+  </ItemGroup>
+
+  <!-- ============================================================ -->
+  <!-- 资源文件                                                       -->
+  <!-- ============================================================ -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Docs\Emuera_readme.txt" />
+    <EmbeddedResource Include="Resources\Fonts\MS Gothic.ttf" />
+    <EmbeddedResource Include="Resources\Fonts\Microsoft YaHei.ttf" />
+    <EmbeddedResource Include="Resources\Images\app_icon.png" />
+  </ItemGroup>
+
+  <!-- XAML 资源 -->
+  <ItemGroup>
+    <EmbeddedResource Update="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="MainPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Views\ConfigPage.xaml">
+      <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Views\ConfigSettingsPage.xaml">
+      <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Views\FontSettingsPage.xaml">
+      <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Views\LanguagePage.xaml">
+      <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Views\MainMenuPage.xaml">
+      <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Views\TxtFilePage.xaml">
+      <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- ============================================================ -->
+  <!-- NuGet 包引用                                                   -->
+  <!-- ============================================================ -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+    <PackageReference Include="ReorderableCollectionView.Forms" Version="1.0.0" />
+    <PackageReference Include="SkiaSharp" Version="2.88.0" />
+    <PackageReference Include="SkiaSharp.Svg" Version="1.60.0" />
+    <PackageReference Include="SkiaSharp.Views.WPF" Version="2.88.0" />
+    <PackageReference Include="SkiaSharp.Views.Forms" Version="2.88.0" />
+    <PackageReference Include="Spillman.Xamarin.Forms.ColorPicker" Version="1.0.8" />
+    <PackageReference Include="Xamarin.CommunityToolkit" Version="2.0.2" />
+    <PackageReference Include="Xamarin.Forms" Version="5.0.0.2478" />
+    <PackageReference Include="Xamarin.Essentials" Version="1.7.3" />
+  </ItemGroup>
+
+</Project>
