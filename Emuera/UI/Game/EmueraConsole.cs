@@ -1283,6 +1283,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		}
 		else if (state == ConsoleState.Error)
 		{
+			if (Program.DebugMode)
+               return;
 			if (input == ErrorButtonsText && selectingButton != null && selectingButton.ErrPos != null)
 			{
 				OpenErrorFile(selectingButton.ErrPos);
