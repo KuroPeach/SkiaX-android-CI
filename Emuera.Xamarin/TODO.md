@@ -14,6 +14,7 @@
 - ✅ 知识库已更新（9 个条目完整覆盖）
 - 🔄 **Phase 2 运行时适配 — 进行中**
   - ✅ **Phase 2C 已完成**：IPathProvider 接口 + DefaultPathProvider + Program getter 委托
+  - ✅ **Phase 2B 已完成**：SkiaPfc 替代 PrivateFontCollection + SkiaFontFamily + InstalledFontCollection 命名空间覆盖
   - ⚠️ 关键发现：编译通过≠可运行，三大运行时障碍待解决
   - ⚠️ 执行顺序调整：2C→2B→2A→2D→2E（原计划 2A→2B→2C→2D→2E）
   - 详见 [phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
@@ -69,17 +70,17 @@ Phase 2 的任务来源于三个层次：
 
 **风险**：LazyLoading 的 `Program.Main()` 包含大量 WinForms 初始化（窗口创建、事件绑定），需逐项替换。
 
-#### 切片 2B：Pfc (PrivateFontCollection) 替换
+#### 切片 2B：Pfc (PrivateFontCollection) 替换 — ✅ 已完成
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 2B-1 | 创建 SkiaSharp 字体集合存根 | 替代 `System.Drawing.Text.PrivateFontCollection` |
-| 2B-2 | 实现 `Families` 属性 | 返回 `SKTypeface[]` 而非 `FontFamily[]` |
-| 2B-3 | 实现 `AddFontFile()` | 加载字体文件到 `SKTypeface` |
-| 2B-4 | 修改 Creator.Method.cs 中的 Pfc 使用 | `FontFamily` → `SKTypeface`（csproj 排除+替代） |
-| 2B-5 | 编译验证 | — |
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 2B-1 | 创建 `SkiaPfc` + `SkiaFontFamily` 类 | `Families` 返回 `System.Drawing.FontFamily[]`，`AddFontFile()` 加载到 `SKTypeface` | ✅ |
+| 2B-2 | 创建 `InstalledFontCollection` 命名空间覆盖 | `System.Drawing.Text` 命名空间，实现 `IDisposable` | ✅ |
+| 2B-3 | 修改 `GlobalStatic.Pfc` 类型声明 | `dynamic` → `SkiaPfc` | ✅ |
+| 2B-4 | 添加 `FontFamily`/`InstalledFontCollection` 全局 using alias | csproj `<Using>` 配置 | ✅ |
+| 2B-5 | 编译验证 | 0 错误 | ✅ |
 
-**风险**：Creator.Method.cs 是内核文件，不能直接修改。需 csproj 排除原文件 + 创建 Platform 替代版本。涉及 2 处调用（行 3221、7137）。
+**实施方案**：`SkiaPfc.Families` 返回 `System.Drawing.FontFamily[]`，内核代码中 `Pfc.Families` 的 `foreach` 和强转无需修改。`InstalledFontCollection` 在 `System.Drawing.Text` 命名空间下创建替代类，覆盖原始 `System.Drawing.Common` 的同名类。
 
 #### 切片 2C：路径系统适配 — ✅ 已完成
 

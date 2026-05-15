@@ -22,6 +22,8 @@
     <Using Include="XEmuera.Drawing.GraphicsUnit" Alias="GraphicsUnit" />
     <Using Include="XEmuera.Drawing.SolidBrush" Alias="SolidBrush" />
     <Using Include="XEmuera.Drawing.Font" Alias="Font" />
+    <Using Include="MinorShift.Emuera.SkiaFontFamily" Alias="FontFamily" />
+    <Using Include="MinorShift.Emuera.SkiaInstalledFontCollection" Alias="InstalledFontCollection" />
   </ItemGroup>
 
   <!-- 全局 using：命名空间转发（内核期望的命名空间 → Platform 实际命名空间） -->

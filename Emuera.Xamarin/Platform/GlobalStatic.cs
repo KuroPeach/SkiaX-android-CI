@@ -35,7 +35,7 @@ namespace MinorShift.Emuera
 		public static LabelDictionary LabelDictionary;
 		public static Runtime.Utils.CtrlZ ctrlZ = new Runtime.Utils.CtrlZ();
 		public static IPathProvider PathProvider;
-		public static dynamic Pfc;
+		public static SkiaPfc Pfc = new();
 		public static GameProc.Sound[] Sound = new GameProc.Sound[16];
 		public static GameProc.Sound Bgm;
 		public static List<SkiaSharp.SKTypeface> CustomTypefaces = new();
