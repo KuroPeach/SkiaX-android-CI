@@ -1,3 +1,4 @@
+using MinorShift.Emuera.Content;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
@@ -11,6 +12,7 @@ using System.IO;
 using System.Text;
 using XEmuera;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
+using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
 
 namespace MinorShift.Emuera.Content
 {
@@ -306,6 +308,14 @@ namespace MinorShift.Emuera.Content
 			//新規スプライト定義
 			ASprite image = new SpriteF(name, parentImage, rect, pos);
 			return image;
+		}
+
+		static public void UnloadTempLoadedConstImageNames()
+		{
+		}
+
+		static public void UnloadTempLoadedGraphicsImageNames()
+		{
 		}
 
 

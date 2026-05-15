@@ -1,8 +1,9 @@
-﻿using SkiaSharp;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
+using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
 
 namespace MinorShift.Emuera.GameView
 {

@@ -10,7 +10,7 @@
 - ✅ 已添加到解决方案
 - ✅ TFM 升级到 net8.0-windows
 - ✅ LazyLoading 主项目编译通过（0 错误）
-- 🔄 Emuera.Xamarin：818 个编译错误（类型冲突层面）
+- 🔄 Emuera.Xamarin：336 个编译错误（从 818 收敛）
 - ✅ 知识库已更新（porting-methodology/architecture/type-conflicts/net8-migration）
 
 ---
@@ -21,36 +21,42 @@
 
 ## Phase 1：编译错误收敛 — 🔄 进行中
 
-### Step 1：解决类型冲突
+### Step 1：解决类型冲突 — ✅ 已完成
 
 | 任务 | 状态 | 说明 |
 |------|------|------|
-| 1.1 ConfigCode 枚举冲突 | ⬜ | 排除 Platform/Config/ConfigCode.cs，使用内核版本 |
-| 1.2 MixedNum 类型冲突 | ⬜ | 排除 stub 中的 MixedNum，使用内核版本 |
-| 1.3 FontStyle/GraphicsUnit/SolidBrush 歧义 | 🔄 | 17 个文件已添加 Font/FontStyle/Brush/Pen 别名，还需 GraphicsUnit/SolidBrush |
+| 1.1 ConfigCode 枚举冲突 | ✅ | csproj `<Compile Remove>` 排除 Platform 版本 |
+| 1.2 MixedNum 类型冲突 | ✅ | 删除 ConsoleImagePart.cs 内联定义，添加 using 别名 |
+| 1.3 FontStyle/GraphicsUnit/SolidBrush 歧义 | ✅ | csproj 全局 `<Using Remove>` + 局部 using 别名 |
 
-### Step 2：补全 EmueraConsole 缺失方法
-
-| 任务 | 状态 | 说明 |
-|------|------|------|
-| 2.1 HTML Island 方法 | ⬜ | PrintHTMLIsland/ClearHTMLIsland |
-| 2.2 背景图管理方法 | ⬜ | AddBackgroundImage/RemoveBackground/ClearBackgroundImage |
-| 2.3 其他缺失方法 | ⬜ | TextBackgroundColor/PrintHtmlC/PrintImg/printCustomBar/Window/PrintErrorButton |
-
-### Step 3：补全缺失类型和命名空间
+### Step 2：补全 EmueraConsole 缺失方法 — ✅ 已完成
 
 | 任务 | 状态 | 说明 |
 |------|------|------|
-| 3.1 DisplayLineAlignment 枚举 | ⬜ | 在 Stubs 中定义 |
-| 3.2 AppContents 命名空间 | ⬜ | using 别名 |
-| 3.3 HtmlManager 命名空间 | ⬜ | using 别名 |
-| 3.4 GlobalStatic.ctrlZ | ⬜ | 添加属性 |
-| 3.5 ScriptPosition nullable | ⬜ | 添加 `!` 操作符 |
-| 3.6 InputType 枚举 | ⬜ | 映射到 LazyLoading 命名空间 |
+| 2.1 HTML Island 方法 | ✅ | PrintHTMLIsland/ClearHTMLIsland 存根 |
+| 2.2 背景图管理方法 | ✅ | AddBackgroundImage/RemoveBackground/ClearBackgroundImage 存根 |
+| 2.3 其他缺失方法 | ✅ | TextBackgroundColor/PrintHtmlC/PrintImg/printCustomBar/Window/PrintErrorButton/PrintHtml/PrintBuffer/DisplayLineList/LastButtonGeneration/EscapedParts/GetLineNo/ClearText |
+| 2.4 其他缺失成员 | ✅ | MainWindow（ApplyTextBoxChanges/Load/update_lastinput/clear_richText）、AppContents（UnloadTemp*）、GlobalStatic（ctrlZ/Pfc/Sound/Bgm）、Program（rebootFlag/WorkingDir）、Config（StringComparison/StrComper/ImageQuality/FontHinting/FontEdging）、Lang（LoadLanguageFile） |
+
+### Step 3：补全缺失类型和命名空间 — 🔄 部分完成
+
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| 3.1 DisplayLineAlignment 枚举 | ✅ | 已在 ConsoleDisplayLine.cs 中定义（GameView 命名空间） |
+| 3.2 全局 using 命名空间转发 | ✅ | csproj 中添加 12 个全局 using |
+| 3.3 Creator.Method.cs 恢复 | ✅ | 误排除，恢复后消除 ~300 个错误 |
+| 3.4 Sound/Bgm/WinmmTimer 存根 | ✅ | Platform/Stubs/ 中添加 |
+| 3.5 EraStreamReader | 🔄 | 内核已有，需确认 using |
+| 3.6 FontFactory | 🔄 | 内核已有，级联错误导致不可见 |
+| 3.7 ConfigValuePopup XAML | 🔄 | UseLanguage/ReduceArgumentOnLoadFlag/DisplayWarningFlag using 已添加 |
 
 ### Step 4：迭代编译直到错误收敛
 
-每轮编译后分析错误分布，按优先级修复。
+当前 336 个错误，主要类别：
+- CS0103（名称不存在）：~150 — 主要是 XAML InitializeComponent、FontFactory、Sys 等
+- CS1061（方法不存在）：~80 — 主要是 Creator.Method.cs 中的 dynamic 操作
+- CS0246（类型未找到）：~60 — 主要是 EraStreamReader、_Library 等
+- 其他：~46 — Nullable、类型转换等
 
 ### Step 5：提交 Phase 1 完成版本
 
@@ -78,3 +84,11 @@
 - 音频系统
 - IO 路径抽象
 - SQL 跨平台
+
+---
+
+## 关键技术发现
+
+1. **全局 using 命名空间转发**：csproj `<Using Include>` 可解决内核文件找不到 Platform 类型的问题，但有冲突的命名空间（如 `Runtime.Config` vs `Config`）不能用全局 using
+2. **Creator.Method.cs 误排除**：注释说引用 PluginSystem，实际不引用，恢复后消除 ~300 个错误
+3. **命名空间迁移反模式**：不能移动 Platform 类型的命名空间来匹配内核期望，会导致级联错误

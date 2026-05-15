@@ -9,10 +9,10 @@ using Font = XEmuera.Drawing.Font;
 using FontStyle = XEmuera.Drawing.FontStyle;
 using Brush = XEmuera.Drawing.Brush;
 using Pen = XEmuera.Drawing.Pen;
+using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
 
 namespace MinorShift.Emuera.GameView
 {
-	//難読化用属性。enum.ToString()やenum.Parse()を行うなら(Exclude=true)にすること。
 	[global::System.Reflection.Obfuscation(Exclude=false)]
 	internal enum DisplayLineLastState
 	{
@@ -22,7 +22,6 @@ namespace MinorShift.Emuera.GameView
 		BackLog = 3,
 	}
 	
-	//難読化用属性。enum.ToString()やenum.Parse()を行うなら(Exclude=true)にすること。
 	[global::System.Reflection.Obfuscation(Exclude=false)]
 	internal enum DisplayLineAlignment
 	{
@@ -30,6 +29,7 @@ namespace MinorShift.Emuera.GameView
 		CENTER = 1,
 		RIGHT = 2,
 	}
+	
 	/// <summary>
 	/// 表示行。1つ以上のボタン（ConsoleButtonString）からなる
 	/// </summary>

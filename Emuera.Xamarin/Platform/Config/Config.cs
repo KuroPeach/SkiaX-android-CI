@@ -5,6 +5,7 @@ using System.IO;
 using System;
 using XEmuera.Forms;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Config;
 using XEmuera;
 using XEmuera.Drawing;
 using SkiaSharp;
@@ -13,6 +14,8 @@ using Font = XEmuera.Drawing.Font;
 using FontStyle = XEmuera.Drawing.FontStyle;
 using Brush = XEmuera.Drawing.Brush;
 using Pen = XEmuera.Drawing.Pen;
+using GraphicsUnit = XEmuera.Drawing.GraphicsUnit;
+using SolidBrush = XEmuera.Drawing.SolidBrush;
 
 namespace MinorShift.Emuera
 {
@@ -525,6 +528,9 @@ namespace MinorShift.Emuera
 		/// </summary>
 		public const StringComparison SCExpression = StringComparison.Ordinal;
 
+		public static StringComparison StringComparison { get; private set; } = StringComparison.OrdinalIgnoreCase;
+		public static StringComparer StrComper = StringComparer.OrdinalIgnoreCase;
+
 		/// <summary>
 		/// GDI+利用時に発生する文字列と図形・画像間の位置ずれ補正
 		/// </summary>
@@ -627,6 +633,10 @@ namespace MinorShift.Emuera
 		public static bool SystemIgnoreTripleSymbol { get; private set; }
 		public static bool SystemNoTarget { get; private set; }
 		public static bool SystemIgnoreStringSet { get; private set; }
+
+		public static int ImageQuality { get; set; } = 2;
+		public static int FontHinting { get; set; } = 0;
+		public static int FontEdging { get; set; } = 1;
 
 		public static int Language { get; private set; }
 

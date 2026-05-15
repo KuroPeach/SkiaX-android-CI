@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
+using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -14,6 +16,7 @@ using Font = XEmuera.Drawing.Font;
 using FontStyle = XEmuera.Drawing.FontStyle;
 using Brush = XEmuera.Drawing.Brush;
 using Pen = XEmuera.Drawing.Pen;
+using MixedNum = MinorShift.Emuera.Runtime.Utils.EvilMask.Utils.MixedNum;
 
 namespace MinorShift.Emuera.GameView
 {

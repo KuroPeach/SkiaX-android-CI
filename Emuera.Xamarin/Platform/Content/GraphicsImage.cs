@@ -13,6 +13,8 @@ using Font = XEmuera.Drawing.Font;
 using FontStyle = XEmuera.Drawing.FontStyle;
 using Brush = XEmuera.Drawing.Brush;
 using Pen = XEmuera.Drawing.Pen;
+using GraphicsUnit = XEmuera.Drawing.GraphicsUnit;
+using SolidBrush = XEmuera.Drawing.SolidBrush;
 
 namespace MinorShift.Emuera.Content
 {

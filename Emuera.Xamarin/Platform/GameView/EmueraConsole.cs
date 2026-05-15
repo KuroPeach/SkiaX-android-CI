@@ -35,6 +35,7 @@ using Font = XEmuera.Drawing.Font;
 using FontStyle = XEmuera.Drawing.FontStyle;
 using Brush = XEmuera.Drawing.Brush;
 using Pen = XEmuera.Drawing.Pen;
+using AConsoleDisplayNode = MinorShift.Emuera.UI.Game.AConsoleDisplayNode;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -453,9 +454,9 @@ namespace MinorShift.Emuera.GameView
 		#region button関連
 		bool lastButtonIsInput = true;
         public bool updatedGeneration = false;
-		int lastButtonGeneration = 0;//最後に追加された選択肢の世代。これと世代が一致しない選択肢は選択できない。
-		int newButtonGeneration = 0;//次に追加される選択肢の世代。Input又はInputsごとに増加
-		//public int LastButtonGeneration { get { return lastButtonGeneration; } }
+		int lastButtonGeneration = 0;
+		int newButtonGeneration = 0;
+		public int LastButtonGeneration { get { return lastButtonGeneration; } }
 		public int NewButtonGeneration { get { return newButtonGeneration; } }
         public void UpdateGeneration() { lastButtonGeneration = newButtonGeneration; updatedGeneration = true; }
         public void forceUpdateGeneration() { newButtonGeneration++; lastButtonGeneration = newButtonGeneration; updatedGeneration = true; }
@@ -2114,9 +2115,39 @@ namespace MinorShift.Emuera.GameView
 		{
 			if(timer != null)
 				timer.Dispose();
-			//timer = null;
-			//stringMeasure.Dispose();
 		}
+
+		#region LazyLoading 内核缺失方法存根
+
+		public MainWindow Window { get { return window; } }
+
+		public Color? TextBackgroundColor { get; set; }
+
+		public void AddBackgroundImage(string name, long depth, float opacity)
+		{
+		}
+
+		public void RemoveBackground(string key)
+		{
+		}
+
+		public void ClearBackgroundImage()
+		{
+		}
+
+		public PrintStringBuffer PrintBuffer { get { return printBuffer; } }
+
+		public List<ConsoleDisplayLine> DisplayLineList { get { return displayLineList; } }
+
+		public Dictionary<int, List<AConsoleDisplayNode>> EscapedParts { get; } = new Dictionary<int, List<AConsoleDisplayNode>>();
+
+		public int GetLineNo { get { return lineNo; } }
+
+		public void ClearText()
+		{
+		}
+
+		#endregion
 
 
 	}

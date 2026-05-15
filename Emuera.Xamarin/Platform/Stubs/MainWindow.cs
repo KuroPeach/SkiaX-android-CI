@@ -22,6 +22,10 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public void Refresh() { }
 		public void RefreshQuickButtonGroup() { }
 		public void quickButton_Clicked(object sender, EventArgs e) { }
+		public void ApplyTextBoxChanges() { }
+		public void Load() { }
+		public void update_lastinput() { }
+		public void clear_richText() { }
 	}
 
 	internal class ScrollBar

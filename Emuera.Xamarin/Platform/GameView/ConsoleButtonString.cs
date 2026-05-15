@@ -6,6 +6,7 @@ using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
 using SkiaSharp;
+using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
 
 namespace MinorShift.Emuera.GameView
 {

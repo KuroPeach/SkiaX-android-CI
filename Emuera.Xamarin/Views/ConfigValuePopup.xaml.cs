@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Globalization;
 using MinorShift.Emuera;
+using MinorShift.Emuera.Runtime.Config;
 using Spillman.Xamarin.Forms.ColorPicker;
 using Xamarin.Forms;
 using XEmuera.Models;

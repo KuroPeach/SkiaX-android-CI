@@ -254,6 +254,7 @@ namespace MinorShift.Emuera
 		/// 実行ファイルのディレクトリ。最後に\を付けたstring
 		/// </summary>
 		public static string ExeDir { get; private set; }
+		public static string WorkingDir = "";
 		public static string CsvDir { get; private set; }
 		public static string ErbDir { get; private set; }
 		public static string DebugDir { get; private set; }
@@ -274,6 +275,7 @@ namespace MinorShift.Emuera
 
 		public static bool AnalysisMode = false;
 		public static List<string> AnalysisFiles = null;
+		public static bool rebootFlag = false;
 
 		public static bool debugMode = false;
 		public static bool DebugMode { get { return debugMode; } }

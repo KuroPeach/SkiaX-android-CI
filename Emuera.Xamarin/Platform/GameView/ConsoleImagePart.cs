@@ -12,16 +12,11 @@ using Font = XEmuera.Drawing.Font;
 using FontStyle = XEmuera.Drawing.FontStyle;
 using Brush = XEmuera.Drawing.Brush;
 using Pen = XEmuera.Drawing.Pen;
+using MixedNum = MinorShift.Emuera.Runtime.Utils.EvilMask.Utils.MixedNum;
+using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
 
 namespace MinorShift.Emuera.GameView
 {
-	#region EM_私家版_HTMLパラメータ拡張
-	internal sealed class MixedNum
-	{
-		public int num = 0;
-		public bool isPx = false;
-	}
-	#endregion
 	class ConsoleImagePart : AConsoleDisplayPart
 	{
 		#region EM_私家版_HTMLパラメータ拡張

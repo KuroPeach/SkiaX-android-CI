@@ -12,6 +12,8 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 {
     internal sealed class Lang
     {
+        public static void LoadLanguageFile(string path) { }
+
         public sealed class TranslatableString
         {
             public TranslatableString(string text)

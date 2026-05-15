@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.ComponentModel;
 using MinorShift.Emuera;
+using ConfigCode = MinorShift.Emuera.Runtime.Config.ConfigCode;
+using ConfigData = MinorShift.Emuera.ConfigData;
 using Xamarin.Forms;
 using XEmuera.Resources;
 using Font = XEmuera.Drawing.Font;

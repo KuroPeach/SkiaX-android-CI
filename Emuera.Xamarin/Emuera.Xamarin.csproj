@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
     <RootNamespace>XEmuera</RootNamespace>
     <AssemblyName>XEmuera</AssemblyName>
@@ -9,7 +10,7 @@
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
     <LangVersion>latest</LangVersion>
-    <NoWarn>CS0436</NoWarn>
+    <NoWarn>CS0436;CS8981</NoWarn>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
@@ -19,6 +20,28 @@
     <Using Remove="System.Drawing.FontStyle" />
     <Using Remove="System.Drawing.Brush" />
     <Using Remove="System.Drawing.Pen" />
+    <Using Remove="System.Drawing.GraphicsUnit" />
+    <Using Remove="System.Drawing.SolidBrush" />
+  </ItemGroup>
+
+  <!-- 全局 using：命名空间转发（内核期望的命名空间 → Platform 实际命名空间） -->
+  <ItemGroup>
+    <Using Include="MinorShift.Emuera.GameView" />
+    <Using Include="MinorShift.Emuera.Content" />
+    <Using Include="MinorShift.Emuera.Runtime.Utils" />
+    <Using Include="MinorShift.Emuera.Runtime.Script" />
+    <Using Include="MinorShift.Emuera.Runtime.Script.Statements" />
+    <Using Include="MinorShift.Emuera.Runtime.Script.Statements.Expression" />
+    <Using Include="MinorShift.Emuera.Runtime.Script.Statements.Function" />
+    <Using Include="MinorShift.Emuera.Runtime.Script.Statements.Variable" />
+    <Using Include="MinorShift.Emuera.Runtime.Script.Data" />
+    <Using Include="MinorShift.Emuera.Runtime.Script.Parser" />
+    <Using Include="MinorShift.Emuera.GameProc" />
+    <Using Include="MinorShift.Emuera.GameData.Variable" />
+    <Using Include="MinorShift.Emuera.GameData.Function" />
+    <Using Include="MinorShift.Emuera.UI" />
+    <Using Include="MinorShift.Emuera.UI.Game" />
+    <Using Include="MinorShift.Emuera.UI.Game.Image" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -52,8 +75,8 @@
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Utils.cs" />
     <!-- ConsoleDivPart 依赖 Shape.cs -->
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\ConsoleDivPart.cs" />
-    <!-- Creator.Method.cs 引用 PluginSystem -->
-    <Compile Remove="..\Emuera\Runtime\Script\Statements\Function\Creator.Method.cs" />
+    <!-- Creator.Method.cs 不再引用 PluginSystem，恢复编译 -->
+    <!-- <Compile Remove="..\Emuera\Runtime\Script\Statements\Function\Creator.Method.cs" /> -->
   </ItemGroup>
 
   <!-- LazyLoading 主项目入口（WinForms 专用） -->
@@ -84,6 +107,8 @@
     <Compile Remove="Platform\Forms\**" />
     <!-- Lang.cs 与 LazyLoading 内核的 Lang.cs 冲突 -->
     <Compile Remove="Platform\Lang.cs" />
+    <!-- ConfigCode.cs 与 LazyLoading 内核的 ConfigCode.cs 冲突（枚举重复定义） -->
+    <Compile Remove="Platform\Config\ConfigCode.cs" />
   </ItemGroup>
 
   <!-- ============================================================ -->

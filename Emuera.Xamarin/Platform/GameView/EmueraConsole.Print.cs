@@ -18,6 +18,8 @@ using Font = XEmuera.Drawing.Font;
 using FontStyle = XEmuera.Drawing.FontStyle;
 using Brush = XEmuera.Drawing.Brush;
 using Pen = XEmuera.Drawing.Pen;
+using MixedNum = MinorShift.Emuera.Runtime.Utils.EvilMask.Utils.MixedNum;
+using GraphicsUnit = XEmuera.Drawing.GraphicsUnit;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -731,6 +733,38 @@ namespace MinorShift.Emuera.GameView
 				return null;
 			return  printBuffer.Flush(stringMeasure, force_temporary);
 		}
+
+		#region LazyLoading 内核缺失方法存根
+
+		public void PrintHTMLIsland(string html)
+		{
+		}
+
+		public void ClearHTMLIsland()
+		{
+		}
+
+		public void PrintHtmlC(string str, bool alignRight, int cellWidthPx)
+		{
+		}
+
+		public void PrintImg(string name, string nameb, string namem, MixedNum height, MixedNum width, MixedNum ypos)
+		{
+		}
+
+		public void printCustomBar(string barStr, bool isConst)
+		{
+		}
+
+		public void PrintHtml(string str, bool toPrintBuffer)
+		{
+		}
+
+		internal void PrintErrorButton(string str, ScriptPosition? pos, int level = 0)
+		{
+		}
+
+		#endregion
 		
 	}
 }

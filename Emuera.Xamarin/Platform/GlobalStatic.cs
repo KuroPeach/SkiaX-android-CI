@@ -23,22 +23,20 @@ namespace MinorShift.Emuera
 	 */
 	internal static class GlobalStatic
 	{
-		//これは生成される順序で並んでいる。
-		//下から上を参照した場合、nullを返されることがある。
-		//Config Replace
 		public static MainWindow MainWindow;
 		public static EmueraConsole Console;
 		public static Process Process;
-		//Config.RenameDic
 		public static GameBase GameBaseData;
 		public static ConstantData ConstantData;
 		public static VariableData VariableData;
-		//StrForm
 		public static VariableEvaluator VEvaluator;
 		public static IdentifierDictionary IdentifierDictionary;
 		public static ExpressionMediator EMediator;
-		//
 		public static LabelDictionary LabelDictionary;
+		public static Runtime.Utils.CtrlZ ctrlZ = new Runtime.Utils.CtrlZ();
+		public static dynamic Pfc;
+		public static GameProc.Sound Sound;
+		public static GameProc.Bgm Bgm;
 
 
 		//ERBloaderに引数解析の結果を渡すための橋渡し変数

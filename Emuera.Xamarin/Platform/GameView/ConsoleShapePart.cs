@@ -10,6 +10,10 @@ using Font = XEmuera.Drawing.Font;
 using FontStyle = XEmuera.Drawing.FontStyle;
 using Brush = XEmuera.Drawing.Brush;
 using Pen = XEmuera.Drawing.Pen;
+using MixedNum = MinorShift.Emuera.Runtime.Utils.EvilMask.Utils.MixedNum;
+using SolidBrush = XEmuera.Drawing.SolidBrush;
+using HtmlManager = MinorShift.Emuera.GameView.HtmlManager;
+using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
 
 namespace MinorShift.Emuera.GameView
 {
