@@ -31,7 +31,7 @@ namespace MinorShift.Emuera.Content
 				size.Height = -size.Height;
 			DestBaseSize = size;
 		}
-		public abstract Color SpriteGetColor(int x, int y);
+		public abstract SKColor SpriteGetColor(int x, int y);
 		/// <summary>
 		/// 出力される標準のサイズ。正の値のみ。
 		/// </summary>
@@ -79,17 +79,17 @@ namespace MinorShift.Emuera.Content
 		{
 			get { return (BaseImage != null && BaseImage.IsCreated); }
 		}
-		public override Color SpriteGetColor(int x, int y)
+		public override SKColor SpriteGetColor(int x, int y)
 		{
 			SKBitmap bmp = this.Bitmap;
 			if (bmp == null)
-				return Color.Transparent;
+				return SKColor.Empty;
 			int bmpX = x + SrcRectangle.X;
 			int bmpY = y + SrcRectangle.Y;
 			if (bmpX < 0 || bmpX >= bmp.Width || bmpY < 0 || bmpY >= bmp.Height)
-				return Color.Transparent;
+				return SKColor.Empty;
 
-			return DisplayUtils.ToColor(bmp.GetPixel(bmpX, bmpY));
+			return bmp.GetPixel(bmpX, bmpY);
 		}
 		public override void Dispose()
 		{
@@ -138,6 +138,11 @@ namespace MinorShift.Emuera.Content
 	{
 		public SpriteG(string name, GraphicsImage gra, Rectangle rect)
 			: base(name, gra, rect)
+		{
+		}
+
+		public SpriteG(string name, GraphicsImage parent, Rectangle rect, Point pos, Size destSize)
+			: this(name, parent, rect)
 		{
 		}
 
@@ -281,7 +286,7 @@ namespace MinorShift.Emuera.Content
 		}
 
 
-		public override Color SpriteGetColor(int x, int y)
+		public override SKColor SpriteGetColor(int x, int y)
 		{
 			throw new NotSupportedException();
 			//Bitmap bmp = this.Bitmap;

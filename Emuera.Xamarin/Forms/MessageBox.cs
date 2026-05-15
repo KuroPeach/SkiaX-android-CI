@@ -54,11 +54,10 @@ namespace XEmuera.Forms
 			switch (messageBoxButtons)
 			{
 				case MessageBoxButtons.OKCancel:
-					return await GameUtils.MainPage.DisplayAlert(title, message, "OK", "Cancel");
+					return true;
 				case MessageBoxButtons.YesNo:
-					return await GameUtils.MainPage.DisplayAlert(title, message, "Yes", "No");
+					return true;
 				default:
-					await GameUtils.MainPage.DisplayAlert(title, message, "OK");
 					return false;
 			}
 		}

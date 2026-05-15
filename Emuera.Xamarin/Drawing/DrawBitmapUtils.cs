@@ -4,10 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 
 namespace XEmuera.Drawing
 {
@@ -77,7 +73,10 @@ namespace XEmuera.Drawing
 
 	public class SolidBrush : Brush
 	{
+		public Color Color => DrawingColor;
 		public SolidBrush(Color color) : base(color) { }
+		public SolidBrush(System.Drawing.SolidBrush sb) : base(sb.Color) { }
+		public static implicit operator SolidBrush(System.Drawing.SolidBrush sb) => new SolidBrush(sb);
 	}
 
 	public class Brush : Pen
@@ -86,11 +85,17 @@ namespace XEmuera.Drawing
 		{
 			IsStroke = false;
 		}
+		public Brush(System.Drawing.Brush b) : base(((System.Drawing.SolidBrush)b).Color)
+		{
+			IsStroke = false;
+		}
+		public static implicit operator Brush(System.Drawing.Brush b) => new Brush(b);
 	}
 
 	public class Pen : SKPaint
 	{
 		public Color DrawingColor;
+		public float Width { get => StrokeWidth; set => StrokeWidth = value; }
 
 		public Pen(Color color, long width = 1)
 		{
@@ -101,5 +106,17 @@ namespace XEmuera.Drawing
 			IsAntialias = Config.ShapeAntialias;
 			FilterQuality = Config.ShapeFilterQuality;
 		}
+
+		public Pen(System.Drawing.Pen p)
+		{
+			DrawingColor = p.Color;
+			IsStroke = true;
+			Color = DisplayUtils.ToSKColor(p.Color);
+			StrokeWidth = (long)p.Width;
+			IsAntialias = Config.ShapeAntialias;
+			FilterQuality = Config.ShapeFilterQuality;
+		}
+
+		public static implicit operator Pen(System.Drawing.Pen p) => new Pen(p);
 	}
 }

@@ -7,10 +7,6 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using XEmuera.Models;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 
 namespace XEmuera.Drawing
 {
@@ -254,7 +250,7 @@ namespace XEmuera.Drawing
 		}
 	}
 
-	// TODO: mixed style
+	[Flags]
 	public enum FontStyle
 	{
 		Regular = 0,
@@ -280,13 +276,37 @@ namespace XEmuera.Drawing
 		public FontModel FontModel { get; }
 		public float Size { get; }
 		public FontStyle Style { get; set; }
+		public SKFont SKFont { get; }
+		public string Name => FontModel?.Typeface?.FamilyName ?? "";
 
 		public Font(string fontName, float size, FontStyle style, GraphicsUnit unit)
 		{
 			FontModel = FontModel.GetFont(fontName);
 			Size = size;
 			Style = style;
+			SKFont = new SKFont(FontModel?.Typeface ?? SKTypeface.Default, size);
 		}
+
+		public Font(string fontName, float size)
+		{
+			FontModel = FontModel.GetFont(fontName);
+			Size = size;
+			Style = FontStyle.Regular;
+			SKFont = new SKFont(FontModel?.Typeface ?? SKTypeface.Default, size);
+		}
+
+		public Font(SKFont skFont)
+		{
+			SKFont = skFont;
+			FontModel = FontModel.GetFont(skFont?.Typeface?.FamilyName ?? "");
+			Size = skFont?.Size ?? 0;
+			Style = FontStyle.Regular;
+		}
+
+		public static implicit operator SKFont(Font f) => f?.SKFont;
+		public static implicit operator Font(SKFont f) => f == null ? null : new Font(f);
+		public static implicit operator System.Drawing.Font(Font f) =>
+			f == null ? null : new System.Drawing.Font(f.Name, f.Size, (System.Drawing.FontStyle)f.Style, System.Drawing.GraphicsUnit.Pixel);
 
 		public void SetStyle(FontStyle style)
         {

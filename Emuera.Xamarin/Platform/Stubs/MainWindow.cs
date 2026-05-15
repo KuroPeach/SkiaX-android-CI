@@ -15,7 +15,8 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 
 		public ScrollBar ScrollBar { get; } = new ScrollBar();
 		public QuickButtonGroup quickButtonGroup { get; } = new QuickButtonGroup();
-		public object quickButtonScrollView { get; set; }
+		public ScrollView quickButtonScrollView { get; set; } = new ScrollView();
+		public MainPicBoxStub MainPicBox { get; } = new MainPicBoxStub();
 
 		public void Reboot() { }
 		public void Close() { }
@@ -26,6 +27,17 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public void Load() { }
 		public void update_lastinput() { }
 		public void clear_richText() { }
+		public void ResetTextBoxPos() { }
+		public void SetTextBoxPos(int x, int y, int width = 0) { }
+		public void MainMenu_Reboot() { }
+		public void MainMenu_GotoTitle() { }
+
+		public HotkeyState hotkeyState { get; } = new HotkeyState();
+
+		public TextBoxStub TextBox { get; } = new TextBoxStub();
+
+		public void ChangeTextBox(int type = 0) { }
+		public void ChangeTextBox(string str) { }
 	}
 
 	internal class ScrollBar
@@ -41,5 +53,23 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 	{
 		public void AddButton(string text, int value) { }
 		public void Clear() { }
+	}
+
+	internal class MainPicBoxStub
+	{
+		public System.Drawing.Rectangle ClientRectangle => new System.Drawing.Rectangle(0, 0, 0, 0);
+		public System.Drawing.Point PointToClient(System.Drawing.Point screenPoint) => screenPoint;
+	}
+
+	internal class TextBoxStub
+	{
+		public System.Drawing.Color BackColor { get; set; }
+		public string Text { get; set; } = "";
+	}
+
+	internal class HotkeyState
+	{
+		public void HotkeyStateInit(nint v) { }
+		public void HotkeyStateSet(nint v1, nint v2) { }
 	}
 }

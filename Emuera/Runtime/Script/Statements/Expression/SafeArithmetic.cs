@@ -14,7 +14,7 @@ internal static class SafeArithmetic
 		catch (System.OverflowException)
 		{
 			GlobalStatic.EMediator.Console.PrintWarning(
-				$"整数溢出: {a} + {b}", pos, 1);
+				$"整数溢出: {a} + {b}", pos.Value, 1);
 			return a > 0 ? long.MaxValue : long.MinValue;
 		}
 	}
@@ -29,7 +29,7 @@ internal static class SafeArithmetic
 		catch (System.OverflowException)
 		{
 			GlobalStatic.EMediator.Console.PrintWarning(
-				$"整数溢出: {a} - {b}", pos, 1);
+				$"整数溢出: {a} - {b}", pos.Value, 1);
 			return a > 0 ? long.MaxValue : long.MinValue;
 		}
 	}
@@ -44,7 +44,7 @@ internal static class SafeArithmetic
 		catch (System.OverflowException)
 		{
 			GlobalStatic.EMediator.Console.PrintWarning(
-				$"整数溢出: {a} * {b}", pos, 1);
+				$"整数溢出: {a} * {b}", pos.Value, 1);
 			return (a > 0) == (b > 0) ? long.MaxValue : long.MinValue;
 		}
 	}
@@ -59,7 +59,7 @@ internal static class SafeArithmetic
 		catch (System.OverflowException)
 		{
 			GlobalStatic.EMediator.Console.PrintWarning(
-				$"整数溢出: -{a}", pos, 1);
+				$"整数溢出: -{a}", pos.Value, 1);
 			return long.MaxValue;
 		}
 	}
@@ -70,7 +70,7 @@ internal static class SafeArithmetic
 		if (b == 0)
 		{
 			GlobalStatic.EMediator.Console.PrintWarning(
-				$"零除: {a} / 0", pos, 1);
+				$"零除: {a} / 0", pos.Value, 1);
 			return 0;
 		}
 		return a / b;
@@ -82,7 +82,7 @@ internal static class SafeArithmetic
 		if (b == 0)
 		{
 			GlobalStatic.EMediator.Console.PrintWarning(
-				$"零除: {a} \\ 0", pos, 1);
+				$"零除: {a} \\ 0", pos.Value, 1);
 			return 0;
 		}
 		return a % b;
@@ -94,7 +94,7 @@ internal static class SafeArithmetic
 		if (b == 0.0)
 		{
 			GlobalStatic.EMediator.Console.PrintWarning(
-				$"浮点零除: {a} / 0", pos, 1);
+				$"浮点零除: {a} / 0", pos.Value, 1);
 			return double.NaN;
 		}
 		return a / b;

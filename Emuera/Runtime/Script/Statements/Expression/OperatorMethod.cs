@@ -811,7 +811,7 @@ internal static class OperatorMethodManager
 			catch (OverflowException)
 			{
 				GlobalStatic.EMediator.Console.PrintWarning(
-					"整数溢出: ++操作", null, 1);
+					"整数溢出: ++操作", default(ScriptPosition), 1);
 				return long.MaxValue;
 			}
 		}
@@ -834,7 +834,7 @@ internal static class OperatorMethodManager
 			catch (OverflowException)
 			{
 				GlobalStatic.EMediator.Console.PrintWarning(
-					"整数溢出: --操作", null, 1);
+					"整数溢出: --操作", default(ScriptPosition), 1);
 				return long.MinValue;
 			}
 		}
@@ -857,7 +857,7 @@ internal static class OperatorMethodManager
 			catch (OverflowException)
 			{
 				GlobalStatic.EMediator.Console.PrintWarning(
-					"整数溢出: ++操作(后置)", null, 1);
+					"整数溢出: ++操作(後置)", default(ScriptPosition), 1);
 				return long.MaxValue - 1;
 			}
 		}
@@ -881,7 +881,7 @@ internal static class OperatorMethodManager
 			catch (OverflowException)
 			{
 				GlobalStatic.EMediator.Console.PrintWarning(
-					"整数溢出: --操作(后置)", null, 1);
+					"整数溢出: --操作(後置)", default(ScriptPosition), 1);
 				return long.MinValue + 1;
 			}
 		}

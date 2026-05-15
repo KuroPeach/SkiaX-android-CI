@@ -1,4 +1,4 @@
-﻿﻿using MinorShift.Emuera.Runtime.Utils;
+﻿using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.UI;
 using SkiaSharp;
 using System;
@@ -295,9 +295,9 @@ internal static class Config
 
 	private static bool CheckFont(string fontName)
 	{
-		//Best way to check if a font exists on system.drawing...
 		var font = new Font(fontName, 10);
-		return FontFamily.GenericSansSerif.Name != font.Name || GlobalStatic.Pfc.Families.Any(ff => ff.Name == fontName);
+		var families = (System.Drawing.FontFamily[])GlobalStatic.Pfc.Families;
+		return FontFamily.GenericSansSerif.Name != font.Name || families.Any(ff => ff.Name == fontName);
 	}
 	#endregion
 	#endregion

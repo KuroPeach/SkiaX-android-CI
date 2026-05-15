@@ -1459,7 +1459,7 @@ internal sealed partial class FunctionIdentifier
 				catch (OverflowException)
 				{
 					GlobalStatic.EMediator.Console.PrintWarning(
-						$"TIMES整数溢出: {d}", null, 1);
+						$"TIMES整数溢出: {d}", default(ScriptPosition), 1);
 					var.SetValue(d > 0 ? long.MaxValue : long.MinValue, exm);
 				}
 			}
@@ -1471,7 +1471,7 @@ internal sealed partial class FunctionIdentifier
 				else
 				{
 					GlobalStatic.EMediator.Console.PrintWarning(
-						$"TIMES整数溢出: {d}", null, 1);
+						$"TIMES整数溢出: {d}", default(ScriptPosition), 1);
 					var.SetValue(d > 0 ? long.MaxValue : long.MinValue, exm);
 				}
 			}

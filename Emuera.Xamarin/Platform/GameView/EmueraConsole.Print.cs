@@ -14,12 +14,7 @@ using XEmuera;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 using MixedNum = MinorShift.Emuera.Runtime.Utils.EvilMask.Utils.MixedNum;
-using GraphicsUnit = XEmuera.Drawing.GraphicsUnit;
 
 namespace MinorShift.Emuera.GameView
 {

@@ -137,7 +137,7 @@ internal partial class ParserMediator
 		for (int i = 0; i < warningList.Count; i++)
 		{
 			ParserWarning warning = warningList[i];
-			console.PrintWarning(warning.WarningMes, warning.WarningPos, warning.WarningLevel);
+			console.PrintWarning(warning.WarningMes, warning.WarningPos.Value, warning.WarningLevel);
 			if (warning.StackTrace != null)
 			{
 				string[] stacks = warning.StackTrace.Split('\n');

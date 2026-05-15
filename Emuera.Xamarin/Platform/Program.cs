@@ -9,6 +9,8 @@ using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using System.IO;
 using XEmuera.Resources;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
+using MinorShift._Library;
+using WinmmTimer = MinorShift._Library.WinmmTimer;
 
 namespace MinorShift.Emuera
 {

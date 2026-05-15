@@ -1,4 +1,4 @@
-﻿﻿namespace MinorShift.Emuera.Runtime.Config;
+﻿namespace MinorShift.Emuera.Runtime.Config;
 
 internal enum DisplayWarningFlag
 {
@@ -231,5 +231,22 @@ internal enum ConfigCode
 	CBBufferSize,
 	CBScrollCount,
 	CBMinTimer,
+	#endregion
+
+	#region XEmuera
+	PanSpeed,
+	AdaptiveFont,
+	AdaptiveFontSize,
+	FontScale,
+	SystemSaveInUTF8,
+	QuickButtonFontSize,
+	QuickButtonWidth,
+	QuickButtonSpacing,
+	TextAntialias,
+	ShapeAntialias,
+	TextFilterQuality,
+	ShapeFilterQuality,
+	LongPressSkip,
+	LongPressSkipTime,
 	#endregion
 }

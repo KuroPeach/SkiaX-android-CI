@@ -6,18 +6,17 @@ using System.Drawing;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
+using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Sub;
 using System.Text.RegularExpressions;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using System.Linq;
 using XEmuera;
 using XEmuera.Models;
 using SkiaSharp;
+using System.Globalization;
 using XEmuera.Resources;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 
 namespace MinorShift.Emuera
 {
@@ -46,7 +45,7 @@ namespace MinorShift.Emuera
 		#region EM_私家版_Emuera多言語化改造
 		private void SetDefault()
 		{
-			ConfigsText.Culture = LanguageModel.Get("ja-JP");
+			ConfigsText.Culture = new CultureInfo("ja-JP");
 
 
 			configArray.Add(new ConfigItem(ConfigCode.IgnoreCase, ConfigsText.IgnoreCase, "Ignore case", true));
@@ -194,7 +193,7 @@ namespace MinorShift.Emuera
 			configArray.Add(new ConfigItem(ConfigCode.LongPressSkipTime, ConfigsText.LongPressSkipTime, "", 800));
 			#endregion
 
-			ConfigsText.Culture = LanguageModel.Current;
+			ConfigsText.Culture = new CultureInfo("ja-JP");
 		}
 		#endregion
 
@@ -318,7 +317,7 @@ namespace MinorShift.Emuera
 			#endregion
 		}
 
-		public SingleTerm GetConfigValueInERB(string text, ref string errMes)
+		public static SingleTerm GetConfigValueInERB(string text, ref string errMes)
 		{
 			ConfigItem item = Instance.GetItem(text);
 			if(item == null)
@@ -333,17 +332,17 @@ namespace MinorShift.Emuera
 				case ConfigCode.AutoSave://"オートセーブを行なう"
 				case ConfigCode.MoneyFirst://"単位の位置"
 					if(item.GetValue<bool>())
-						term = new SingleTerm(1);
+						term = new SingleLongTerm(1);
 					else
-						term = new SingleTerm(0);
+						term = new SingleLongTerm(0);
 					break;
 				//<int>
 				// 
 				case ConfigCode.FontSize:// "フォントサイズ"
-					term = new SingleTerm(Config.FontSize);
+					term = new SingleLongTerm(Config.FontSize);
 					break;
 				case ConfigCode.LineHeight:// "一行の高さ"
-					term = new SingleTerm(Config.LineHeight);
+					term = new SingleLongTerm(Config.LineHeight);
 					break;
 				case ConfigCode.WindowX:// "ウィンドウ幅"
 				case ConfigCode.PrintCPerLine:// "PRINTCを並べる数"
@@ -351,7 +350,7 @@ namespace MinorShift.Emuera
 				case ConfigCode.SaveDataNos:// "表示するセーブデータ数"
 				case ConfigCode.MaxShopItem:// "販売アイテム数"
 				case ConfigCode.ComAbleDefault:// "COM_ABLE初期値"
-					term = new SingleTerm(item.GetValue<int>());
+					term = new SingleLongTerm(item.GetValue<int>());
 					break;
 				//<Color>
 				case ConfigCode.ForeColor://"文字色"
@@ -360,14 +359,14 @@ namespace MinorShift.Emuera
 				case ConfigCode.LogColor://"履歴文字色"
 					{
 						Color color = item.GetValue<Color>();
-						term = new SingleTerm( ((color.R * 256) + color.G) * 256 + color.B);
+						term = new SingleLongTerm( ((color.R * 256) + color.G) * 256 + color.B);
 					}
 					break;
 
 				//<Int64>
 				case ConfigCode.pbandDef:// "PBANDの初期値"
 				case ConfigCode.RelationDef:// "RELATIONの初期値"
-					term = new SingleTerm(item.GetValue<Int64>());
+					term = new SingleLongTerm(item.GetValue<Int64>());
 					break;
 
 				//<string>
@@ -378,17 +377,17 @@ namespace MinorShift.Emuera
 				case ConfigCode.TitleMenuString0:// "システムメニュー0"
 				case ConfigCode.TitleMenuString1:// "システムメニュー1"
 				case ConfigCode.TimeupLabel:// "時間切れ表示"
-					term = new SingleTerm(item.GetValue<string>());
+					term = new SingleStrTerm(item.GetValue<string>());
 					break;
 				
 				//<char>
 				case ConfigCode.BarChar1:// "BAR文字1"
 				case ConfigCode.BarChar2:// "BAR文字2"
-					term = new SingleTerm(item.GetValue<char>().ToString());
+					term = new SingleStrTerm(item.GetValue<char>().ToString());
 					break;
 				//<TextDrawingMode>
 				case ConfigCode.TextDrawingMode:// "描画インターフェース"
-					term = new SingleTerm(item.GetValue<TextDrawingMode>().ToString());
+					term = new SingleStrTerm(item.GetValue<TextDrawingMode>().ToString());
 					break;
 				default:
 				{
@@ -519,7 +518,7 @@ namespace MinorShift.Emuera
 			EraStreamReader eReader = new EraStreamReader(false);
 			if (!eReader.Open(confPath))
 				return false;
-			ScriptPosition pos = null;
+			ScriptPosition pos = default(ScriptPosition);
 			try
 			{
 				string line = null;
@@ -610,7 +609,7 @@ namespace MinorShift.Emuera
 			EraStreamReader eReader = new EraStreamReader(false);
 			if (!eReader.Open(filename))
 				return;
-			ScriptPosition pos = null;
+			ScriptPosition pos = default(ScriptPosition);
 			try
 			{
 				string line = null;
@@ -685,7 +684,7 @@ namespace MinorShift.Emuera
 			EraStreamReader eReader = new EraStreamReader(false);
 			if (!eReader.Open(configdebugPath))
 				goto err;
-			ScriptPosition pos = null;
+			ScriptPosition pos = default(ScriptPosition);
 			try
 			{
 				string line = null;

@@ -26,13 +26,13 @@ namespace XEmuera
 
 		private static bool Init;
 
-		public static MainPage MainPage { get; set; }
+		public static object MainPage { get; set; }
 
 		public static RelativeLayout MainLayout { get; set; }
 
 		public static EraPictureBox MainPicBox { get; set; }
 
-		private static readonly Assembly MainAssembly = typeof(MainPage).GetTypeInfo().Assembly;
+		private static readonly Assembly MainAssembly = typeof(GameUtils).GetTypeInfo().Assembly;
 
 		public static string CurrentGamePath { get; set; }
 
@@ -74,8 +74,6 @@ namespace XEmuera
 
 			GameFolderModel.Load();
 
-			LanguageModel.Load();
-
 			FontModel.Load();
 
 			ConfigModel.Load();
@@ -99,12 +97,8 @@ namespace XEmuera
 
 		public static void StartEmuera()
 		{
-			var mainWindow = MainWindow.Load();
-			if (mainWindow != null)
-			{
-				IsEmueraPage = true;
-				MainPage.Detail.Navigation.PushAsync(mainWindow, false);
-			}
+			GlobalStatic.MainWindow?.Load();
+			IsEmueraPage = true;
 		}
 
 		public static bool RequestExternalPermissions()

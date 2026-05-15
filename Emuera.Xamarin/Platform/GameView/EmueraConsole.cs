@@ -12,6 +12,8 @@ using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Data;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.GameProc;
+using MinorShift.Emuera.GameProc.Function;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.GameData.Variable;
 //using System.Drawing.Imaging;
 using MinorShift.Emuera.UI.Framework.Forms;
@@ -31,10 +33,6 @@ using StringStream = MinorShift.Emuera.Runtime.Utils.CharStream;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 using AConsoleDisplayNode = MinorShift.Emuera.UI.Game.AConsoleDisplayNode;
 
 namespace MinorShift.Emuera.GameView
@@ -392,7 +390,7 @@ namespace MinorShift.Emuera.GameView
 			//	window.Focus();
 			//}
 			ClearDisplay();
-			if (!emuera.Initialize())
+			if (!emuera.Initialize(null).Result)
 			{
 				state = ConsoleState.Error;
 				OutputLog(null);
@@ -1356,7 +1354,7 @@ namespace MinorShift.Emuera.GameView
 				//window.TextBox.BackColor = this.bgColor;
 				MainThread.BeginInvokeOnMainThread(() =>
 				{
-					window.BackgroundColor = this.bgColor;
+					window.BackgroundColor = DisplayUtils.ToSKColor(this.bgColor);
 				});
 				lastBgColorChange = WinmmTimer.TickCount;
 			}
@@ -1578,8 +1576,8 @@ namespace MinorShift.Emuera.GameView
 			}
 			else
 			{
-				builder.AppendLine(string.Format(trsl.FileName.Text, line.Position.Filename));
-				builder.AppendLine(string.Format(trsl.LineFuncName.Text, line.Position.LineNo.ToString(), line.ParentLabelLine.LabelName));
+				builder.AppendLine(string.Format(trsl.FileName.Text, line.Position.Value.Filename));
+				builder.AppendLine(string.Format(trsl.LineFuncName.Text, line.Position.Value.LineNo.ToString(), line.ParentLabelLine.LabelName));
 				builder.AppendLine("");
 			}
 			builder.AppendLine(trsl.FuncCallStack.Text);
@@ -1675,7 +1673,7 @@ namespace MinorShift.Emuera.GameView
 				if (line == null || (line is InvalidLine))
 				{
 					WordCollection wc = LexicalAnalyzer.Analyse(new StringStream(com), LexEndWith.EoL, LexAnalyzeFlag.None);
-					IOperandTerm term = ExpressionParser.ReduceExpressionTerm(wc, TermEndWith.EoL);
+					AExpression term = ExpressionParser.ReduceExpressionTerm(wc, TermEndWith.EoL);
 					if (term == null)
 						throw new CodeEE(trerror.CanNotInterpretedLine.Text);
 					if (term.GetOperandType() == typeof(Int64))
@@ -2146,6 +2144,32 @@ namespace MinorShift.Emuera.GameView
 		public void ClearText()
 		{
 		}
+
+		public ConsoleButtonString PointingSring => pointingString;
+
+		public bool CBG_SetImage(ASprite img, int x, int y, int zdepth, int width, int height, float opacity, float[] colorMatrix) { return false; }
+
+		public bool AlwaysRefresh { get; set; }
+
+		public long AnimeTimer => 0;
+
+		public void SetImageLayer(string spriteName, long depth, int x, int y, int width, int height, int opacity, float[] colorMatrix, bool followScroll) { }
+
+		public void OutputLog(string path, bool append) { }
+
+		public void SetToolTipFontName(string fontName) { }
+
+		public bool ExistsImageLayer(long depth) => false;
+
+		public bool bitmapCacheEnabledForNextLine { get; set; }
+		public void ClearImageLayerAll() { }
+		public void ClearImageLayer(long zdepth) { }
+		public bool strictFontFallback { get; set; }
+		public void SetToolTipImg(ASprite sprite) { }
+		public void SetToolTipImg(bool value) { }
+		public void SetToolTipFormat(long format) { }
+		public void CustomToolTip(bool b) { }
+		public void SetToolTipFontSize(float size) { }
 
 		#endregion
 

@@ -8,10 +8,6 @@ using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
 using XEmuera.Drawing;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 
 namespace MinorShift.Emuera.GameView
 {

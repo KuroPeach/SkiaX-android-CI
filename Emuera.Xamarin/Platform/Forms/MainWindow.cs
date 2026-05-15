@@ -21,10 +21,6 @@ using Xamarin.Essentials;
 using Xamarin.Forms;
 using XEmuera.Drawing;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 
 namespace MinorShift.Emuera
 {

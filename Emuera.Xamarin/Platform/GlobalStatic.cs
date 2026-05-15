@@ -35,8 +35,9 @@ namespace MinorShift.Emuera
 		public static LabelDictionary LabelDictionary;
 		public static Runtime.Utils.CtrlZ ctrlZ = new Runtime.Utils.CtrlZ();
 		public static dynamic Pfc;
-		public static GameProc.Sound Sound;
-		public static GameProc.Bgm Bgm;
+		public static GameProc.Sound[] Sound = new GameProc.Sound[16];
+		public static GameProc.Sound Bgm;
+		public static List<SkiaSharp.SKTypeface> CustomTypefaces = new();
 
 
 		//ERBloaderに引数解析の結果を渡すための橋渡し変数

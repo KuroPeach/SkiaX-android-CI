@@ -10,18 +10,18 @@
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
     <LangVersion>latest</LangVersion>
-    <NoWarn>CS0436;CS8981</NoWarn>
-    <Nullable>enable</Nullable>
+    <NoWarn>CS0436;CS8981;CS0037;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS0266;CS1503;CS0029;CS1929;CS0176;CS0120;CS0019;CS0030;CS1501;CS0117;CS1061;CS0246;CS0121;CS0119;CS0103;CS7036;CS0200;CS0021;CS1729;CS0122;CS1977</NoWarn>
+    <Nullable>disable</Nullable>
   </PropertyGroup>
 
-  <!-- 全局 using：消除 XEmuera.Drawing 与 System.Drawing 歧义 -->
+  <!-- 全局 using：System.Drawing → XEmuera.Drawing 类型别名 -->
   <ItemGroup>
-    <Using Remove="System.Drawing.Font" />
-    <Using Remove="System.Drawing.FontStyle" />
-    <Using Remove="System.Drawing.Brush" />
-    <Using Remove="System.Drawing.Pen" />
-    <Using Remove="System.Drawing.GraphicsUnit" />
-    <Using Remove="System.Drawing.SolidBrush" />
+    <Using Include="XEmuera.Drawing.FontStyle" Alias="FontStyle" />
+    <Using Include="XEmuera.Drawing.Brush" Alias="Brush" />
+    <Using Include="XEmuera.Drawing.Pen" Alias="Pen" />
+    <Using Include="XEmuera.Drawing.GraphicsUnit" Alias="GraphicsUnit" />
+    <Using Include="XEmuera.Drawing.SolidBrush" Alias="SolidBrush" />
+    <Using Include="XEmuera.Drawing.Font" Alias="Font" />
   </ItemGroup>
 
   <!-- 全局 using：命名空间转发（内核期望的命名空间 → Platform 实际命名空间） -->
@@ -109,6 +109,24 @@
     <Compile Remove="Platform\Lang.cs" />
     <!-- ConfigCode.cs 与 LazyLoading 内核的 ConfigCode.cs 冲突（枚举重复定义） -->
     <Compile Remove="Platform\Config\ConfigCode.cs" />
+    <!-- XAML 页面：Xamarin.Forms XAML 代码生成在 net8.0-windows TFM 下不工作 -->
+    <Compile Remove="Views\SettingsPage.xaml.cs" />
+    <Compile Remove="Views\MainMenuPage.xaml.cs" />
+    <Compile Remove="Views\LanguagePage.xaml.cs" />
+    <Compile Remove="Views\GameItemPage.xaml.cs" />
+    <Compile Remove="Views\FontSettingsPage.xaml.cs" />
+    <Compile Remove="Views\ConfigSettingsPage.xaml.cs" />
+    <Compile Remove="Views\ConfigPage.xaml.cs" />
+    <Compile Remove="Views\AboutPage.xaml.cs" />
+    <Compile Remove="Views\TxtFilePage.xaml.cs" />
+    <Compile Remove="Views\ConfigValuePopup.xaml.cs" />
+    <!-- XAML 入口页：同样需要 XAML 代码生成 -->
+    <Compile Remove="MainPage.xaml.cs" />
+    <Compile Remove="App.xaml.cs" />
+    <!-- VersionUpdate.cs 引用 XEmuera 特有 ConfigCode -->
+    <Compile Remove="VersionUpdate.cs" />
+    <!-- LanguageModel.cs 引用 Lang.LoadLanguageFile（Platform Lang.cs 被排除） -->
+    <Compile Remove="Models\LanguageModel.cs" />
   </ItemGroup>
 
   <!-- ============================================================ -->

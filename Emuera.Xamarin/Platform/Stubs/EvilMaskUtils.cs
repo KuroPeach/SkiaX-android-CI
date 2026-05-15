@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using MinorShift.Emuera;
@@ -234,6 +236,58 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 						if (i + 1 < colors.Length) sb.Append(',');
 					}
 				sb.Append('\'');
+			}
+		}
+
+		public sealed class DataTable
+		{
+			static Type[] builtInDTTypes = [typeof(sbyte), typeof(short), typeof(int), typeof(long), typeof(string)];
+			static Dictionary<Type, string> builtInDictDTTypeNames = new()
+			{
+				{ typeof(sbyte), "int8" },
+				{ typeof(short), "int16" },
+				{ typeof(int), "int32" },
+				{ typeof(long), "int64" },
+				{ typeof(string), "string" },
+			};
+			static Dictionary<string, Type> builtInDictDTTypeNames_R = new()
+			{
+				{ "int8", typeof(sbyte) },
+				{ "int16", typeof(short) },
+				{ "int32", typeof(int) },
+				{ "int64", typeof(long) },
+				{ "string", typeof(string) },
+			};
+			public static long TypeToInt(Type t)
+			{
+				if (t == typeof(sbyte)) return 1;
+				if (t == typeof(short)) return 2;
+				if (t == typeof(int)) return 3;
+				if (t == typeof(long)) return 4;
+				if (t == typeof(string)) return 5;
+				return long.MaxValue;
+			}
+			public static Type IntToType(long i)
+			{
+				if (i > 0 && i <= builtInDTTypes.Length) return builtInDTTypes[i - 1];
+				return null;
+			}
+			public static Type NameToType(string n)
+			{
+				if (builtInDictDTTypeNames_R.ContainsKey(n)) return builtInDictDTTypeNames_R[n];
+				return null;
+			}
+			public static string TypeToName(Type t)
+			{
+				if (builtInDictDTTypeNames.ContainsKey(t)) return builtInDictDTTypeNames[t];
+				return null;
+			}
+			public static object ConvertInt(long v, Type t)
+			{
+				if (t == typeof(sbyte)) return (sbyte)Math.Min(Math.Max(v, sbyte.MinValue), sbyte.MaxValue);
+				if (t == typeof(short)) return (short)Math.Min(Math.Max(v, short.MinValue), short.MaxValue);
+				if (t == typeof(int)) return (int)Math.Min(Math.Max(v, int.MinValue), int.MaxValue);
+				return v;
 			}
 		}
 	}

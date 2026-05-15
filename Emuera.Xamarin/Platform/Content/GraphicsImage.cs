@@ -9,12 +9,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
-using GraphicsUnit = XEmuera.Drawing.GraphicsUnit;
-using SolidBrush = XEmuera.Drawing.SolidBrush;
 
 namespace MinorShift.Emuera.Content
 {
@@ -244,6 +238,15 @@ namespace MinorShift.Emuera.Content
 			img.GraphicsDraw(g, destRect, colorFilter);
 		}
 
+		public void GDrawCImg(ASprite img, Rectangle destRect, float[][] cm)
+		{
+			float[] flat = new float[20];
+			for (int i = 0; i < cm.Length && i < 5; i++)
+				for (int j = 0; j < cm[i].Length && j < 4; j++)
+					flat[i * 4 + j] = cm[i][j];
+			GDrawCImg(img, destRect, flat);
+		}
+
 		/// <summary>
 		/// GDRAWG(int ID, int srcID, int destX, int destY, int destWidth, int destHeight, int srcX, int srcY, int srcWidth, int srcHeight)
 		/// エラーチェックは呼び出し元でのみ行う
@@ -277,6 +280,15 @@ namespace MinorShift.Emuera.Content
 			//g.DrawImage(img.Bitmap, destRect, srcRect, GraphicsUnit.Pixel, imageAttributes);なんでこのパターンないのさ
 			//g.DrawImage(src, destRect, srcRect.Left, srcRect.Top, srcRect.Width, srcRect.Height, GraphicsUnit.Pixel, imageAttributes);
 			DrawBitmapUtils.DrawBitmap(g, src, srcRect, destRect, colorFilter);
+		}
+
+		public void GDrawG(GraphicsImage srcGra, Rectangle destRect, Rectangle srcRect, float[][] cm)
+		{
+			float[] flat = new float[20];
+			for (int i = 0; i < cm.Length && i < 5; i++)
+				for (int j = 0; j < cm[i].Length && j < 4; j++)
+					flat[i * 4 + j] = cm[i][j];
+			GDrawG(srcGra, destRect, srcRect, flat);
 		}
 
 
@@ -376,11 +388,14 @@ namespace MinorShift.Emuera.Content
 			g.RotateDegrees(angle, x, y);
 			SKBitmap src = srcGra.GetBitmap();
 			DrawBitmapUtils.DrawBitmap(g, src, new Rectangle(0, 0, src.Width, src.Height), new Rectangle(0, 0, Bitmap.Width, Bitmap.Height));
-			// 	g.TranslateTransform(-x, -y, System.Drawing.Drawing2D.MatrixOrder.Append);
-			// 	g.RotateTransform(angle, System.Drawing.Drawing2D.MatrixOrder.Append);
-			// 	g.TranslateTransform(x, y, System.Drawing.Drawing2D.MatrixOrder.Append);
-			// 	Bitmap src = srcGra.GetBitmap();
-			// 	g.DrawImage(src, 0, 0);
+		}
+		public void GDrawGWithRotate(SKBitmap src, Int64 a, int x, int y)
+		{
+		 	if (g == null || src == null)
+		 		throw new NullReferenceException();
+		 	float angle = a;
+			g.RotateDegrees(angle, x, y);
+			DrawBitmapUtils.DrawBitmap(g, src, new Rectangle(0, 0, src.Width, src.Height), new Rectangle(0, 0, Bitmap.Width, Bitmap.Height));
 		}
 		#endregion
 
@@ -538,12 +553,12 @@ namespace MinorShift.Emuera.Content
 		/// GGETCOLOR(int ID, int x, int y)
 		/// エラーチェックは呼び出し元でのみ行う。特に画像範囲内であるかどうかチェックすること
 		/// </summary>
-		public Color GGetColor(int x, int y)
+		public SKColor GGetColor(int x, int y)
 		{
 			if (Bitmap == null)
 				throw new NullReferenceException();
 			//UnlockGraphics();
-			return DisplayUtils.ToColor(Bitmap.GetPixel(x, y));
+			return Bitmap.GetPixel(x, y);
 		}
 
 
@@ -621,10 +636,91 @@ namespace MinorShift.Emuera.Content
 		//}
 
 		public Font Fnt { get { return font; } }
+		public int Fontstyle
+		{
+			get
+			{
+				if (font == null) return 0;
+				int ret = 0;
+				var style = font.Style;
+				if ((style & FontStyle.Bold) == FontStyle.Bold)
+					ret |= 1;
+				if ((style & FontStyle.Italic) == FontStyle.Italic)
+					ret |= 2;
+				if ((style & FontStyle.Strikeout) == FontStyle.Strikeout)
+					ret |= 4;
+				if ((style & FontStyle.Underline) == FontStyle.Underline)
+					ret |= 8;
+				return ret;
+			}
+		}
+		public Pen Pen { get { return pen; } }
+		public Brush Brush { get { return brush; } }
+		public SKBitmap SKBitmap => Bitmap;
+		public SKBitmap RealBitmap;
 		#endregion
 
+		#region EE_GDRAWLINE
+		public void GDrawLine(int fromX, int fromY, int destX, int destY)
+		{
+			if (Bitmap == null) return;
+			using var surface = SKSurface.Create(new SKImageInfo(Bitmap.Width, Bitmap.Height));
+			var c = surface.Canvas;
+			if (pen != null)
+			{
+				c.DrawPaint(new SKPaint { Color = pen.Color, StrokeWidth = pen.StrokeWidth, Style = SKPaintStyle.Stroke });
+			}
+			c.DrawLine(fromX, fromY, destX, destY, pen ?? new SKPaint { Style = SKPaintStyle.Stroke });
+		}
 
+		public void GDashStyle(long styleVal, long cap)
+		{
+			if (pen == null)
+				pen = new Pen(Config.ForeColor);
+			pen.PathEffect = SKPathEffect.CreateDash([5, 5], 0);
+		}
+		#endregion
 
+		#region EE_GDRAWPOLYGON
+		List<SKPoint> _points;
+
+		public void GDrawPolygon()
+		{
+			if (Bitmap == null || _points == null) return;
+			using var surface = SKSurface.Create(new SKImageInfo(Bitmap.Width, Bitmap.Height));
+			var c = surface.Canvas;
+			c.DrawPoints(SKPointMode.Polygon, [.. _points, _points[0]], pen ?? new SKPaint { Style = SKPaintStyle.Stroke });
+		}
+
+		public void GDrawPolygonAddPoint(SKPoint point)
+		{
+			_points ??= new List<SKPoint>();
+			_points.Add(point);
+		}
+
+		public void GDrawPolygonClearPoint()
+		{
+			_points?.Clear();
+		}
+
+		public void GFillPolygon()
+		{
+			GFillPolygon(SKColors.Black);
+		}
+
+		public void GFillPolygon(SKColor color)
+		{
+			if (Bitmap == null || _points == null || _points.Count < 3) return;
+			using var surface = SKSurface.Create(new SKImageInfo(Bitmap.Width, Bitmap.Height));
+			var c = surface.Canvas;
+			using var path = new SKPath();
+			path.MoveTo(_points[0]);
+			for (int i = 1; i < _points.Count; i++)
+				path.LineTo(_points[i]);
+			path.Close();
+			c.DrawPath(path, new SKPaint { Color = color, Style = SKPaintStyle.Fill });
+		}
+		#endregion
 
 #endregion
 

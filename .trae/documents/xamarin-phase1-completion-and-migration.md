@@ -1,5 +1,6 @@
 # Emuera.Xamarin Phase 1 收尾与 Phase 2 迁移计划
 
+> ⚠️ **本文件已归档**：持久知识已迁移至知识库 `xemuera/porting-methodology.md` 和 `xemuera/architecture.md`。本文件可在 Round 3 完成后删除。
 > 创建日期：2026-05-15
 > 状态：待批准
 

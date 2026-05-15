@@ -7,10 +7,6 @@ using ConfigCode = MinorShift.Emuera.Runtime.Config.ConfigCode;
 using ConfigData = MinorShift.Emuera.ConfigData;
 using Xamarin.Forms;
 using XEmuera.Resources;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 
 namespace XEmuera.Models
 {

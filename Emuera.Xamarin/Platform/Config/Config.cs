@@ -10,12 +10,6 @@ using XEmuera;
 using XEmuera.Drawing;
 using SkiaSharp;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
-using GraphicsUnit = XEmuera.Drawing.GraphicsUnit;
-using SolidBrush = XEmuera.Drawing.SolidBrush;
 
 namespace MinorShift.Emuera
 {
@@ -494,7 +488,7 @@ namespace MinorShift.Emuera
 		/// <summary>
 		/// IgnoreCaseはprivateに。代わりにICFunctionかICVariableを使う。
 		/// </summary>
-		private static bool IgnoreCase { get; set; }
+		public static bool IgnoreCase { get; set; }
 		private static bool CompatiFunctionNoignoreCase { get; set; }
 		
 
@@ -510,6 +504,8 @@ namespace MinorShift.Emuera
 		/// 変数・命令・$ラベル名、GOTOの引数 
 		/// </summary>
 		public static bool ICVariable { get; private set; }
+
+		public static bool UseLazyLoading { get; set; } = false;
 
 		/// <summary>
 		/// 関数名・属性名的な名前の比較フラグ
@@ -547,7 +543,7 @@ namespace MinorShift.Emuera
 		public static bool UseKeyMacro { get; private set; }
 		public static bool SizableWindow { get; private set; }
 		//public static bool UseImageBuffer { get; private set; }
-		public static TextDrawingMode TextDrawingMode { get; private set; }
+		public static TextDrawingMode TextDrawingMode { get; set; }
 		public static int WindowX { get; private set; }
 		/// <summary>
 		/// 実際に描画可能な横幅
@@ -634,9 +630,11 @@ namespace MinorShift.Emuera
 		public static bool SystemNoTarget { get; private set; }
 		public static bool SystemIgnoreStringSet { get; private set; }
 
-		public static int ImageQuality { get; set; } = 2;
-		public static int FontHinting { get; set; } = 0;
-		public static int FontEdging { get; set; } = 1;
+		public static string ReplaceContinuationBR { get; set; } = "\" \"";
+
+		public static SkiaSharpImageQuality ImageQuality { get; set; } = SkiaSharpImageQuality.Medium;
+		public static SkiaSharpFontHinting FontHinting { get; set; } = SkiaSharpFontHinting.None;
+		public static SkiaSharpFontEdging FontEdging { get; set; } = SkiaSharpFontEdging.AntiAlias;
 
 		public static int Language { get; private set; }
 

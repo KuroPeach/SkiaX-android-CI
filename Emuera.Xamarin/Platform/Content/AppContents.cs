@@ -74,6 +74,44 @@ namespace MinorShift.Emuera.Content
 			imageDictionary[imgName] = newCImg;
 		}
 
+		static public void CreateSpriteG(string imgName, GraphicsImage parent, Rectangle rect, Point pos, Size destSize)
+		{
+			if (string.IsNullOrEmpty(imgName))
+				return;
+			imgName = imgName.ToUpper();
+			SpriteG newSprite = new SpriteG(imgName, parent, rect, pos, destSize);
+			imageDictionary[imgName] = newSprite;
+		}
+
+		static public bool CreateSpriteFromFileDynamic(string name, string filepath)
+		{
+			if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(filepath))
+				return false;
+			name = name.ToUpper();
+			if (imageDictionary.ContainsKey(name))
+				return true;
+			if (!System.IO.File.Exists(filepath))
+				return false;
+			return false;
+		}
+
+		static public bool GetSprite_OnlyCheckExists(string name)
+		{
+			if (string.IsNullOrEmpty(name))
+				return false;
+			name = name.ToUpper();
+			return imageDictionary.ContainsKey(name);
+		}
+
+		static public long SpriteDisposeAll(bool delCsvImage)
+		{
+			int sprites = imageDictionary.Count;
+			foreach (var s in imageDictionary.Values)
+				s.Dispose();
+			imageDictionary.Clear();
+			return sprites;
+		}
+
 		internal static void CreateSpriteAnime(string imgName, int w, int h)
 		{
 			if (string.IsNullOrEmpty(imgName))
@@ -83,7 +121,7 @@ namespace MinorShift.Emuera.Content
 			imageDictionary[imgName] = newCImg;
 		}
 		
-		static public bool LoadContents()
+		static public bool LoadContents(bool useAsync = false)
 		{
 			if (!Directory.Exists(Program.ContentDir))
 				return true;

@@ -12,10 +12,6 @@ using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using StringStream = MinorShift.Emuera.Runtime.Utils.CharStream;
 using XEmuera.Drawing;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
-using Font = XEmuera.Drawing.Font;
-using FontStyle = XEmuera.Drawing.FontStyle;
-using Brush = XEmuera.Drawing.Brush;
-using Pen = XEmuera.Drawing.Pen;
 using MixedNum = MinorShift.Emuera.Runtime.Utils.EvilMask.Utils.MixedNum;
 
 namespace MinorShift.Emuera.GameView

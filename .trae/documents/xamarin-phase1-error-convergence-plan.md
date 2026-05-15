@@ -1,5 +1,6 @@
 # Emuera.Xamarin Phase 1 编译错误收敛计划
 
+> ⚠️ **本文件已归档**：持久知识已迁移至知识库 `xemuera/type-conflicts.md` 和 `xemuera/net8-migration.md`。本文件可在 Round 3 完成后删除。
 > **创建日期**：2026-05-15
 > **当前状态**：818 → 336 个错误（Round 1 完成）
 > **目标**：336 → 0 个错误

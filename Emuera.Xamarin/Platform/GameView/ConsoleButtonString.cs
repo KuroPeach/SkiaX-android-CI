@@ -22,7 +22,7 @@ namespace MinorShift.Emuera.GameView
 			IsButton = false;
 			PointX = -1;
 			Width = -1;
-            ErrPos = null;
+            ErrPos = default(ScriptPosition);
 		}
 		public ConsoleButtonString(EmueraConsole console, AConsoleDisplayPart[] strs, Int64 input)
 			:this(console, strs)
@@ -36,7 +36,7 @@ namespace MinorShift.Emuera.GameView
 				Generation = parent.NewButtonGeneration;
 				console.UpdateGeneration();
 			}
-            ErrPos = null;
+            ErrPos = default(ScriptPosition);
         }
 		public ConsoleButtonString(EmueraConsole console, AConsoleDisplayPart[] strs, string inputs)
 			: this(console, strs)
@@ -49,7 +49,7 @@ namespace MinorShift.Emuera.GameView
 				Generation = parent.NewButtonGeneration;
 				console.UpdateGeneration();
 			}
-            ErrPos = null;
+            ErrPos = default(ScriptPosition);
         }
 
 		public ConsoleButtonString(EmueraConsole console, AConsoleDisplayPart[] strs, Int64 input, string inputs)
@@ -64,7 +64,7 @@ namespace MinorShift.Emuera.GameView
 				Generation = parent.NewButtonGeneration;
 				console.UpdateGeneration();
 			}
-            ErrPos = null;
+            ErrPos = default(ScriptPosition);
         }
 		public ConsoleButtonString(EmueraConsole console, AConsoleDisplayPart[] strs, string inputs, ScriptPosition pos)
             : this(console, strs)
