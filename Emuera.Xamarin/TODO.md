@@ -2,7 +2,7 @@
 
 > **策略核心**：LazyLoading 内核直接编译（net8.0-windows），UI 层用 XEmuera-1 Skia 版本，逐项解决类型冲突和 API 不完整
 > **创建日期**：2026-05-15
-> **最后更新**：2026-05-15
+> **最后更新**：2026-05-16
 
 ## 当前状态
 
@@ -12,7 +12,8 @@
 - ✅ LazyLoading 主项目编译通过（0 错误）
 - ✅ **Emuera.Xamarin 编译通过（0 错误）**（818→336→0）
 - ✅ 知识库已更新（9 个条目完整覆盖）
-- 🔄 **Phase 2 运行时适配 — 启动中**
+- 🔄 **Phase 2 运行时适配 — 进行中**
+  - ✅ **Phase 2C 已完成**：IPathProvider 接口 + DefaultPathProvider + Program getter 委托
   - ⚠️ 关键发现：编译通过≠可运行，三大运行时障碍待解决
   - ⚠️ 执行顺序调整：2C→2B→2A→2D→2E（原计划 2A→2B→2C→2D→2E）
   - 详见 [phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
@@ -80,16 +81,16 @@ Phase 2 的任务来源于三个层次：
 
 **风险**：Creator.Method.cs 是内核文件，不能直接修改。需 csproj 排除原文件 + 创建 Platform 替代版本。涉及 2 处调用（行 3221、7137）。
 
-#### 切片 2C：路径系统适配
+#### 切片 2C：路径系统适配 — ✅ 已完成
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 2C-1 | 创建 `IPathProvider` 接口 | 参考 [io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md) |
-| 2C-2 | 实现 `DefaultPathProvider` | 封装现有 `Program.*` 路径 |
-| 2C-3 | 替换 `Program.ExeDir` 等硬编码 | 逐步替换，先替换 IO 函数内部 |
-| 2C-4 | 编译验证 | — |
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 2C-1 | 创建 `IPathProvider` 接口 | 12 个路径属性 + ExeName | ✅ |
+| 2C-2 | 实现 `DefaultPathProvider` | 封装 `Sys.ExeDir`，含大小写 fallback 目录解析 | ✅ |
+| 2C-3 | `Program.*` getter 委托到 `GlobalStatic.PathProvider` | 内核 122 处引用零改动 | ✅ |
+| 2C-4 | 编译验证 | 0 错误 | ✅ |
 
-**风险**：路径替换影响面广，需分阶段执行。
+**实施方案**：方案 A（Program getter 委托），`Program.ExeDir` 等属性的 getter 内部委托到 `GlobalStatic.PathProvider`，内核 Runtime/ 代码无需任何修改。
 
 #### 切片 2D：键鼠输入抽象
 

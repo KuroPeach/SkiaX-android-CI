@@ -45,45 +45,11 @@ namespace MinorShift.Emuera
 		//static void Main(string[] args)
 		internal static bool Init()
 		{
-			ExeDir = Sys.ExeDir;
+			GlobalStatic.PathProvider = new DefaultPathProvider(Sys.ExeDir);
+
 #if DEBUG
 			debugMode = true;
-
-			//ExeDirにバリアントのパスを代入することでテスト実行するためのコード。
-			//ローカルパスの末尾には\必須。
-			//ローカルパスを記載した場合は頒布前に削除すること。
-			//ExeDir = @"";
-			
 #endif
-			//CsvDir = ExeDir + "csv\\";
-			//ErbDir = ExeDir + "erb\\";
-			//DebugDir = ExeDir + "debug\\";
-			//DatDir = ExeDir + "dat\\";
-			//ContentDir = ExeDir + "resources\\";
-
-			CsvDir = ExeDir + "csv" + Path.DirectorySeparatorChar;
-			ErbDir = ExeDir + "erb" + Path.DirectorySeparatorChar;
-			DebugDir = ExeDir + "debug" + Path.DirectorySeparatorChar;
-			DatDir = ExeDir + "dat" + Path.DirectorySeparatorChar;
-			ContentDir = ExeDir + "resources" + Path.DirectorySeparatorChar;
-			MusicDir = ExeDir + "sound" + Path.DirectorySeparatorChar;
-
-			if (!Directory.Exists(CsvDir))
-				CsvDir = ExeDir + "CSV" + Path.DirectorySeparatorChar;
-			if (!Directory.Exists(ErbDir))
-				ErbDir = ExeDir + "ERB" + Path.DirectorySeparatorChar;
-			if (!Directory.Exists(DebugDir))
-				DebugDir = ExeDir + "DEBUG" + Path.DirectorySeparatorChar;
-			if (!Directory.Exists(DatDir))
-				DatDir = ExeDir + "DAT" + Path.DirectorySeparatorChar;
-			if (!Directory.Exists(ContentDir))
-				ContentDir = ExeDir + "RESOURCES" + Path.DirectorySeparatorChar;
-			if (!Directory.Exists(MusicDir))
-				MusicDir = ExeDir + "SOUND" + Path.DirectorySeparatorChar;
-
-			//エラー出力用
-			//1815 .exeが東方板のNGワードに引っかかるそうなので除去
-			ExeName = Path.GetFileNameWithoutExtension(Sys.ExeName);
 
 			//解析モードの判定だけ先に行う
 			//int argsStart = 0;
@@ -255,16 +221,16 @@ namespace MinorShift.Emuera
 		/// <summary>
 		/// 実行ファイルのディレクトリ。最後に\を付けたstring
 		/// </summary>
-		public static string ExeDir { get; private set; }
+		public static string ExeDir => GlobalStatic.PathProvider?.ExeDir ?? "";
 		public static string WorkingDir = "";
-		public static string CsvDir { get; private set; }
-		public static string ErbDir { get; private set; }
-		public static string DebugDir { get; private set; }
-		public static string DatDir { get; private set; }
-		public static string ContentDir { get; private set; }
-		public static string ExeName { get; private set; }
+		public static string CsvDir => GlobalStatic.PathProvider?.CsvDir ?? "";
+		public static string ErbDir => GlobalStatic.PathProvider?.ErbDir ?? "";
+		public static string DebugDir => GlobalStatic.PathProvider?.DebugDir ?? "";
+		public static string DatDir => GlobalStatic.PathProvider?.DatDir ?? "";
+		public static string ContentDir => GlobalStatic.PathProvider?.ContentDir ?? "";
+		public static string ExeName => GlobalStatic.PathProvider?.ExeName ?? "emuera";
 		#region EE_PLAYSOUND系
-		public static string MusicDir {get; private set; }
+		public static string MusicDir => GlobalStatic.PathProvider?.MusicDir ?? "";
 		//public static IPlayer[] sound = new IPlayer[10];
 		//public static IPlayer bgm = null;
 		#endregion
