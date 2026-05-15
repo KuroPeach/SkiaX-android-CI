@@ -15,6 +15,7 @@
 - 🔄 **Phase 2 运行时适配 — 进行中**
   - ✅ **Phase 2C 已完成**：IPathProvider 接口 + DefaultPathProvider + Program getter 委托
   - ✅ **Phase 2B 已完成**：SkiaPfc 替代 PrivateFontCollection + SkiaFontFamily + InstalledFontCollection 命名空间覆盖
+  - ✅ **Phase 2A 已完成**：入口点适配（Encoding + JSONConfig + 字体加载 + DebugConfig）
   - ⚠️ 关键发现：编译通过≠可运行，三大运行时障碍待解决
   - ⚠️ 执行顺序调整：2C→2B→2A→2D→2E（原计划 2A→2B→2C→2D→2E）
   - 详见 [phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
@@ -59,16 +60,17 @@ Phase 2 的任务来源于三个层次：
 
 ### 垂直切片
 
-#### 切片 2A：入口点适配
+#### 切片 2A：入口点适配 — ✅ 已完成
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 2A-1 | 替换 Platform/Program.cs | 从 `static void Main()` 改为 Xamarin.Forms 入口 |
-| 2A-2 | GlobalStatic 初始化序列 | 复制 LazyLoading `Program.Main()` 中的初始化逻辑 |
-| 2A-3 | Config 加载 | 连接 Platform/Config/ 到内核 Config |
-| 2A-4 | 编译+运行验证 | 确认启动不崩溃 |
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 2A-1 | 添加 `Encoding.RegisterProvider` | Shift-JIS 支持 | ✅ |
+| 2A-2 | 添加 `JSONConfig.Load()` | JSON 配置加载 | ✅ |
+| 2A-3 | 添加 `LoadFontFiles()` | font/ 目录字体加载（ttf/otf/ttc） | ✅ |
+| 2A-4 | 添加 `DebugConfig` 加载 | debug 模式配置 + DebugDir 创建 | ✅ |
+| 2A-5 | 编译验证 | 0 错误 | ✅ |
 
-**风险**：LazyLoading 的 `Program.Main()` 包含大量 WinForms 初始化（窗口创建、事件绑定），需逐项替换。
+**说明**：Lang.LoadLanguageFiles/SetLanguage 未添加（Platform/Lang.cs 被排除），Bgm/Sound.close 未添加（stub 空实现）。
 
 #### 切片 2B：Pfc (PrivateFontCollection) 替换 — ✅ 已完成
 

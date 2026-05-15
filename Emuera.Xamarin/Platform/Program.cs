@@ -45,6 +45,8 @@ namespace MinorShift.Emuera
 		//static void Main(string[] args)
 		internal static bool Init()
 		{
+			System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
 			GlobalStatic.PathProvider = new DefaultPathProvider(Sys.ExeDir);
 
 #if DEBUG
@@ -101,6 +103,19 @@ namespace MinorShift.Emuera
 			}
 
 			ConfigData.Instance.LoadConfig();
+			Runtime.Config.JSON.JSONConfig.Load();
+
+			LoadFontFiles();
+
+			if (debugMode)
+			{
+				ConfigData.Instance.LoadDebugConfig();
+				if (!Directory.Exists(DebugDir))
+				{
+					try { Directory.CreateDirectory(DebugDir); }
+					catch { return false; }
+				}
+			}
 			//二重起動の禁止かつ二重起動
 			if ((!Config.AllowMultipleInstances) && (Sys.PrevInstance()))
 			{
@@ -212,10 +227,54 @@ namespace MinorShift.Emuera
 				ParserMediator.ClearWarningList();
 				ParserMediator.Initialize(null);
 				GlobalStatic.Reset();
-				//GC.Collect();
 				ConfigData.Instance.ReLoadConfig();
 			}
 			WinmmTimer.Reset();
+		}
+
+		private static void LoadFontFiles()
+		{
+			var fontDir = ExeDir + "font" + Path.DirectorySeparatorChar;
+			if (!Directory.Exists(fontDir))
+				fontDir = ExeDir + "FONT" + Path.DirectorySeparatorChar;
+			if (!Directory.Exists(fontDir))
+				return;
+
+			foreach (string fontFile in Directory.GetFiles(fontDir, "*.ttf", SearchOption.AllDirectories))
+			{
+				GlobalStatic.Pfc.AddFontFile(fontFile);
+				try
+				{
+					var typeface = SkiaSharp.SKTypeface.FromFile(fontFile);
+					if (typeface != null)
+						GlobalStatic.CustomTypefaces.Add(typeface);
+				}
+				catch { }
+			}
+
+			foreach (string fontFile in Directory.GetFiles(fontDir, "*.otf", SearchOption.AllDirectories))
+			{
+				GlobalStatic.Pfc.AddFontFile(fontFile);
+				try
+				{
+					var typeface = SkiaSharp.SKTypeface.FromFile(fontFile);
+					if (typeface != null)
+						GlobalStatic.CustomTypefaces.Add(typeface);
+				}
+				catch { }
+			}
+
+			foreach (string fontFile in Directory.GetFiles(fontDir, "*.ttc", SearchOption.AllDirectories))
+			{
+				GlobalStatic.Pfc.AddFontFile(fontFile);
+				try
+				{
+					var typeface = SkiaSharp.SKTypeface.FromFile(fontFile);
+					if (typeface != null)
+						GlobalStatic.CustomTypefaces.Add(typeface);
+				}
+				catch { }
+			}
 		}
 
 		/// <summary>
