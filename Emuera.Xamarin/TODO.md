@@ -16,6 +16,8 @@
   - ✅ **Phase 2C 已完成**：IPathProvider 接口 + DefaultPathProvider + Program getter 委托
   - ✅ **Phase 2B 已完成**：SkiaPfc 替代 PrivateFontCollection + SkiaFontFamily + InstalledFontCollection 命名空间覆盖
   - ✅ **Phase 2A 已完成**：入口点适配（Encoding + JSONConfig + 字体加载 + DebugConfig）
+  - ⏭️ **Phase 2D 延后**：键鼠抽象在 net8.0-windows 下不需要，延后至移动端适配
+  - 🔄 **Phase 2E 待验证**：AWAIT/INPUT 行为验证
   - ⚠️ 关键发现：编译通过≠可运行，三大运行时障碍待解决
   - ⚠️ 执行顺序调整：2C→2B→2A→2D→2E（原计划 2A→2B→2C→2D→2E）
   - 详见 [phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
@@ -95,17 +97,17 @@ Phase 2 的任务来源于三个层次：
 
 **实施方案**：方案 A（Program getter 委托），`Program.ExeDir` 等属性的 getter 内部委托到 `GlobalStatic.PathProvider`，内核 Runtime/ 代码无需任何修改。
 
-#### 切片 2D：键鼠输入抽象
+#### 切片 2D：键鼠输入抽象 — ⏭️ 延后至移动端
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 2D-1 | 创建 `IInputProvider` 接口 | `GetKeyState(keycode)`、`GetMousePosition()`、`GetMouseButton()` |
-| 2D-2 | 实现 `WinInputProvider` | 封装 `WinInput.GetKeyState`（Windows） |
-| 2D-3 | 实现 `TouchInputProvider` | 触摸屏映射（短按=左键、长按=右键、返回键=ESC） |
-| 2D-4 | 替换 Creator.Method.cs 中的 WinInput 调用 | csproj 排除+替代 |
-| 2D-5 | 编译验证 | — |
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 2D-1 | 创建 `IInputProvider` 接口 | `GetKeyState(keycode)`、`GetMousePosition()`、`GetMouseButton()` | ⏭️ 延后 |
+| 2D-2 | 实现 `WinInputProvider` | 封装 `WinInput.GetKeyState`（Windows） | ⏭️ 延后 |
+| 2D-3 | 实现 `TouchInputProvider` | 触摸屏映射 | ⏭️ 延后 |
+| 2D-4 | 替换 Creator.Method.cs 中的 WinInput 调用 | csproj 排除+替代 | ⏭️ 延后 |
+| 2D-5 | 编译验证 | — | ⏭️ 延后 |
 
-**风险**：Creator.Method.cs 中 `GetKeyStateMethod` 和 `MouseButtonMethod` 直接使用 `WinInput.GetKeyState` 和 `Control.MousePosition`，必须替换为跨平台实现。
+**理由**：当前 TFM 是 `net8.0-windows` + `UseWindowsForms`，`WinInput.GetKeyState`（user32.dll）和 `Control.MousePosition`（WinForms）在 Windows 桌面端均可正常工作。键鼠抽象是移动端适配的前置条件，延后至 Phase 5（平台特定功能）。
 
 #### 切片 2E：AWAIT/INPUT 验证
 
