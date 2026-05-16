@@ -47,7 +47,7 @@ namespace XEmuera.Droid
             var host = new AndroidHost();
             host.InitEmuera();
 
-            LoadApplication(new AndroidApp());
+            LoadApplication(new AndroidApp(host.MainWindow.GetView()));
         }
 
         public override void OnRequestPermissionsResult(int requestCode, string[] permissions, [GeneratedEnum] Permission[] grantResults)

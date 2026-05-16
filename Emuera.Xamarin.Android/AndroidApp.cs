@@ -4,9 +4,12 @@ namespace XEmuera.Droid
 {
     public class AndroidApp : Application
     {
-        public AndroidApp()
+        public AndroidApp(Xamarin.Forms.View mainView)
         {
-            MainPage = new ContentPage();
+            MainPage = new ContentPage
+            {
+                Content = mainView,
+            };
         }
 
         protected override void OnStart()

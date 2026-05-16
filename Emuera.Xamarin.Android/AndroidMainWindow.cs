@@ -1,0 +1,373 @@
+extern alias skviews;
+
+using System;
+using System.Threading.Tasks;
+using Android.App;
+using Android.Content;
+using Android.OS;
+using MinorShift.Emuera;
+using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.UI.Framework.Forms;
+using SkiaSharp;
+using Xamarin.Forms;
+using XEmuera.Drawing;
+using CoreSKMouseButton = SkiaSharp.Views.Forms.SKMouseButton;
+using Point = XEmuera.Drawing.Point;
+using Timer = System.Timers.Timer;
+using XFView = Xamarin.Forms.View;
+using SKCanvasView = skviews::SkiaSharp.Views.Forms.SKCanvasView;
+using SKPaintSurfaceEventArgs = skviews::SkiaSharp.Views.Forms.SKPaintSurfaceEventArgs;
+using SKTouchEventArgs = skviews::SkiaSharp.Views.Forms.SKTouchEventArgs;
+using SKTouchAction = skviews::SkiaSharp.Views.Forms.SKTouchAction;
+
+namespace XEmuera.Droid
+{
+    internal class AndroidMainWindow : MainWindow
+    {
+        private EmueraConsole console;
+        private Activity activity;
+        private SKCanvasView canvasView;
+        private Entry textEntry;
+        private StackLayout quickButtonLayout;
+        private Grid mainLayout;
+
+        private bool IsMouseMoveAction;
+        private SKPoint StartPoint;
+        private SKPoint PrevPoint;
+        private Timer LongPressTimer;
+        private bool IsLongPressed;
+        private int scrollBarValue;
+        private int scrollBarMaximum;
+        private int scrollBarMinimum;
+        private bool pressEnterKeyInProcess;
+
+        public AndroidMainWindow(Activity activity)
+        {
+            this.activity = activity;
+
+            LongPressTimer = new Timer(500);
+            LongPressTimer.Elapsed += LongPressTimer_Elapsed;
+
+            BuildLayout();
+        }
+
+        private void BuildLayout()
+        {
+            canvasView = new SKCanvasView();
+            canvasView.EnableTouchEvents = true;
+            canvasView.PaintSurface += OnPaintSurface;
+            canvasView.Touch += OnTouch;
+
+            textEntry = new Entry
+            {
+                IsVisible = false,
+                BackgroundColor = Xamarin.Forms.Color.Black,
+                TextColor = Xamarin.Forms.Color.White,
+                Placeholder = "",
+                ReturnType = ReturnType.Done,
+            };
+            textEntry.Completed += OnEntryCompleted;
+
+            var entryLayout = new StackLayout
+            {
+                Orientation = StackOrientation.Horizontal,
+                Children = { textEntry },
+                IsVisible = false,
+                HeightRequest = 50,
+            };
+
+            quickButtonLayout = new StackLayout
+            {
+                Orientation = StackOrientation.Horizontal,
+                Spacing = 4,
+            };
+
+            var quickScroll = new ScrollView
+            {
+                Orientation = ScrollOrientation.Horizontal,
+                Content = quickButtonLayout,
+                HeightRequest = 40,
+            };
+
+            mainLayout = new Grid
+            {
+                RowDefinitions =
+                {
+                    new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
+                    new RowDefinition { Height = GridLength.Auto },
+                    new RowDefinition { Height = GridLength.Auto },
+                },
+                Children =
+                {
+                    { canvasView, 0, 0 },
+                    { entryLayout, 0, 1 },
+                    { quickScroll, 0, 2 },
+                },
+            };
+        }
+
+        public XFView GetView() => mainLayout;
+
+        internal void SetConsole(EmueraConsole console)
+        {
+            this.console = console;
+        }
+
+        #region SKCanvasView Events
+
+        private void OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)
+        {
+            if (console == null) return;
+            var canvas = e.Surface.Canvas;
+            console.OnPaint(canvas);
+        }
+
+        private void OnTouch(object sender, SKTouchEventArgs e)
+        {
+            if (console == null) return;
+
+            var mouseLocation = new Point((int)e.Location.X, (int)e.Location.Y);
+
+            if (console.MoveMouse(mouseLocation))
+                RefreshStrings(true);
+
+            switch (e.ActionType)
+            {
+                case SKTouchAction.Pressed:
+                    IsMouseMoveAction = false;
+                    PrevPoint = e.Location;
+                    StartPoint = PrevPoint;
+
+                    IsLongPressed = false;
+                    if (Config.LongPressSkip)
+                        LongPressTimer.Enabled = true;
+
+                    e.Handled = true;
+                    return;
+
+                case SKTouchAction.Moved:
+                    IsMouseMoveAction = true;
+
+                    int moveY = (int)(e.Location.Y - PrevPoint.Y);
+
+                    if (Config.LineHeight > 0)
+                    {
+                        int sign = moveY / Config.LineHeight;
+                        if (sign != 0)
+                        {
+                            int newValue = scrollBarValue - sign;
+                            newValue = Math.Max(scrollBarMinimum, Math.Min(scrollBarMaximum, newValue));
+                            if (newValue != scrollBarValue)
+                            {
+                                scrollBarValue = newValue;
+                                ScrollBar.Value = newValue;
+                                RefreshStrings(true);
+                            }
+                        }
+                    }
+
+                    PrevPoint = e.Location;
+                    e.Handled = true;
+                    return;
+
+                case SKTouchAction.Released:
+                    if (Config.LongPressSkip)
+                        LongPressTimer.Enabled = false;
+
+                    MouseReleased(e);
+                    Task.Run(() => console.LeaveMouse());
+
+                    e.Handled = true;
+                    break;
+
+                default:
+                    return;
+            }
+        }
+
+        private void MouseReleased(SKTouchEventArgs e)
+        {
+            if (IsMouseMove(e.Location))
+                return;
+
+            if (console.IsInProcess)
+                return;
+
+            var button = IsLongPressed ? CoreSKMouseButton.Right : CoreSKMouseButton.Left;
+
+            if (console.IsWaitingPrimitive)
+            {
+                var point = new Point((int)e.Location.X, (int)e.Location.Y);
+                console.MouseDown(point, button);
+                return;
+            }
+
+            bool isBacklog = scrollBarValue != scrollBarMaximum;
+            string str = console.SelectedString;
+
+            if (isBacklog)
+            {
+                scrollBarValue = scrollBarMaximum;
+                ScrollBar.Value = scrollBarMaximum;
+                RefreshStrings(true);
+            }
+
+            if (console.IsWaitingEnterKey && !console.IsError && str == null)
+            {
+                if (isBacklog) return;
+                if (button == CoreSKMouseButton.Right)
+                    PressEnterKey(true, "", true);
+                else
+                    PressEnterKey(false, "", true);
+                return;
+            }
+
+            if (str != null && button == CoreSKMouseButton.Left)
+            {
+                textEntry.Text = str;
+                PressEnterKey(false, str, true);
+                return;
+            }
+        }
+
+        private bool IsMouseMove(SKPoint endPoint)
+        {
+            return IsMouseMoveAction && SKPoint.Distance(StartPoint, endPoint) >= 10;
+        }
+
+        private void LongPressTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            LongPressTimer.Enabled = false;
+            if (IsMouseMove(PrevPoint))
+                return;
+            IsLongPressed = true;
+        }
+
+        #endregion
+
+        #region Text Input
+
+        private void OnEntryCompleted(object sender, EventArgs e)
+        {
+            var text = textEntry.Text ?? "";
+            PressEnterKey(false, text, false);
+            textEntry.Text = "";
+        }
+
+        private void PressEnterKey(bool keySkip, string str, bool changedByMouse)
+        {
+            if (pressEnterKeyInProcess) return;
+            pressEnterKeyInProcess = true;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    console.PressEnterKey(keySkip, str, changedByMouse);
+                }
+                finally
+                {
+                    pressEnterKeyInProcess = false;
+                }
+            });
+        }
+
+        #endregion
+
+        #region MainWindow Overrides
+
+        public override void Invoke(Action action)
+        {
+            if (activity == null || activity.IsDestroyed)
+            {
+                action?.Invoke();
+                return;
+            }
+            activity.RunOnUiThread(() =>
+            {
+                try { action?.Invoke(); } catch { }
+            });
+        }
+
+        public override void Refresh()
+        {
+            activity?.RunOnUiThread(() =>
+            {
+                try { canvasView?.InvalidateSurface(); } catch { }
+            });
+        }
+
+        public override void Reboot()
+        {
+        }
+
+        public override void Close()
+        {
+            activity?.Finish();
+        }
+
+        public override void Focus()
+        {
+        }
+
+        public override void update_lastinput()
+        {
+            activity?.RunOnUiThread(() =>
+            {
+                try
+                {
+                    textEntry.IsVisible = true;
+                    textEntry.Focus();
+                }
+                catch { }
+            });
+        }
+
+        public override void clear_richText()
+        {
+            activity?.RunOnUiThread(() =>
+            {
+                try
+                {
+                    textEntry.Text = "";
+                    textEntry.IsVisible = false;
+                }
+                catch { }
+            });
+        }
+
+        public override void SetTextBoxPos(int x, int y, int width = 0)
+        {
+        }
+
+        public override void ChangeTextBox(string str)
+        {
+            activity?.RunOnUiThread(() =>
+            {
+                try { textEntry.Text = str; } catch { }
+            });
+        }
+
+        #endregion
+
+        #region ScrollBar Helpers
+
+        public void UpdateScrollBar(int value, int maximum)
+        {
+            scrollBarValue = value;
+            scrollBarMaximum = maximum;
+            ScrollBar.Value = value;
+            ScrollBar.Maximum = maximum;
+        }
+
+        private void RefreshStrings(bool force)
+        {
+            if (console == null) return;
+            console.RefreshStrings(force);
+            Refresh();
+        }
+
+        #endregion
+    }
+}

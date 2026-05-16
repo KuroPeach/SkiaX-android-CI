@@ -15,11 +15,15 @@ namespace XEmuera.Droid
     internal class AndroidHost
     {
         private EmueraConsole console;
+        private AndroidMainWindow mainWindow;
+
+        public AndroidMainWindow MainWindow => mainWindow;
 
         public void InitEmuera()
         {
             InitPlatformInterop();
             InitAudio();
+            InitMainWindow();
             InitEmueraEngine();
         }
 
@@ -119,6 +123,13 @@ namespace XEmuera.Droid
             GlobalStatic.Bgm = new AndroidSound();
         }
 
+        private void InitMainWindow()
+        {
+            var context = MainActivity.Instance;
+            if (context == null) return;
+            mainWindow = new AndroidMainWindow(context);
+        }
+
         private void InitEmueraEngine()
         {
             var context = MainActivity.Instance;
@@ -134,7 +145,8 @@ namespace XEmuera.Droid
                 DrawTextUtils.Reset();
                 DrawBitmapUtils.Reset();
 
-                console = new EmueraConsole(null);
+                console = new EmueraConsole(mainWindow);
+                mainWindow.SetConsole(console);
                 console.Initialize();
             });
         }
