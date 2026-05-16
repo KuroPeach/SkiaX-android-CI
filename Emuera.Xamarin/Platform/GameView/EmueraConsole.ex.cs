@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
-using Xamarin.Essentials;
 using Xamarin.Forms;
 
 namespace MinorShift.Emuera.GameView
@@ -13,7 +12,7 @@ namespace MinorShift.Emuera.GameView
 
 		public void ClearQuickButton()
 		{
-			MainThread.BeginInvokeOnMainThread(() =>
+			window.Invoke(() =>
 			{
 				ClearQuickButtonAsync();
 			});
@@ -36,7 +35,7 @@ namespace MinorShift.Emuera.GameView
 
 		public void RefreshQuickButton()
 		{
-			MainThread.BeginInvokeOnMainThread(() =>
+			window.Invoke(() =>
 			{
 				RefreshQuickButtonAsync();
 			});
@@ -106,7 +105,7 @@ namespace MinorShift.Emuera.GameView
 						BindingContext = button.Inputs,
 						Text = button.ToString().Trim(),
 						TextColor = color,
-						BackgroundColor = System.Drawing.Color.FromArgb(bgcolor.ToArgb() ^ 0xffffff).WithAlpha(0xc0),
+						BackgroundColor = System.Drawing.Color.FromArgb(0xc0, System.Drawing.Color.FromArgb(bgcolor.ToArgb() ^ 0xffffff)),
 						FontSize = Config.QuickButtonFontSize,
 						WidthRequest = Config.QuickButtonWidth,
 						HeightRequest = Config.QuickButtonHeight,

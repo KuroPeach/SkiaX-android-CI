@@ -28,7 +28,6 @@ using SkiaSharp.Views.Forms;
 using XEmuera.Drawing;
 using SkiaSharp;
 using XEmuera;
-using Xamarin.Essentials;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using StringStream = MinorShift.Emuera.Runtime.Utils.CharStream;
 
@@ -1356,7 +1355,7 @@ namespace MinorShift.Emuera.GameView
 					sec = WinmmTimer.TickCount - lastBgColorChange;
 				}
 				window.TextBox.BackColor = this.bgColor;
-				MainThread.BeginInvokeOnMainThread(() =>
+				window.Invoke(() =>
 				{
 					window.BackgroundColor = DisplayUtils.ToSKColor(this.bgColor);
 				});
@@ -1976,7 +1975,7 @@ namespace MinorShift.Emuera.GameView
 
 		private void verticalScrollBarUpdate()
 		{
-			MainThread.BeginInvokeOnMainThread(() =>
+			window.Invoke(() =>
 			{
 				verticalScrollBarUpdateAsync();
 			});
