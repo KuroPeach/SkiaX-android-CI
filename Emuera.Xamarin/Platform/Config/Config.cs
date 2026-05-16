@@ -315,10 +315,6 @@ namespace MinorShift.Emuera
 		{
 			foreach (KeyValuePair<string, Dictionary<FontStyle, Font>> fontStyleDicPair in fontDic)
 			{
-				//foreach (KeyValuePair<FontStyle, Font> pair in fontStyleDicPair.Value)
-				//{
-				//	pair.Value.Dispose();
-				//}
 				fontStyleDicPair.Value.Clear();
 			}
 			fontDic.Clear();

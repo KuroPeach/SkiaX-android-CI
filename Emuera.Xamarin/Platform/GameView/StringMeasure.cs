@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-//using System.Drawing;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
 using XEmuera.Forms;
@@ -85,11 +84,6 @@ namespace MinorShift.Emuera.GameView
 			if (disposed)
 				return;
 			disposed = true;
-			//if (textDrawingMode == TextDrawingMode.WINAPI)
-			//	GDI.GdiMesureTextEnd(graph);
-			//graph.Dispose();
-			//bmp.Dispose();
-			//sf.Dispose();
 
 			paint.Dispose();
 		}

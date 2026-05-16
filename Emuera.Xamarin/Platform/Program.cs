@@ -1,5 +1,4 @@
 using System;
-//using System.Drawing;
 using System.Collections.Generic;
 using System.Windows.Forms;
 using MinorShift.Emuera.Runtime.Utils;
@@ -92,17 +91,6 @@ namespace MinorShift.Emuera
 
 			#region EM_私家版_Emuera多言語化改造
 			//Lang.LoadLanguageFile();
-			#endregion
-			#region EM_私家版_Icon指定機能
-			// Icon icon = null;
-			// {
-			// 	var bmp = Utils.LoadImage(Utils.GetValidPath(Config.EmueraIcon));
-			// 	if (bmp != null)
-			// 	{
-			// 		icon = Utils.MakeIconFromBmpFile(bmp);
-			// 		bmp.Dispose();
-			// 	}
-			// }
 			#endregion
 
 

@@ -16,7 +16,6 @@ using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.GameData.Variable;
-//using System.Drawing.Imaging;
 using MinorShift.Emuera.UI.Framework.Forms;
 using MinorShift.Emuera.UI.Game.Rendering;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
@@ -708,17 +707,7 @@ namespace MinorShift.Emuera.GameView
 
 		private void stopTimer()
 		{
-			//if (state == ConsoleState.WaitKeyWithTimerF && countTime < timeLimit)
-			//{
-			//	wait_timeout = true;
-			//	while (countTime < timeLimit)
-			//	{
-			//		Application.DoEvents();
-			//	}
-			//	wait_timeout = false;
-			//}
 			timer.Enabled = false;
-            //timer.Dispose();
 		}
 
 		/// <summary>
@@ -1631,17 +1620,6 @@ namespace MinorShift.Emuera.GameView
             tooltip_duration = duration;
         }
 
-
-        //private Graphics getGraphics()
-        //{
-        //	//消したいが怖いので残し
-        //	if (!window.Created)
-        //		throw new ExeEE("存在しないウィンドウにアクセスした");
-        //	//if (Config.UseImageBuffer)
-        //	//	return Graphics.FromImage(window.MainPicBox.Image);
-        //	//else
-        //		return window.MainPicBox.CreateGraphics();
-        //}
 
         #endregion
 

@@ -284,10 +284,7 @@ namespace MinorShift.Emuera.Content
 				}
 				if (bmp.Width > AbstractImage.MAX_IMAGESIZE || bmp.Height > AbstractImage.MAX_IMAGESIZE)
 				{
-					//1824-2 すでに8192以上の幅を持つ画像を利用したバリアントが存在してしまっていたため、警告しつつ許容するように変更
-					//	bmp.Dispose();
 					ParserMediator.Warn(string.Format(trerror.TooLargeImageFile.Text, AbstractImage.MAX_IMAGESIZE.ToString(), arg2), sp, 1);
-					//return null;
 				}
 				ConstImage img = new ConstImage(parentName);
 				img.CreateFrom(bmp, Config.TextDrawingMode == TextDrawingMode.WINAPI);

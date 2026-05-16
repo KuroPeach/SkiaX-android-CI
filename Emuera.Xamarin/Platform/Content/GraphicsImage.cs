@@ -50,15 +50,6 @@ namespace MinorShift.Emuera.Content
 		//	//g = Graphics.FromImage(b);
 		//	//locked = true;
 		//}
-		//public void UnlockGraphics()
-		//{
-		//	//if (!locked)
-		//	//	return;
-		//	//g.Dispose();
-		//	//g = null;
-		//	//locked = false;
-		//}
-
 		#region Bitmap書き込み・作成
 
 		/// <summary>
@@ -403,8 +394,6 @@ namespace MinorShift.Emuera.Content
 		// public void GSetFont(Font r)
 		public void GSetFont(Font r, FontStyle fs)
 		{
-			//if (font != null)
-			//	font.Dispose();
 			font = r;
 			#region EE_GDRAWTEXT フォントスタイルも指定できるように
 			font.SetStyle(fs);
@@ -572,8 +561,6 @@ namespace MinorShift.Emuera.Content
 				brush.Dispose();
 			if (pen != null)
 				pen.Dispose();
-			//if (font != null)
-			//	font.Dispose();
 			g = null;
 			Bitmap = null;
 			brush = null;
