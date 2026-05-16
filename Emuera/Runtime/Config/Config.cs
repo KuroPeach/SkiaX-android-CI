@@ -64,6 +64,12 @@ internal static class Config
 		FontSize = instance.GetConfigValue<int>(ConfigCode.FontSize);
 		FontName = instance.GetConfigValue<string>(ConfigCode.FontName);
 		LineHeight = instance.GetConfigValue<int>(ConfigCode.LineHeight);
+		FontScale = instance.GetConfigValue<float>(ConfigCode.FontScale);
+		if (FontScale != 1f)
+		{
+			FontSize = (int)(FontSize * FontScale);
+			LineHeight = (int)(LineHeight * FontScale);
+		}
 		FPS = instance.GetConfigValue<int>(ConfigCode.FPS);
 
 		#region EM_尊尼获加_SkiaSharp渲染设置
@@ -526,6 +532,7 @@ internal static class Config
 	public static int FontSize { get; private set; }
 	public static string FontName { get; private set; }
 	public static int LineHeight { get; private set; }
+	public static float FontScale { get; private set; }
 	public static int FPS { get; private set; }
 
 	#region EM_尊尼获加_SkiaSharp渲染设置

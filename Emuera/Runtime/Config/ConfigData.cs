@@ -66,6 +66,7 @@ internal sealed class ConfigData
 		configArray.Add(new ConfigItem<int>(ConfigCode.PrintCLength, "PRINTCの文字数", "Number of Item characters for PRINTC", 25));
 		configArray.Add(new ConfigItem<string>(ConfigCode.FontName, "フォント名", "Font name", "ＭＳ ゴシック"));
 		configArray.Add(new ConfigItem<int>(ConfigCode.FontSize, "フォントサイズ", "Font size", 18));
+		configArray.Add(new ConfigItem<float>(ConfigCode.FontScale, "フォントスケール", "Font scale", 1f));
 		configArray.Add(new ConfigItem<int>(ConfigCode.LineHeight, "一行の高さ", "Line height", 19));
 		configArray.Add(new ConfigItem<Color>(ConfigCode.ForeColor, "文字色", "Text color", Color.FromArgb(192, 192, 192)));//LIGHTGRAY
 		configArray.Add(new ConfigItem<Color>(ConfigCode.BackColor, "背景色", "Background color", Color.FromArgb(0, 0, 0)));//BLACK
@@ -235,6 +236,7 @@ internal sealed class ConfigData
 		configArray[i++] = new ConfigItem<int>(ConfigCode.PrintCLength, "PRINTCの文字数", 25);
 		configArray[i++] = new ConfigItem<string>(ConfigCode.FontName, "フォント名", "ＭＳ ゴシック");
 		configArray[i++] = new ConfigItem<int>(ConfigCode.FontSize, "フォントサイズ", 18);
+		configArray[i++] = new ConfigItem<float>(ConfigCode.FontScale, "フォントスケール", 1f);
 		configArray[i++] = new ConfigItem<int>(ConfigCode.LineHeight, "一行の高さ", 19);
 		configArray[i++] = new ConfigItem<Color>(ConfigCode.ForeColor, "文字色", Color.FromArgb(192, 192, 192));//LIGHTGRAY
 		configArray[i++] = new ConfigItem<Color>(ConfigCode.BackColor, "背景色", Color.FromArgb(0, 0, 0));//BLACK
@@ -517,6 +519,10 @@ internal sealed class ConfigData
 			case ConfigCode.MaxShopItem:// "販売アイテム数"
 			case ConfigCode.ComAbleDefault:// "COM_ABLE初期値"
 				term = new SingleLongTerm(item.GetValue<int>());
+				break;
+			//<float>
+			case ConfigCode.FontScale:// "フォントスケール"
+				term = new SingleFloatTerm(item.GetValue<float>());
 				break;
 			//<Color>
 			case ConfigCode.ForeColor://"文字色"
