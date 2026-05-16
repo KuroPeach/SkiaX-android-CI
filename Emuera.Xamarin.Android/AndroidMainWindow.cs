@@ -30,6 +30,7 @@ namespace XEmuera.Droid
         private Entry textEntry;
         private StackLayout quickButtonLayout;
         private Grid mainLayout;
+        private ScrollView quickScroll;
 
         private bool IsMouseMoveAction;
         private SKPoint StartPoint;
@@ -76,18 +77,20 @@ namespace XEmuera.Droid
                 HeightRequest = 50,
             };
 
-            quickButtonLayout = new StackLayout
+            quickButtonLayout = new QuickButtonGroup
             {
                 Orientation = StackOrientation.Horizontal,
                 Spacing = 4,
             };
 
-            var quickScroll = new ScrollView
+            quickScroll = new ScrollView
             {
                 Orientation = ScrollOrientation.Horizontal,
                 Content = quickButtonLayout,
                 HeightRequest = 40,
             };
+
+            quickButtonScrollView = quickScroll;
 
             mainLayout = new Grid
             {
@@ -119,6 +122,8 @@ namespace XEmuera.Droid
         {
             if (console == null) return;
             var canvas = e.Surface.Canvas;
+            MainPicBox.Width = e.Info.Width;
+            MainPicBox.Height = e.Info.Height;
             console.OnPaint(canvas);
         }
 
@@ -275,6 +280,15 @@ namespace XEmuera.Droid
         #endregion
 
         #region MainWindow Overrides
+
+        public override QuickButtonGroup QuickButtonGroup => (QuickButtonGroup)quickButtonLayout;
+
+        public override void quickButton_Clicked(object sender, EventArgs e)
+        {
+            var inputs = (sender as Xamarin.Forms.View)?.BindingContext as string;
+            if (inputs != null)
+                PressEnterKey(false, inputs, true);
+        }
 
         public override void Invoke(Action action)
         {

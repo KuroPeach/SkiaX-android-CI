@@ -29,7 +29,7 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public virtual void ShowConfigDialog() { }
 		public virtual void ShowDebugDialog() { }
 		public void RefreshQuickButtonGroup() { }
-		public void quickButton_Clicked(object sender, EventArgs e) { }
+		public virtual void quickButton_Clicked(object sender, EventArgs e) { }
 		public void ApplyTextBoxChanges() { }
 		public void Load() { }
 		public virtual void update_lastinput() { }
