@@ -20,6 +20,8 @@
 | Phase 5C-D1 | SqlManager 资源清理 + FormClosing 退出流程 | 0.12 |
 | Phase 6 | EM 私家版 HTML 扩展（div + PrintHtmlC 全量版） | 0.6 |
 | G6 | GDI 注释残留清理 + 删除 5 组死对话框文件 | 0.13 |
+| Phase 8A-P0 | System.Drawing 值类型垫片（Color/Rectangle/Point/Size） | 0.14 |
+| Phase 8A-P1 | Runtime/ WinForms 依赖清理（PlatformInterop 抽象） | 0.15 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -49,24 +51,24 @@ Emuera.Xamarin.sln
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 8A-P0-1 | 创建 `XEmuera.Drawing.Color` | 封装 SKColor，API 兼容 System.Drawing.Color | ⏭️ |
-| 8A-P0-2 | 创建 `XEmuera.Drawing.Rectangle` | 纯值类型，API 兼容 System.Drawing.Rectangle | ⏭️ |
-| 8A-P0-3 | 创建 `XEmuera.Drawing.Point` | 纯值类型，API 兼容 System.Drawing.Point | ⏭️ |
-| 8A-P0-4 | 创建 `XEmuera.Drawing.Size` | 纯值类型，API 兼容 System.Drawing.Size | ⏭️ |
-| 8A-P0-5 | csproj 添加 `<Using Alias>` | Color/Rectangle/Point/Size 全局别名替换 | ⏭️ |
-| 8A-P0-6 | 修复 `SkiaPfc.cs`/`InstalledFontCollection.cs` | `System.Drawing.FontFamily` 引用替换 | ⏭️ |
-| 8A-P0-7 | 编译验证 | 当前 net8.0-windows 项目 + 别名替换后 0 错误 | ⏭️ |
+| 8A-P0-1 | 创建 `XEmuera.Drawing.Color` | 封装 SKColor，API 兼容 System.Drawing.Color | ✅ |
+| 8A-P0-2 | 创建 `XEmuera.Drawing.Rectangle` | 纯值类型，API 兼容 System.Drawing.Rectangle | ✅ |
+| 8A-P0-3 | 创建 `XEmuera.Drawing.Point` | 纯值类型，API 兼容 System.Drawing.Point | ✅ |
+| 8A-P0-4 | 创建 `XEmuera.Drawing.Size` | 纯值类型，API 兼容 System.Drawing.Size | ✅ |
+| 8A-P0-5 | csproj 添加 `<Using Alias>` | Color/Rectangle/Point/Size 全局别名替换 | ✅ |
+| 8A-P0-6 | 修复 `SkiaPfc.cs`/`InstalledFontCollection.cs` | `System.Drawing.FontFamily` 引用替换 | ✅ |
+| 8A-P0-7 | 编译验证 | 当前 net8.0-windows 项目 + 别名替换后 0 错误 | ✅ |
 
 ##### 切片 8A-P1：Runtime/ WinForms 依赖清理（前置条件，可在当前项目内完成）
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 8A-P1-1 | `Sys.cs`: `Application.ProductVersion` | 替换为 `Assembly.GetExecutingAssembly().GetName().Version` | ⏭️ |
-| 8A-P1-2 | `ErbLoader.cs`/`ErhLoader.cs`: `Application.DoEvents()` | 替换为空操作（Android 不需要 UI 刷新） | ⏭️ |
-| 8A-P1-3 | `Instraction.Child.cs`: `MessageBox.Show` | 抽象为 `IDialogService` 或条件编译 | ⏭️ |
-| 8A-P1-4 | `Config.cs`/`VariableEvaluator.cs`: `MessageBox.Show` | 改为抛异常或写日志 | ⏭️ |
-| 8A-P1-5 | `Creator.Method.cs`: `Control.MousePosition` | 抽象为 `IMousePositionProvider` | ⏭️ |
-| 8A-P1-6 | 编译验证 | 当前项目 + 清理后 0 错误 | ⏭️ |
+| 8A-P1-1 | `Sys.cs`: `Application.ProductVersion` | 替换为 `PlatformInterop.GetProductVersion()` | ✅ |
+| 8A-P1-2 | `ErbLoader.cs`/`ErhLoader.cs`: `Application.DoEvents()` | 替换为 `PlatformInterop.DoEvents()` | ✅ |
+| 8A-P1-3 | `Instraction.Child.cs`: `MessageBox.Show` | 替换为 `PlatformInterop.ShowQuestion()` | ✅ |
+| 8A-P1-4 | `Config.cs`/`VariableEvaluator.cs`: `MessageBox.Show` | 替换为 `PlatformInterop.ShowMessage()` | ✅ |
+| 8A-P1-5 | `Creator.Method.cs`: `Control.MousePosition` | 替换为 `PlatformInterop.GetMousePosition()` | ✅ |
+| 8A-P1-6 | 编译验证 | 当前项目 + 清理后 0 错误 | ✅ |
 
 ##### 切片 8A：创建 Core 项目
 
