@@ -32,26 +32,53 @@
 
 > **目标**：拆分为 Core+Desktop+Android 三项目，产出可安装 APK
 > **前置条件**：Phase 0-6 桌面端功能验证通过 ✅
-> **架构决策**：方案 B（项目拆分），因为内核依赖 .NET 8 API，不能用 netstandard2.1
+> **架构决策**：方案 B（项目拆分），Core 用 net8.0（Runtime/ 依赖 .NET 8 API，不能用 netstandard2.1）
+> **关键勘测发现**：XEmuera-1 用旧 Xamarin 工具链（MonoAndroid），不能直接复制 Android 项目；必须用 .NET 8 Android 工作负载（net8.0-android）重写 Android 层
+> **知识库**：[android-migration.md](file:///d:/emuera/shared-trae/knowledge/xemuera/android-migration.md)
 
 ```
 Emuera.Xamarin.sln
-├── Emuera.Xamarin.Core      (net8.0)       — 共享代码（Runtime/ + Platform/ + Drawing/ + Models/）
-├── Emuera.Xamarin.Desktop   (net8.0-windows)— WinForms 桌面验证（DesktopHost + Desktop*Dialog）
-└── Emuera.Xamarin.Android   (net8.0-android)— APK 产出（MainActivity + DroidDependencyService）
+├── Emuera.Xamarin.Core      (net8.0)           — 共享代码 + System.Drawing 垫片
+├── Emuera.Xamarin.Desktop   (net8.0-windows)    — WinForms 桌面验证
+└── Emuera.Xamarin.Android   (net8.0-android)    — APK 产出（.NET 8 SDK 风格）
 ```
 
-##### 切片 8A：创建 Core 项目（共享核心）
+##### 切片 8A-P0：System.Drawing 值类型垫片（前置条件，可在当前项目内完成）
 
-| # | 操作 | 说明 | XEmuera 参考 | 状态 |
-|---|------|------|-------------|------|
-| 8A-1 | 创建 `Emuera.Xamarin.Core.csproj` | TFM=net8.0，从现有 csproj 提取共享代码 | XEmuera.csproj (netstandard2.1) | ⏭️ |
-| 8A-2 | 迁移 Runtime/ 编译引用 | `<Compile Include="../Emuera/Runtime/**/*.cs" />` | 同 | ⏭️ |
-| 8A-3 | 迁移 Platform/ 编译引用 | Stubs/ + GameView/ + Config/ + Content/ | 同 | ⏭️ |
-| 8A-4 | 迁移 Drawing/ + Models/ + Forms/ | Skia 渲染 + 数据模型 + MessageBox | 同 | ⏭️ |
-| 8A-5 | 迁移 NuGet 包 | SkiaSharp/Xamarin.Forms/Xamarin.Essentials/Sqlite 等 | 同 | ⏭️ |
-| 8A-6 | 排除 Windows-only 文件 | DesktopHost/NAudio/Sound.WMP 等 | — | ⏭️ |
-| 8A-7 | 编译验证 | Core 项目 0 错误 | — | ⏭️ |
+> **阻塞问题**：去掉 `-windows` 后缀后，`System.Drawing.Color/Rectangle/Point/Size` 不可用，20+ 个文件受影响
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 8A-P0-1 | 创建 `XEmuera.Drawing.Color` | 封装 SKColor，API 兼容 System.Drawing.Color | ⏭️ |
+| 8A-P0-2 | 创建 `XEmuera.Drawing.Rectangle` | 纯值类型，API 兼容 System.Drawing.Rectangle | ⏭️ |
+| 8A-P0-3 | 创建 `XEmuera.Drawing.Point` | 纯值类型，API 兼容 System.Drawing.Point | ⏭️ |
+| 8A-P0-4 | 创建 `XEmuera.Drawing.Size` | 纯值类型，API 兼容 System.Drawing.Size | ⏭️ |
+| 8A-P0-5 | csproj 添加 `<Using Alias>` | Color/Rectangle/Point/Size 全局别名替换 | ⏭️ |
+| 8A-P0-6 | 修复 `SkiaPfc.cs`/`InstalledFontCollection.cs` | `System.Drawing.FontFamily` 引用替换 | ⏭️ |
+| 8A-P0-7 | 编译验证 | 当前 net8.0-windows 项目 + 别名替换后 0 错误 | ⏭️ |
+
+##### 切片 8A-P1：Runtime/ WinForms 依赖清理（前置条件，可在当前项目内完成）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 8A-P1-1 | `Sys.cs`: `Application.ProductVersion` | 替换为 `Assembly.GetExecutingAssembly().GetName().Version` | ⏭️ |
+| 8A-P1-2 | `ErbLoader.cs`/`ErhLoader.cs`: `Application.DoEvents()` | 替换为空操作（Android 不需要 UI 刷新） | ⏭️ |
+| 8A-P1-3 | `Instraction.Child.cs`: `MessageBox.Show` | 抽象为 `IDialogService` 或条件编译 | ⏭️ |
+| 8A-P1-4 | `Config.cs`/`VariableEvaluator.cs`: `MessageBox.Show` | 改为抛异常或写日志 | ⏭️ |
+| 8A-P1-5 | `Creator.Method.cs`: `Control.MousePosition` | 抽象为 `IMousePositionProvider` | ⏭️ |
+| 8A-P1-6 | 编译验证 | 当前项目 + 清理后 0 错误 | ⏭️ |
+
+##### 切片 8A：创建 Core 项目
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 8A-1 | 创建 `Emuera.Xamarin.Core.csproj` | TFM=net8.0，从现有 csproj 提取共享代码 | ⏭️ |
+| 8A-2 | 迁移 Runtime/ 编译引用 | `<Compile Include="../Emuera/Runtime/**/*.cs" />` | ⏭️ |
+| 8A-3 | 迁移 Platform/ 编译引用 | Stubs/ + GameView/ + Config/ + Content/ | ⏭️ |
+| 8A-4 | 迁移 Drawing/ + Models/ + Forms/ | Skia 渲染 + 数据模型 + MessageBox | ⏭️ |
+| 8A-5 | 迁移 NuGet 包 | SkiaSharp/Xamarin.Forms/Xamarin.Essentials/Sqlite 等 | ⏭️ |
+| 8A-6 | 排除 Windows-only 文件 | DesktopHost/NAudio/Sound.WMP 等 | ⏭️ |
+| 8A-7 | 编译验证 | Core 项目 0 错误 | ⏭️ |
 
 ##### 切片 8B：创建 Desktop 项目（WinForms 验证）
 
