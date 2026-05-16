@@ -458,34 +458,28 @@ namespace MinorShift.Emuera.Content
 		/// <returns></returns>
 		public bool GBitmapToInt64Array(Int64[,] array, int xstart, int ystart)
 		{
-		//	if (g == null || Bitmap == null)
-		//		throw new NullReferenceException();
-		//	int w = Bitmap.Width;
-		//	int h = Bitmap.Height;
-		//	if (xstart + w > array.GetLength(0) || ystart + h > array.GetLength(1))
-		//		return false;
-		//	Rectangle rect = new Rectangle(0, 0, w, h);
-		//	System.Drawing.Imaging.BitmapData bmpData =
-		//		Bitmap.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly,
-		//		PixelFormat.Format32bppArgb);
-		//	IntPtr ptr = bmpData.Scan0;
-		//	byte[] rgbValues = new byte[w * h * 4];
-		//	Marshal.Copy(ptr, rgbValues, 0, rgbValues.Length);
-		//	Bitmap.UnlockBits(bmpData);
-		//	int i = 0;
-		//	for (int y = 0; y < h; y++)
-		//	{
-		//		for (int x = 0; x < w; x++)
-		//		{
-		//			array[x + xstart, y + ystart] =
-		//			rgbValues[i++] + //B
-		//			(((Int64)rgbValues[i++]) << 8) + //G
-		//			(((Int64)rgbValues[i++]) << 16) + //R
-		//			(((Int64)rgbValues[i++]) << 24);  //A
-		//		}
-		//	}
-		//	return true;
-			return false;
+			if (g == null || Bitmap == null)
+				throw new NullReferenceException();
+			int w = Bitmap.Width;
+			int h = Bitmap.Height;
+			if (xstart + w > array.GetLength(0) || ystart + h > array.GetLength(1))
+				return false;
+			IntPtr ptr = Bitmap.GetPixels();
+			byte[] rgbValues = new byte[Bitmap.Info.BytesSize];
+			Marshal.Copy(ptr, rgbValues, 0, rgbValues.Length);
+			int i = 0;
+			for (int y = 0; y < h; y++)
+			{
+				for (int x = 0; x < w; x++)
+				{
+					array[x + xstart, y + ystart] =
+					rgbValues[i++] +
+					(((Int64)rgbValues[i++]) << 8) +
+					(((Int64)rgbValues[i++]) << 16) +
+					(((Int64)rgbValues[i++]) << 24);
+				}
+			}
+			return true;
 		}
 
 
@@ -495,35 +489,29 @@ namespace MinorShift.Emuera.Content
 		/// <returns></returns>
 		public bool GByteArrayToBitmap(Int64[,] array, int xstart, int ystart)
 		{
-		//	if (g == null || Bitmap == null)
-		//		throw new NullReferenceException();
-		//	int w = Bitmap.Width;
-		//	int h = Bitmap.Height;
-		//	if (xstart + w > array.GetLength(0) || ystart + h > array.GetLength(1))
-		//		return false;
+			if (g == null || Bitmap == null)
+				throw new NullReferenceException();
+			int w = Bitmap.Width;
+			int h = Bitmap.Height;
+			if (xstart + w > array.GetLength(0) || ystart + h > array.GetLength(1))
+				return false;
 
-		//	byte[] rgbValues = new byte[w * h * 4];
-		//	int i = 0;
-		//	for (int y = 0; y < h; y++)
-		//	{
-		//		for (int x = 0; x < w; x++)
-		//		{
-		//			Int64 c = array[x + xstart, y + ystart];
-		//			rgbValues[i++] = (byte)(c & 0xFF);//B
-		//			rgbValues[i++] = (byte)((c >> 8) & 0xFF);//G
-		//			rgbValues[i++] = (byte)((c >> 16) & 0xFF);//R
-		//			rgbValues[i++] = (byte)((c >> 24) & 0xFF);//A
-		//		}
-		//	}
-		//	Rectangle rect = new Rectangle(0, 0, w, h);
-		//	System.Drawing.Imaging.BitmapData bmpData =
-		//		Bitmap.LockBits(rect, System.Drawing.Imaging.ImageLockMode.WriteOnly,
-		//		PixelFormat.Format32bppArgb);
-		//	IntPtr ptr = bmpData.Scan0;
-		//	Marshal.Copy(rgbValues, 0, ptr, rgbValues.Length);
-		//	Bitmap.UnlockBits(bmpData);
-		//	return true;
-			return false;
+			byte[] rgbValues = new byte[w * h * 4];
+			int i = 0;
+			for (int y = 0; y < h; y++)
+			{
+				for (int x = 0; x < w; x++)
+				{
+					Int64 c = array[x + xstart, y + ystart];
+					rgbValues[i++] = (byte)(c & 0xFF);
+					rgbValues[i++] = (byte)((c >> 8) & 0xFF);
+					rgbValues[i++] = (byte)((c >> 16) & 0xFF);
+					rgbValues[i++] = (byte)((c >> 24) & 0xFF);
+				}
+			}
+			IntPtr ptr = Bitmap.GetPixels();
+			Marshal.Copy(rgbValues, 0, ptr, rgbValues.Length);
+			return true;
 		}
 #endregion
 #region Bitmap読み込み・削除
@@ -663,21 +651,69 @@ namespace MinorShift.Emuera.Content
 		#region EE_GDRAWLINE
 		public void GDrawLine(int fromX, int fromY, int destX, int destY)
 		{
-			if (Bitmap == null) return;
-			using var surface = SKSurface.Create(new SKImageInfo(Bitmap.Width, Bitmap.Height));
-			var c = surface.Canvas;
+			if (g == null)
+				throw new NullReferenceException();
+
 			if (pen != null)
 			{
-				c.DrawPaint(new SKPaint { Color = pen.Color, StrokeWidth = pen.StrokeWidth, Style = SKPaintStyle.Stroke });
+				using var paint = new SKPaint
+				{
+					Color = pen.Color,
+					StrokeWidth = pen.Width
+				};
+				switch (pen.DashCap)
+				{
+					case DashCap.Flat:
+						paint.StrokeCap = SKStrokeCap.Butt;
+						break;
+					case DashCap.Round:
+						paint.StrokeCap = SKStrokeCap.Round;
+						break;
+					case DashCap.Triangle:
+						paint.StrokeCap = SKStrokeCap.Square;
+						break;
+				}
+				SKPathEffect ds = SKPathEffect.CreateDash([1, 0], 0);
+				switch (pen.DashStyle)
+				{
+					case DashStyle.Solid:
+						ds = SKPathEffect.CreateDash([1, 0], 0);
+						break;
+					case DashStyle.Dash:
+						ds = SKPathEffect.CreateDash([pen.Width * 3, pen.Width], 0);
+						break;
+					case DashStyle.Dot:
+						ds = SKPathEffect.CreateDash([pen.Width, pen.Width], 0);
+						break;
+					case DashStyle.DashDot:
+						ds = SKPathEffect.CreateDash([pen.Width * 3, pen.Width, pen.Width, pen.Width], 0);
+						break;
+					case DashStyle.DashDotDot:
+						ds = SKPathEffect.CreateDash([pen.Width * 3, pen.Width, pen.Width, pen.Width, pen.Width, pen.Width], 0);
+						break;
+				}
+				paint.PathEffect = ds;
+				g.DrawLine(fromX, fromY, destX, destY, paint);
 			}
-			c.DrawLine(fromX, fromY, destX, destY, pen ?? new SKPaint { Style = SKPaintStyle.Stroke });
+			else
+			{
+				using var paint = new SKPaint
+				{
+					Color = DisplayUtils.ToSKColor(Config.ForeColor)
+				};
+				g.DrawLine(fromX, fromY, destX, destY, paint);
+			}
 		}
 
-		public void GDashStyle(long styleVal, long cap)
+		public void GDashStyle(long style, long cap)
 		{
+			if (g == null)
+				throw new NullReferenceException();
 			if (pen == null)
 				pen = new Pen(Config.ForeColor);
-			pen.PathEffect = SKPathEffect.CreateDash([5, 5], 0);
+
+			pen.DashStyle = (DashStyle)style;
+			pen.DashCap = (DashCap)cap;
 		}
 		#endregion
 
@@ -686,21 +722,37 @@ namespace MinorShift.Emuera.Content
 
 		public void GDrawPolygon()
 		{
-			if (Bitmap == null || _points == null) return;
-			using var surface = SKSurface.Create(new SKImageInfo(Bitmap.Width, Bitmap.Height));
-			var c = surface.Canvas;
-			c.DrawPoints(SKPointMode.Polygon, [.. _points, _points[0]], pen ?? new SKPaint { Style = SKPaintStyle.Stroke });
+			if (g == null)
+				throw new NullReferenceException();
+			if (_points == null)
+				throw new NullReferenceException("DrawPolygonに渡されるPointsが空です");
+
+			using var paint = new SKPaint();
+			if (pen != null)
+			{
+				paint.Color = pen.Color;
+				paint.StrokeWidth = pen.Width;
+			}
+			paint.Style = SKPaintStyle.Stroke;
+			g.DrawPoints(SKPointMode.Polygon, [.. _points, _points[0]], paint);
 		}
 
 		public void GDrawPolygonAddPoint(SKPoint point)
 		{
+			if (g == null)
+				throw new NullReferenceException();
 			_points ??= new List<SKPoint>();
 			_points.Add(point);
 		}
 
 		public void GDrawPolygonClearPoint()
 		{
-			_points?.Clear();
+			if (g == null)
+				throw new NullReferenceException();
+			if (_points == null)
+				_points = new List<SKPoint>();
+			else
+				_points.Clear();
 		}
 
 		public void GFillPolygon()
@@ -710,15 +762,28 @@ namespace MinorShift.Emuera.Content
 
 		public void GFillPolygon(SKColor color)
 		{
-			if (Bitmap == null || _points == null || _points.Count < 3) return;
-			using var surface = SKSurface.Create(new SKImageInfo(Bitmap.Width, Bitmap.Height));
-			var c = surface.Canvas;
+			if (g == null)
+				throw new NullReferenceException();
+			if (_points == null || _points.Count < 3)
+				throw new NullReferenceException("FillPolygonに渡されるPointsが空です");
+
+			using var paint = new SKPaint();
+			if (brush != null)
+			{
+				paint.Color = DisplayUtils.ToSKColor(brush.DrawingColor);
+			}
+			else
+			{
+				paint.Color = color;
+			}
+			paint.Style = SKPaintStyle.Fill;
+
 			using var path = new SKPath();
 			path.MoveTo(_points[0]);
 			for (int i = 1; i < _points.Count; i++)
 				path.LineTo(_points[i]);
 			path.Close();
-			c.DrawPath(path, new SKPaint { Color = color, Style = SKPaintStyle.Fill });
+			g.DrawPath(path, paint);
 		}
 		#endregion
 

@@ -2,7 +2,9 @@
 
 ## [0.4.0] - 2026-05-16
 
-### Phase 3A：ImageLayerManager 图层管理 ✅
+### Phase 3：Skia 渲染集成 ✅
+
+#### 切片 3A：ImageLayerManager 图层管理 ✅
 
 - 完整重写 `ImageLayerManager`（从 LazyLoading 117行移植）
   - `ImageLayer` 数据结构：`ASprite Image`（替换 `object`）、`Depth`/`X`/`Y`/`Width`/`Height`/`Opacity`/`ColorMatrix`/`FollowScroll`/`InitialScrollY`/`IsOffScreen`
@@ -15,7 +17,7 @@
 - 集成 `_imageLayerManager.DrawTo()` 到 OnPaint（`graph.Clear()` 之后、cbgList 遍历之前）
 - 注意：SpriteAnime.PauseAnimation/ResumeAnimation 暂未实现（xamarin 版 SpriteAnime 缺少此 API）
 
-### Phase 3B：ColorMatrix 颜色矩阵 ✅
+#### 切片 3B：ColorMatrix 颜色矩阵 ✅
 
 - 完整移植 `ColorMatrixHelper`（从 LazyLoading 84行移植）
   - 修正命名空间：`MinorShift.Emuera.Runtime.Utils.EvilMask` → `MinorShift.Emuera.UI.Game.Image`（与调用者 using 一致）
@@ -23,6 +25,57 @@
   - `ReadFromVariable()`：支持 2D/3D 数组 + 角色变量，值范围 0-256（÷256f 转 0.0-1.0）
   - `ToSkia()`：5x5 float[][] → 20 元素 float[]，offset 列 × 255
   - 移除 `CreateColorMatrix()`（无调用者，直接用 `SKColorFilter.CreateColorMatrix()`）
+
+#### 切片 3C：OnPaint 升级 ✅
+
+- 移植 `ValidateBackground()` + `bakedBackground` 背景预烘焙机制
+- 升级 CBG 渲染：从 Point 定位升级为 Rectangle + SKColorFilter（支持 width/height/Opacity/ColorMatrix）
+- 集成 `_imageLayerManager.DrawTo()` 到 OnPaint 渲染管线
+- 添加 `ConsoleBackground` 类（Opacity + SKColorFilter 支持）
+- 添加 `ClientBackGroundImage` 扩展字段（width/height/Opacity/ColorMatrix）
+- 实现 `CBG_SetImage()`（从返回 false 改为创建 ClientBackGroundImage 并添加到 cbgList）
+- Rikaichan 和 HTML_PRINT 延后（非核心功能）
+
+#### 切片 3D：FontFactory 完善 ✅
+
+- 完整移植 `FontFactory`（从 LazyLoading 294行，xamarin 24→242行）
+  - 4 层字体回退链：自定义→安全字体→MatchCharacter→Default
+  - `GetFont()` 完整参数：style/edging/hinting
+  - `IsRasterFont()`：检测 MS Gothic 等光栅字体
+  - 字体缓存：`fontDic` + `fallbackTypefaceCache`
+  - `GetFallbackTypefaceForChar()`/`GetFallbackTypefaceForCodepoint()`：按字符获取回退字体
+  - `TryGetGlyphFromFallback()`：从回退字体获取字形
+  - `ClearFont()` + 正确的 Dispose 逻辑
+
+#### 切片 3E：ConsoleDivPart 实现 ✅
+
+- 完整移植 `ConsoleDivPart`（从 LazyLoading 261行）
+  - 构造函数：存储所有盒模型字段（margin/padding/border/radius/borderColors/backgroundColor）
+  - `DrawTo()`：完整盒模型渲染（定位计算→Canvas Save→margin裁剪→背景色→4方向边框→border/padding缩减→子元素绘制→Canvas Restore）
+  - `TestChildHitbox()`：div 内子元素命中测试
+  - `PointX` 属性：自定义 setter + ShiftChildrenX 联动
+  - `ToString()`/`BuildString()`：div 标签序列化
+  - `SetWidth()`：空实现（同 LazyLoading，div 宽度由 HTML 属性指定）
+- 添加 `using System.Drawing;`/`using XEmuera;`/`using static Shape;`/`using static Utils;`
+- 修复类型引用：`AConsoleDisplayNode` → `AConsoleDisplayPart`（匹配 StrArray 类型）
+
+#### 切片 3F：GraphicsImage 缺失方法 ✅
+
+- 重写 `GBitmapToInt64Array()`：从返回 false 改为 SkiaSharp 像素读取（`Bitmap.GetPixels()` + `Marshal.Copy`）
+- 重写 `GByteArrayToBitmap()`：从返回 false 改为 SkiaSharp 像素写入（`Marshal.Copy` → `Bitmap.GetPixels()`）
+- 修复 `GDrawLine()`：从临时 SKSurface 改为已有 `g` canvas 绘制，添加完整 DashStyle/DashCap 支持
+  - DashCap：Flat→Butt, Round→Round, Triangle→Square
+  - DashStyle：Solid/Dash/Dot/DashDot/DashDotDot → `SKPathEffect.CreateDash()`
+- 修复 `GDrawPolygon()`：从临时 SKSurface 改为已有 `g` canvas 绘制
+- 修复 `GFillPolygon()`：从临时 SKSurface 改为已有 `g` canvas 绘制，支持 brush 颜色
+- 修复 `GDashStyle()`：从忽略参数改为正确存储 DashStyle/DashCap
+- 添加 `DashStyle`/`DashCap` 枚举到 `XEmuera.Drawing` 命名空间
+- 扩展 `Pen` 类：添加 `DashStyle`/`DashCap` 属性
+
+#### 切片 3G：增量渲染 — ⏭️ 跳过
+
+- LazyLoading 本身未实现脏区域/增量渲染，采用全量清除+全量重绘策略
+- xamarin 已有的优化（背景缓存、离屏裁剪、帧率节流）与 LazyLoading 对齐
 
 ### 基础设施修复
 

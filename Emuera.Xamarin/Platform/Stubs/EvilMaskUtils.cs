@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Text;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
 using SkiaSharp;
+using XEmuera;
+using static MinorShift.Emuera.Runtime.Utils.EvilMask.Shape;
+using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 
 namespace MinorShift.Emuera.UI.Game
 {
@@ -210,14 +214,14 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 			return stopwatch_base + stopwatch.Elapsed.Ticks;
 		}
 
-		public static void AddColorParam(StringBuilder sb, string name, System.Drawing.Color color)
+		public static void AddColorParam(StringBuilder sb, string name, Color color)
 		{
-			if (color != System.Drawing.Color.Transparent)
+			if (color != Color.Transparent)
 			{
 				sb.Append(' ').Append(name).Append("='").Append(HtmlManager.GetColorToString(color)).Append('\'');
 			}
 		}
-		public static void AddColorParam4(StringBuilder sb, string name, System.Drawing.Color[] colors)
+		public static void AddColorParam4(StringBuilder sb, string name, Color[] colors)
 		{
 			if (colors != null)
 			{
@@ -300,25 +304,209 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 
 	class ConsoleDivPart : AConsoleDisplayNode
 	{
-		public ConsoleDivPart(Utils.MixedNum xPos, Utils.MixedNum yPos, Utils.MixedNum width, Utils.MixedNum height, int depth, int color, Utils.StyledBoxModel box, bool isRelative, DisplayMode displayMode, ConsoleDisplayLine[] childs)
+		public ConsoleDivPart(MixedNum xPos, MixedNum yPos, MixedNum width, MixedNum height, int depth, int color, StyledBoxModel box, bool isRelative, DisplayMode displayMode, ConsoleDisplayLine[] childs)
 		{
-			IsRelative = isRelative;
-			Children = childs;
+			backgroundColor = color >= 0 ? Color.FromArgb((int)(color | 0xff000000)) : Color.Transparent;
+			StringBuilder sb = new();
+			width.num = Math.Abs(width.num);
+			height.num = Math.Abs(height.num);
+			sb.Append("<div");
+			AddTagMixedNumArg(sb, "xpos", xPos);
+			AddTagMixedNumArg(sb, "ypos", yPos);
+			AddTagMixedNumArg(sb, "width", width);
+			AddColorParam(sb, "color", backgroundColor);
+			AddTagMixedNumArg(sb, "height", height);
+			if (box != null)
+			{
+				AddTagMixedParam(sb, "margin", box.margin);
+				MixedNum4ToInt4(box.margin, ref margin);
+				AddTagMixedParam(sb, "padding", box.padding);
+				MixedNum4ToInt4(box.padding, ref padding);
+				AddTagMixedParam(sb, "border", box.border);
+				MixedNum4ToInt4(box.border, ref border);
+				AddTagMixedParam(sb, "radius", box.radius);
+				MixedNum4ToInt4(box.radius, ref radius);
+				if (box.color != null)
+				{
+					borderColors = new Color[4];
+					for (int i = 0; i < 4; i++)
+						borderColors[i] = box.color[i] >= 0 ? Color.FromArgb((int)(box.color[i] | 0xff000000)) : Color.Transparent;
+					AddColorParam4(sb, "bcolor", borderColors);
+				}
+			}
+			sb.Append(">");
+			altHeadTag = sb.ToString();
 			Text = string.Empty;
+			xOffset = MixedNum.ToPixel(xPos, 0);
+			if (margin != null) divXOffset += margin[Direction.Left];
+			if (padding != null) divXOffset += padding[Direction.Left];
+			if (border != null) divXOffset += border[Direction.Left];
+			PointY = MixedNum.ToPixel(yPos, 0);
+			if (margin != null) yOffset += margin[Direction.Top];
+			if (padding != null) yOffset += padding[Direction.Top];
+			if (border != null) yOffset += border[Direction.Top];
+			this.width = MixedNum.ToPixel(width, 0);
+			Height = MixedNum.ToPixel(height, 0);
+			children = childs;
+			Depth = depth;
+			IsRelative = isRelative;
+			Display = displayMode;
+			ShiftChildrenX(PointX + xOffset + divXOffset);
 		}
-
-		public ConsoleDisplayLine[] Children { get; }
-		public bool IsRelative { get; }
+		int pointX;
+		int xOffset;
+		int divXOffset;
+		int yOffset;
+		int width;
+		public override int PointX
+		{
+			get { return pointX; }
+			set
+			{
+				var diff = value - pointX;
+				pointX = value;
+				ShiftChildrenX(diff);
+			}
+		}
+		int PointY;
+		int Height;
+		int[] margin, padding, radius, border;
+		Color[] borderColors;
+		Color backgroundColor;
+		string altHeadTag;
+		readonly ConsoleDisplayLine[] children;
 		public bool IsEscaped { get; set; }
+		public override int Top { get { return PointY; } }
+		public override int Bottom { get { return PointY + Height; } }
+		public bool IsRelative { get; private set; }
+		public DisplayMode Display { get; private set; }
+		public ConsoleDisplayLine[] Children { get { return children; } }
 		public override bool CanDivide => false;
-		public override int Top { get { return 0; } }
+
+		public ConsoleButtonString TestChildHitbox(int px, int py, int relPointY)
+		{
+			ConsoleButtonString pointing = null;
+			var rect = new Rectangle(PointX + xOffset, relPointY + PointY + yOffset, width, Height);
+			if (!rect.Contains(px, py)) return null;
+			for (int i = 0; i < children.Length; i++)
+			{
+				var line = children[i];
+				int actualRelPointY = rect.Y + (i * Config.Config.LineHeight);
+				for (int b = line.Buttons.Length - 1; b >= 0; b--)
+				{
+					ConsoleButtonString button = line.Buttons[b];
+					if (button == null || button.StrArray == null) continue;
+					if (px >= button.PointX && px <= button.PointX + button.Width)
+					{
+						foreach (AConsoleDisplayPart part in button.StrArray)
+						{
+							if (part == null) continue;
+							if (px >= part.PointX && px <= part.PointX + part.Width &&
+								py >= actualRelPointY + part.Top && py <= actualRelPointY + part.Bottom)
+							{
+								pointing = button;
+								if (pointing.IsButton)
+									return pointing;
+							}
+						}
+					}
+				}
+			}
+			return pointing;
+		}
 
 		public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 		{
+			if (GlobalStatic.EMediator.Console.Window == null) return;
+			var rect = IsRelative
+				? new Rectangle(PointX + xOffset, (int)point.Y + PointY, width + 2, Height)
+				: Display switch
+				{
+					DisplayMode.AbsoluteLeftTop => new Rectangle(xOffset, PointY, width + 2, Height),
+					DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height),
+					_ => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height)
+				};
+			graph.Save();
+			if (margin != null)
+				rect = new Rectangle(rect.X + margin[Direction.Left], rect.Y + margin[Direction.Top],
+					 rect.Width - margin[Direction.Left] - margin[Direction.Right], rect.Height - margin[Direction.Top] - margin[Direction.Bottom]);
+			graph.ClipRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom));
+			if (backgroundColor != Color.Transparent)
+			{
+				using var backPaint = new SKPaint { Color = DisplayUtils.ToSKColor(backgroundColor) };
+				graph.DrawRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom), backPaint);
+			}
+			if (border != null && borderColors != null)
+			{
+				if (border[Direction.Top] > 0 && borderColors[Direction.Top] != Color.Transparent)
+				{
+					using var borderPaint = new SKPaint { Color = DisplayUtils.ToSKColor(borderColors[Direction.Top]) };
+					graph.DrawRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Top + border[Direction.Top]), borderPaint);
+				}
+				if (border[Direction.Right] > 0 && borderColors[Direction.Right] != Color.Transparent)
+				{
+					using var borderPaint = new SKPaint { Color = DisplayUtils.ToSKColor(borderColors[Direction.Right]) };
+					graph.DrawRect(new SKRect(rect.Right - border[Direction.Right], rect.Top, rect.Right, rect.Bottom), borderPaint);
+				}
+				if (border[Direction.Bottom] > 0 && borderColors[Direction.Bottom] != Color.Transparent)
+				{
+					using var borderPaint = new SKPaint { Color = DisplayUtils.ToSKColor(borderColors[Direction.Bottom]) };
+					graph.DrawRect(new SKRect(rect.Left, rect.Bottom - border[Direction.Bottom], rect.Right, rect.Bottom), borderPaint);
+				}
+				if (border[Direction.Left] > 0 && borderColors[Direction.Left] != Color.Transparent)
+				{
+					using var borderPaint = new SKPaint { Color = DisplayUtils.ToSKColor(borderColors[Direction.Left]) };
+					graph.DrawRect(new SKRect(rect.Left, rect.Top, rect.Left + border[Direction.Left], rect.Bottom), borderPaint);
+				}
+			}
+			if (border != null)
+				rect = new Rectangle(rect.X + border[Direction.Left], rect.Y + border[Direction.Top],
+					 rect.Width - border[Direction.Left] - border[Direction.Right], rect.Height - border[Direction.Top] - border[Direction.Bottom]);
+			if (padding != null)
+				rect = new Rectangle(rect.X + padding[Direction.Left], rect.Y + padding[Direction.Top],
+					 rect.Width - padding[Direction.Left] - padding[Direction.Right], rect.Height - padding[Direction.Top] - padding[Direction.Bottom]);
+			graph.ClipRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom));
+			point.Y = rect.Y;
+			foreach (var child in children)
+			{
+				child.DrawTo(graph, (int)point.Y, isBackLog, true, mode);
+				point.Y += Config.Config.LineHeight;
+			}
+			graph.Restore();
+		}
+
+		void ShiftChildrenX(int diff)
+		{
+			foreach (var child in children)
+				child.ShiftPositionX(diff);
 		}
 
 		public override void SetWidth(StringMeasure sm, float subPixel)
 		{
+		}
+
+		public override string ToString()
+		{
+			var sb = new StringBuilder();
+			sb.Append(altHeadTag);
+			foreach (var line in children)
+			{
+				sb.Append(line.ToString());
+				sb.Append("\r\n");
+			}
+			sb.Append("</div>");
+			return sb.ToString();
+		}
+		public override StringBuilder BuildString(StringBuilder sb)
+		{
+			sb.Append(altHeadTag);
+			foreach (var line in children)
+			{
+				sb.Append(line.ToString());
+				sb.Append("\r\n");
+			}
+			sb.Append("</div>");
+			return sb;
 		}
 	}
 }

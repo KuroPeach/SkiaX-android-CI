@@ -7,7 +7,7 @@
 
 - ✅ Phase 0-2 已完成（编译通过 + 桌面端可启动）
 - ✅ **Phase 4A-Desktop** 已完成（Stub 扩展 + 30+ 处注释代码恢复）
-- 🔄 **Phase 3** — 下一步（Skia 渲染集成）
+- ✅ **Phase 3** 已完成（Skia 渲染集成）
 - ⏭️ Phase 4A-Xamarin / Phase 4B / Phase 5
 
 ---
@@ -84,12 +84,12 @@
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 3C-1 | 移植 `ValidateBackground()` + `bakedBackground` | 背景预烘焙机制 | ⏳ |
-| 3C-2 | 移植 EscapedParts + CBG 混合渲染 | 按 zdepth 降序排列，depth=0 时绘制文本行 | ⏳ |
-| 3C-3 | 集成 `_imageLayerManager.DrawTo()` | 在背景和文本之间绘制图层 | ⏳ |
-| 3C-4 | 移植 `rikaichan.OnPaint()` | Rikaichan 悬浮提示渲染 | ⏳ |
-| 3C-5 | 移植 `_htmlElementList` HTML 元素绘制 | HTML_PRINT 岛屿输出 | ⏳ |
-| 3C-6 | 编译+运行验证 | — | ⏳ |
+| 3C-1 | 移植 `ValidateBackground()` + `bakedBackground` | 背景预烘焙机制 | ✅ |
+| 3C-2 | 移植 EscapedParts + CBG 混合渲染 | 按 zdepth 降序排列，depth=0 时绘制文本行 | ✅ |
+| 3C-3 | 集成 `_imageLayerManager.DrawTo()` | 在背景和文本之间绘制图层 | ✅ |
+| 3C-4 | 移植 `rikaichan.OnPaint()` | Rikaichan 悬浮提示渲染 | ⏭️ 延后 |
+| 3C-5 | 移植 `_htmlElementList` HTML 元素绘制 | HTML_PRINT 岛屿输出 | ⏭️ 延后 |
+| 3C-6 | 编译+运行验证 | — | ✅ |
 
 **风险**：OnPaint 升级涉及大量行级修改，需逐段 diff LazyLoading 版和 xamarin 版
 
@@ -100,12 +100,12 @@
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 3D-1 | 移植字体回退链 | 4 层回退：自定义→安全字体→MatchCharacter→Default | ⏳ |
-| 3D-2 | 实现 `GetFont()` 完整参数 | 应用 style/edging/hinting 参数 | ⏳ |
-| 3D-3 | 实现 `IsRasterFont()` | 检测 MS Gothic 等光栅字体 | ⏳ |
-| 3D-4 | 实现字体缓存 | `fontDic` + `fallbackTypefaceCache` | ⏳ |
-| 3D-5 | 实现 `GetFallbackFontForChar()` | 按字符获取回退字体 | ⏳ |
-| 3D-6 | 编译+运行验证 | — | ⏳ |
+| 3D-1 | 移植字体回退链 | 4 层回退：自定义→安全字体→MatchCharacter→Default | ✅ |
+| 3D-2 | 实现 `GetFont()` 完整参数 | 应用 style/edging/hinting 参数 | ✅ |
+| 3D-3 | 实现 `IsRasterFont()` | 检测 MS Gothic 等光栅字体 | ✅ |
+| 3D-4 | 实现字体缓存 | `fontDic` + `fallbackTypefaceCache` | ✅ |
+| 3D-5 | 实现 `GetFallbackFontForChar()` | 按字符获取回退字体 | ✅ |
+| 3D-6 | 编译+运行验证 | — | ✅ |
 
 **注意**：光栅字体的 GDI 桥接路径（`TextRenderer.DrawText` → `SKBitmap`）在 Android/iOS 不可用，需条件编译或替代方案
 
@@ -115,9 +115,9 @@
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 3E-1 | 移植 `ConsoleDivPart.DrawTo()` | div 容器绘制逻辑 | ⏳ |
-| 3E-2 | 移植 `ConsoleDivPart.SetWidth()` | div 宽度计算 | ⏳ |
-| 3E-3 | 编译+运行验证 | — | ⏳ |
+| 3E-1 | 移植 `ConsoleDivPart.DrawTo()` | div 容器绘制逻辑 | ✅ |
+| 3E-2 | 移植 `ConsoleDivPart.SetWidth()` | div 宽度计算（空实现，同 LazyLoading） | ✅ |
+| 3E-3 | 编译+运行验证 | — | ✅ |
 
 ### 切片 3F：GraphicsImage 缺失方法（P2）
 
@@ -125,19 +125,22 @@
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 3F-1 | 实现 `GBitmapToInt64Array()` | SkiaSharp 像素读取 | ⏳ |
-| 3F-2 | 实现 `GByteArrayToBitmap()` | SkiaSharp 像素写入 | ⏳ |
-| 3F-3 | 修复 `GDrawLine()`/`GDrawPolygon()` | surface 未写回 Bitmap 的 bug | ⏳ |
-| 3F-4 | 编译+运行验证 | — | ⏳ |
+| 3F-1 | 实现 `GBitmapToInt64Array()` | SkiaSharp 像素读取（GetPixels + Marshal.Copy） | ✅ |
+| 3F-2 | 实现 `GByteArrayToBitmap()` | SkiaSharp 像素写入（Marshal.Copy → GetPixels） | ✅ |
+| 3F-3 | 修复 `GDrawLine()`/`GDrawPolygon()`/`GFillPolygon()` | 改用已有 `g` canvas 绘制，添加 DashStyle/DashCap 支持 | ✅ |
+| 3F-4 | 编译+运行验证 | — | ✅ |
 
-### 切片 3G：增量渲染（可选优化，P3）
+### 切片 3G：增量渲染（可选优化，P3）— ⏭️ 跳过
+
+> LazyLoading 本身未实现脏区域/增量渲染，采用全量清除+全量重绘策略。
+> xamarin 已有的优化（背景缓存、离屏裁剪、帧率节流）与 LazyLoading 对齐。
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 3G-1 | 移植 `DirtyLineTracker` | 脏行追踪 | ⏭️ 可选 |
-| 3G-2 | 移植 `IncrementalRenderer` | 增量渲染 | ⏭️ 可选 |
-| 3G-3 | 移植 `RenderLoop` | 渲染循环 | ⏭️ 可选 |
-| 3G-4 | 性能对比测试 | 全屏重绘 vs 增量渲染 | ⏭️ 可选 |
+| 3G-1 | 移植 `DirtyLineTracker` | 脏行追踪 | ⏭️ 跳过 |
+| 3G-2 | 移植 `IncrementalRenderer` | 增量渲染 | ⏭️ 跳过 |
+| 3G-3 | 移植 `RenderLoop` | 渲染循环 | ⏭️ 跳过 |
+| 3G-4 | 性能对比测试 | 全屏重绘 vs 增量渲染 | ⏭️ 跳过 |
 
 ---
 

@@ -110,16 +110,16 @@ namespace MinorShift.Emuera.GameView
 		//ConsoleButtonString lastSelectingButton = null;
 		class ClientBackGroundImage : IComparable<ClientBackGroundImage>
 		{
-			/// <summary>
-			/// zdepth == 0は文字列用ダミーなので他で使ってはいけない
-			/// </summary>
-			/// <param name="zdepth"></param>
 			internal ClientBackGroundImage(int zdepth)
 			{ this.zdepth = zdepth; }
 			public ASprite Img = null;
 			public ASprite ImgB = null;
 			public int x;
 			public int y;
+			public int width;
+			public int height;
+			public float Opacity = 1.0f;
+			public float[] ColorMatrix = null;
 			public readonly int zdepth;
 			public bool isButton = false;
 			public int buttonValue;
@@ -128,7 +128,6 @@ namespace MinorShift.Emuera.GameView
 			{
 				if (other == null)
 					return -1;
-				//逆順でSort
 				return -zdepth.CompareTo(other.zdepth);
 			}
 		}
@@ -245,6 +244,8 @@ namespace MinorShift.Emuera.GameView
 		const string ErrorButtonsText = "__openFileWithDebug__";
         private readonly MainWindow window;
 		private readonly ImageLayerManager _imageLayerManager = new();
+		private SKBitmap bakedBackground;
+		private List<KeyValuePair<long, ConsoleBackground>> backgroundList = [];
 
 		MinorShift.Emuera.GameProc.Process emuera;
 		ConsoleState state = ConsoleState.Initializing;
@@ -1421,33 +1422,48 @@ namespace MinorShift.Emuera.GameView
 			//else
 			//{
 				graph.Clear(DisplayUtils.ToSKColor(this.bgColor));
+				ValidateBackground(ClientWidth, ClientHeight);
+				if (bakedBackground != null)
+					graph.DrawBitmap(bakedBackground, 0, 0);
 				_imageLayerManager.DrawTo(graph, ClientWidth, ClientHeight, window.ScrollBar.Value * Config.LineHeight);
 				//1823 cbg追加
-				for (int j = 0; j < cbgList.Count; j++)
+				int topPointY = pointY;
+				int cidx = 0;
+				while (cidx < cbgList.Count)
 				{
-					if (cbgList[j].zdepth == 0)
+					var cbg = cbgList[cidx];
+					if (cbg.zdepth == 0)
 					{
-						//1823以前の文字列描画
-						for (int i = topLineNo; i <= bottomLineNo; i++)
+						for (int i = topLineNo; i <= bottomLineNo && i < displayLineList.Count; i++)
 						{
-							displayLineList[i].DrawTo(graph, pointY, isBackLog, true, Config.TextDrawingMode);
+							try { displayLineList[i].DrawTo(graph, pointY, isBackLog, true, Config.TextDrawingMode); }
+							catch { }
 							pointY += Config.LineHeight;
 						}
-						if (lockTaken)
-							displayLineListSpinLock.Exit();
-						continue;
 					}
-					ASprite img = cbgList[j].Img;
-					if (cbgList[j].isButton && cbgList[j].buttonValue == selectingCBGButtonInt)
-						img = cbgList[j].ImgB;
-					if (img == null || !img.IsCreated)
-						continue;
-					//img.GraphicsDraw(graph, new Point(cbgList[j].x, cbgList[j].y + window.MainPicBox.Height - img.DestBaseSize.Height));
-					img.GraphicsDraw(graph, new Point(cbgList[j].x, cbgList[j].y + ClientHeight - img.DestBaseSize.Height));
-					//Bitmap bmp = img.Bitmap;
-					//graph.DrawImage(bmp,
-					//	new Rectangle(cbgList[j].x + img.DestBasePosition.X, window.MainPicBox.Height - img.SrcRectangle.Height + cbgList[j].y + img.DestBasePosition.Y, img.SrcRectangle.Width, img.SrcRectangle.Height),
-					//	img.SrcRectangle, GraphicsUnit.Pixel);
+					else
+					{
+						ASprite img = cbg.Img;
+						if (cbg.isButton && cbg.buttonValue == selectingCBGButtonInt)
+							img = cbg.ImgB;
+						if (img != null && img.IsCreated)
+						{
+							try
+							{
+								int destW = cbg.width > 0 ? cbg.width : img.DestBaseSize.Width;
+								int destH = cbg.height > 0 ? cbg.height : img.DestBaseSize.Height;
+								var destRect = new Rectangle(cbg.x, cbg.y + ClientHeight - destH, destW, destH);
+								SKColorFilter filter = null;
+								if (cbg.ColorMatrix != null && cbg.ColorMatrix.Length == 20)
+									filter = SKColorFilter.CreateColorMatrix(cbg.ColorMatrix);
+								else if (cbg.Opacity < 1.0f)
+									filter = SKColorFilter.CreateColorMatrix([1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,cbg.Opacity,0]);
+								img.GraphicsDraw(graph, destRect, filter);
+							}
+							catch { }
+						}
+					}
+					cidx++;
 				}
 
 			//}
@@ -2121,14 +2137,70 @@ namespace MinorShift.Emuera.GameView
 
 		public void AddBackgroundImage(string name, long depth, float opacity)
 		{
+			var spr = AppContents.GetSprite(name);
+			if (spr == null || !spr.IsCreated) return;
+			var bg = new ConsoleBackground(spr, opacity);
+			var pair = new KeyValuePair<long, ConsoleBackground>(depth, bg);
+			backgroundList.Add(pair);
+			backgroundList.Sort((v1, v2) => (v1.Key >= v2.Key) ? -1 : 1);
+			BakeBackground();
 		}
 
 		public void RemoveBackground(string key)
 		{
+			var idx = backgroundList.FindIndex((v) => v.Value.bgImage.Name == key);
+			if (idx >= 0) backgroundList.RemoveAt(idx);
+			BakeBackground();
 		}
 
 		public void ClearBackgroundImage()
 		{
+			backgroundList.Clear();
+			BakeBackground();
+		}
+
+		public void ValidateBackground(int width, int height)
+		{
+			if (bakedBackground == null)
+			{
+				bakedBackground = new SKBitmap(width, height);
+				BakeBackground();
+			}
+			else if (bakedBackground.Width != width || bakedBackground.Height != height)
+			{
+				bakedBackground.Dispose();
+				bakedBackground = new SKBitmap(width, height);
+				BakeBackground();
+			}
+		}
+
+		public void InvalidateBackgroundCache()
+		{
+			if (bakedBackground != null)
+			{
+				bakedBackground.Dispose();
+				bakedBackground = null;
+			}
+		}
+
+		private void BakeBackground()
+		{
+			if (bakedBackground == null) return;
+			using var canvas = new SKCanvas(bakedBackground);
+			canvas.Clear(SKColors.Transparent);
+			foreach (var pair in backgroundList)
+			{
+				var bg = pair.Value.bgImage;
+				var scaleW = bakedBackground.Width / (float)bg.DestBaseSize.Width;
+				var scaleH = bakedBackground.Height / (float)bg.DestBaseSize.Height;
+				var cropHorizontally = bg.DestBaseSize.Height * scaleW < bakedBackground.Height;
+				var newWidth = (int)(bg.DestBaseSize.Width * (cropHorizontally ? scaleH : scaleW));
+				var newHeight = (int)(bg.DestBaseSize.Height * (cropHorizontally ? scaleH : scaleW));
+				var paddingX = (bakedBackground.Width - newWidth) / 2;
+				var filter = pair.Value.GetColorFilter();
+				bg.GraphicsDraw(canvas, new Rectangle(paddingX, 0, newWidth, newHeight), filter);
+				filter?.Dispose();
+			}
 		}
 
 		public PrintStringBuffer PrintBuffer { get { return printBuffer; } }
@@ -2145,7 +2217,24 @@ namespace MinorShift.Emuera.GameView
 
 		public ConsoleButtonString PointingSring => pointingString;
 
-		public bool CBG_SetImage(ASprite img, int x, int y, int zdepth, int width, int height, float opacity, float[] colorMatrix) { return false; }
+		public bool CBG_SetImage(ASprite img, int x, int y, int zdepth, int width, int height, float opacity, float[] colorMatrix)
+		{
+			if (img == null || !img.IsCreated) return false;
+			if (zdepth == 0) return false;
+			var cbg = new ClientBackGroundImage(zdepth)
+			{
+				Img = img,
+				x = x,
+				y = y,
+				width = width,
+				height = height,
+				Opacity = opacity,
+				ColorMatrix = colorMatrix
+			};
+			cbgList.Add(cbg);
+			cbgList.Sort();
+			return true;
+		}
 
 		public bool AlwaysRefresh { get; set; }
 
@@ -2175,5 +2264,31 @@ namespace MinorShift.Emuera.GameView
 		#endregion
 
 
+	}
+
+	internal class ConsoleBackground
+	{
+		public readonly ASprite bgImage;
+
+		public ConsoleBackground(ASprite spr, float opacity = 1.0f)
+		{
+			bgImage = spr;
+			Opacity = opacity;
+		}
+
+		public float Opacity { get; private set; }
+
+		public void SetOpacity(float opacity) { Opacity = opacity; }
+
+		public SKColorFilter GetColorFilter()
+		{
+			if (Opacity >= 1.0f) return null;
+			return SKColorFilter.CreateColorMatrix([
+				1, 0, 0, 0, 0,
+				0, 1, 0, 0, 0,
+				0, 0, 1, 0, 0,
+				0, 0, 0, Opacity, 0,
+			]);
+		}
 	}
 }

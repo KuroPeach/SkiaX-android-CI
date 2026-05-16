@@ -96,6 +96,8 @@ namespace XEmuera.Drawing
 	{
 		public Color DrawingColor;
 		public float Width { get => StrokeWidth; set => StrokeWidth = value; }
+		public DashStyle DashStyle { get; set; } = DashStyle.Solid;
+		public DashCap DashCap { get; set; } = DashCap.Flat;
 
 		public Pen(Color color, long width = 1)
 		{
@@ -118,5 +120,21 @@ namespace XEmuera.Drawing
 		}
 
 		public static implicit operator Pen(System.Drawing.Pen p) => new Pen(p);
+	}
+
+	public enum DashStyle
+	{
+		Solid = 0,
+		Dash = 1,
+		Dot = 2,
+		DashDot = 3,
+		DashDotDot = 4
+	}
+
+	public enum DashCap
+	{
+		Flat = 0,
+		Round = 2,
+		Triangle = 3
 	}
 }
