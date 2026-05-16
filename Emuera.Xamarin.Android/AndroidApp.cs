@@ -41,6 +41,7 @@ namespace XEmuera.Droid
             host.StartGame(gamePath);
 
             var mainWindow = host.MainWindow as AndroidMainWindow;
+            mainWindow.SetFlyoutPage(flyoutPage);
 
             gamePage = new ContentPage
             {
@@ -66,6 +67,7 @@ namespace XEmuera.Droid
 
         private void OnSettingsRequested()
         {
+            flyoutPage.Detail.Navigation.PushAsync(new AndroidConfigPage());
         }
 
         protected override void OnStart()

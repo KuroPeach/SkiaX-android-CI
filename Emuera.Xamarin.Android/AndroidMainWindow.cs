@@ -298,6 +298,26 @@ namespace XEmuera.Droid
             });
         }
 
+        public override void ShowConfigDialog()
+        {
+            activity?.RunOnUiThread(() =>
+            {
+                try
+                {
+                    var navPage = (flyoutPage?.Detail as NavigationPage);
+                    navPage?.PushAsync(new AndroidConfigPage());
+                }
+                catch { }
+            });
+        }
+
+        private Xamarin.Forms.FlyoutPage flyoutPage;
+
+        internal void SetFlyoutPage(Xamarin.Forms.FlyoutPage fp)
+        {
+            flyoutPage = fp;
+        }
+
         public override void Reboot()
         {
         }

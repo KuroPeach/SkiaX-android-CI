@@ -54,6 +54,7 @@
     <Compile Include="AndroidGameItemModel.cs" />
     <Compile Include="AndroidGameListPage.cs" />
     <Compile Include="AndroidMainMenuPage.cs" />
+    <Compile Include="AndroidConfigPage.cs" />
   </ItemGroup>
 
   <ItemGroup>
