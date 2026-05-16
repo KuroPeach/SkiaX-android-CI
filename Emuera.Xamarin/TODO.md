@@ -1,6 +1,6 @@
 # Emuera.Xamarin 任务计划
 
-> **最后更新**：2026-05-17
+> **最后更新**：2026-05-16
 > **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/CHANGELOG.md)
 
 ## 当前状态
@@ -10,7 +10,12 @@
 - ✅ **Phase 3** 已完成（Skia 渲染集成）
 - ✅ **Phase 3.5** 已完成（渲染管线补全 + 桌面端修复）
 - ✅ **Phase 6** 已完成（EM 私家版 HTML 扩展：div + PrintHtmlC 全量版）
-- ⏭️ Phase 4A-Xamarin / Phase 4B / Phase 5
+- ✅ **Phase 4A-Desktop 续** 已完成（鼠标交互 + ConfigDialog + WinForms 兼容性修复）
+- ✅ **Phase 4B-Desktop** 已完成（WinForms 配置对话框）
+- ✅ **Phase 4A-Desktop 续2** 已完成（ToolTip + QuickButton + DebugDialog 完善）
+- ✅ **Phase 4C-Desktop** 已完成（DebugDialog 属性恢复 + OpenDebugDialog 激活）
+- 📋 **Phase 7** 已规划（XEmuera 上游跟进：~~编码识别~~❌已覆盖/虚拟手柄/字体缩放/外部字体/本地化/日志查看器/游戏列表）
+- ⏭️ Phase 4A-Xamarin / Phase 4B-Xamarin / Phase 5 / Phase 7
 
 ---
 
@@ -245,6 +250,48 @@
 2. 取消注释后引入新编译错误 — 注释代码引用 `Control.MousePosition`/`Cursor.Position` 等 WinForms API
 3. MainPicBoxStub 与 EraPictureBox 双轨并存 — 未来切换 TFM 时需确保不冲突
 
+#### 子阶段 4A-Desktop 续：鼠标交互 + WinForms 兼容性 ✅
+
+> **目标**：让桌面端真正可交互（鼠标点击/移动/滚轮/按钮选择/滚动条/配置对话框）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 4A-D10 | 实现桌面端鼠标事件处理 | MouseMove→MoveMouse, MouseDown/Up→按钮选择, MouseWheel→滚动+InputMouseKey | ✅ |
+| 4A-D11 | 实现桌面端输入完善 | PressEnterKey后台线程+重入保护, Escape跳过, MouseLeave→LeaveMouse | ✅ |
+| 4A-D12 | 修复 `MainThread.BeginInvokeOnMainThread` 兼容性 | 替换为 `window.Invoke`（WinForms 不支持 Xamarin.Essentials MainThread） | ✅ |
+| 4A-D13 | 修复 `Color.WithAlpha` 兼容性 | `System.Drawing.Color` 无 WithAlpha → 改用 `Color.FromArgb(alpha, color)` | ✅ |
+| 4A-D14 | 缓存 `DesktopScrollBar` 实例 | 修复每次访问 `ScrollBar` 属性创建新实例的问题 | ✅ |
+| 4A-D15 | 实现 `App.DoEvents()` | 从空实现改为 `Application.DoEvents()` | ✅ |
+| 4A-D16 | 编译+运行验证 | 0 编译错误，62 警告（均为既有警告） | ✅ |
+
+#### 子阶段 4B-Desktop：WinForms 配置对话框 ✅
+
+> **目标**：实现桌面端配置编辑对话框
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 4B-D1 | 创建 `DesktopConfigDialog` | WinForms Form + TreeView分组 + ListView属性列表 + 编辑弹窗 | ✅ |
+| 4B-D2 | 实现 `ShowConfigDialog()` | DesktopMainWindow override 打开配置对话框 | ✅ |
+| 4B-D3 | 支持 bool/Color/string 编辑 | bool切换/ColorDialog/输入弹窗 | ✅ |
+| 4B-D4 | 11 个配置分组 | Environment/View/Window/Font/System/Compati/Debug/QuickButton/FontAndShape/LongPressSkip | ✅ |
+| 4B-D5 | 编译验证 | 0 错误 | ✅ |
+
+#### 子阶段 4A-Desktop 续2：ToolTip + QuickButton + DebugDialog 完善 ✅
+
+> **目标**：让桌面端 ToolTip/QuickButton/DebugDialog 从空壳升级为可用功能
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 4A-D17 | 实现 DesktopToolTip | WinForms ToolTip 桥接（Show/RemoveAll/InitialDelay/AutoPopDelay/ForeColor/BackColor/OwnerDraw） | ✅ |
+| 4A-D18 | 实现 DesktopQuickButton | FlowLayoutPanel 快捷按钮面板（AddButton/Clear + 点击提交） | ✅ |
+| 4A-D19 | 实现 ToolTip 扩展方法 | SetToolTipFontName/SetToolTipImg/SetToolTipFormat/CustomToolTip/SetToolTipFontSize 存储状态字段 | ✅ |
+| 4B-D6 | 实现 DesktopDebugDialog | WinForms 调试对话框（Console/Variables/StackTrace 标签页） | ✅ |
+| 4C-D1 | 恢复 DebugDialog 属性 | 从注释改为 `public object DebugDialog { get; } = null` | ✅ |
+| 4C-D2 | 恢复 DebugPrint/DebugClear/DebugNewLine | 从空壳改为实际日志操作 | ✅ |
+| 4C-D3 | 恢复 OpenDebugDialog | 从空壳改为 `window.ShowDebugDialog()` | ✅ |
+| 4C-D4 | 恢复初始化和 @DEBUG 命令中 OpenDebugDialog 调用 | `Program.DebugMode && Config.DebugShowWindow` | ✅ |
+| 4C-D5 | 编译验证 | 0 错误，63 警告（均为既有） | ✅ |
+
 #### 子阶段 4A-Xamarin：启用 ContentPage MainWindow（未来 TFM 切换）
 
 > **前置条件**：4A-Desktop 完成 + TFM 切换到 net8.0-android 或多目标框架
@@ -384,3 +431,140 @@
 | 6E-4 | 升级 `PrintHtmlC()` 为全量版 | 列内同行渲染 + 空白填充 + LC/RC 对齐 | ✅ |
 | 6E-5 | 升级 `PrintHtml()` 为全量版 | toPrintBuffer 行内模式 | ✅ |
 | 6E-6 | 编译验证 | 0 错误 | ✅ |
+
+---
+
+## Phase 7：XEmuera 上游跟进
+
+> **来源**：XEmuera-R 0.60~0.63 版本功能分析
+> **知识库**：[xemuera-upstream-tracking.md](file:///d:/emuera/shared-trae/knowledge/xemuera/xemuera-upstream-tracking.md)
+> **分析日期**：2026-05-16
+> **分类原则**：内核更新（影响解释器行为）vs 框架更新（影响移动端 UI/UX）
+
+### 切片 7A：编码自动识别（内核）— ❌ 已覆盖
+
+> **研判修正（2026-05-16）**：LazyLoading 内核**已有** `EncodingHandler` 类（`Emuera/Runtime/Utils/EncodingHandler.cs`，76行），
+> 实现了与 XEmuera `EncodingHelper` 等价的编码自动识别功能。
+> 
+> **事实**：
+> - `Config.Encode = EncodingHandler.UTF8BOMEncoding`（默认 UTF-8 BOM，非 Shift-JIS）
+> - `Config.SaveEncode = EncodingHandler.UTF8BOMEncoding`
+> - `EraStreamReader.Open()` 使用 `File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(path))`
+> - `EraDataStream.EraDataReader` 使用 `new StreamReader(file, EncodingHandler.DetectEncoding(file))`
+> - 全项目 9 处已调用 `EncodingHandler.DetectEncoding()`
+> - `LangManager.setEncode()` 仅影响字符串宽度计算（`GetStrlenLang`），不影响文件编码
+> - `UseLanguage` 配置仅设置 `LangManager` 编码（932/949/936/950），不覆盖 `Config.Encode`
+> 
+> **XEmuera vs LazyLoading 差异**：
+> | 特性 | XEmuera | LazyLoading |
+> |------|---------|-------------|
+> | 默认编码 | SHIFT-JIS | **UTF-8 BOM** |
+> | 自动识别 | EncodingHelper | EncodingHandler |
+> | EncoderFallback | 默认 | ExceptionFallback |
+> | BOM 检测 | byte[] 手动比较 | Span<byte> + SequenceEqual |
+> 
+> **结论**：无需移植，LazyLoading 编码系统已优于 XEmuera。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7A-1 | ~~移植 EncodingHelper~~ | LazyLoading 已有 EncodingHandler | ❌ 不需要 |
+| 7A-2 | ~~替换 EraStreamReader 编码选择~~ | 已使用 DetectEncoding | ❌ 不需要 |
+| 7A-3 | ~~替换 ErbLoader/HeaderFileLoader 编码选择~~ | 已使用 DetectEncoding | ❌ 不需要 |
+| 7A-4 | ~~添加 Config 选项 AutoDetectEncoding~~ | 已默认自动检测 | ❌ 不需要 |
+| 7A-5 | ~~编译+运行验证~~ | — | ❌ 不需要 |
+
+### 切片 7B：虚拟手柄映射（框架，P0）
+
+> **研判**：移动端核心交互，XEmuera 已实现完整虚拟手柄系统（方向键/确认/返回/数字键盘/虚拟选择导航）。
+> LazyLoading 内核已有 `VirtualSelectionDirection`/`ClickSelectedButton()`/`NavigateVirtualSelection()` 等虚拟选择逻辑，
+> 但无虚拟手柄 UI 和触摸事件映射。需在 Phase 4A-Xamarin 之后实施。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7B-1 | 移植虚拟手柄 XAML 布局 | 方向键/确认/返回/数字键盘/缩放按钮 | ⏭️ |
+| 7B-2 | 移植 `ActivateKeypadButton()` | 数字键 → `PressPrimitiveKey` | ⏭️ |
+| 7B-3 | 移植 `TryActivateKeywordButton()` | 扩展关键词：确认/确定/调合/选定/是 + 返回/取消/归返/结束/完毕/否 | ⏭️ |
+| 7B-4 | 移植虚拟选择导航 | `NavigateVirtualSelection()` — 上下左右方向选择按钮 | ⏭️ |
+| 7B-5 | 移植 `RefreshVirtualControllerState()` | 根据输入状态动态显示/隐藏按钮 | ⏭️ |
+| 7B-6 | 编译+运行验证 | — | ⏭️ |
+
+**前置条件**：Phase 4A-Xamarin 完成
+
+### 切片 7C：运行时字体缩放（框架，P1）
+
+> **研判**：XEmuera 0.63 新增 `ApplyRuntimeDisplayScale()` 实现运行时缩放（0.5x~5.0x），
+> 核心是 `ToLogicalTouchPoint()` 将触摸坐标转换为逻辑坐标，以及 `ReflowDisplayLinesForCurrentScale()` 重排显示行。
+> LazyLoading 有 `Config.FontScale` 但无运行时动态调整。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7C-1 | 移植 `ApplyRuntimeDisplayScale()` | 缩放应用 + InitGameView 重初始化 | ⏭️ |
+| 7C-2 | 移植 `ToLogicalTouchPoint()` | 触摸坐标逻辑缩放转换 | ⏭️ |
+| 7C-3 | 移植 `AdjustRuntimeDisplayScale()` | 缩放按钮 +/- 0.1 调整 | ⏭️ |
+| 7C-4 | 实现 `ReflowDisplayLinesForCurrentScale()` | 缩放后重排显示行 | ⏭️ |
+| 7C-5 | 添加缩放 UI 按钮 | zoom_in/zoom_out 按钮 | ⏭️ |
+| 7C-6 | 编译+运行验证 | — | ⏭️ |
+
+**前置条件**：Phase 4A-Xamarin 完成
+
+### 切片 7D：外部字体加载（框架，P1）
+
+> **研判**：XEmuera 的 `FontModel` 从游戏目录 `font/`/`fonts/` 加载 ttf/otf 文件，
+> 并有 `KnownExternalFontAliases` 别名系统（如 EraMonoSC、EraPixel）。
+> LazyLoading 的 `FontFactory` 已有 4 层回退链，但无外部目录扫描。
+> 需在 FontFactory 回退链中插入外部字体查找层。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7D-1 | 移植 `FontModel` 外部字体扫描 | `ExternalFontDirectoryNames` + `ExternalFontExtensions` + `KnownExternalFontAliases` | ⏭️ |
+| 7D-2 | 在 `FontFactory.GetFont()` 中插入外部字体层 | 自定义字体 → **外部目录字体** → 安全字体 → MatchCharacter → Default | ⏭️ |
+| 7D-3 | 添加字体选择 UI | `FontSettingsPage` — 启用/禁用字体 + 别名映射 | ⏭️ |
+| 7D-4 | 编译+运行验证 | — | ⏭️ |
+
+**前置条件**：Phase 3D（FontFactory 完善）完成 ✅
+
+### 切片 7E：本地化系统（框架，P2）
+
+> **研判**：XEmuera 的本地化系统基于 `EvilMask.Emuera.Lang` + `LanguageModel` + 嵌入式 XML 翻译资源。
+> LazyLoading 内核已有 `EvilMask.Emuera.Lang` 完整实现（含 `TranslatableString` + `LoadLanguageFile()`），
+> 但缺少 UI 选择器和嵌入式中文/英文翻译资源。移动端需添加 `LanguagePage`。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7E-1 | 移植 `LanguageModel` | ja-JP/zh-CN/en 三语言 + Preferences 持久化 | ⏭️ |
+| 7E-2 | 移植 `LanguagePage` | 语言选择 ListView + 重启提示 | ⏭️ |
+| 7E-3 | 添加嵌入式中文翻译资源 | `emuera-zhs.xml` | ⏭️ |
+| 7E-4 | 添加嵌入式英文翻译资源 | `emuera-eng.xml` | ⏭️ |
+| 7E-5 | 编译+运行验证 | — | ⏭️ |
+
+**前置条件**：Phase 4A-Xamarin 完成
+
+### 切片 7F：解释器日志查看器（框架，P2）
+
+> **研判**：XEmuera 在侧边菜单添加"解释器日志"入口，通过 `TxtFilePage` 查看 `emuera.log`，
+> 支持剪贴板复制和刷新。LazyLoading 有 `ParserMediator` 警告系统但无移动端查看器。
+> 实现简单，可提前到 Phase 4A-Xamarin 中一起做。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7F-1 | 移植 `TxtFilePage` | 文本查看器 + 复制 + 刷新 | ⏭️ |
+| 7F-2 | 在侧边菜单添加"解释器日志"入口 | 读取 `emuera.log` + `EncodingHandler.DetectEncoding()` | ⏭️ |
+| 7F-3 | 编译+运行验证 | — | ⏭️ |
+
+**前置条件**：Phase 4A-Xamarin 完成
+
+### 切片 7G：游戏列表+侧边菜单（框架，P0）
+
+> **研判**：XEmuera 使用 `FlyoutPage` + `GameItemPage` 实现游戏列表和侧边菜单导航。
+> 这是移动端的基础导航框架，需在 Phase 4A-Xamarin 中优先实现。
+> 已在 TODO Phase 4A-X6 中规划（移植 App.xaml + MainPage.xaml），此处补充细节。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7G-1 | 移植 `GameItemModel` + `GameItemPage` | 游戏列表 + 长按配置编辑 | ⏭️ |
+| 7G-2 | 移植 `MainMenuPage` | 侧边菜单（重启/回到标题/设置/解释器日志） | ⏭️ |
+| 7G-3 | 移植 `GameUtils` 游戏管理 | `StartEmuera()`/`CurrentGamePath`/`PrefKeyLastGamePath` | ⏭️ |
+| 7G-4 | 编译+运行验证 | — | ⏭️ |
+
+**前置条件**：Phase 4A-Xamarin 完成
+**与 4A-X6 的关系**：7G 是 4A-X6 的细化，合并执行

@@ -1,5 +1,104 @@
 # Emuera.Xamarin 变更记录
 
+## [0.8.0] - 2026-05-18
+
+### Phase 4A-Desktop 续2：ToolTip + QuickButton + DebugDialog 完善 ✅
+
+#### 切片 4A-D17：DesktopToolTip WinForms ToolTip 桥接 ✅
+
+- `DesktopToolTip`：从空壳升级为完整 WinForms ToolTip 桥接
+  - `Show()`/`RemoveAll()`/`InitialDelay`/`AutoPopDelay`/`ForeColor`/`BackColor`/`OwnerDraw` 全部实现
+  - `Show()` 通过 `form.BeginInvoke` 确保 UI 线程安全
+- `ToolTipStub`：`Show`/`RemoveAll` 改为 `virtual`（支持 override）
+
+#### 切片 4A-D18：DesktopQuickButton FlowLayoutPanel 快捷按钮 ✅
+
+- `DesktopQuickButton`：新建 FlowLayoutPanel 快捷按钮面板
+  - `AddButton()`：创建 Button 控件，点击时填入文本并 `PressEnterKey`
+  - `Clear()`：清空所有快捷按钮
+  - 按钮样式：FlatStyle.Flat + 深色背景 + MS Gothic 字体
+- `QuickButtonGroup` stub：`AddButton`/`Clear` 改为 `virtual`
+- `MainWindow` stub：`QuickButtonGroup` 改为 `virtual` 属性 + `quickButtonGroup` 别名
+
+#### 切片 4A-D19：EmueraConsole ToolTip 扩展方法 ✅
+
+- `SetToolTipFontName`/`SetToolTipImg`/`SetToolTipFormat`/`CustomToolTip`/`SetToolTipFontSize`：从空壳改为存储状态字段
+  - `_tooltipFontName`/`_tooltipFontSize`/`_tooltipFormat`/`_tooltipImgEnabled`/`_tooltipImg`/`_tooltipDuration`
+  - `CustomToolTip()` → `window.ToolTip.OwnerDraw = b`
+
+#### 切片 4B-D6：DesktopDebugDialog WinForms 调试对话框 ✅
+
+- 新建 `DesktopDebugDialog.cs`：WinForms 调试对话框
+  - TabControl：Console/Variables/StackTrace 三个标签页
+  - Console 标签页：显示 `DebugConsoleLog`（黑色背景 + 白色文字）
+  - Refresh 按钮：手动刷新调试输出
+  - `OnFormClosing`：隐藏而非关闭（支持重复打开）
+- `DesktopMainWindow.ShowDebugDialog()` override：打开调试对话框
+
+#### 切片 4C-1/2：DebugDialog 属性恢复 + OpenDebugDialog 激活 ✅
+
+- `DebugDialog` 属性：从注释改为 `public object DebugDialog { get; } = null`
+- `DebugConsoleLog` 属性恢复：`dConsoleLog` StringBuilder 激活
+- `DebugPrint`/`DebugClear`/`DebugNewLine`：从空壳改为实际日志操作
+- `OpenDebugDialog()`：从空壳改为调用 `window.ShowDebugDialog()`
+- 恢复初始化时 `OpenDebugDialog` 调用（`Program.DebugMode && Config.DebugShowWindow`）
+- 恢复 `@DEBUG` 命令中 `OpenDebugDialog` 调用
+- `MainWindow` stub：添加 `ShowDebugDialog()` virtual 方法
+- csproj：添加 `DesktopDebugDialog.cs` 编译项
+
+## [0.7.0] - 2026-05-18
+
+### Phase 4A-Desktop 续：鼠标交互 + WinForms 兼容性 ✅
+
+#### 切片 4A-D10/D11：桌面端鼠标事件处理 + 输入完善 ✅
+
+- 重写 `DesktopHost.cs`：添加完整鼠标事件处理
+  - `PictureBox.MouseMove` → `console.MoveMouse()`（按钮高亮/选中）
+  - `PictureBox.MouseDown/Up` → `console.MouseDown()`（INPUTMOUSEKEY 原始事件转发）
+  - `PictureBox.MouseWheel` → 滚动条滚动 + `console.MouseWheel()`（INPUTMOUSEKEY）
+  - `PictureBox.MouseLeave` → `console.LeaveMouse()`（清除选中状态）
+  - `PictureBox.MouseEnter` → `pictureBox.Focus()`（支持鼠标滚轮）
+- 添加 `MouseReleased()` 逻辑（参考 XEmuera-1）
+  - backlog 跳转：点击时自动跳回最新位置
+  - 按钮选择：左键点击选中按钮 → `PressEnterKey(false, str, true)`
+  - 空白区域：左键确认/右键跳过
+  - `IsWaitingPrimitive`：直接转发 `console.MouseDown()`
+- 改进 `PressEnterKey()`：后台线程执行 + `pressEnterKeyInProcess` 重入保护
+- 添加 Escape 键处理：`console.KillMacro = true` + `PressEnterKey(true, "", false)`
+- 缓存 `DesktopScrollBar` 实例（修复每次访问创建新实例的 bug）
+- 实现 `DesktopMainWindow.Reboot()`/`Close()`/`Title`/`ChangeTextBox()`/`clear_richText()`
+
+#### 切片 4A-D12/D13：WinForms 兼容性修复 ✅
+
+- 替换 `MainThread.BeginInvokeOnMainThread` → `window.Invoke`（4 处）
+  - `EmueraConsole.verticalScrollBarUpdate()`：滚动条更新
+  - `EmueraConsole.RefreshStrings()`：背景色更新
+  - `EmueraConsole.ex.ClearQuickButton()`：快捷按钮清空
+  - `EmueraConsole.ex.RefreshQuickButton()`：快捷按钮刷新
+- 修复 `Color.WithAlpha(0xc0)` → `Color.FromArgb(0xc0, color)`（System.Drawing.Color 兼容）
+- 移除 `using Xamarin.Essentials`（EmueraConsole.cs + EmueraConsole.ex.cs）
+- `App.DoEvents()`：从空实现改为 `Application.DoEvents()`
+
+### Phase 4B-Desktop：WinForms 配置对话框 ✅
+
+#### 切片 4B-D1~D5：DesktopConfigDialog ✅
+
+- 新建 `DesktopConfigDialog.cs`：WinForms 配置编辑对话框
+  - 左侧 TreeView 分组导航 + 右侧 ListView 属性列表
+  - 双击编辑：bool 切换 / ColorDialog 颜色选择 / 字符串输入弹窗
+  - Reset Default 按钮：恢复单项默认值
+  - OK 按钮：调用 `ConfigData.SaveConfig()` 保存到 emuera.config
+- 11 个配置分组：
+  - Environment（AutoSave/MaxLog/InfiniteLoopAlertTime 等）
+  - Display（FPS/PrintCPerLine/PrintCLength/ButtonWrap）
+  - Window（WindowX/ScrollHeight/PanSpeed）
+  - Font（ForeColor/BackColor/FocusColor/FontName/FontSize/LineHeight）
+  - System 1/2（IgnoreCase/UseRenameFile/Compat 系列）
+  - Compatibility（CompatiErrorLine/CompatiCALLNAME/CompatiRAND 等）
+  - Debug（WarnBackCompatibility/DisplayReport/ReduceArgumentOnLoad 等）
+  - Quick Buttons / Font & Shape / Long Press Skip
+- `DesktopMainWindow.ShowConfigDialog()` override：打开配置对话框 + 刷新画面
+
 ## [0.6.0] - 2026-05-17
 
 ### Phase 6：EM 私家版 HTML 扩展 ✅

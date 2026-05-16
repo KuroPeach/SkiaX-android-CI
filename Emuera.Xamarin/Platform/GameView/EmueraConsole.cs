@@ -249,7 +249,24 @@ namespace MinorShift.Emuera.GameView
 		private List<ConsoleDisplayLine> _htmlElementList = new(10);
 
 		MinorShift.Emuera.GameProc.Process emuera;
-		ConsoleState state = ConsoleState.Initializing;
+		#region EM_私家版_描画拡張
+		ConsoleState _state = ConsoleState.Initializing;
+		ConsoleState state
+		{
+			get { return _state; }
+			set
+			{
+				switch (value)
+				{
+					case ConsoleState.Quit:
+					case ConsoleState.Error:
+						ConsoleEscapedParts.Clear();
+						break;
+				}
+				_state = value;
+			}
+		}
+		#endregion
 		public bool Enabled { get { return window.Created; } }
 
 		/// <summary>
@@ -912,14 +929,13 @@ namespace MinorShift.Emuera.GameView
 		}
 
 		//1823 Key入力を捕まえる
-		// internal void PressPrimitiveKey(Keys keycode, Keys keydata, Keys keymod)
-		// {
-		// 	if (IsWaitingPrimitive)
-		// 		#region EE_INPUTMOUSEKEY拡張
-		// 		// InputMouseKey(3, (int)keycode, (int)keydata, 0, 0);
-		// 		InputMouseKey(3, (int)keycode, (int)keydata, 0, 0, 0);
-		// 		#endregion
-		// }
+		internal void PressPrimitiveKey(int keycode, int keydata, int keymod)
+		{
+			if (IsWaitingPrimitive)
+				#region EE_INPUTMOUSEKEY拡張
+				InputMouseKey(3, keycode, keydata, 0, 0, 0);
+				#endregion
+		}
 
 		//1823 Key入力を捕まえる
 		#region EE_INPUTMOUSEKEY拡張
@@ -2242,6 +2258,7 @@ namespace MinorShift.Emuera.GameView
 
 		public void ClearText()
 		{
+			window.clear_richText();
 		}
 
 		public ConsoleButtonString PointingSring => pointingString;

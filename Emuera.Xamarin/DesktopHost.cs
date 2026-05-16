@@ -64,6 +64,9 @@ namespace MinorShift.Emuera
             pictureBox.MouseEnter += PictureBox_MouseEnter;
             pictureBox.TabStop = true;
 
+            KeyDown += DesktopHostForm_KeyDown;
+            KeyPreview = true;
+
             inputTextBox = new TextBox
             {
                 Dock = DockStyle.Bottom,
@@ -313,6 +316,19 @@ namespace MinorShift.Emuera
 
         #region Input Handling
 
+        private void DesktopHostForm_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (console == null || console.IsInProcess)
+                return;
+
+            if (console.IsWaitingPrimitive)
+            {
+                console.PressPrimitiveKey((int)e.KeyCode, (int)e.KeyData, (int)e.Modifiers);
+                e.SuppressKeyPress = true;
+                e.Handled = true;
+            }
+        }
+
         private void InputTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (console == null || console.IsInProcess)
@@ -469,6 +485,15 @@ namespace MinorShift.Emuera
             quickButtonPanel.Visible = false;
         }
 
+        public void DoUpdateLastInput()
+        {
+            if (inputTextBox.IsDisposed)
+                return;
+            inputTextBox.KeyDown -= InputTextBox_KeyDown;
+            System.Windows.Forms.Application.DoEvents();
+            inputTextBox.KeyDown += InputTextBox_KeyDown;
+        }
+
         #endregion
     }
 
@@ -523,10 +548,12 @@ namespace MinorShift.Emuera
             set { if (!form.IsDisposed) form.BeginInvoke(new Action(() => form.Text = value)); }
         }
 
+        private SKColor _backgroundColor = SKColors.Black;
+
         public override SKColor BackgroundColor
         {
-            get => SKColors.Black;
-            set { }
+            get => _backgroundColor;
+            set { _backgroundColor = value; }
         }
 
         public override bool IsEnabled => !form.IsDisposed;
@@ -591,8 +618,15 @@ namespace MinorShift.Emuera
             }));
         }
 
+        private string _lastInputed = "";
+
         public override void update_lastinput()
         {
+            var tb = form.GetInputTextBox();
+            if (tb == null || tb.IsDisposed)
+                return;
+            form.DoUpdateLastInput();
+            _lastInputed = tb.Text;
         }
 
         public override void clear_richText()
