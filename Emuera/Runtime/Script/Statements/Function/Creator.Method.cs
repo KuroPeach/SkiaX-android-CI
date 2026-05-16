@@ -8852,7 +8852,7 @@ internal static partial class FunctionMethodCreator
 			//if (exm.Console.SelectingButton != null)
 			//	return exm.Console.SelectingButton.ToString();
 			bool b = exm.Console.AlwaysRefresh;
-			Point point = exm.Console.Window.MainPicBox.PointToClient(Control.MousePosition);
+			Point point = exm.Console.Window.MainPicBox.PointToClient(new Point(Control.MousePosition.X, Control.MousePosition.Y));
 			exm.Console.AlwaysRefresh = true;
 			if (exm.Console.Window.MainPicBox.ClientRectangle.Contains(point))
 				exm.Console.MoveMouse(point);

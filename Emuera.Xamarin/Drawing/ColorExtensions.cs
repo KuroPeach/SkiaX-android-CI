@@ -1,5 +1,4 @@
 using SkiaSharp;
-using System.Drawing;
 
 namespace SkiaSharp.Views.Desktop
 {
@@ -13,6 +12,11 @@ namespace SkiaSharp.Views.Desktop
 		public static Color ToDrawingColor(this Color color)
 		{
 			return color;
+		}
+
+		public static Xamarin.Forms.Color ToFormsColor(this Color c)
+		{
+			return Xamarin.Forms.Color.FromRgba(c.R, c.G, c.B, c.A);
 		}
 	}
 }

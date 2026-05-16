@@ -44,7 +44,7 @@ namespace XEmuera.Models
 					return;
 				_value = value;
 				ValueText = ConfigItem.ValueToString(value);
-				if (_value is System.Drawing.Color color)
+				if (_value is Color color)
 				{
 					IsValueColor = true;
 					ValueColor = color;

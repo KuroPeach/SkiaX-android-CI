@@ -711,7 +711,7 @@ namespace MinorShift.Emuera
             get => form.IsDisposed ? Color.White : form.GetInputTextBox().ForeColor;
             set { if (!form.IsDisposed) form.BeginInvoke(new Action(() => form.GetInputTextBox().ForeColor = value)); }
         }
-        public override System.Drawing.Font Font
+        public override Font Font
         {
             get => form.IsDisposed ? null : form.GetInputTextBox().Font;
             set { if (!form.IsDisposed) form.BeginInvoke(new Action(() => form.GetInputTextBox().Font = value)); }

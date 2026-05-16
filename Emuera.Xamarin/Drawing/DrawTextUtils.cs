@@ -307,6 +307,10 @@ namespace XEmuera.Drawing
 		public static implicit operator Font(SKFont f) => f == null ? null : new Font(f);
 		public static implicit operator System.Drawing.Font(Font f) =>
 			f == null ? null : new System.Drawing.Font(f.Name, f.Size, (System.Drawing.FontStyle)f.Style, System.Drawing.GraphicsUnit.Pixel);
+#if WINDOWS
+		public static implicit operator Font(System.Drawing.Font f) =>
+			f == null ? null : new Font(f.Name, f.Size, (FontStyle)(int)f.Style, GraphicsUnit.Pixel);
+#endif
 
 		public void SetStyle(FontStyle style)
         {

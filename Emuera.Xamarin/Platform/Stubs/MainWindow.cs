@@ -70,15 +70,15 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 	{
 		public virtual int Width { get; set; }
 		public virtual int Height { get; set; }
-		public virtual System.Drawing.Rectangle ClientRectangle => new System.Drawing.Rectangle(0, 0, Width, Height);
-		public virtual System.Drawing.Point PointToClient(System.Drawing.Point screenPoint) => screenPoint;
+		public virtual Rectangle ClientRectangle => new Rectangle(0, 0, Width, Height);
+		public virtual Point PointToClient(Point screenPoint) => screenPoint;
 	}
 
 	internal class TextBoxStub
 	{
-		public virtual System.Drawing.Color BackColor { get; set; }
-		public virtual System.Drawing.Color ForeColor { get; set; }
-		public virtual System.Drawing.Font Font { get; set; }
+		public virtual Color BackColor { get; set; }
+		public virtual Color ForeColor { get; set; }
+		public virtual Font Font { get; set; }
 		public string Text { get; set; } = "";
 	}
 
@@ -86,14 +86,14 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 	{
 		public virtual int InitialDelay { get; set; }
 		public virtual int AutoPopDelay { get; set; }
-		public virtual System.Drawing.Color ForeColor { get; set; }
-		public virtual System.Drawing.Color BackColor { get; set; }
+		public virtual Color ForeColor { get; set; }
+		public virtual Color BackColor { get; set; }
 		public virtual bool OwnerDraw { get; set; }
 		public event EventHandler Draw { add { } remove { } }
 		public event EventHandler Popup { add { } remove { } }
 		public virtual void RemoveAll() { }
-		public virtual void Show(string text, object control, System.Drawing.Point point) { }
-		public virtual void Show(string text, object control, System.Drawing.Point point, int duration) { }
+		public virtual void Show(string text, object control, Point point) { }
+		public virtual void Show(string text, object control, Point point, int duration) { }
 	}
 
 	internal class HotkeyState

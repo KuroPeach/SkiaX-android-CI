@@ -17,6 +17,10 @@
 
   <!-- 全局 using：System.Drawing → XEmuera.Drawing 类型别名 -->
   <ItemGroup>
+    <Using Include="XEmuera.Drawing.Color" Alias="Color" />
+    <Using Include="XEmuera.Drawing.Rectangle" Alias="Rectangle" />
+    <Using Include="XEmuera.Drawing.Point" Alias="Point" />
+    <Using Include="XEmuera.Drawing.Size" Alias="Size" />
     <Using Include="XEmuera.Drawing.FontStyle" Alias="FontStyle" />
     <Using Include="XEmuera.Drawing.Brush" Alias="Brush" />
     <Using Include="XEmuera.Drawing.Pen" Alias="Pen" />

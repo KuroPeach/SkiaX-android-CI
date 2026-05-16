@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.UI;
 using SkiaSharp;
 using System;
@@ -296,7 +296,7 @@ internal static class Config
 	private static bool CheckFont(string fontName)
 	{
 		var font = new Font(fontName, 10);
-		var families = (System.Drawing.FontFamily[])GlobalStatic.Pfc.Families;
+		var families = GlobalStatic.Pfc.Families;
 		return FontFamily.GenericSansSerif.Name != font.Name || families.Any(ff => ff.Name == fontName);
 	}
 	#endregion

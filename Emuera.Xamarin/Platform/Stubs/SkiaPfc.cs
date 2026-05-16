@@ -15,28 +15,28 @@ namespace MinorShift.Emuera
 			Name = typeface.FamilyName;
 		}
 
+		public SkiaFontFamily(string name)
+		{
+			Name = name;
+			Typeface = SKTypeface.FromFamilyName(name) ?? SKTypeface.Default;
+		}
+
 		public static SkiaFontFamily GenericSansSerif { get; } = new SkiaFontFamily(SKTypeface.Default);
 		public static SkiaFontFamily GenericSerif { get; } = new SkiaFontFamily(SKTypeface.FromFamilyName("serif") ?? SKTypeface.Default);
 		public static SkiaFontFamily GenericMonospace { get; } = new SkiaFontFamily(SKTypeface.FromFamilyName("monospace") ?? SKTypeface.Default);
-
-		public static implicit operator System.Drawing.FontFamily(SkiaFontFamily ff)
-			=> ff == null ? null : new System.Drawing.FontFamily(ff.Name);
-
-		public static implicit operator SkiaFontFamily(System.Drawing.FontFamily ff)
-			=> ff == null ? null : new SkiaFontFamily(SKTypeface.FromFamilyName(ff.Name) ?? SKTypeface.Default);
 	}
 
 	internal class SkiaPfc : IEnumerable<SkiaFontFamily>
 	{
 		private readonly List<SKTypeface> _typefaces = new();
 
-		public System.Drawing.FontFamily[] Families
+		public SkiaFontFamily[] Families
 		{
 			get
 			{
-				var result = new List<System.Drawing.FontFamily>();
+				var result = new List<SkiaFontFamily>();
 				foreach (var tf in _typefaces)
-					result.Add(new System.Drawing.FontFamily(tf.FamilyName));
+					result.Add(new SkiaFontFamily(tf));
 				return result.ToArray();
 			}
 		}
@@ -63,14 +63,14 @@ namespace MinorShift.Emuera
 
 	internal class SkiaInstalledFontCollection : IEnumerable<SkiaFontFamily>
 	{
-		public System.Drawing.FontFamily[] Families
+		public SkiaFontFamily[] Families
 		{
 			get
 			{
-				var result = new List<System.Drawing.FontFamily>();
+				var result = new List<SkiaFontFamily>();
 				using var fm = SKFontManager.Default;
 				foreach (var familyName in fm.FontFamilies)
-					result.Add(new System.Drawing.FontFamily(familyName));
+					result.Add(new SkiaFontFamily(familyName));
 				return result.ToArray();
 			}
 		}
@@ -78,7 +78,7 @@ namespace MinorShift.Emuera
 		public IEnumerator<SkiaFontFamily> GetEnumerator()
 		{
 			foreach (var ff in Families)
-				yield return new SkiaFontFamily(SKTypeface.FromFamilyName(ff.Name) ?? SKTypeface.Default);
+				yield return ff;
 		}
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

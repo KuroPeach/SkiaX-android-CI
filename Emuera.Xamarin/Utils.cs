@@ -241,22 +241,22 @@ namespace XEmuera
 			return (int)(length * ScreenDensity);
 		}
 
-		public static System.Drawing.Size ToSize(SKSizeI sizeI)
+		public static Size ToSize(SKSizeI sizeI)
 		{
-			return new System.Drawing.Size(sizeI.Width, sizeI.Height);
+			return new Size(sizeI.Width, sizeI.Height);
 		}
 
-		public static System.Drawing.Color ToColor(SKColor color)
+		public static Color ToColor(SKColor color)
 		{
-			return System.Drawing.Color.FromArgb(color.Alpha, color.Red, color.Green, color.Blue);
+			return Color.FromArgb(color.Alpha, color.Red, color.Green, color.Blue);
 		}
 
-		public static SKColor ToSKColor(System.Drawing.Color color)
+		public static SKColor ToSKColor(Color color)
 		{
 			return new SKColor(color.R, color.G, color.B, color.A);
 		}
 
-		public static Color InvertColor(System.Drawing.Color color)
+		public static Color InvertColor(Color color)
 		{
 			return Color.FromUint((uint)(color.ToArgb() ^ 0xffffff));
 		}

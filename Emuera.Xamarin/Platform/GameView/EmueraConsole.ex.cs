@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using SkiaSharp.Views.Desktop;
 using Xamarin.Forms;
 
 namespace MinorShift.Emuera.GameView
@@ -67,8 +68,8 @@ namespace MinorShift.Emuera.GameView
 			StackLayout layout;
 			Button quickButton;
 
-			System.Drawing.Color color;
-			System.Drawing.Color bgcolor;
+			Color color;
+			Color bgcolor;
 			AConsoleColoredPart coloredPart;
 
 			quickButtonGroup = window.quickButtonGroup;
@@ -104,8 +105,8 @@ namespace MinorShift.Emuera.GameView
 					{
 						BindingContext = button.Inputs,
 						Text = button.ToString().Trim(),
-						TextColor = color,
-						BackgroundColor = System.Drawing.Color.FromArgb(0xc0, System.Drawing.Color.FromArgb(bgcolor.ToArgb() ^ 0xffffff)),
+						TextColor = color.ToFormsColor(),
+						BackgroundColor = Color.FromArgb(0xc0, Color.FromArgb(bgcolor.ToArgb() ^ 0xffffff)).ToFormsColor(),
 						FontSize = Config.QuickButtonFontSize,
 						WidthRequest = Config.QuickButtonWidth,
 						HeightRequest = Config.QuickButtonHeight,

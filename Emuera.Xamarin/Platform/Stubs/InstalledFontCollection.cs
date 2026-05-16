@@ -7,14 +7,14 @@ namespace System.Drawing.Text
 {
 	internal class InstalledFontCollection : IDisposable, IEnumerable<MinorShift.Emuera.SkiaFontFamily>
 	{
-		public System.Drawing.FontFamily[] Families
+		public MinorShift.Emuera.SkiaFontFamily[] Families
 		{
 			get
 			{
-				var result = new List<System.Drawing.FontFamily>();
+				var result = new List<MinorShift.Emuera.SkiaFontFamily>();
 				using var fm = SKFontManager.Default;
 				foreach (var familyName in fm.FontFamilies)
-					result.Add(new System.Drawing.FontFamily(familyName));
+					result.Add(new MinorShift.Emuera.SkiaFontFamily(familyName));
 				return result.ToArray();
 			}
 		}
@@ -24,7 +24,7 @@ namespace System.Drawing.Text
 		public IEnumerator<MinorShift.Emuera.SkiaFontFamily> GetEnumerator()
 		{
 			foreach (var ff in Families)
-				yield return new MinorShift.Emuera.SkiaFontFamily(SKTypeface.FromFamilyName(ff.Name) ?? SKTypeface.Default);
+				yield return ff;
 		}
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
