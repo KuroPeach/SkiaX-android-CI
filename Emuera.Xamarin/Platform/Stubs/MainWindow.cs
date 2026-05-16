@@ -15,7 +15,8 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public virtual bool Created { get => IsEnabled; }
 
 		public virtual ScrollBar ScrollBar { get; } = new ScrollBar();
-		public QuickButtonGroup quickButtonGroup { get; } = new QuickButtonGroup();
+		public virtual QuickButtonGroup QuickButtonGroup { get; } = new QuickButtonGroup();
+		public QuickButtonGroup quickButtonGroup => QuickButtonGroup;
 		public Xamarin.Forms.ScrollView quickButtonScrollView { get; set; } = new Xamarin.Forms.ScrollView();
 		public virtual MainPicBoxStub MainPicBox { get; } = new MainPicBoxStub();
 
@@ -60,8 +61,8 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 
 	internal class QuickButtonGroup : Xamarin.Forms.StackLayout
 	{
-		public void AddButton(string text, int value) { }
-		public void Clear() { }
+		public virtual void AddButton(string text, int value) { }
+		public virtual void Clear() { }
 	}
 
 	internal class MainPicBoxStub
@@ -89,9 +90,9 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public virtual bool OwnerDraw { get; set; }
 		public event EventHandler Draw { add { } remove { } }
 		public event EventHandler Popup { add { } remove { } }
-		public void RemoveAll() { }
-		public void Show(string text, object control, System.Drawing.Point point) { }
-		public void Show(string text, object control, System.Drawing.Point point, int duration) { }
+		public virtual void RemoveAll() { }
+		public virtual void Show(string text, object control, System.Drawing.Point point) { }
+		public virtual void Show(string text, object control, System.Drawing.Point point, int duration) { }
 	}
 
 	internal class HotkeyState

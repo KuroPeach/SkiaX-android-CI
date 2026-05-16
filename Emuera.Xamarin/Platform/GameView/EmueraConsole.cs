@@ -1615,10 +1615,9 @@ namespace MinorShift.Emuera.GameView
         #endregion
 
         #region DebugMode系
-		//DebugDialog dd = null;
-		//public DebugDialog DebugDialog { get { return dd; } }
-		//StringBuilder dConsoleLog = new StringBuilder("");
-		//public string DebugConsoleLog { get { return dConsoleLog.ToString(); } }
+		public object DebugDialog { get { return null; } }
+		StringBuilder dConsoleLog = new StringBuilder("");
+		public string DebugConsoleLog { get { return dConsoleLog.ToString(); } }
 		List<string> dTraceLogList = new List<string>();
 #pragma warning disable CS0414 // フィールド 'EmueraConsole.dTraceLogChanged' が割り当てられていますが、値は使用されていません。
 		bool dTraceLogChanged = true;
@@ -1675,19 +1674,19 @@ namespace MinorShift.Emuera.GameView
 		{
 			if (!Program.DebugMode)
 				return;
-			//dConsoleLog.Append(str);
+			dConsoleLog.Append(str);
 		}
 
 		public void DebugClear()
 		{
-			//dConsoleLog.Remove(0, dConsoleLog.Length);
+			dConsoleLog.Remove(0, dConsoleLog.Length);
 		}
 
 		public void DebugNewLine()
 		{
 			if (!Program.DebugMode)
 				return;
-			//dConsoleLog.Append(Environment.NewLine);
+			dConsoleLog.Append(Environment.NewLine);
 		}
 
 		public void DebugAddTraceLog(string str)

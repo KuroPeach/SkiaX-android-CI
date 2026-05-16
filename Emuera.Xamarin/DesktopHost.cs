@@ -20,6 +20,7 @@ namespace MinorShift.Emuera
         private VScrollBar vScrollBar;
         private TextBox inputTextBox;
         private DesktopMainWindow mainWindow;
+        private FlowLayoutPanel quickButtonPanel;
 
         private int scrollBarValue = 1;
         private int scrollBarMaximum = 1;
@@ -73,6 +74,17 @@ namespace MinorShift.Emuera
             };
             inputTextBox.KeyDown += InputTextBox_KeyDown;
 
+            quickButtonPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Bottom,
+                BackColor = Color.FromArgb(30, 30, 30),
+                AutoScroll = true,
+                WrapContents = true,
+                FlowDirection = FlowDirection.LeftToRight,
+                Height = 40,
+                Visible = false
+            };
+
             var panel = new Panel
             {
                 Dock = DockStyle.Fill
@@ -80,8 +92,9 @@ namespace MinorShift.Emuera
             panel.Controls.Add(pictureBox);
             panel.Controls.Add(vScrollBar);
 
-            Controls.Add(inputTextBox);
             Controls.Add(panel);
+            Controls.Add(quickButtonPanel);
+            Controls.Add(inputTextBox);
 
             SetupDisplayUtils();
         }
@@ -387,6 +400,7 @@ namespace MinorShift.Emuera
         public int GetRenderHeight() => renderHeight;
         public System.Windows.Forms.PictureBox GetPictureBox() => pictureBox;
         public System.Windows.Forms.TextBox GetInputTextBox() => inputTextBox;
+        public FlowLayoutPanel GetQuickButtonPanel() => quickButtonPanel;
         public string GetTextBoxText() => inputTextBox?.Text ?? "";
         public void SetTextBoxText(string text)
         {
@@ -407,6 +421,54 @@ namespace MinorShift.Emuera
                 inputTextBox.Text = "";
         }
 
+        public void AddQuickButton(string text, int value)
+        {
+            if (quickButtonPanel.IsDisposed)
+                return;
+            if (quickButtonPanel.InvokeRequired)
+            {
+                quickButtonPanel.BeginInvoke(new Action(() => AddQuickButton(text, value)));
+                return;
+            }
+            var btn = new Button
+            {
+                Text = text,
+                Tag = value,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(50, 50, 50),
+                ForeColor = Color.White,
+                Font = new System.Drawing.Font("MS Gothic", 10),
+                AutoSize = true,
+                Padding = new Padding(4, 0, 4, 0),
+                Margin = new Padding(2),
+            };
+            btn.FlatAppearance.BorderColor = Color.Gray;
+            btn.Click += (s, e) =>
+            {
+                if (console == null || console.IsInProcess)
+                    return;
+                int btnValue = (int)((Button)s).Tag;
+                string btnText = ((Button)s).Text;
+                SetTextBoxText(btnText);
+                PressEnterKey(false, btnText, true);
+            };
+            quickButtonPanel.Controls.Add(btn);
+            quickButtonPanel.Visible = quickButtonPanel.Controls.Count > 0;
+        }
+
+        public void ClearQuickButtons()
+        {
+            if (quickButtonPanel.IsDisposed)
+                return;
+            if (quickButtonPanel.InvokeRequired)
+            {
+                quickButtonPanel.BeginInvoke(new Action(() => ClearQuickButtons()));
+                return;
+            }
+            quickButtonPanel.Controls.Clear();
+            quickButtonPanel.Visible = false;
+        }
+
         #endregion
     }
 
@@ -417,6 +479,7 @@ namespace MinorShift.Emuera
         private readonly DesktopMainPicBox mainPicBox;
         private readonly DesktopTextBox textBox;
         private readonly DesktopToolTip toolTip;
+        private readonly DesktopQuickButtonGroup _quickButtonGroup;
 
         public DesktopMainWindow(DesktopHostForm form)
         {
@@ -425,13 +488,14 @@ namespace MinorShift.Emuera
             this.mainPicBox = new DesktopMainPicBox(form);
             this.textBox = new DesktopTextBox(form);
             this.toolTip = new DesktopToolTip(form);
+            this._quickButtonGroup = new DesktopQuickButtonGroup(form);
         }
 
         public override UI.Framework.Forms.ScrollBar ScrollBar => scrollBar;
         public override MainPicBoxStub MainPicBox => mainPicBox;
         public override TextBoxStub TextBox => textBox;
         public override ToolTipStub ToolTip => toolTip;
-
+        public override QuickButtonGroup QuickButtonGroup => _quickButtonGroup;
         public override void Refresh()
         {
             form.TriggerRefresh();
@@ -577,10 +641,75 @@ namespace MinorShift.Emuera
     internal class DesktopToolTip : ToolTipStub
     {
         private readonly DesktopHostForm form;
+        private readonly System.Windows.Forms.ToolTip winToolTip;
 
         public DesktopToolTip(DesktopHostForm form)
         {
             this.form = form;
+            this.winToolTip = new System.Windows.Forms.ToolTip();
+        }
+
+        public override int InitialDelay
+        {
+            get => winToolTip.InitialDelay;
+            set => winToolTip.InitialDelay = value;
+        }
+
+        public override int AutoPopDelay
+        {
+            get => winToolTip.AutoPopDelay;
+            set => winToolTip.AutoPopDelay = value;
+        }
+
+        public override Color ForeColor
+        {
+            get => winToolTip.ForeColor;
+            set => winToolTip.ForeColor = value;
+        }
+
+        public override Color BackColor
+        {
+            get => winToolTip.BackColor;
+            set => winToolTip.BackColor = value;
+        }
+
+        public override bool OwnerDraw
+        {
+            get => winToolTip.OwnerDraw;
+            set => winToolTip.OwnerDraw = value;
+        }
+
+        public override void RemoveAll()
+        {
+            winToolTip.RemoveAll();
+        }
+
+        public override void Show(string text, object control, Point point)
+        {
+            if (form.IsDisposed)
+                return;
+            var pb = form.GetPictureBox();
+            if (pb == null || pb.IsDisposed)
+                return;
+            form.BeginInvoke(new Action(() =>
+            {
+                if (!pb.IsDisposed)
+                    winToolTip.Show(text, pb, point);
+            }));
+        }
+
+        public override void Show(string text, object control, Point point, int duration)
+        {
+            if (form.IsDisposed)
+                return;
+            var pb = form.GetPictureBox();
+            if (pb == null || pb.IsDisposed)
+                return;
+            form.BeginInvoke(new Action(() =>
+            {
+                if (!pb.IsDisposed)
+                    winToolTip.Show(text, pb, point, duration);
+            }));
         }
     }
 
@@ -603,6 +732,26 @@ namespace MinorShift.Emuera
         {
             get => form.GetScrollBarMaximum();
             set => form.UpdateScrollBar(value, form.GetScrollBarValue());
+        }
+    }
+
+    internal class DesktopQuickButtonGroup : QuickButtonGroup
+    {
+        private readonly DesktopHostForm form;
+
+        public DesktopQuickButtonGroup(DesktopHostForm form)
+        {
+            this.form = form;
+        }
+
+        public override void AddButton(string text, int value)
+        {
+            form.AddQuickButton(text, value);
+        }
+
+        public override void Clear()
+        {
+            form.ClearQuickButtons();
         }
     }
 }
