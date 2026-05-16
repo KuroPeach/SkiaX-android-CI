@@ -1,8 +1,8 @@
-# Handoff: Slice 8A/8B 完成，推进 8C Android 项目
+# Handoff: 音频系统研判完成，准备 5B-D + 8C
 
 ## 会话目标
 
-继续推进 Phase 8 移植任务，完成 Core/Desktop 项目拆分，推进 Android 项目。
+抬高审视计划表，研判音频系统，重新整理 TODO 优先级。
 
 ## 已完成
 
@@ -11,12 +11,15 @@
 - [x] Slice 8A：创建 Core 项目（net8.0 + net8.0-windows 双目标）— commit `a8f3d2e`
 - [x] Slice 8B：创建 Desktop 项目（net8.0-windows）— commit `15ecfb3`
 - [x] 剩余 WinForms 依赖清理（App/Dialog/EmueraConsole/Program）— commit `c5b1a7f`
-- [x] CHANGELOG.md 更新（v0.14.0 + v0.15.0 + v0.16.0）
-- [x] HANDOFF.md / TODO.md 文档更新
+- [x] 音频系统全面研判（LazyLoading/XEmuera-1/Xamarin 三方对比）
+- [x] TODO.md 5B 切片重写（IPlayer 方案 → SoundStub 虚方法方案）
+- [x] 优先级调整：音频 P0、Rikaichan P3
 
 ## 未完成
 
+- [ ] 切片 5B-D：Desktop 音频验证（NAudio 接入 + SoundStub 架构验证）
 - [ ] 切片 8C：创建 Android 项目（net8.0-android）
+- [ ] 切片 5B-A：Android 音频实现（AndroidSound : Sound）
 - [ ] 切片 8D：Android 功能补全
 
 ## 关键决策
@@ -30,49 +33,61 @@
 7. **Core 双目标 net8.0;net8.0-windows**：使 `#if WINDOWS` 互操作代码在 Core 的 windows 目标上也能编译。Desktop 引用 Core 时自动获得 windows 目标。
 8. **Using Alias 传递问题**：Core 的 Using Alias 会通过 DLL 元数据传递到引用项目，导致 Desktop 上 System.Drawing.Color 与 XEmuera.Drawing.Color 冲突。解决方案：移除 Desktop 文件中的 `using System.Drawing;`，让 Alias 无歧义解析到 XEmuera.Drawing 类型。
 9. **`#if DESKTOP_APP` 分离入口点**：Program.MainDesktop 只在 Desktop 项目和原 Xamarin 项目中编译（两者都定义了 `DESKTOP_APP`），不在 Core 中编译。
+10. **音频架构决策：SoundStub 虚方法方案**（新增）：不采用 XEmuera-1 的 IPlayer 接口。理由：SoundStub 已有 13 个虚方法覆盖全部 ERB 指令，与 Runtime/ 零改动兼容，子类化模式与现有 Stub 体系一致。
+11. **NAudio Sound 重命名为 NAudioSound**（新增）：NAudio `Sound` 类与 Core DLL 中的 SoundStub 同名同类名（`MinorShift.Emuera.Runtime.Utils.Sound`），Desktop 不能重复定义。解决方案：将 NAudio `Sound` 改为 `NAudioSound : Sound`（继承 SoundStub），override 虚方法。
+12. **Rikaichan 降为 P3 最低优先级**（新增）：Core 项目已排除 Rikaichan.cs（引用 System.Windows.Forms），Android 端不需要词典悬浮提示。
 
-## 8A/8B 实施总结
+## 音频系统研判总结
 
-### 8A：Core 项目（net8.0 + net8.0-windows 双目标）
+### 现状
 
-- `Emuera.Xamarin.Core.csproj`：双目标框架，Using Alias 12 个类型别名 + 12 个命名空间转发
-- Runtime/ 编译：`<Compile Include="../Emuera/Runtime/**/*.cs" />` + 排除 Windows-only 文件
-- Platform/ + Drawing/ + Models/ + Forms/ 编译引用
-- Stubs：RikaichanStub（空实现）、SoundStub（no-op）、SystemSoundsStub（no-op）
-- NuGet：SkiaSharp + SkiaSharp.Svg + Microsoft.Data.Sqlite + Xamarin.Forms（ExcludeAssets=build）
-- InternalsVisibleTo：`XEmuera.Desktop`
-- `#if WINDOWS` 守卫：DrawBitmapUtils/DrawTextUtils 的 System.Drawing 互操作
-- Creator.Method：`#if WINDOWS` 守护 SKBitmap.ToBitmap()，修复 SKColor→Color 隐式转换
+- **Emuera.Xamarin 音频 = 完全空壳**：SoundStub（13 个虚方法全空）、SystemSoundsStub（Play 空操作）、SoundAndBgm（GameProc 适配器空壳）
+- **Desktop 也无音频**：DesktopHost 无音频初始化，Desktop csproj 不含 NAudio
+- **XEmuera-1 音频仅 Android 部分可用**：MobileMediaPlayer 基础播放/停止/循环/音量，缺少 pause/resume/setSpeed/Seek
 
-### 8B：Desktop 项目（net8.0-windows）
+### 架构对比
 
-- `Emuera.Xamarin.Desktop.csproj`：引用 Core 项目 + WinForms + SkiaSharp.Views.WindowsForms
-- `Program.cs`：入口点调用 `Program.MainDesktop(args)`
-- Desktop-only 文件：DesktopHost + DesktopConfigDialog + DesktopDebugDialog + VersionUpdate + SoundAndBgm
-- DESKTOP_APP 定义：启用 Main 入口点编译
-- 移除 `using System.Drawing;`：避免 Using Alias 冲突
+| 维度 | LazyLoading (NAudio) | XEmuera-1 (IPlayer) | Xamarin (SoundStub) |
+|------|---------------------|---------------------|---------------------|
+| 播放器类 | `Sound : ISampleProvider` | `IPlayer` 接口 | `Sound` 虚方法基类 |
+| 混音 | SoundMixer (MixingSampleProvider) | MediaPlayer 多实例 | 待实现 |
+| 通道数 | 16 | 10 | 16（声明但空壳） |
+| 变速 | VarispeedSampleProvider (SoundTouch) | 不支持 | 待实现 |
+| 暂停/恢复 | 支持 | 不支持 | Stub 有接口 |
+| ERB 指令覆盖 | 12/12 | 6/12 | 0/12 |
 
-### 额外 WinForms 清理
+### NAudio 移植性
 
-- App.cs：`Application.DoEvents()` → `PlatformInterop.DoEvents()`
-- Dialog.cs：`MessageBox.Show()` → `PlatformInterop.ShowMessage()`/`ShowMessageWithTitle()`/`ShowQuestion()`
-- EmueraConsole.cs：`Control.MousePosition` → `PlatformInterop.GetMousePosition()`
-- Program.cs：`MessageBox.Show()` → `PlatformInterop.ShowMessageWithTitle()`，Main→MainDesktop + `#if DESKTOP_APP`
-- PlatformInterop：添加 `ShowMessageWithTitle` 委托
+| 组件 | 跨平台？ | 处置 |
+|------|---------|------|
+| SoundMixer + WasapiOut | ❌ Windows-only | Desktop 保留 |
+| Sound (ISampleProvider) | ❌ 依赖 NAudio | 改为 NAudioSound : Sound |
+| LoopStream / RepeatStream | ❌ 依赖 NAudio | Desktop 保留 |
+| VarispeedSampleProvider | ❌ x86/x64 DLL | Desktop 保留 |
+| AudioDeviceTracker | ❌ WASAPI | Desktop 保留 |
+
+### 关键技术问题
+
+1. **同名类冲突**：NAudio `Sound` 与 SoundStub 同名同类名 → 重命名为 `NAudioSound : Sound`
+2. **SoundMixer 引用更新**：`PlaySound(Sound)` → `PlaySound(NAudioSound)`，`SoundEnded` 事件中类型转换
+3. **SoundStub 缺 Playing 字段**：NAudio SoundMixer 依赖 `Sound.Playing` → SoundStub 需添加
+4. **Android 变速不可用**：MediaPlayer 无原生变速 API → `setSpeed()` 返回 0
 
 ## 阻塞项
 
-- 无代码阻塞。下一步 8C 可立即开始。
+- 无代码阻塞。5B-D 和 8C 可立即开始。
 
 ## 下一步建议
 
-1. **切片 8C**：创建 Android 项目（net8.0-android），参考 XEmuera-1 的 MainActivity + DroidDependencyService
-2. **切片 8D**：Android 功能补全（触摸事件、文本输入、游戏列表、APK 打包）
+1. **切片 5B-D**（优先）：Desktop 音频验证 — NAudio 接入 + SoundStub 架构验证
+2. **切片 8C**（并行）：创建 Android 项目骨架
+3. **切片 5B-A**（8C 后）：Android 音频实现
+4. **切片 8D**（5B-A 后）：Android 功能补全
 
 ## 推荐技能
 
 - `powershell-git`：终端命令
-- `knowledge-builder`：8C 完成后更新知识库
+- `knowledge-builder`：5B-D 完成后更新知识库
 - `erabasic`：如需确认 Runtime/ 中 ERB 相关代码
 
 ## 关键文件
@@ -90,8 +105,13 @@ Emuera.Xamarin.sln（原有，仍可独立编译）
 
 | 文件 | 用途 |
 |------|------|
+| `Emuera.Xamarin.Core/Stubs/SoundStub.cs` | Sound 虚方法基类，5B-D 需添加 Playing 字段 |
+| `Emuera/Runtime/Utils/Sound.NAudio.cs` | NAudio 完整实现，5B-D 需重命名为 NAudioSound |
+| `Emuera/Runtime/Utils/NAudio_LoopStream.cs` | NAudio 循环流，5B-D 需包含到 Desktop |
+| `Emuera/Runtime/Utils/SoundTouch_byMarkHeath/` | SoundTouch 变速库，5B-D 需包含到 Desktop |
+| `Emuera.Xamarin/DesktopHost.cs` | Desktop 委托初始化，5B-D 需添加音频初始化 |
 | `Emuera.Xamarin.Core/Emuera.Xamarin.Core.csproj` | Core 项目配置，8C 需要参考排除项 |
-| `Emuera.Xamarin.Desktop/Emuera.Xamarin.Desktop.csproj` | Desktop 项目配置，8C 参考结构 |
+| `Emuera.Xamarin.Desktop/Emuera.Xamarin.Desktop.csproj` | Desktop 项目配置，5B-D 需添加 NAudio |
 | `Platform/Stubs/PlatformInterop.cs` | 平台抽象，Android 需要重新初始化委托 |
-| `DesktopHost.cs` | Desktop 委托初始化，Android 需要对应实现 |
 | XEmuera-1 `XEmuera.Android/` | Android 层参考，8C 直接复制 MainActivity 等 |
+| XEmuera-1 `DroidDependencyService.cs` | Android MediaPlayer 参考，5B-A 参考 |

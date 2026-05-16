@@ -106,7 +106,7 @@ Emuera.Xamarin.sln
 | 8C-5 | 创建 Android Resources/ | icon/style/values | 参考 XEmuera Resources/ | ⏭️ |
 | 8C-6 | 引用 Core 项目 + NuGet | SkiaSharp.Views.Android 等 | 参考 XEmuera.Android.csproj | ⏭️ |
 | 8C-7 | 恢复 XAML code-behind | 移除 Core 项目中对 Views/*.xaml.cs 的排除 | — | ⏭️ |
-| 8C-8 | 替换 NAudio → IPlayer | Sound.NAudio.cs 排除，恢复 SoundAndBgm.cs Stub | 参考 XEmuera IPlayer | ⏭️ |
+| 8C-8 | 替换 NAudio → AndroidSound | Sound.NAudio.cs 排除，Android 项目使用 AndroidSound 子类 | 参考 XEmuera DroidDependencyService | ⏭️ |
 | 8C-9 | 替换 MousePosition | WinForms Control.MousePosition → 触摸坐标 | 参考 XEmuera 触摸转鼠标 | ⏭️ |
 | 8C-10 | 编译验证 | Android 目标 0 错误 | — | ⏭️ |
 
@@ -123,11 +123,14 @@ Emuera.Xamarin.sln
 
 #### 桌面端可继续推进的验证项（不阻塞 APK，优先级低）
 
-| 工作项 | 说明 |
-|--------|------|
-| 7C-P1 静态字体缩放 | 配置层 FontScale 属性 + 启动时应用 |
-| 5A-4 音频路径构建 | `IPathProvider.MusicDir` 替换硬编码 |
-| ToolTip OwnerDraw | SKBitmap→Bitmap 转换 |
+| 工作项 | 说明 | 优先级 |
+|--------|------|--------|
+| 5B-D：Desktop 音频验证 | NAudio 接入 + SoundStub 架构验证 | **P0** |
+| 8C：Android 项目骨架 | csproj + MainActivity + AndroidManifest | **P0** |
+| 5A-4 音频路径构建 | `IPathProvider.MusicDir` 替换硬编码 | P1 |
+| 7C-P1 静态字体缩放 | 配置层 FontScale 属性 + 启动时应用 | P2 |
+| ToolTip OwnerDraw | SKBitmap→Bitmap 转换 | P2 |
+| Rikaichan 词典悬浮提示 | Core 已排除 Rikaichan.cs，Android 端不需要 | **P3 最低** |
 
 ***
 
@@ -465,17 +468,63 @@ Emuera.Xamarin.sln
 | 5A-6 | Android 资源解压                                                                     | APK assets → Context.FilesDir（首次启动全量解压）                                              | 方案 A                  | ⏭️ |
 | 5A-7 | 编译+运行验证                                                                          | —                                                                                    | —                     | ✅  |
 
-### 切片 5B：音频系统
+### 切片 5B：音频系统（P0 — 重新评估后提升优先级）
 
-| #    | 操作                                | 说明                                                                                   | 决策                      |
-| ---- | --------------------------------- | ------------------------------------------------------------------------------------ | ----------------------- |
-| 5B-1 | 扩展 `IPlayer` 接口                   | 添加 `Pause()`/`Resume()`/`GetCurrentTime()`/`GetTotalTime()`/`GetSpeed()`             | 方案 A：扩展 IPlayer         |
-| 5B-2 | 升级 `SoundAndBgm.cs` 存根            | 委托到 `IPlayer` 实现，替换 NAudio 依赖                                                        | —                       |
-| 5B-3 | 实现 Android `MobileMediaPlayer` 扩展 | `MediaPlayer.Pause()`/`Resume()`/`CurrentPosition`/`Duration`                        | —                       |
-| 5B-4 | 升级 PLAYSOUND ArgumentBuilder      | `STR_EXPRESSION` → 支持 repeat 参数（移植 `SpHtmlPrint`）                                    | 方案 A：升级 ArgumentBuilder |
-| 5B-5 | 替换音频路径构建                          | `Path.GetFullPath(".\\sound\\")` → `IPathProvider.MusicDir` + `Program.FileExists()` | —                       |
-| 5B-6 | 移植 GETSOUNDSTATUS/ISPLAYINGSOUND  | `Creator.Method.cs` 新增方法                                                             | 低优先级                    |
-| 5B-7 | 编译+运行验证                           | —                                                                                    | —                       |
+> **研判日期**：2026-05-17
+> **知识库**：[audio-system.md](file:///d:/emuera/shared-trae/knowledge/xemuera/audio-system.md)
+>
+> **架构决策**：坚持 SoundStub 虚方法方案，不采用 XEmuera-1 的 IPlayer 接口
+>
+> **理由**：
+> 1. SoundStub 已有 13 个虚方法，API 覆盖 LazyLoading 全部 12 个 ERB 指令/函数
+> 2. 与 Runtime/ 代码零改动兼容（GlobalStatic.Sound[] 就是 Runtime.Utils.Sound 类型）
+> 3. 子类化模式与 DesktopMainWindow/MainPicBoxStub 一致
+> 4. IPlayer 方案需改 Instraction.Child + Creator.Method + GlobalStatic，违反最小改动原则
+>
+> **NAudio 移植性**：NAudio 体系整体不可移植到 Android（WasapiOut/MediaFoundationReader/SoundTouch 原生 DLL 均为 Windows-only），但 Desktop 端可直接使用
+>
+> **关键问题**：NAudio `Sound` 类与 SoundStub 同名同类名（`MinorShift.Emuera.Runtime.Utils.Sound`），Desktop 引用 Core DLL 后不能重复定义。解决方案：将 NAudio `Sound` 重命名为 `NAudioSound : Sound`（继承 SoundStub），override 所有虚方法
+>
+> **SoundMixer 适配**：SoundMixer.PlaySound/StopSound 参数类型需从 `Sound` 改为 `NAudioSound`；SoundEnded 事件中 `((Sound)args.SampleProvider)` 需改为 `((NAudioSound)args.SampleProvider)`
+>
+> **SoundStub 补充**：需添加 `public volatile bool Playing = false;` 字段（NAudio SoundMixer 依赖此字段）
+>
+> **Android 变速限制**：Android MediaPlayer 无原生变速 API，`setSpeed()` 返回 0（不支持）。未来可考虑 ExoPlayer 或 Oboe 替代
+
+#### 切片 5B-D：Desktop 音频验证（先做，验证架构）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 5B-D1 | SoundStub.cs 添加 `Playing` 字段 | `public volatile bool Playing = false;` | ⏭️ |
+| 5B-D2 | Desktop csproj 添加 NAudio NuGet | `NAudio` 2.2.1 + `NAudio.Vorbis` 1.5.0 | ⏭️ |
+| 5B-D3 | Desktop csproj 包含 NAudio 源文件 | `Sound.NAudio.cs` + `NAudio_LoopStream.cs` + `SoundTouch_byMarkHeath/**` | ⏭️ |
+| 5B-D4 | 修改 Sound.NAudio.cs：`Sound` → `NAudioSound : Sound` | 继承 SoundStub，override 虚方法，更新 SoundMixer 引用 | ⏭️ |
+| 5B-D5 | DesktopHost.InitEmuera() 初始化音频 | `GlobalStatic.Sound = new NAudioSound[16]` + `GlobalStatic.Bgm = new NAudioSound()` | ⏭️ |
+| 5B-D6 | 编译+运行验证 | 桌面端播放 WAV/OGG/BGM | ⏭️ |
+
+#### 切片 5B-A：Android 音频实现
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 5B-A1 | 创建 `AndroidSound : Runtime.Utils.Sound` | override 13 个虚方法，内部用 Android MediaPlayer | ⏭️ |
+| 5B-A2 | Android 多通道 | 16 个 Sound 通道 = 16 个 MediaPlayer 实例 | ⏭️ |
+| 5B-A3 | Android BGM 循环 | `MediaPlayer.Looping = true` | ⏭️ |
+| 5B-A4 | Android 音量映射 | `setVolume(0-100)` → `MediaPlayer.SetVolume(0.0-1.0)` | ⏭️ |
+| 5B-A5 | Android 暂停/恢复 | `MediaPlayer.Pause()/Start()` + `CurrentPosition` 保存 | ⏭️ |
+| 5B-A6 | Android 变速 | MediaPlayer 无原生变速，`setSpeed` 返回 0 | ⏭️ |
+| 5B-A7 | MainActivity 初始化 GlobalStatic.Sound/Bgm | 创建 AndroidSound 实例 | ⏭️ |
+| 5B-A8 | 编译验证 | Android 目标 0 错误 | ⏭️ |
+
+#### 切片 5B-E：音频路径 + ERB 指令补全（P1）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 5B-E1 | 替换音频路径构建 | `Path.GetFullPath(".\\sound\\")` → `IPathProvider.MusicDir` + `Program.FileExists()` | ⏭️ |
+| 5B-E2 | 升级 PLAYSOUND ArgumentBuilder | 支持 repeat 参数（移植 `SpHtmlPrint`） | ⏭️ |
+| 5B-E3 | 移植 GETSOUNDORBGMINFO | `Creator.Method.cs` 新增方法 | ⏭️ |
+| 5B-E4 | 移植 ISPLAYINGSOUND/ISPLAYINGBGM | `Creator.Method.cs` 新增方法 | ⏭️ |
+| 5B-E5 | 移植 SOUNDCONTROL/BGMCONTROL | `Creator.Method.cs` 新增方法 | ⏭️ |
+| 5B-E6 | 编译+运行验证 | — | ⏭️ |
 
 ### 切片 5C：SQL 系统
 

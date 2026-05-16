@@ -4,6 +4,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 {
     public class Sound
     {
+        public volatile bool Playing = false;
         public virtual void play(string filepath, int repeat = 1) { }
         public virtual void play(string filepath, long repeat) { }
         public virtual void stop() { }
@@ -14,7 +15,7 @@ namespace MinorShift.Emuera.Runtime.Utils
         public virtual void setVolume(int volume) { }
         public virtual int getVolume() => 0;
         public virtual void setSpeed(float speed) { }
-        public virtual int getSpeed() => 0;
+        public virtual double getSpeed() => 0;
         public virtual void SetPreservePitch(bool preserve) { }
         public virtual double GetTotalTime() => 0;
         public virtual double GetCurrentTime() => 0;

@@ -10,7 +10,7 @@
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
     <LangVersion>latest</LangVersion>
-    <DefineConstants>$(DefineConstants);WINDOWS;DESKTOP_APP</DefineConstants>
+    <DefineConstants>$(DefineConstants);WINDOWS;DESKTOP_APP;USE_NAUDIO</DefineConstants>
     <NoWarn>CS0436;CS8981;CS0037;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS0266;CS1503;CS0029;CS1929;CS0176;CS0120;CS0019;CS0030;CS1501;CS0117;CS1061;CS0246;CS0121;CS0119;CS0103;CS7036;CS0200;CS0021;CS1729;CS0122;CS1977;CS0104</NoWarn>
     <Nullable>disable</Nullable>
     <ApplicationIcon>..\Emuera\icon.ico</ApplicationIcon>
@@ -34,10 +34,20 @@
     <Compile Include="..\Emuera.Xamarin\Platform\Stubs\SoundAndBgm.cs" LinkBase="Desktop" />
   </ItemGroup>
 
+  <!-- NAudio audio engine (Desktop-only) -->
+  <ItemGroup>
+    <Compile Include="NAudioSound.cs" LinkBase="Desktop" />
+    <Compile Include="..\Emuera\Runtime\Utils\NAudio_LoopStream.cs" LinkBase="Runtime\Utils" />
+    <Compile Include="..\Emuera\Runtime\Utils\SoundTouch_byMarkHeath\**\*.cs" LinkBase="Runtime\Utils\SoundTouch_byMarkHeath" />
+  </ItemGroup>
+
   <!-- NuGet 包引用（Desktop-only） -->
   <ItemGroup>
     <PackageReference Include="SkiaSharp.Views.Desktop.Common" Version="2.88.8" />
     <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="2.88.8" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
 
 </Project>

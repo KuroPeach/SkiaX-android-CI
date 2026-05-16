@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.UI.Framework.Forms;
+using MinorShift.Emuera.Runtime.Utils;
 using XEmuera;
 using XEmuera.Drawing;
 
@@ -161,6 +162,14 @@ namespace MinorShift.Emuera
 
             mainWindow = new DesktopMainWindow(this);
             console = new EmueraConsole(mainWindow);
+
+#if USE_NAUDIO
+            GlobalStatic.Sound = new Runtime.Utils.Sound[16];
+            for (int i = 0; i < GlobalStatic.Sound.Length; i++)
+                GlobalStatic.Sound[i] = new NAudioSound();
+            GlobalStatic.Bgm = new NAudioSound();
+#endif
+
             Task.Run(() =>
             {
                 DrawTextUtils.Reset();
