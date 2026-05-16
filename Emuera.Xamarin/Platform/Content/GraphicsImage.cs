@@ -25,8 +25,6 @@ namespace MinorShift.Emuera.Content
 			ID = id;
 			g = null;
 			Bitmap = null;
-			//created = false;
-			//locked = false;
 		}
 		public readonly int ID;
 		Size size;
@@ -34,22 +32,8 @@ namespace MinorShift.Emuera.Content
 		Pen pen = null;
         #region EE_GDRAWTEXT
         Font font = null;
-		//FontStyle style = default;
 		#endregion
-		
-		//Bitmap b;
-		//Graphics g;
 
-
-		////bool created;
-		////bool locked;
-		//public void LockGraphics()
-		//{
-		//	//if (locked)
-		//	//	return;
-		//	//g = Graphics.FromImage(b);
-		//	//locked = true;
-		//}
 		#region Bitmap書き込み・作成
 
 		/// <summary>

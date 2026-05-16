@@ -43,29 +43,12 @@ namespace MinorShift.Emuera.GameView
 	internal enum ConsoleState
 	{
 		Initializing = 0,
-		Quit = 5,//QUIT
-		Error = 6,//Exceptionによる強制終了
+		Quit = 5,
+		Error = 6,
 		Running = 7,
 		WaitInput = 20,
-		Sleep = 21,//DoEvents
-
-		//WaitKey = 1,//WAIT
-		//WaitSystemInteger = 2,//Systemが要求するInput
-		//WaitInteger = 3,//INPUT
-		//WaitString = 4,//INPUTS
-		//WaitIntegerWithTimer = 8,
-		//WaitStringWithTimer = 9,
-		//Timeout = 10,
-		//Timeouts = 11,
-		//WaitKeyWithTimer = 12,
-		//WaitKeyWithTimerF = 13,
-		//WaitOneInteger = 14,
-		//WaitOneString = 15,
-		//WaitOneIntegerWithTimer = 16,
-		//WaitOneStringWithTimer = 17,
-		//WaitAnyKey = 18,
-
-    }
+		Sleep = 21,
+	}
 
 	//難読化用属性。enum.ToString()やenum.Parse()を行うなら(Exclude=true)にすること。
 	[global::System.Reflection.Obfuscation(Exclude=false)]
@@ -105,8 +88,6 @@ namespace MinorShift.Emuera.GameView
 		private GraphicsImage cbgButtonMap = null;
 		private int selectingCBGButtonInt = -1;
 		private int lastSelectingCBGButtonInt = -1;
-		//ConsoleButtonString selectingButton = null;
-		//ConsoleButtonString lastSelectingButton = null;
 		class ClientBackGroundImage : IComparable<ClientBackGroundImage>
 		{
 			internal ClientBackGroundImage(int zdepth)
