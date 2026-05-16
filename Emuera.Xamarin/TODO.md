@@ -21,22 +21,49 @@
 | Phase 6 | EM 私家版 HTML 扩展（div + PrintHtmlC 全量版） | 0.6 |
 | G6 | GDI 注释残留清理 + 删除 5 组死对话框文件 | 0.13 |
 
-### ⏭️ 待推进（按优先级排序）
+### ⏭️ 待推进：APK 目标路径
 
-| 优先级 | 工作项 | TFM 要求 | 说明 |
-|--------|--------|----------|------|
-| **P1** | 7C-P1 静态字体缩放 | net8.0-windows ✅ | 配置层 FontScale 属性 + 启动时应用 |
-| **P1** | 5A-4 音频路径构建 | net8.0-windows ✅ | `IPathProvider.MusicDir` 替换硬编码 |
-| **P2** | 4A-Xamarin 启用 ContentPage | **net8.0-android** | 需 TFM 切换 |
-| **P2** | 4B-Xamarin 配置页面体系 | **net8.0-android** | 需 TFM 切换 |
-| **P2** | 7G 游戏列表+侧边菜单 | **net8.0-android** | 需 TFM 切换 |
-| **P2** | 7E 本地化 UI | **net8.0-android** | 内核层已完成 |
-| **P2** | 7F 日志查看器 | **net8.0-android** | 需 TFM 切换 |
-| **P3** | 7C-P2 动态缩放 | **net8.0-android** | ReflowDisplayLines 核心难点 |
-| **P3** | 2D 键鼠输入抽象 | **net8.0-android** | WinInput 在桌面端可用 |
-| **P3** | 5A-5/6 IPathProvider Android + 资源解压 | **net8.0-android** | 需 TFM 切换 |
-| **P3** | G5 MainThread 残留清理 | **net8.0-android** | 仅影响 Xamarin 层 |
-| **P3** | ToolTip OwnerDraw | net8.0-windows ✅ | SKBitmap→Bitmap 转换 |
+> **项目定位**：LazyLoading 原版桌面端已完备，本项目的**唯一目标产物是 Android APK**。
+> 桌面端（net8.0-windows）仅作为功能验证手段，不是目的。
+> TFM 切换是项目核心里程碑，不是"未来计划"。
+
+#### Phase 8：TFM 切换到 Android（核心里程碑）
+
+> **目标**：从 net8.0-windows 切换到 net8.0-android，产出可安装 APK
+> **前置条件**：Phase 0-6 桌面端功能验证通过 ✅
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 8-1 | csproj TFM 切换 | `net8.0-windows` → `net8.0-android`，移除 `UseWindowsForms`/`OutputType=WinExe` | ⏭️ |
+| 8-2 | 创建 Android 入口点 | `MainActivity.cs` + `AndroidManifest.xml` + Resources 目录 | ⏭️ |
+| 8-3 | NuGet 包条件化 | NAudio/NAudio.Vorbis/SkiaSharp.Views.WPF 仅 Windows；添加 SkiaSharp.Views.Android | ⏭️ |
+| 8-4 | 排除 Windows-only 代码 | DesktopHost.cs / DesktopConfigDialog.cs / DesktopDebugDialog.cs 条件编译排除 | ⏭️ |
+| 8-5 | 排除 NAudio 源码 | `Sound.NAudio.cs` / `NAudio_LoopStream.cs` 加入排除列表 | ⏭️ |
+| 8-6 | 恢复 SoundAndBgm.cs Stub | 移除 csproj 中对 SoundAndBgm.cs 的排除 | ⏭️ |
+| 8-7 | 恢复 XAML code-behind | 移除 10 个 Views/*.xaml.cs + App.xaml.cs + MainPage.xaml.cs 的排除 | ⏭️ |
+| 8-8 | 拆分 Platform/Forms/ | MainWindow.xaml/.xaml.cs 恢复编译；MainWindow.cs/.Designer.cs 保持排除 | ⏭️ |
+| 8-9 | 替换 MousePosition | `System.Windows.Forms.Control.MousePosition` → 跨平台方案 | ⏭️ |
+| 8-10 | 编译验证 | Android 目标 0 错误 | ⏭️ |
+
+#### Phase 8 续：Android 功能补全
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 8-11 | Android IPathProvider | `Context.FilesDir` 路径解析 | ⏭️ |
+| 8-12 | Android 资源解压 | APK assets → FilesDir 首次解压 | ⏭️ |
+| 8-13 | Android 音频后端 | 替代 NAudio：MediaPlayer 或跨平台音频库 | ⏭️ |
+| 8-14 | 触摸事件转发 | EraPictureBox_Touch → EmueraConsole 鼠标事件 | ⏭️ |
+| 8-15 | 文本输入 | Entry → PressEnterKey | ⏭️ |
+| 8-16 | APK 打包验证 | 签名 + 安装 + 启动测试 | ⏭️ |
+
+#### 桌面端可继续推进的验证项（不阻塞 APK）
+
+| 优先级 | 工作项 | 说明 |
+|--------|--------|------|
+| P1 | 7C-P1 静态字体缩放 | 配置层 FontScale 属性 + 启动时应用 |
+| P1 | 5A-4 音频路径构建 | `IPathProvider.MusicDir` 替换硬编码 |
+| P2 | ToolTip OwnerDraw | SKBitmap→Bitmap 转换 |
+| P2 | G5 MainThread 残留清理 | 仅影响 Xamarin 层，Android 上 MainThread 可用 |
 
 ***
 
