@@ -9,10 +9,11 @@ namespace XEmuera.Droid
     {
         private readonly string _exeDir;
 
-        public AndroidPathProvider(Context context)
+        public AndroidPathProvider(Context context, string gamePath = null)
         {
             var externalRoot = Environment.ExternalStorageDirectory.AbsolutePath;
-            _exeDir = externalRoot + Path.DirectorySeparatorChar + "emuera" + Path.DirectorySeparatorChar;
+            var baseDir = gamePath ?? (externalRoot + Path.DirectorySeparatorChar + "emuera");
+            _exeDir = baseDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
             var sep = Path.DirectorySeparatorChar;
 

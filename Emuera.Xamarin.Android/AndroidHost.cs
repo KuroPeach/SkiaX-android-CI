@@ -7,24 +7,50 @@ using Android.Widget;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.UI.Framework.Forms;
 using XEmuera.Drawing;
 using SkiaSharp;
 
 namespace XEmuera.Droid
 {
-    internal class AndroidHost
+    public class AndroidHost
     {
         private EmueraConsole console;
         private AndroidMainWindow mainWindow;
+        private bool engineInitialized;
 
-        public AndroidMainWindow MainWindow => mainWindow;
+        internal MainWindow MainWindow => mainWindow;
 
         public void InitEmuera()
         {
             InitPlatformInterop();
             InitAudio();
             InitMainWindow();
-            InitEmueraEngine();
+        }
+
+        public void StartGame(string gamePath)
+        {
+            if (engineInitialized) return;
+
+            var context = MainActivity.Instance;
+            if (context == null) return;
+
+            GlobalStatic.PathProvider = new AndroidPathProvider(context, gamePath);
+
+            Task.Run(() =>
+            {
+                if (!Program.Init())
+                    return;
+
+                DrawTextUtils.Reset();
+                DrawBitmapUtils.Reset();
+
+                console = new EmueraConsole(mainWindow);
+                mainWindow.SetConsole(console);
+                console.Initialize();
+            });
+
+            engineInitialized = true;
         }
 
         private void InitPlatformInterop()
@@ -128,27 +154,6 @@ namespace XEmuera.Droid
             var context = MainActivity.Instance;
             if (context == null) return;
             mainWindow = new AndroidMainWindow(context);
-        }
-
-        private void InitEmueraEngine()
-        {
-            var context = MainActivity.Instance;
-            if (context == null) return;
-
-            GlobalStatic.PathProvider = new AndroidPathProvider(context);
-
-            Task.Run(() =>
-            {
-                if (!Program.Init())
-                    return;
-
-                DrawTextUtils.Reset();
-                DrawBitmapUtils.Reset();
-
-                console = new EmueraConsole(mainWindow);
-                mainWindow.SetConsole(console);
-                console.Initialize();
-            });
         }
     }
 }

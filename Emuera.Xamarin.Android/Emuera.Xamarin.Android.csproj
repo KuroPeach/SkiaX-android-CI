@@ -51,6 +51,9 @@
     <Compile Include="AndroidApp.cs" />
     <Compile Include="AndroidPathProvider.cs" />
     <Compile Include="AndroidMainWindow.cs" />
+    <Compile Include="AndroidGameItemModel.cs" />
+    <Compile Include="AndroidGameListPage.cs" />
+    <Compile Include="AndroidMainMenuPage.cs" />
   </ItemGroup>
 
   <ItemGroup>
