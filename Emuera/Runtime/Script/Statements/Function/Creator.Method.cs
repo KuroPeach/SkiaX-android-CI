@@ -9208,8 +9208,8 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string str = arguments[0].GetStrValue(exm);
-			string filepath = Path.GetFullPath(".\\sound\\" + str);
-			if (File.Exists(filepath))
+			string filepath = Program.MusicDir + str;
+			if (Program.FileExists(ref filepath))
 				return 1;
 			return 0;
 		}

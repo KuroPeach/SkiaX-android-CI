@@ -2819,10 +2819,10 @@ internal sealed partial class FunctionIdentifier
 			else
 				datFilename = soundArg.Str.GetStrValue(exm);
 			int repeat = soundArg.Opt != null ? (int)Math.Max(soundArg.Opt.GetIntValue(exm), 1) : 1;
-			string filepath = Path.GetFullPath(".\\sound\\" + datFilename);
+			string filepath = Program.MusicDir + datFilename;
 			try
 			{
-				if (File.Exists(filepath))
+				if (Program.FileExists(ref filepath))
 				{
 					int i;
 					for (i = 0; i < GlobalStatic.Sound.Length; i++)
@@ -2882,11 +2882,11 @@ internal sealed partial class FunctionIdentifier
 				datFilename = arg.ConstStr;
 			else
 				datFilename = arg.Term.GetStrValue(exm);
-			string filepath = Path.GetFullPath(".\\sound\\" + datFilename);
+			string filepath = Program.MusicDir + datFilename;
 
 			try
 			{
-				if (File.Exists(filepath))
+				if (Program.FileExists(ref filepath))
 					GlobalStatic.Bgm.play(filepath, -1); // -1 means repeat indefinitely
 			}
 			catch
