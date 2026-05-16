@@ -76,6 +76,8 @@
 
 ## 会话结束规则
 
-1. 更新 CHANGELOG.md
-2. 如涉及 DotNet 移植，更新 `docs/comparison/emueradotnet-portability-assessment.md`
+1. 更新 Xamarin 移植项目文档（涉及移植工作时）：
+   - `emuera.xamarin/CHANGELOG.md` — 已完成工作的历史记录
+   - `emuera.xamarin/TODO.md` — 当前和未来任务（已完成项迁移到 CHANGELOG）
+2. 如涉及 DotNet 移植，更新 `docs/comparison/emumeradotnet-portability-assessment.md`
 3. 按 knowledge-builder 方法论同步知识库

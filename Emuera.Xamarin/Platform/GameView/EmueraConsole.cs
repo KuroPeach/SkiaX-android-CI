@@ -246,15 +246,13 @@ namespace MinorShift.Emuera.GameView
 
 		MinorShift.Emuera.GameProc.Process emuera;
 		ConsoleState state = ConsoleState.Initializing;
-		//public bool Enabled { get { return window.Created; } }
-		public bool Enabled { get { return true; } }
+		public bool Enabled { get { return window.Created; } }
 
 		/// <summary>
 		/// 現在、Emueraがアクティブかどうか
 		/// </summary>
 		internal bool IsActive
-		//{ get { return !(window == null || !window.Created || Form.ActiveForm == null); } }
-		{ get { return true; } }
+		{ get { return !(window == null || !window.Created); } }
 
 		/// <summary>
 		/// スクリプトが継続中かどうか
@@ -387,7 +385,7 @@ namespace MinorShift.Emuera.GameView
 			//if (Program.DebugMode && Config.DebugShowWindow)
 			//{
 			//	OpenDebugDialog();
-			//	window.Focus();
+				window.Focus();
 			//}
 			ClearDisplay();
 			if (!emuera.Initialize(null).Result)
@@ -556,12 +554,12 @@ namespace MinorShift.Emuera.GameView
 //				setTimer();
 			}
 			//updateMousePosition();
-			//Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-			//if (window.MainPicBox.ClientRectangle.Contains(point))
-			//{
-			//	PrintFlush(false);
-			//	MoveMouse(point);
-			//}
+			Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+			if (window.MainPicBox.ClientRectangle.Contains(point))
+			{
+				PrintFlush(false);
+				MoveMouse(point);
+			}
 		}
 
 		public void ReadAnyKey(bool anykey = false, bool stopMesskip = false)
@@ -717,12 +715,12 @@ namespace MinorShift.Emuera.GameView
 				#region EE_INPUTMOUSEKEY拡張
 				// InputMouseKey(4, 0, 0, 0, 0);
 				InputMouseKey(4, 0, 0, 0, 0, 0);
-				//if (state == ConsoleState.WaitInput && inputReq.NeedValue)
-				//{
-				//	Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-				//	if (window.MainPicBox.ClientRectangle.Contains(point))
-				//		MoveMouse(point);
-				//}
+				if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+				{
+					Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+					if (window.MainPicBox.ClientRectangle.Contains(point))
+						MoveMouse(point);
+				}
 				//RefreshStrings(true);
 				#endregion
 				return;
@@ -732,12 +730,12 @@ namespace MinorShift.Emuera.GameView
 			else if (inputReq.TimeUpMes != null)
 				PrintSingleLine(inputReq.TimeUpMes);
 			callEmueraProgram("");//ディフォルト入力の処理はcallEmueraProgram側で
-			//if (state == ConsoleState.WaitInput && inputReq.NeedValue)
-			//{
-			//	Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-			//	if (window.MainPicBox.ClientRectangle.Contains(point))
-			//		MoveMouse(point);
-			//}
+			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+			{
+				Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+				if (window.MainPicBox.ClientRectangle.Contains(point))
+					MoveMouse(point);
+			}
 			RefreshStrings(true);
 
 			RefreshQuickButton();
@@ -930,12 +928,12 @@ namespace MinorShift.Emuera.GameView
 			{
 				//1823 Escキーもマクロも右クリックも不可。単純に押されたキーを送るのみ。
 				callEmueraProgram(null);
-				//if (state == ConsoleState.WaitInput && inputReq.NeedValue)
-				//{
-				//	Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-				//	if (window.MainPicBox.ClientRectangle.Contains(point))
-				//		MoveMouse(point);
-				//}
+				if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+				{
+					Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+					if (window.MainPicBox.ClientRectangle.Contains(point))
+						MoveMouse(point);
+				}
 			}
 			finally
 			{
@@ -1051,12 +1049,12 @@ namespace MinorShift.Emuera.GameView
 				RefreshQuickButton();
 			}
 			endMacro:
-			//if(state == ConsoleState.WaitInput && inputReq.NeedValue)
-			//{
-			//	Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-			//	if (window.MainPicBox.ClientRectangle.Contains(point))
-			//		MoveMouse(point);
-			//}
+			if(state == ConsoleState.WaitInput && inputReq.NeedValue)
+			{
+				Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+				if (window.MainPicBox.ClientRectangle.Contains(point))
+					MoveMouse(point);
+			}
 			RefreshStrings(true);
 		}
 
@@ -1237,7 +1235,7 @@ namespace MinorShift.Emuera.GameView
 			}
 			else if (com.Equals("CONFIG", sc))
 			{
-				//window.ShowConfigDialog();
+				window.ShowConfigDialog();
 				return;
 			}
 			else if (com.Equals("DEBUG", sc))
@@ -1284,18 +1282,18 @@ namespace MinorShift.Emuera.GameView
 		string debugTitle = null;
 		public void SetWindowTitle(string str)
 		{
-			//if (Program.DebugMode)
-			//{
-			//	debugTitle = str;
-			//	window.Text = str + " (Debug Mode)";
-			//}
-			//else
-			//	window.Text = str;
+			if (Program.DebugMode)
+			{
+				debugTitle = str;
+				window.Text = str + " (Debug Mode)";
+			}
+			else
+				window.Text = str;
 		}
 
         public void SetEmueraVersionInfo(string str)
         {
-            //window.TextBox.Text = str;
+            window.TextBox.Text = str;
         }
 		public string GetWindowTitle()
 		{
@@ -1351,7 +1349,7 @@ namespace MinorShift.Emuera.GameView
 					App.DoEvents();
 					sec = WinmmTimer.TickCount - lastBgColorChange;
 				}
-				//window.TextBox.BackColor = this.bgColor;
+				window.TextBox.BackColor = this.bgColor;
 				MainThread.BeginInvokeOnMainThread(() =>
 				{
 					window.BackgroundColor = DisplayUtils.ToSKColor(this.bgColor);
@@ -1451,60 +1449,60 @@ namespace MinorShift.Emuera.GameView
 
 			//}
 			//ToolTip描画
-			//if (lastPointingString != pointingString || lastSelectingCBGButtonInt != selectingCBGButtonInt)
-			//{
-			//	if (tooltipUsed)
-			//		window.ToolTip.RemoveAll();
-			//	string title = null;
-			//	if (pointingString != null)
-			//		title = pointingString.Title;
-			//	else if (selectingCBGButtonInt > 0)
-			//	{
-			//		foreach (var cbg in cbgList)
-			//		{
-			//			if (!cbg.isButton || cbg.buttonValue != selectingCBGButtonInt)
-			//				continue;
-			//			if (string.IsNullOrEmpty(cbg.tooltipString))
-			//				continue;
-			//			title = cbg.tooltipString;
-			//			break;
-			//		}
-			//	}
-			//	if (!string.IsNullOrEmpty(title))
-			//	{
-			//		if (tooltip_duration == 0)
-			//			window.ToolTip.SetToolTip(window.MainPicBox, title);
-			//		else
-			//		{
-			//			if (window.ToolTip.InitialDelay == 0)
-			//			{
-			//				Point mousePos = window.MainPicBox.PointToClient(MainWindow.MousePosition);
-			//				window.ToolTip.Show(title, window.MainPicBox, new Point(mousePos.X, mousePos.Y + 18), tooltip_duration);
-			//			}
-			//			else
-			//			{
-			//				System.Threading.SynchronizationContext context = System.Threading.SynchronizationContext.Current;
-			//				System.Threading.Tasks.Task.Run(async () =>
-			//				{
-			//					ConsoleButtonString savedPointingString = pointingString;
-			//					await System.Threading.Tasks.Task.Delay(window.ToolTip.InitialDelay);
-			//					context.Post((state) =>
-			//					{
-			//						MoveMouse(GetMousePosition());
-			//						if (lastPointingString == savedPointingString)
-			//						{
-			//							Point mousePos = window.MainPicBox.PointToClient(MainWindow.MousePosition);
-			//							window.ToolTip.Show(title, window.MainPicBox, new Point(mousePos.X, mousePos.Y + 18), tooltip_duration);
-			//						}
-			//					}, null);
-			//				});
-			//			}
-			//		}
-			//		tooltipUsed = true;
-			//	}
-			//	lastPointingString = pointingString;
-			//	lastSelectingCBGButtonInt = selectingCBGButtonInt;
-			//}
+			if (lastPointingString != pointingString || lastSelectingCBGButtonInt != selectingCBGButtonInt)
+			{
+				if (tooltipUsed)
+					window.ToolTip.RemoveAll();
+				string title = null;
+				if (pointingString != null)
+					title = pointingString.Title;
+				else if (selectingCBGButtonInt > 0)
+				{
+					foreach (var cbg in cbgList)
+					{
+						if (!cbg.isButton || cbg.buttonValue != selectingCBGButtonInt)
+							continue;
+						if (string.IsNullOrEmpty(cbg.tooltipString))
+							continue;
+						title = cbg.tooltipString;
+						break;
+					}
+				}
+				if (!string.IsNullOrEmpty(title))
+				{
+					if (tooltip_duration == 0)
+						window.ToolTip.Show(title, window.MainPicBox, new Point(0, 0));
+					else
+					{
+						if (window.ToolTip.InitialDelay == 0)
+						{
+							Point mousePos = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+							window.ToolTip.Show(title, window.MainPicBox, new Point(mousePos.X, mousePos.Y + 18), tooltip_duration);
+						}
+						else
+						{
+							System.Threading.SynchronizationContext context = System.Threading.SynchronizationContext.Current;
+							System.Threading.Tasks.Task.Run(async () =>
+							{
+								ConsoleButtonString savedPointingString = pointingString;
+								await System.Threading.Tasks.Task.Delay(window.ToolTip.InitialDelay);
+								context.Post((state) =>
+								{
+									MoveMouse(GetMousePosition());
+									if (lastPointingString == savedPointingString)
+									{
+										Point mousePos = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+										window.ToolTip.Show(title, window.MainPicBox, new Point(mousePos.X, mousePos.Y + 18), tooltip_duration);
+									}
+								}, null);
+							});
+						}
+					}
+					tooltipUsed = true;
+				}
+				lastPointingString = pointingString;
+				lastSelectingCBGButtonInt = selectingCBGButtonInt;
+			}
 			if (isBackLog)
 				lastDrawnLineNo = -1;
 			else
@@ -1523,19 +1521,19 @@ namespace MinorShift.Emuera.GameView
 
 		public void SetToolTipColor(Color foreColor, Color backColor)
 		{
-			//window.ToolTip.ForeColor = foreColor;
-			//window.ToolTip.BackColor = backColor;
+			window.ToolTip.ForeColor = foreColor;
+			window.ToolTip.BackColor = backColor;
 
 		}
 		public void SetToolTipDelay(int delay)
 		{
-			//window.ToolTip.InitialDelay = delay;
+			window.ToolTip.InitialDelay = delay;
 		}
 
         int tooltip_duration = 0;
         public void SetToolTipDuration(int duration)
         {
-            //tooltip_duration = duration;
+            tooltip_duration = duration;
         }
 
 
@@ -1755,14 +1753,11 @@ namespace MinorShift.Emuera.GameView
 
 		internal Point GetMousePosition()
 		{
-			//if (window == null || !window.Created)
-			//	return new Point();
-			////クライアント左上基準の座標取得
-			//Point pos = window.MainPicBox.PointToClient(Cursor.Position);
-			////クライアント左下基準の座標に置き換え
-			//pos.Y -= ClientHeight;
-			//return pos;
-			return new Point();
+			if (window == null || !window.Created)
+				return new Point();
+			Point pos = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+			pos.Y -= ClientHeight;
+			return pos;
 		}
 
 		/// <summary>
@@ -1820,8 +1815,8 @@ namespace MinorShift.Emuera.GameView
 			if(this.IsInProcess)
 				goto end;
 			//履歴表示中は無視
-			//if (window.ScrollBar.Value != window.ScrollBar.Maximum)
-			//	goto end;
+			if (window.ScrollBar.Value != window.ScrollBar.Maximum)
+				goto end;
 			int pointX = point.X;
 			int pointY = point.Y;
 			ConsoleDisplayLine curLine;
@@ -1943,7 +1938,7 @@ namespace MinorShift.Emuera.GameView
 					window.ScrollBar.Value = max;
 				window.ScrollBar.Maximum = max;
 			}
-			//window.ScrollBar.IsEnabled = max > 0;
+			window.ScrollBar.Enabled = max > 0;
 		}
 		#endregion
 

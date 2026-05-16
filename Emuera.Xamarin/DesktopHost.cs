@@ -203,6 +203,10 @@ namespace MinorShift.Emuera
 
         public int GetScrollBarValue() => scrollBarValue;
         public int GetScrollBarMaximum() => scrollBarMaximum;
+        public int GetRenderWidth() => renderWidth;
+        public int GetRenderHeight() => renderHeight;
+        public System.Windows.Forms.PictureBox GetPictureBox() => pictureBox;
+        public System.Windows.Forms.TextBox GetInputTextBox() => inputTextBox;
         public string GetTextBoxText() => inputTextBox?.Text ?? "";
         public void SetTextBoxText(string text)
         {
@@ -230,6 +234,12 @@ namespace MinorShift.Emuera
         }
 
         public override UI.Framework.Forms.ScrollBar ScrollBar => new DesktopScrollBar(form);
+
+        public override MainPicBoxStub MainPicBox => new DesktopMainPicBox(form);
+
+        public override TextBoxStub TextBox => new DesktopTextBox(form);
+
+        public override ToolTipStub ToolTip => new DesktopToolTip(form);
 
         public override void Refresh()
         {
@@ -267,6 +277,36 @@ namespace MinorShift.Emuera
             get => !form.IsDisposed;
         }
 
+        public override bool Created => !form.IsDisposed;
+
+        public override void Invoke(Action action)
+        {
+            if (form.IsDisposed)
+                return;
+            if (!form.InvokeRequired)
+            {
+                action?.Invoke();
+                return;
+            }
+            var mre = new System.Threading.ManualResetEventSlim(false);
+            Exception captured = null;
+            form.BeginInvoke(new Action(() =>
+            {
+                try { action?.Invoke(); }
+                catch (Exception ex) { captured = ex; }
+                finally { mre.Set(); }
+            }));
+            mre.Wait();
+            if (captured != null)
+                throw captured;
+        }
+
+        public override void Focus()
+        {
+            if (!form.IsDisposed)
+                form.BeginInvoke(new Action(() => form.Activate()));
+        }
+
         public override void update_lastinput()
         {
         }
@@ -279,6 +319,64 @@ namespace MinorShift.Emuera
         public override void ChangeTextBox(string str)
         {
             form.SetTextBoxText(str);
+        }
+    }
+
+    internal class DesktopMainPicBox : MainPicBoxStub
+    {
+        private readonly DesktopHostForm form;
+
+        public DesktopMainPicBox(DesktopHostForm form)
+        {
+            this.form = form;
+        }
+
+        public override int Width => form.GetRenderWidth();
+        public override int Height => form.GetRenderHeight();
+        public override Rectangle ClientRectangle => new Rectangle(0, 0, Width, Height);
+        public override Point PointToClient(Point screenPoint)
+        {
+            if (form.IsDisposed)
+                return screenPoint;
+            if (form.InvokeRequired)
+                return form.GetPictureBox().PointToClient(screenPoint);
+            return form.GetPictureBox().PointToClient(screenPoint);
+        }
+    }
+
+    internal class DesktopTextBox : TextBoxStub
+    {
+        private readonly DesktopHostForm form;
+
+        public DesktopTextBox(DesktopHostForm form)
+        {
+            this.form = form;
+        }
+
+        public override Color BackColor
+        {
+            get => form.IsDisposed ? Color.Black : form.GetInputTextBox().BackColor;
+            set { if (!form.IsDisposed) form.BeginInvoke(new Action(() => form.GetInputTextBox().BackColor = value)); }
+        }
+        public override Color ForeColor
+        {
+            get => form.IsDisposed ? Color.White : form.GetInputTextBox().ForeColor;
+            set { if (!form.IsDisposed) form.BeginInvoke(new Action(() => form.GetInputTextBox().ForeColor = value)); }
+        }
+        public override System.Drawing.Font Font
+        {
+            get => form.IsDisposed ? null : form.GetInputTextBox().Font;
+            set { if (!form.IsDisposed) form.BeginInvoke(new Action(() => form.GetInputTextBox().Font = value)); }
+        }
+    }
+
+    internal class DesktopToolTip : ToolTipStub
+    {
+        private readonly DesktopHostForm form;
+
+        public DesktopToolTip(DesktopHostForm form)
+        {
+            this.form = form;
         }
     }
 

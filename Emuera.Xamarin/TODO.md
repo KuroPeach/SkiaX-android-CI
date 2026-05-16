@@ -1,149 +1,48 @@
 # Emuera.Xamarin 任务计划
 
-> **策略核心**：LazyLoading 内核直接编译（net8.0-windows），UI 层用 XEmuera-1 Skia 版本，逐项解决类型冲突和 API 不完整
-> **创建日期**：2026-05-15
-> **最后更新**：2026-05-16（Phase 2E 桌面端宿主编译通过）
+> **最后更新**：2026-05-16
+> **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/CHANGELOG.md)
 
 ## 当前状态
 
-- ✅ 项目结构已创建（csproj + 目录 + 文件复制）
-- ✅ 已添加到解决方案
-- ✅ TFM 升级到 net8.0-windows
-- ✅ LazyLoading 主项目编译通过（0 错误）
-- ✅ **Emuera.Xamarin 编译通过（0 错误）**（818→336→0）
-- ✅ 知识库已更新（9 个条目完整覆盖）
-- 🔄 **Phase 2 运行时适配 — 进行中**
-  - ✅ **Phase 2C 已完成**：IPathProvider 接口 + DefaultPathProvider + Program getter 委托
-  - ✅ **Phase 2B 已完成**：SkiaPfc 替代 PrivateFontCollection + SkiaFontFamily + InstalledFontCollection 命名空间覆盖
-  - ✅ **Phase 2A 已完成**：入口点适配（Encoding + JSONConfig + 字体加载 + DebugConfig）
-  - ⏭️ **Phase 2D 延后**：键鼠抽象在 net8.0-windows 下不需要，延后至移动端适配
-  - ✅ **Phase 2E 桌面端宿主已创建**：WinForms Form + PictureBox + SKSurface 手动渲染 + DesktopMainWindow 适配层
-  - 🔄 **Phase 2E 运行时验证待执行**：需要用户手动启动测试
-  - ⚠️ 关键发现：编译通过≠可运行，三大运行时障碍待解决
-  - ⚠️ 执行顺序调整：2C→2B→2A→2D→2E（原计划 2A→2B→2C→2D→2E）
-  - 详见 [phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
+- ✅ Phase 0-2 已完成（编译通过 + 桌面端可启动）
+- ✅ **Phase 4A-Desktop** 已完成（Stub 扩展 + 30+ 处注释代码恢复）
+- 🔄 **Phase 3** — 下一步（Skia 渲染集成）
+- ⏭️ Phase 4A-Xamarin / Phase 4B / Phase 5
 
 ---
 
-## Phase 0：项目骨架 — ✅ 已完成
+## Phase 2（剩余延后项）
 
-## Phase 1：编译错误收敛 — ✅ 已完成（818→336→0）
+### 切片 2D：键鼠输入抽象 — ⏭️ 延后至移动端
 
-### Round 1：类型冲突 + 存根（818→336）— ✅ 已完成
+> 延后理由：当前 TFM `net8.0-windows` 下 `WinInput.GetKeyState` 和 `Control.MousePosition` 均可正常工作
 
-### Round 2：剩余错误收敛（336→0）— ✅ 已完成
+| # | 操作 | 说明 |
+|---|------|------|
+| 2D-1 | 创建 `InputState` 具体类 | `lock` 保护的按键状态数组 + 鼠标位置 + 鼠标按钮值 |
+| 2D-2 | 修改 Creator.Method.cs 中 3 个方法 | `GetKeyStateMethod`/`MouseButtonMethod`/`MousePosMethod` 从 InputState 读取 |
+| 2D-3 | 触摸事件写入 InputState | `EraPictureBox_Touch` → `SetKeyDown/Up` + `SetMousePosition` + `SetMouseButtonValue` |
+| 2D-4 | Windows 事件写入 InputState | `KeyDown/Up` + `MouseDown/Up` → `SetKeyDown/Up`（保持 WinInput 兼容） |
+| 2D-5 | 编译验证 | — |
 
-| 修复类别 | 操作 | 消除错误 |
-|---------|------|---------|
-| 全局 using alias | `FontStyle`/`Brush`/`Pen`/`Font`/`SolidBrush`/`GraphicsUnit` → `XEmuera.Drawing` | ~140 |
-| XAML 页面排除 | 10 个 XAML 页面 + App.xaml.cs + MainPage.xaml.cs | ~80 |
-| ConfigCode 枚举扩展 | 内核 ConfigCode 添加 14 个 XEmuera 成员 | ~116 |
-| Nullable disable | csproj `<Nullable>disable</Nullable>` + NoWarn | ~22 |
-| 存根补全 | Sound/Bgm/MainWindow/EmueraConsole/GraphicsImage/AppContents/FontFactory/Sys/App/ColorMatrixHelper | ~100 |
-| 内核修复 | ScriptPosition?.Value、ConfigData global::、SkiaSharp 枚举类型、dynamic lambda | ~33 |
-| 隐式转换 | XEmuera.Drawing ↔ System.Drawing (Pen/Brush/SolidBrush/Font/SKBitmap→GraphicsImage) | ~20 |
+**方案决策**：采用 InputState 具体类方案（方案 C）。详见 [await-async.md](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md)。
 
----
+### 切片 2E（移动端待验证项）
 
-## Phase 2：运行时适配 — 编译通过后的首个可执行阶段
-
-> **知识库参考**：[io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md)、[await-async.md](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md)、[phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
-> **前置条件**：Phase 1 Round 3 完成（0 编译错误）
-> **执行顺序调整**：原计划 2A→2B→2C→2D→2E，依赖分析后调整为 **2C→2B→2A→2D→2E**（IPathProvider 是基础设施，应最先实现）
-
-### 任务来源分析
-
-Phase 2 的任务来源于三个层次：
-
-| 层次 | 来源 | 示例 |
-|------|------|------|
-| **L1：内核硬依赖** | 内核代码直接引用 WinForms/Desktop 专用 API | `WinInput.GetKeyState`(user32.dll)、`Control.MousePosition`、`PrivateFontCollection` |
-| **L2：平台初始化** | LazyLoading 主项目 `Program.Main()` 的启动序列 | GlobalStatic 初始化、Config 加载、ERB 文件扫描 |
-| **L3：存根升级** | Phase 1 创建的空壳存根需要真实实现 | `SoundAndBgm.cs` 的 play/stop、`ImageLayerManager.cs` 的 DrawAll、`MainWindow.cs` 的各种方法 |
-
-### 垂直切片
-
-#### 切片 2A：入口点适配 — ✅ 已完成
-
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 2A-1 | 添加 `Encoding.RegisterProvider` | Shift-JIS 支持 | ✅ |
-| 2A-2 | 添加 `JSONConfig.Load()` | JSON 配置加载 | ✅ |
-| 2A-3 | 添加 `LoadFontFiles()` | font/ 目录字体加载（ttf/otf/ttc） | ✅ |
-| 2A-4 | 添加 `DebugConfig` 加载 | debug 模式配置 + DebugDir 创建 | ✅ |
-| 2A-5 | 编译验证 | 0 错误 | ✅ |
-
-**说明**：Lang.LoadLanguageFiles/SetLanguage 未添加（Platform/Lang.cs 被排除），Bgm/Sound.close 未添加（stub 空实现）。
-
-#### 切片 2B：Pfc (PrivateFontCollection) 替换 — ✅ 已完成
-
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 2B-1 | 创建 `SkiaPfc` + `SkiaFontFamily` 类 | `Families` 返回 `System.Drawing.FontFamily[]`，`AddFontFile()` 加载到 `SKTypeface` | ✅ |
-| 2B-2 | 创建 `InstalledFontCollection` 命名空间覆盖 | `System.Drawing.Text` 命名空间，实现 `IDisposable` | ✅ |
-| 2B-3 | 修改 `GlobalStatic.Pfc` 类型声明 | `dynamic` → `SkiaPfc` | ✅ |
-| 2B-4 | 添加 `FontFamily`/`InstalledFontCollection` 全局 using alias | csproj `<Using>` 配置 | ✅ |
-| 2B-5 | 编译验证 | 0 错误 | ✅ |
-
-**实施方案**：`SkiaPfc.Families` 返回 `System.Drawing.FontFamily[]`，内核代码中 `Pfc.Families` 的 `foreach` 和强转无需修改。`InstalledFontCollection` 在 `System.Drawing.Text` 命名空间下创建替代类，覆盖原始 `System.Drawing.Common` 的同名类。
-
-#### 切片 2C：路径系统适配 — ✅ 已完成
-
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 2C-1 | 创建 `IPathProvider` 接口 | 12 个路径属性 + ExeName | ✅ |
-| 2C-2 | 实现 `DefaultPathProvider` | 封装 `Sys.ExeDir`，含大小写 fallback 目录解析 | ✅ |
-| 2C-3 | `Program.*` getter 委托到 `GlobalStatic.PathProvider` | 内核 122 处引用零改动 | ✅ |
-| 2C-4 | 编译验证 | 0 错误 | ✅ |
-
-**实施方案**：方案 A（Program getter 委托），`Program.ExeDir` 等属性的 getter 内部委托到 `GlobalStatic.PathProvider`，内核 Runtime/ 代码无需任何修改。
-
-#### 切片 2D：键鼠输入抽象 — ⏭️ 延后至移动端
-
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 2D-1 | 创建 `InputState` 具体类 | `lock` 保护的按键状态数组 + 鼠标位置 + 鼠标按钮值 | ⏭️ 延后 |
-| 2D-2 | 修改 Creator.Method.cs 中 3 个方法 | `GetKeyStateMethod`/`MouseButtonMethod`/`MousePosMethod` 从 InputState 读取 | ⏭️ 延后 |
-| 2D-3 | 触摸事件写入 InputState | `EraPictureBox_Touch` → `SetKeyDown/Up` + `SetMousePosition` + `SetMouseButtonValue` | ⏭️ 延后 |
-| 2D-4 | Windows 事件写入 InputState | `KeyDown/Up` + `MouseDown/Up` → `SetKeyDown/Up`（保持 WinInput 兼容） | ⏭️ 延后 |
-| 2D-5 | 编译验证 | — | ⏭️ 延后 |
-
-**方案决策**：采用 **InputState 具体类方案**（方案 C），不采用 IInputProvider 接口方案（方案 A）。理由：不排除 Creator.Method.cs（8000+ 行），避免维护两份副本；InputState 是深模块，接口简单；将来可抽出 IInputProvider 接口。详见 [await-async.md 键鼠抽象实施预案](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md)。
-
-**延后理由**：当前 TFM 是 `net8.0-windows` + `UseWindowsForms`，`WinInput.GetKeyState`（user32.dll）和 `Control.MousePosition`（WinForms）在 Windows 桌面端均可正常工作。键鼠抽象是移动端适配的前置条件，延后至 TFM 切换到跨平台时实施。
-
-#### 切片 2E：AWAIT/INPUT 验证
-
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 2E-0 | 创建桌面端宿主 | WinForms Form + PictureBox + SKSurface 手动渲染 | ✅ |
-| 2E-1 | 验证 AWAIT 在后台线程的行为 | `Thread.Sleep` 不阻塞 UI | ✅ 运行时验证通过 |
-| 2E-2 | 验证 TINPUT/TINPUTS Timer | Android 上 Timer 行为 | ⏭️ 延后至移动端 |
-| 2E-3 | 验证 GETKEYTRIGGERED/MOUSEB 触摸映射 | 配合 2D 的 InputState 触屏映射 | ⏭️ 延后至移动端 |
-| 2E-4 | 编译+运行验证 | 程序可正常启动 | ✅ 完成 |
-
-**验证结果**：程序已成功启动，资源文件问题已修复，运行时无崩溃。当前空白窗口是预期的——Phase 3 Skia 渲染管线尚未集成。
-
-**知识库确认**：[await-async.md](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md) 已分析 AWAIT 在 XEmuera 上的行为，结论是"保持现状即可"。
+| # | 操作 | 说明 |
+|---|------|------|
+| 2E-2 | 验证 TINPUT/TINPUTS Timer | Android 上 Timer 行为 |
+| 2E-3 | 验证 GETKEYTRIGGERED/MOUSEB 触摸映射 | 配合 2D 的 InputState 触屏映射 |
 
 ---
 
-## Phase 3：Skia 渲染集成 — 存根升级为真实实现
+## Phase 3：Skia 渲染集成
 
-> **知识库参考**：[graphics-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/graphics-rendering.md)、[font-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/font-rendering.md)
-> **前置条件**：Phase 2 完成（程序可启动）
+> **知识库**：[graphics-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/graphics-rendering.md)、[font-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/font-rendering.md)
+> **前置条件**：Phase 2 + 4A-Desktop 完成 ✅
 
-### 任务来源分析
-
-| 层次 | 来源 | 示例 |
-|------|------|------|
-| **L1：内核功能依赖** | 内核 Instraction.Child.cs 调用 SETIMAGELAYER/CBG 系列指令 | `ImageLayerManager.SetLayer/RemoveLayer/Clear/DrawAll` |
-| **L2：渲染管线** | LazyLoading 主项目的 OnPaint 渲染循环 | `EmueraConsole.OnPaint` → `SKCanvas` 绘制 |
-| **L3：字体渲染** | GDI+ TextRenderer 回退路径不可移植 | 需纯 SkiaSharp 方案 |
-
-### 垂直切片
-
-#### 切片 3A：SETIMAGELAYER 图层管理
+### 切片 3A：SETIMAGELAYER 图层管理
 
 | # | 操作 | 说明 |
 |---|------|------|
@@ -152,9 +51,7 @@ Phase 2 的任务来源于三个层次：
 | 3A-3 | 实现 `DrawAll(SKCanvas, scrollY)` | 视口裁剪 + 烘焙绘制 |
 | 3A-4 | 编译+运行验证 | — |
 
-**知识库确认**：[graphics-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/graphics-rendering.md) 已记录 LazyLoading 的 ImageLayerManager 架构。
-
-#### 切片 3B：ColorMatrix 颜色矩阵
+### 切片 3B：ColorMatrix 颜色矩阵
 
 | # | 操作 | 说明 |
 |---|------|------|
@@ -163,7 +60,7 @@ Phase 2 的任务来源于三个层次：
 | 3B-3 | 实现 `GSETCOLORMATRIX` 指令 | 新增到 BuiltInFunctionCode |
 | 3B-4 | 编译+运行验证 | — |
 
-#### 切片 3C：字体渲染
+### 切片 3C：字体渲染
 
 | # | 操作 | 说明 |
 |---|------|------|
@@ -173,9 +70,7 @@ Phase 2 的任务来源于三个层次：
 | 3C-4 | 新增 ConfigCode 配置项 | SkiaSharpFontHinting/SkiaSharpFontEdging |
 | 3C-5 | 编译+运行验证 | — |
 
-**知识库确认**：[font-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/font-rendering.md) 已记录完整移植策略。
-
-#### 切片 3D：增量渲染（可选优化）
+### 切片 3D：增量渲染（可选优化）
 
 | # | 操作 | 说明 |
 |---|------|------|
@@ -184,66 +79,68 @@ Phase 2 的任务来源于三个层次：
 | 3D-3 | 移植 `RenderLoop` | 渲染循环 |
 | 3D-4 | 性能对比测试 | 全屏重绘 vs 增量渲染 |
 
-**优先级**：中。全屏重绘在简单场景可接受，增量渲染是后续优化。
-
 ---
 
 ## Phase 4：Xamarin.Forms UI 集成
 
-> **知识库参考**：[ui-integration.md](file:///d:/emuera/shared-trae/knowledge/xemuera/ui-integration.md)
-> **前置条件**：Phase 3 完成（渲染管线可用）
-> **自拷问日期**：2026-05-16
+> **知识库**：[ui-integration.md](file:///d:/emuera/shared-trae/knowledge/xemuera/ui-integration.md)
+> **前置条件**：Phase 3 完成（4A-Desktop 已提前完成）
 
-### 任务来源分析
+### 切片 4A：主页面集成
 
-| 层次 | 来源 | 示例 |
-|------|------|------|
-| **L1：平台 UI 框架** | XEmuera-1 的 Xamarin.Forms 页面 | `MainPage.xaml`、`App.xaml`、`EraPictureBox` |
-| **L2：交互控件** | WinForms 控件的 Xamarin 等价物 | `TextBox` → `Entry`、`RichTextBox` → 自定义渲染 |
-| **L3：平台服务** | Android/iOS 特定功能 | 文件选择器、权限请求、通知 |
-| **L4：接口契约** | EmueraConsole 对 MainWindow 的 91 处引用 | `window.Refresh()`、`window.Invoke()`、`window.ToolTip` |
+#### 子阶段 4A-Desktop：扩展 Stub + DesktopMainWindow（当前 TFM）
 
-### 垂直切片
+> **目标**：取消注释 xamarin EmueraConsole 中更多 `window.*` 引用，逐步恢复 LazyLoading EmueraConsole 完整功能
 
-#### 切片 4A：主页面集成
-
-> **核心挑战**：EmueraConsole 对 MainWindow 有 91 处引用，必须确保接口完整覆盖
-
-| # | 操作 | 说明 | 决策 |
+| # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 4A-1 | 移植 XEmuera-1 MainWindow 三文件 | `MainWindow.xaml` + `MainWindow.xaml.cs` + `MainWindow.cs`（~2041行） | 方案 A：移植 XEmuera-1 |
-| 4A-2 | 移植 XEmuera-1 辅助类 | `EraPictureBox.cs`、`GameUtils`、`IPlatformService`、`MessageBox`、`TintImageButton` | — |
-| 4A-3 | 扩展 MainWindow 接口覆盖 EmueraConsole 91 处引用 | 补充 `Created`、`Invoke(Action)`、`ToolTip`（stub）、`PointToClient`、`TextBoxPosChanged` 等 | — |
-| 4A-4 | 实现 `window.Invoke(Action)` 同步版本 | WinForms `Invoke` 是同步的，Xamarin `MainThread.BeginInvokeOnMainThread` 是异步的，需 `ManualResetEvent` 等待 | — |
-| 4A-5 | 实现 `window.Created` 替代 | 用 `IsEnabled` 或自定义 `IsAlive` 标志替代 | — |
-| 4A-6 | 连接 `SKCanvasView` 到 `EmueraConsole.OnPaint` | `mainPicBox_Paint` → `console.OnPaint(canvas)` | — |
-| 4A-7 | 实现触摸事件转发 | `EraPictureBox_Touch` → `console.MouseDown`/`PressEnterKey` | — |
-| 4A-8 | 实现文本输入 | `Entry` → `console.PressEnterKey`（ONEPHRASE/ANYKEY 自动提交） | — |
-| 4A-9 | 移植 App.xaml + MainPage.xaml | FlyoutPage 导航框架 + GameItemPage 游戏列表 | — |
-| 4A-10 | 编译+运行验证 | — | — |
+| 4A-D1 | 扩展 `MainPicBoxStub` | 添加 `Width`/`Height`（连接实际尺寸）、`PointToClient(Point)`、`ClientRectangle` | ✅ |
+| 4A-D2 | 扩展 `TextBoxStub` | 添加 `ForeColor`、`Font` 属性；DesktopMainWindow 连接 WinForms TextBox | ✅ |
+| 4A-D3 | 实现 `window.Invoke(Action)` 同步版本 | Stub 添加 virtual 方法；DesktopMainWindow 用 `ManualResetEventSlim` + `form.BeginInvoke` 实现 | ✅ |
+| 4A-D4 | 实现 `window.Created` 替代 | Stub 添加 `Created` 属性（别名 `IsEnabled`）；DesktopMainWindow override `!form.IsDisposed` | ✅ |
+| 4A-D5 | 创建 `ToolTipStub` 空实现 | Show/RemoveAll/InitialDelay/AutoPopDelay/ForeColor/BackColor/OwnerDraw/Draw/Popup 全部空实现 | ✅ |
+| 4A-D6 | 补充其他缺失接口 | `Text`（别名 Title）、`ShowConfigDialog()`（空）、`Focus()`（空）、`TextBoxPosChanged`/`ResetTextBoxPos()`/`TextBoxIgnoreScrollBarChanges`（空） | ✅ |
+| 4A-D7 | 取消注释 EmueraConsole 中 `window.MainPicBox.*` 调用 | PointToClient/ClientRectangle/Width/Height，替换 `Control.MousePosition` 为 `System.Windows.Forms.Control.MousePosition` | ✅ |
+| 4A-D8 | 取消注释 EmueraConsole 中 `window.ToolTip.*` 调用 | ToolTip stub 化后可安全取消注释 | ✅ |
+| 4A-D9 | 编译+运行验证 | 0 编译错误，60 警告（均为既有警告） | ✅ |
+
+**Stub 缺失接口清单（4A-D1~D6 已全部补充）**：
+
+| 缺失接口 | 严重程度 | 目标切片 | 状态 |
+|----------|---------|---------|------|
+| `window.Created` | **高** | 4A-D4 | ✅ |
+| `window.Invoke(Action)` | **高** | 4A-D3 | ✅ |
+| `window.ToolTip.*` | **高** | 4A-D5 | ✅ |
+| `window.MainPicBox.PointToClient()` | **高** | 4A-D1 | ✅ |
+| `window.MainPicBox.ClientRectangle` | **中** | 4A-D1 | ✅ |
+| `window.MainPicBox.Width/Height` | **中** | 4A-D1 | ✅ |
+| `window.TextBox.ForeColor/Font` | **中** | 4A-D2 | ✅ |
+| `window.TextBoxPosChanged`/`ResetTextBoxPos()` | **中** | 4A-D6 | ✅ |
+| `window.TextBoxIgnoreScrollBarChanges` | **中** | 4A-D6 | ✅ |
+| `window.Text` | **低** | 4A-D6 | ✅ |
+| `window.ShowConfigDialog()` | **低** | 4A-D6 | ✅ |
+| `window.Focus()` | **低** | 4A-D6 | ✅ |
 
 **风险 Top 3**：
-1. EmueraConsole 91 处 `window.*` 引用 — 任何缺失接口都会导致运行时 NullReferenceException
-2. `window.Invoke(Action)` 同步语义 — WinForms 同步 vs Xamarin 异步，需 ManualResetEvent 等待
-3. `window.Created` 生命周期 — ContentPage 无此属性，需自定义标志替代
+1. `window.Invoke(Action)` 同步语义 — WinForms `Invoke` 是同步的，`MainThread.BeginInvokeOnMainThread` 是异步的
+2. 取消注释后引入新编译错误 — 注释代码引用 `Control.MousePosition`/`Cursor.Position` 等 WinForms API
+3. MainPicBoxStub 与 EraPictureBox 双轨并存 — 未来切换 TFM 时需确保不冲突
 
-**Stub 缺失接口清单（4A-3 需补充）**：
+#### 子阶段 4A-Xamarin：启用 ContentPage MainWindow（未来 TFM 切换）
 
-| 缺失接口 | 严重程度 | EmueraConsole 使用场景 |
-|----------|---------|----------------------|
-| `window.Created` | **高** | 循环退出条件 |
-| `window.Invoke(Action)` | **高** | RefreshStrings 线程安全 |
-| `window.ToolTip.*` | **高** | OnPaint 中大量调用（先 stub 化） |
-| `window.MainPicBox.PointToClient()` | **高** | 鼠标坐标转换 |
-| `window.MainPicBox.ClientRectangle` | **中** | 鼠标范围检查 |
-| `window.TextBoxPosChanged`/`ResetTextBoxPos()` | **中** | TextBox 位置管理 |
-| `window.TextBoxIgnoreScrollBarChanges` | **中** | 防止滚动条循环更新 |
-| `window.ShowConfigDialog()` | **低** | F12 配置 |
-| `window.Focus()` | **低** | 窗口焦点 |
+> **前置条件**：4A-Desktop 完成 + TFM 切换到 net8.0-android 或多目标框架
 
-#### 切片 4B：配置页面
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 4A-X1 | 移除 csproj 中 `Platform\Forms\**` 排除项 | 启用 XAML 代码生成 | ⏭️ |
+| 4A-X2 | 移除 csproj 中 XAML 页面排除项 | Views/*.xaml.cs + MainPage.xaml.cs + App.xaml.cs | ⏭️ |
+| 4A-X3 | 连接 SKCanvasView 到 EmueraConsole.OnPaint | `mainPicBox_Paint` → `console.OnPaint(canvas)` | ⏭️ |
+| 4A-X4 | 实现触摸事件转发 | `EraPictureBox_Touch` → `console.MouseDown`/`PressEnterKey` | ⏭️ |
+| 4A-X5 | 实现文本输入 | `Entry` → `console.PressEnterKey`（ONEPHRASE/ANYKEY 自动提交） | ⏭️ |
+| 4A-X6 | 移植 App.xaml + MainPage.xaml | FlyoutPage 导航框架 + GameItemPage 游戏列表 | ⏭️ |
+| 4A-X7 | 编译+运行验证 | — | ⏭️ |
 
-> **核心发现**：LazyLoading ConfigDialog 有 10 个 Tab / ~70 个控件 / 3154 行代码；XEmuera-1 已有完整三级导航配置 UI
+### 切片 4B：配置页面
 
 | # | 操作 | 说明 | 决策 |
 |---|------|------|------|
@@ -259,9 +156,7 @@ Phase 2 的任务来源于三个层次：
 - 调试配置：`GetDebugItem(ConfigCode)` → 直接修改 → `SaveDebugConfig()`
 - JSON 配置：`JSONConfig.Data` → `JSONConfig.Save()`
 
-#### 切片 4C：调试窗口
-
-> **核心发现**：XEmuera-1 DebugDialog 有 492 行代码但全部注释掉，移动端调试窗口尚未实现
+### 切片 4C：调试窗口
 
 | # | 操作 | 说明 | 决策 |
 |---|------|------|------|
@@ -269,32 +164,14 @@ Phase 2 的任务来源于三个层次：
 | 4C-2 | 确保 EmueraConsole 中 DebugDialog 引用不报错 | `DebugDialog` 属性返回 null | — |
 | 4C-3 | （可选）Tab 页方案实现 | 在 MainWindow 中添加调试 Tab | 低优先级 |
 
-**暂不实现理由**：
-1. XEmuera-1 也未实现调试窗口
-2. 调试窗口面向 ERB 开发者，普通玩家不需要
-3. 可通过 `emuera.log` 文件和 `dotnet build` 编译验证替代
-
 ---
 
 ## Phase 5：平台特定功能
 
-> **前置条件**：Phase 4 完成（UI 完整可用）
+> **知识库**：[io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md)、[audio-system.md](file:///d:/emuera/shared-trae/knowledge/xemuera/audio-system.md)
+> **前置条件**：Phase 4 完成
 
-### 任务来源分析
-
-| 层次 | 来源 | 示例 |
-|------|------|------|
-| **L1：跨平台 IO** | Android 大小写敏感、iOS 只读资源 | [io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md) |
-| **L2：音频系统** | NAudio/WMP 不可用 | 需跨平台音频方案 |
-| **L3：SQL 系统** | SQLite 路径适配 | `IPathProvider.SqlDir` |
-| **L4：LazyLoading 二进制缓存** | 跨平台指纹校验 | 平台不匹配时自动重建 |
-
-### 垂直切片
-
-#### 切片 5A：IO 跨平台适配
-
-> **知识库参考**：[io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md)
-> **自拷问日期**：2026-05-16
+### 切片 5A：IO 跨平台适配
 
 | # | 操作 | 说明 | 决策 |
 |---|------|------|------|
@@ -306,15 +183,7 @@ Phase 2 的任务来源于三个层次：
 | 5A-6 | Android 资源解压 | APK assets → Context.FilesDir（首次启动全量解压） | 方案 A |
 | 5A-7 | 编译+运行验证 | — | — |
 
-**风险 Top 3**：
-1. `File.Exists` 替换遗漏 → Android 静默失败（返回 false 而非异常）
-2. `Program.WorkingDir` → `IPathProvider.LazyLoadingDir` 引用不一致
-3. iOS 只读资源目录 → LazyLoading 增量更新需降级为启动时全量扫描
-
-#### 切片 5B：音频系统
-
-> **知识库参考**：[audio-system.md](file:///d:/emuera/shared-trae/knowledge/xemuera/audio-system.md)
-> **自拷问日期**：2026-05-16
+### 切片 5B：音频系统
 
 | # | 操作 | 说明 | 决策 |
 |---|------|------|------|
@@ -326,223 +195,9 @@ Phase 2 的任务来源于三个层次：
 | 5B-6 | 移植 GETSOUNDSTATUS/ISPLAYINGSOUND | `Creator.Method.cs` 新增方法 | 低优先级 |
 | 5B-7 | 编译+运行验证 | — | — |
 
-**已知问题**：
-- XEmuera-1 `MobileMediaPlayer.Volume` 是 float 0-100，但 `MediaPlayer.SetVolume()` 期望 0.0-1.0，音量映射可能有 bug
-- Android `MediaPlayer` 不支持变速，`setSpeed()` 需引入 `SoundTouch`/`Oboe` 原生库（低优先级延后）
-- 切换游戏时音量不重置
-
-**风险 Top 3**：
-1. Android `MediaPlayer` 不支持变速 → 需原生库或降级
-2. `SP_HTML_PRINT` 参数构建器与 XEmuera-1 `ArgumentBuilder` 体系差异大
-3. 音频资源路径硬编码 Windows → 需全面替换
-
-#### 切片 5C：SQL 跨平台
+### 切片 5C：SQL 系统
 
 | # | 操作 | 说明 |
 |---|------|------|
 | 5C-1 | SQLite 路径适配 | `IPathProvider.SqlDir` |
-| 5C-2 | 验证 SQLite 跨平台兼容性 | — |
-| 5C-3 | 编译+运行验证 | — |
-
-#### 切片 5D：LazyLoading 二进制缓存
-
-| # | 操作 | 说明 |
-|---|------|------|
-| 5D-1 | 添加平台指纹校验 | `RuntimeInformation.FrameworkDescription` |
-| 5D-2 | 路径分隔符规范化 | 写入时统一 `/` |
-| 5D-3 | 降级策略验证 | 缓存失效时自动重建 |
-| 5D-4 | 编译+运行验证 | — |
-
----
-
-## 存根清单与升级映射
-
-Phase 1 创建的存根文件及其在 Phase 2-5 中的升级目标：
-
-| 存根文件 | 当前状态 | 升级目标 | 目标 Phase |
-|---------|---------|---------|-----------|
-| `SoundAndBgm.cs` | 空方法 | 真实音频播放 | Phase 5B |
-| `ImageLayerManager.cs` | 空方法 | ZDepth 排序 + SKPicture 烘焙 | Phase 3A |
-| `MainWindow.cs` | 属性+空方法 | 真实 Xamarin 窗口 | Phase 4A |
-| `WinForms.cs` | Application.DoEvents 空实现 | 已从编译排除（与真正 WinForms 冲突） | 可删除 |
-| `IPluginMethod.cs` | 完整空壳 | 保持（PluginSystem 不移植） | 无需升级 |
-| `AConsoleDisplayNode.cs` | 抽象类 | 保持（GameView 层使用） | 无需升级 |
-| `EvilMaskUtils.cs` | 完整实现（MixedNum/StyledBoxModel/ConsoleDivPart） | 保持 | 无需升级 |
-| `FontFactory.cs` | 存根 | 真实字体加载+缓存+回退链 | Phase 3C |
-| `ColorMatrixHelper.cs` | 存根 | GDI+→SkiaSharp 转换 | Phase 3B |
-| `EraPictureBox.cs` | 存根 | 真实触摸事件处理 | Phase 4A |
-| `SKMouseButton.cs` | 枚举定义 | 保持 | 无需升级 |
-| `Dialog.cs` | 存根 | Xamarin.Forms 弹窗 | Phase 4B |
-| `EnumsNET.cs` | 工具类 | 保持 | 无需升级 |
-| `UIImageStubs.cs` | 抽象类 | 保持 | 无需升级 |
-| `WinmmTimer.cs` | 存根 | 跨平台 Timer | Phase 2E |
-
-## 内核硬依赖清单（需 csproj 排除+替代）
-
-以下内核代码直接引用 WinForms/Desktop 专用 API，不能在 Xamarin 上编译，必须排除后创建 Platform 替代版本：
-
-| 内核文件 | 行号 | 硬依赖 | 替代方案 | 目标 Phase |
-|---------|------|--------|---------|-----------|
-| `Creator.Method.cs` | 3221, 7137 | `GlobalStatic.Pfc.Families` (PrivateFontCollection) | SkiaSharp 字体集合 | Phase 2B |
-| `Creator.Method.cs` | 8808 | `WinInput.GetKeyState` (user32.dll) | `InputState.GetKeyState`（方案 C，不排除文件） | Phase 2D |
-| `Creator.Method.cs` | 8855 | `Control.MousePosition` (WinForms) | `InputState.GetMouseButtonValue`（方案 C，不排除文件） | Phase 2D |
-| `WinInput.cs` | 6 | `[DllImport("user32.dll")]` | 跨平台输入抽象 | Phase 2D |
-
-## 验证节奏
-
-每个 Phase 的每个切片完成后：
-1. `dotnet build` 记录错误数
-2. 运行验证（Phase 2+）
-3. 更新知识库对应条目
-4. 更新本文档状态
-
----
-
-## IO 子系统移植现状矩阵（2026-05 审计）
-
-> **核心发现**：XEmuera-1（旧版 EMv15+EEv24fix）和 LazyLoading（新版 Skia）的 IO 子系统差距巨大。XEmuera 缺少 SQL、图片 LazyLoading、LRU 缓存三大子系统，SAVETEXT/LOADTEXT 已有实现但需路径适配。
-> **详细审计**：[io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md) IO 子系统移植现状矩阵
-
-### 逐子系统审计
-
-| # | 子系统 | LazyLoading 实现 | XEmuera-1 现状 | 移植差距 | 优先级 | 目标 Phase |
-|---|--------|-----------------|---------------|---------|--------|-----------|
-| 1 | **函数 LazyLoading** | `Process.LazyLoading.cs`：二进制字典 `lazyloading.bin` + `lazyloadingfiles.bin`，魔数校验，增量更新 | **完全缺失** | 需整体移植 Process.LazyLoading.cs + ErbLoader.cs | 中 | Phase 5D |
-| 2 | **图片 LazyLoading** | `AppContents.cs`：SQLite 内存数据库 `metaDb` 存 SpriteMeta，按需从 CSV 加载 | **完全缺失**。`AppContents.cs` 用 `Dictionary<string, ASprite>` 全量加载 | 需移植 metaDb + LoadSpriteFromMeta 按需加载 | 中 | Phase 3A+ |
-| 3 | **SQL 系统** | `SqlManager.cs`：27 个 SQL_* 函数，`Microsoft.Data.Sqlite`，WAL 模式 | **完全缺失**。Creator.cs 无 SQL_* 注册 | 需整体移植 SqlManager.cs + 27 个 SQL 方法 | 高 | Phase 5C |
-| 4 | **LRU 图片缓存** | `AnimSpriteCache`：LRU 淘汰 + `IFileBacked` 接口（Evict/Reload），`SpriteAnimated` 实现 | **完全缺失**。`SpriteAnime` 无 IFileBacked | 需移植 IFileBacked + AnimSpriteCache + SpriteAnimated | 低 | Phase 3A+ |
-| 5 | **SAVETEXT/LOADTEXT** | `Creator.Method.cs`：支持字符串路径重载 | **已有实现**。行 6617/6725，但路径硬编码 | 需路径适配（`IPathProvider` 替换） | 高 | Phase 2C |
-| 6 | **EXISTFILE/ENUMFILES** | `Creator.Method.cs`：`File.Exists` + `Directory.EnumerateFiles` | **已有实现**。行 1226/224，Android 大小写敏感 | 需封装大小写不敏感查找 | 高 | Phase 5A |
-| 7 | **XML 系统** | `Creator.cs`：20 个 XML_* 函数 + MAP_TOXML/MAP_FROMXML | **已有实现**。行 240-272，`System.Xml.XmlDocument` | `System.Xml` 跨平台可用，无需修改 | 低 | 无需 |
-| 8 | **SharedBitmapCache** | `AppContents.cs`：`ConcurrentDictionary` + `SpriteDisposeAll` | **已有实现**。`Dictionary<int, GraphicsImage>` | 线程安全差异 | 低 | 无需 |
-
-### 移植策略判定
-
-| 子系统 | 策略 | 理由 |
-|--------|------|------|
-| SQL | **全新移植** | XEmuera 无任何 SQL 代码，需从 LazyLoading 整体移植 + 添加 `Microsoft.Data.Sqlite` NuGet |
-| 函数 LazyLoading | **全新移植** | 独立子系统（300+ 行），与现有代码无冲突，但依赖 `IPathProvider` |
-| 图片 LazyLoading | **重构 AppContents** | 需将 Dictionary 改为 SQLite 索引 + 按需加载，依赖 SQL 子系统 |
-| LRU 缓存 | **新增接口+实现** | 在 SpriteAnime 上新增 IFileBacked，新增 AnimSpriteCache，依赖 SpriteAnimated |
-| SAVETEXT/LOADTEXT | **路径适配** | 已有实现，仅需 IPathProvider 替换 |
-| EXISTFILE/ENUMFILES | **封装适配** | 已有实现，需封装大小写不敏感查找 |
-| XML | **无需修改** | System.Xml 跨平台可用 |
-
-### 依赖关系图
-
-```
-IPathProvider (Phase 2C)
-  ├── SAVETEXT/LOADTEXT 路径适配
-  ├── EXISTFILE/ENUMFILES 大小写封装
-  ├── SQL 路径适配 (Phase 5C)
-  │     └── 图片 LazyLoading metaDb (Phase 3A+)
-  └── 函数 LazyLoading 二进制缓存 (Phase 5D)
-
-SpriteAnimated (Phase 3A)
-  └── IFileBacked + AnimSpriteCache (LRU 缓存)
-```
-
----
-
-## 从 Issue-Driven 到 Feature-Driven：执行模式转型
-
-> **核心转变**：Phase 1 是 issue-driven（消除编译错误），Phase 2+ 应转为 feature-driven（按功能模块逐个实现跨平台能力）。
-
-### Issue-Driven（Phase 1）
-
-- **驱动力**：编译错误列表
-- **操作**：逐个修复 CS0117/CS1061/CS1503 等错误
-- **验证**：错误数下降
-- **局限**：修完错误不等于功能可用
-
-### Feature-Driven（Phase 2+）
-
-- **驱动力**：功能模块的跨平台能力
-- **操作**：按功能模块逐个审查 → 判定实现方式 → 实现 → 验证
-- **验证**：功能在目标平台上可用
-- **审查判定**：
-
-| 判定 | 含义 | 示例 |
-|------|------|------|
-| **直接可用** | 已有跨平台实现，无需修改 | XML 系统（System.Xml 跨平台） |
-| **路径适配** | 已有实现，仅需 IPathProvider 替换 | SAVETEXT/LOADTEXT |
-| **存根升级** | Phase 1 创建的空壳需真实实现 | ImageLayerManager、FontFactory |
-| **全新移植** | XEmuera 完全缺失，需从 LazyLoading 整体移植 | SQL 系统、函数 LazyLoading |
-| **空实现保留** | 功能不可移植或不需要，保持空实现 | PluginSystem、WinForms.DoEvents |
-| **转变实现方式** | 功能需要，但原实现方式不可移植，需重新设计 | AWAIT（DoEvents→Thread.Sleep）、GETKEY（user32.dll→IInputProvider） |
-
-### AWAIT 系列的审查判定
-
-| 指令 | 原实现 | XEmuera 现状 | 判定 | 说明 |
-|------|--------|-------------|------|------|
-| AWAIT | `Application.DoEvents()` + `Thread.Sleep()` | `App.DoEvents()` + `Thread.Sleep()` | **转变实现方式** | DoEvents 在 Xamarin 上不可用，但后台线程模型下 Thread.Sleep 不阻塞 UI，已正确 |
-| WAIT | `Console.ReadAnyKey()` | `Console.ReadAnyKey()` | **直接可用** | 后台线程模型已处理 |
-| TWAIT | `Console.ReadAnyKey()` + Timer | `Console.WaitInput(req)` + Timer | **直接可用** | Timer 跨平台 |
-| INPUT/TINPUT | `Console.WaitInput()` | `Console.WaitInput()` | **直接可用** | 后台线程模型已处理 |
-| GETKEY | `WinInput.GetKeyState(user32.dll)` | 已注释掉，返回 0 | **存根升级** | 需 IInputProvider |
-| MOUSEX/MOUSEY | `Control.MousePosition` | 已注释掉，返回空 Point | **存根升级** | 需 IInputProvider |
-| MOUSEB | `Control.MouseButtons` | 未实现 | **存根升级** | 需 IInputProvider |
-
-### 键鼠交互系列的审查判定
-
-| 功能 | 原实现 | 跨平台替代 | 判定 |
-|------|--------|----------|------|
-| 键盘状态检测 | `WinInput.GetKeyState(user32.dll)` | `IInputProvider.GetKeyState()` | **转变实现方式** |
-| 鼠标位置 | `Control.MousePosition` (WinForms) | `IInputProvider.GetMousePosition()` | **转变实现方式** |
-| 鼠标按钮 | `Control.MouseButtons` (WinForms) | `IInputProvider.GetMouseButton()` | **转变实现方式** |
-| 触摸映射 | 不存在 | 短按=左键、长按=右键、返回键=ESC | **全新移植** |
-
-### 交互函数移植矩阵（2026-05 审计）
-
-> **详细分析**：[await-async.md](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md) 交互函数移植矩阵章节
-> **核心发现**：输入交互函数分三层——阻塞等待层（INPUT/WAIT，已可用）、轮询检测层（GETKEY/MOUSEB，需触屏映射）、桌面深度耦合层（INPUTMOUSEKEY/BINPUT/FLOWINPUT，需空实现）
-
-#### 全部输入交互函数清单
-
-| 系列 | 函数 | XEmuera 注册 | XEmuera 实现 | eratw 使用量 | 移植判定 |
-|------|------|:---:|:---:|:---:|------|
-| AWAIT | `AWAIT time` | ✅ | ✅ | 16次/11文件 | ✅ 保持现状 |
-| WAIT | `WAIT/WAITANYKEY/TWAIT/FORCEWAIT` | ✅ | ✅ | 大量 | ✅ 保持现状 |
-| INPUT | `INPUT/S(default, canClick, allowSkip)` | ✅ | ✅ | 大量 | ✅ 保持现状 |
-| TINPUT | `TINPUT/S time, default, ...` | ✅ | ✅ Timer | 45次/27文件 | ✅ 保持现状 |
-| ONEINPUT | `ONEINPUT/S default` | ✅ | ✅ | 6次/6文件 | ✅ 保持现状 |
-| TONEINPUT | `TONEINPUT/S time, default, ...` | ✅ | ✅ | 0次 | ✅ 保持现状 |
-| INPUTANY | `INPUTANY` | ✅ | ✅ | 0次 | ✅ 保持现状 |
-| GETKEY | `GETKEY keyCode` | ✅ | ⚠️ 返回0 | 24次/4文件 | **P0 触屏映射** |
-| GETKEYTRIGGERED | `GETKEYTRIGGERED keyCode` | ✅ | ⚠️ 返回0 | 18次/7文件 | **P0 触屏映射** |
-| MOUSEB | `MOUSEB` | ❌ | ❌ | 14次/3文件 | **P0 触屏映射** |
-| MOUSEX/Y | `MOUSEX/MOUSEY` | ✅ | ⚠️ 返回0 | 0次 | **P1 触屏映射** |
-| GETTEXTBOX | `GETTEXTBOX/SETTEXTBOX` | ✅ | ✅ | 3次/3文件 | ✅ 保持现状 |
-| INPUTMOUSEKEY | `INPUTMOUSEKEY timeLimit` | ✅ | ⚠️ | 1次/1文件 | **P2 降级：仅触屏点击+长按右键** |
-| BINPUT | `BINPUT/S(default, ...)` | ❌ | ❌ | 10次/2文件 | **P1 降级为 INPUT/INPUTS** |
-| FLOWINPUT | `FLOWINPUT/S default, ...` | ❌ | ❌ | 0次 | **P1 降级为 INPUT/INPUTS** |
-| ONEBINPUT | `ONEBINPUT/S default` | ❌ | ❌ | 0次 | **P3 降级为 ONEINPUT/ONEINPUTS** |
-
-#### 触屏映射方案
-
-| keycode | WinForms 语义 | 触摸屏映射 |
-|---------|-------------|-----------|
-| 1 (VK_LBUTTON) | 鼠标左键 | 短按触摸 |
-| 2 (VK_RBUTTON) | 鼠标右键 | 长按（XEmuera 已有 LongPressTimer） |
-| 4 (VK_MBUTTON) | 鼠标中键 | 无映射，永远返回0 |
-| 13 (VK_RETURN) | 回车 | Entry Completed 事件 |
-| 27 (VK_ESCAPE) | ESC | Android 返回键 |
-| 16/17/18 | Shift/Ctrl/Alt | 无映射，永远返回0 |
-
-#### 脚本实例验证
-
-| 脚本 | 交互模式 | 依赖函数 | 安卓可用性 |
-|------|---------|---------|-----------|
-| BADAPPLE | 帧同步播放器 | AWAIT+GETKEYTRIGGERED+GETTEXTBOX | ✅ GETKEYTRIGGERED映射后完全可用 |
-| qol_MAP | AWAIT+TINPUTS混合状态机 | AWAIT+MOUSEB+GETKEYTRIGGERED+TINPUTS | ⚠️ 悬停模式降级为动画一直播放（正确行为），快捷键Z/X/C/Y无映射 |
-
-### 渲染系列的审查判定
-
-| 功能 | 原实现 | XEmuera 现状 | 判定 |
-|------|--------|-------------|------|
-| GCREATE/GDRAWLINE 等 | GDI+ Graphics | SkiaSharp SKCanvas | **已有实现** |
-| SETIMAGELAYER | ImageLayerManager (SKPicture) | 空存根 | **存根升级** |
-| ColorMatrix | GDI+ float[5][5] | 空存根 | **存根升级**（需转变实现方式） |
-| 字体渲染 | GDI+ TextRenderer + PrivateFontCollection | FontFactory 存根 | **存根升级**（需转变实现方式） |
-| 增量渲染 | DirtyLineTracker + IncrementalRenderer | 不存在 | **全新移植**（可选优化） |
-| 动画 GIF | SpriteAnimated (IFileBacked + LRU) | SpriteAnime（无 IFileBacked） | **存根升级** |
+| 5C-2 | 编译+运行验证 | — |
