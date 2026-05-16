@@ -8,6 +8,7 @@ using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.GameProc;
+using MinorShift.Emuera.GameData.Function;
 using MinorShift.Emuera.GameData.Variable;
 using MinorShift.Emuera.UI.Framework.Forms;
 using XEmuera.Forms;
@@ -64,6 +65,24 @@ namespace MinorShift.Emuera
 			LabelDictionary = null;
 			IdentifierDictionary = null;
 			tempDic.Clear();
+			if (Sound != null)
+			{
+				for (int i = 0; i < Sound.Length; i++)
+				{
+					if (Sound[i] != null)
+					{
+						Sound[i].stop();
+						Sound[i] = null;
+					}
+				}
+			}
+			if (Bgm != null)
+			{
+				Bgm.stop();
+				Bgm = null;
+			}
+			SqlManager.CloseAll();
+			AppContents.SpriteDisposeAll(true);
 		}
 	}
 }

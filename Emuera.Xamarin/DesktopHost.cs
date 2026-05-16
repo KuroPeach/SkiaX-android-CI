@@ -66,6 +66,7 @@ namespace MinorShift.Emuera
 
             KeyDown += DesktopHostForm_KeyDown;
             KeyPreview = true;
+            FormClosing += DesktopHostForm_FormClosing;
 
             inputTextBox = new TextBox
             {
@@ -315,6 +316,11 @@ namespace MinorShift.Emuera
         #endregion
 
         #region Input Handling
+
+        private void DesktopHostForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            GlobalStatic.Reset();
+        }
 
         private void DesktopHostForm_KeyDown(object sender, KeyEventArgs e)
         {

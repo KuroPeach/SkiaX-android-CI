@@ -1,5 +1,45 @@
 # Emuera.Xamarin 变更记录
 
+## [0.12.0] - 2026-05-17
+
+### Slice 5A-D1：IO 跨平台适配 ✅
+
+- `FileUtils.GetDirectories()`：新增方法，为跨平台目录枚举预留扩展点
+- `AppContents.CreateSpriteFromFileDynamic()`：`System.IO.File.Exists` → `FileUtils.Exists(ref filepath)`（大小写不敏感）
+- `Config.getFiles()`：`Directory.GetDirectories` → `FileUtils.GetDirectories`（统一 IO 入口）
+- `GameItemModel.Load()`：`Directory.GetDirectories` → `FileUtils.GetDirectories`（统一 IO 入口）
+- `Program.cs`：添加 `using XEmuera;` 以访问 FileUtils
+- `Program.WorkingDir`：从 `= ""` 改为 `=> GlobalStatic.PathProvider?.ExeDir ?? ""`
+
+### Slice 5C-D1：SqlManager + 资源清理 ✅
+
+- `GlobalStatic.Reset()`：添加 Sound/Bgm 停止清理 + `SqlManager.CloseAll()` + `AppContents.SpriteDisposeAll(true)`
+- `DesktopHostForm`：添加 `FormClosing` 事件，退出时调用 `GlobalStatic.Reset()`
+- SqlManager 已通过 `**\*.cs` 通配符自动编译，`Microsoft.Data.Sqlite` NuGet 已存在
+- `IPathProvider.SqlDir` 已定义，`Config.SavDir` 路径链完整
+
+## [0.11.0] - 2026-05-18
+
+### Phase 7D-P1：外部字体加载增强 ✅
+
+- `Program.LoadFontFiles()`：扫描 `font/` + `FONT/` + `fonts/` 三个目录
+- `Program.LoadFontFiles()`：FamilyName 去重（避免同名字体重复加载）
+- `Program.LoadFontFiles()`：自动注册 fileName 和 FamilyName 为别名
+- `FontFactory.fontAliases`：新增别名字典（`Dictionary<string, SKTypeface>`）
+- `FontFactory.RegisterFontAlias()`：公开方法，供外部注册别名
+- `FontFactory.RegisterKnownAliases()`：内置 JP/CN 字体名映射（`ＭＳ ゴシック`↔`MS Gothic` 等 5 条）
+- `FontFactory.CreateTypefaceWithFallback()`：在系统字体查找后、CustomTypefaces 遍历前插入别名解析
+- `FontFactory.ClearFont()`：清理别名 + 重新注册已知别名
+
+### Phase 5B-D1：NAudio 音频系统集成 ✅
+
+- 添加 NAudio 2.2.1 + NAudio.Vorbis 1.5.0 NuGet 包
+- 移除 csproj 中对 Sound.NAudio.cs / NAudio_LoopStream.cs / SoundTouch 的排除
+- 移除 xamarin SoundAndBgm.cs 空壳存根
+- `GlobalStatic.Sound/Bgm`：类型从 `GameProc.Sound` 改为 `Runtime.Utils.Sound`
+- 完整音频支持：WAV/OGG/MP3 播放、音量控制、暂停/恢复、变速、混音
+- 编译验证：0 错误，72 警告
+
 ## [0.10.0] - 2026-05-18
 
 ### Phase 4A-D22：P1-P2 快速修复 ✅
