@@ -50,6 +50,7 @@ namespace MinorShift.Emuera
                 SizeMode = PictureBoxSizeMode.Normal
             };
             pictureBox.Resize += PictureBox_Resize;
+            pictureBox.Paint += PictureBox_Paint;
 
             inputTextBox = new TextBox
             {
@@ -114,14 +115,9 @@ namespace MinorShift.Emuera
                 pictureBox.Invalidate();
         }
 
-        protected override void OnPaint(PaintEventArgs e)
+        private void PictureBox_Paint(object sender, PaintEventArgs e)
         {
-            base.OnPaint(e);
             RenderSkiaToPictureBox();
-        }
-
-        protected override void OnPaintBackground(PaintEventArgs e)
-        {
         }
 
         private void RenderSkiaToPictureBox()

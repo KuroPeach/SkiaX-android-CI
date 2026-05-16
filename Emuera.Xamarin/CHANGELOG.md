@@ -1,5 +1,108 @@
 # Emuera.Xamarin 变更记录
 
+## [0.6.0] - 2026-05-17
+
+### Phase 6：EM 私家版 HTML 扩展 ✅
+
+#### 切片 6A：类型体系统一 ✅
+
+- 合并 `AConsoleDisplayPart` → `AConsoleDisplayNode`，统一为 LazyLoading 单基类体系
+  - `AConsoleDisplayNode` 升级为完整版：`Parent` 类型从 `object` 改为 `ConsoleButtonString`
+  - 新增 Rikaichan 扩展属性：`rikaichaned`、`Ends[]`、`NextLine`
+  - `AConsoleColoredPart` 新增 `BackgroundColor?` 属性
+- 删除 `AConsoleDisplayPart.cs`（GameView 命名空间）
+- 所有显示部件类更新基类：
+  - `ConsoleStyledString`：新增 `FontSize`/`RenderMode`/`FontEdging`/`FontHinting` 扩展属性
+  - `ConsoleImagePart`：新增 `Display`/`Xpos`/`ResourceNameM`/`ColorMatrix` 扩展字段
+  - `ConsoleShapePart` 及其子类：基类更新
+- `DrawTo` 签名统一：`(SKCanvas, int pointY, ...)` → `(SKCanvas, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode, bool isButton)`
+- `Str` → `Text` 属性名统一（全项目范围）
+- `ConsoleButtonString.StrArray` 类型：`AConsoleDisplayPart[]` → `AConsoleDisplayNode[]`
+
+#### 切片 6B：HtmlManager 内部类 + 状态字段 ✅
+
+- `HtmlAnalzeState` 新增 div 字段：`StartingSubDivision`/`CurrentDivTag`/`SubDivisionWidth`/`DivState`
+- `HtmlAnalzeState` 新增 font 扩展属性：`RenderMode`/`FontEdging`/`FontHinting`/`FontSize`
+- `HtmlAnalzeStateFontTag` 新增 font 扩展字段
+- 新增 `HtmlDivTag` 内部类（Width/Height/X/Y/Color/Depth/StyledBox/IsRelative/Display/Lines）
+- 新增 `DivState` 内部类（IsDiv/PosX/PosY/Display/BackgroundColor/Width/Height/HasBorder/BorderWidth/BorderColor/Padding）
+- 新增 `HtmlParentInfo` 内部类（State/Stream/HasComment/HasReturn）
+- 新增 `ParseParam4IntNum` 方法（CSS 风格 1~4 值参数解析）
+
+#### 切片 6C：div 标签解析 + 递归渲染 ✅
+
+- `tagAnalyze` 添加 `case "div"` 开标签（解析 width/height/xpos/ypos/depth/color/bcolor/display/rect/size 属性）
+- `tagAnalyze` 添加 `case "div"` 闭标签
+- `html2DisplayLine` 添加 div 递归分支（StartingSubDivision → 递归调用 → new ConsoleDivPart）
+- `Html2DisplayLine` 改为委托到 `html2DisplayLine` 内部方法（支持 HtmlParentInfo 和 buttonsOutput）
+- `tagAnalyze` 添加 `<font>` 扩展属性（render/edging/hinting/size）
+- `tagAnalyze` 添加 `<img>` 扩展属性（srcm/xpos/cm/display）
+- `ButtonsToDisplayLines` 添加 `subDiv`/`divWidth` 参数支持 div 内子区域渲染
+- `ConsoleDisplayLine.SetAlignment` 添加 `customWidth` 参数
+- `ConsoleDisplayLine` 新增 `IsLineEnd` 属性
+
+#### 切片 6D：EscapedParts 注册链路 ✅
+
+- `ConsoleButtonString.FilterEscaped()` 从空实现升级为完整逻辑（筛选 Top<0 或 Bottom>LineHeight 的越界部件）
+- `ConsoleButtonString.DrawPartTo()` 修复：传入 `SKPoint(-1, pointY)` + isFocus 参数
+- `EmueraConsole.Print.addDisplayLine()` 添加 `ConsoleEscapedParts.Add()` 注册
+- `EmueraConsole.Print.ClearDisplay()` 添加 `ConsoleEscapedParts.Clear()`
+- `EmueraConsole.Print.deleteLine()` 添加 `ConsoleEscapedParts.Remove()`
+- `EmueraConsole.Print` MaxLog 溢出时添加 `ConsoleEscapedParts.RemoveAt()`
+- `EmueraConsole` 新增 `ButtonIsPointing()` 方法
+
+#### 切片 6E：PrintHtmlC 全量版 ✅
+
+- `PrintStringBuffer.CurrentLineWidth`：遍历 m_buttonList 求和
+- `PrintStringBuffer.AppendButton(ConsoleButtonString)`：直接追加按钮对象
+- `HtmlManager.Html2ButtonList()`：HTML→按钮列表（buttonsOutput 分支）
+- `PrintHtmlC()` 升级为全量版：CurrentLineWidth 溢出换行 + Html2ButtonList + AppendButton + LC/RC 对齐
+- `PrintHtml(str, toPrintBuffer)` 升级为全量版：toPrintBuffer=true 时走 Html2ButtonList→AppendButton 路径
+- `PrintStringBuffer.Flush` 设置 `IsLineEnd`
+- `PrintStringBuffer.Append` 添加 `lineEnd` 参数
+
+## [0.5.0] - 2026-05-16
+
+### Phase 3.5：渲染管线补全 + 桌面端修复 ✅
+
+#### 切片 3.5-A：桌面端渲染触发修复 ✅
+
+- 修复致命 bug：`TriggerRefresh()` 调用 `pictureBox.Invalidate()` 但 `OnPaint` 重写在 `Form` 上
+  - 注册 `pictureBox.Paint` 事件，将渲染委托给 PictureBox
+  - 移除 `Form.OnPaint`/`OnPaintBackground` 重写
+
+#### 切片 3.5-B：CreateSpriteFromFileDynamic 修复 ✅
+
+- 从永远返回 false 改为完整实现
+  - `SKBitmap.Decode(filepath)` 加载图片
+  - `ConstImage.CreateFrom(bmp, false)` 创建图片
+  - `SpriteF` 包装并注册到 `imageDictionary`
+  - 异常保护（try-catch 返回 false）
+
+#### 切片 3.5-C：EmueraConsole.Print 空方法补全 ✅
+
+- `PrintHtmlC()`：HTML 制表打印（LC左对齐/RC右对齐列，简化版）
+- `PrintImg()` 3参数版：追加 `ConsoleImagePart`（mask 参数暂忽略）
+- `printCustomBar()`：自定义 DRAWLINE 字符串打印
+- `PrintHtml()`：HTML 打印（flush 缓冲区 + Html2DisplayLine 独立行）
+- `PrintErrorButton()`：错误按钮 + 颜色级别（0-2 半透明白色，3+ 红色）
+
+#### 切片 3.5-D：EscapedParts zdepth 交错渲染 ✅
+
+- OnPaint 从简单 cidx 循环升级为 eidx+cidx 双指针归并渲染
+  - CBG 和 EscapedParts 按 depth 降序交错绘制
+  - depth==0 时绘制普通文本行
+  - 使用 LazyLoading 内核 `ConsoleEscapedParts` 全局静态记录管理
+- `ConsoleButtonString` 添加 `FilterEscaped()`/`DrawPartTo()`/`EscapedParts`
+- `AConsoleDisplayPart` 添加 `Parent`/`Depth` 属性
+- `EmueraConsole` 添加 `using System.Linq` 支持
+
+#### 切片 3.5-E：HTML_PRINT 岛屿输出 ✅
+
+- `PrintHTMLIsland()`：Html2DisplayLine → `_htmlElementList`
+- `ClearHTMLIsland()`：清空 `_htmlElementList`
+- OnPaint 末尾绘制 `_htmlElementList`（y=0 开始，不受滚动影响）
+
 ## [0.4.0] - 2026-05-16
 
 ### Phase 3：Skia 渲染集成 ✅

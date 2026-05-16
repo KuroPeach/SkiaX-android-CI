@@ -49,6 +49,7 @@ namespace MinorShift.Emuera.GameView
 			IsTemporary = temporary;
 		}
 		public int LineNo = -1;
+		public bool IsLineEnd = true;
 		
 		///論理行の最初となる場合だけtrue。表示の都合で改行された2行目以降はfalse
 		readonly public bool IsLogicalLine = true;
@@ -59,7 +60,7 @@ namespace MinorShift.Emuera.GameView
 		public ConsoleButtonString[] Buttons{get{return buttons;}}
 		public DisplayLineAlignment Align{get{return align;}}
 		bool aligned = false;
-		public void SetAlignment(DisplayLineAlignment align)
+		public void SetAlignment(DisplayLineAlignment align, int customWidth = -1)
 		{
 			if (aligned)
 				return;
@@ -67,28 +68,23 @@ namespace MinorShift.Emuera.GameView
 			this.align = align;
 			if (buttons.Length == 0)
 				return;
-			//DisplayLineの幅
 			int width = 0;
 			foreach (ConsoleButtonString button in buttons)
 				width += button.Width;
-			//現在位置
 			int pointX = buttons[0].PointX;
 
-			//目標位置
 			int movetoX = 0;
 			if (align == DisplayLineAlignment.LEFT)
 			{
-				//位置固定に対応
 				if (IsLogicalLine)
 					return;
 				movetoX = 0;
 			}
 			else if (align == DisplayLineAlignment.CENTER)
-				movetoX = Config.WindowX / 2 - width / 2;
+				movetoX = (customWidth > 0 ? customWidth : Config.WindowX) / 2 - width / 2;
 			else if (align == DisplayLineAlignment.RIGHT)
-				movetoX = Config.WindowX - width;
+				movetoX = (customWidth > 0 ? customWidth : Config.WindowX) - width;
 
-			//移動距離
 			int shiftX = movetoX - pointX;
 			if(shiftX != 0)
 				this.ShiftPositionX(shiftX);

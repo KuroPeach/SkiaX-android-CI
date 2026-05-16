@@ -398,7 +398,7 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 					if (button == null || button.StrArray == null) continue;
 					if (px >= button.PointX && px <= button.PointX + button.Width)
 					{
-						foreach (AConsoleDisplayPart part in button.StrArray)
+						foreach (AConsoleDisplayNode part in button.StrArray)
 						{
 							if (part == null) continue;
 							if (px >= part.PointX && px <= part.PointX + part.Width &&

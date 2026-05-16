@@ -1,6 +1,8 @@
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
+using MinorShift.Emuera.UI.Game;
 using SkiaSharp;
 using XEmuera.Drawing;
 using System;
@@ -44,6 +46,7 @@ namespace MinorShift.Emuera.GameView
 			logicalLineCount = 0;
 			lineNo = 0;
 			lastDrawnLineNo = -1;
+			ConsoleEscapedParts.Clear();
 			verticalScrollBarUpdate();
 			window.Refresh();//OnPaint発行
 		}
@@ -129,16 +132,26 @@ namespace MinorShift.Emuera.GameView
 		{
 			if (LastLineIsTemporary)
 				deleteLine(1);
-			//不適正なFontのチェック
-			AConsoleDisplayPart errorStr = null;
+			AConsoleDisplayNode errorStr = null;
 			foreach (ConsoleButtonString button in line.Buttons)
 			{
-				foreach (AConsoleDisplayPart css in button.StrArray)
+				foreach (AConsoleDisplayNode css in button.StrArray)
 				{
 					if (css.Error)
 					{
 						errorStr = css;
 						break;
+					}
+				}
+				button.FilterEscaped();
+				if (button.EscapedParts != null)
+				{
+					foreach (var p in button.EscapedParts)
+					{
+						p.Parent = button;
+						ConsoleEscapedParts.Add(p, lineNo, p.Depth,
+							(int)Math.Ceiling((float)p.Top / Config.LineHeight) + lineNo,
+							(int)Math.Floor((float)Math.Max(0, p.Bottom - 1) / Config.LineHeight) + lineNo);
 					}
 				}
 			}
@@ -167,7 +180,10 @@ namespace MinorShift.Emuera.GameView
 				logicalLineCount = 0;
 			}
 			if (displayLineList.Count > Config.MaxLog)
+			{
+				ConsoleEscapedParts.RemoveAt(displayLineList[0].LineNo);
 				displayLineList.RemoveAt(0);
+			}
 		}
 
 
@@ -178,6 +194,7 @@ namespace MinorShift.Emuera.GameView
 
 			int delNum = 0;
 			int num = argNum;
+			int deletedLineNo = -1;
 			while (delNum < num)
 			{
 				if (displayLineList.Count == 0)
@@ -185,12 +202,16 @@ namespace MinorShift.Emuera.GameView
 				ConsoleDisplayLine line = displayLineList[displayLineList.Count - 1];
 				displayLineList.RemoveAt(displayLineList.Count - 1);
 				lineNo--;
+				deletedLineNo = line.LineNo;
 				if (line.IsLogicalLine)
 				{
 					delNum++;
 					logicalLineCount--;
 				}
 			}
+
+			if (deletedLineNo >= 0)
+				ConsoleEscapedParts.Remove(deletedLineNo);
 
 			if (lockTaken)
 				displayLineListSpinLock.Exit();
@@ -733,30 +754,130 @@ namespace MinorShift.Emuera.GameView
 
 		public void PrintHTMLIsland(string html)
 		{
+			_htmlElementList.AddRange(HtmlManager.Html2DisplayLine(html, stringMeasure, this));
 		}
 
 		public void ClearHTMLIsland()
 		{
+			_htmlElementList.Clear();
 		}
 
 		public void PrintHtmlC(string str, bool alignRight, int cellWidthPx)
 		{
+			if (string.IsNullOrEmpty(str))
+				return;
+			if (!Enabled)
+				return;
+			if (cellWidthPx <= 0)
+				cellWidthPx = Config.PrintCLength * Config.FontSize / 2;
+
+			int currentPx = printBuffer.CurrentLineWidth;
+			if (currentPx + cellWidthPx > Config.DrawableWidth && !printBuffer.IsEmpty)
+			{
+				ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
+				addRangeDisplayLine(dispList);
+				currentPx = 0;
+			}
+
+			var buttons = HtmlManager.Html2ButtonList(str, stringMeasure, this);
+			int blankWidth = cellWidthPx;
+			if (alignRight && buttons.Length > 0)
+			{
+				int contentWidth = 0;
+				foreach (var btn in buttons)
+					if (btn != null) contentWidth += btn.Width > 0 ? btn.Width : 0;
+				blankWidth = cellWidthPx - contentWidth;
+				if (blankWidth > 0)
+					printBuffer.Append(new string(' ', 1), Style, true);
+			}
+			foreach (var btn in buttons)
+			{
+				if (btn != null)
+					printBuffer.AppendButton(btn);
+			}
+			if (!alignRight && blankWidth > 0)
+			{
+				int contentWidth = 0;
+				foreach (var btn in buttons)
+					if (btn != null) contentWidth += btn.Width > 0 ? btn.Width : 0;
+				int remaining = cellWidthPx - contentWidth;
+				if (remaining > 0)
+					printBuffer.Append(new string(' ', 1), Style, true);
+			}
+			RefreshStrings(false);
 		}
 
 		public void PrintImg(string name, string nameb, string namem, MixedNum height, MixedNum width, MixedNum ypos)
 		{
+			printBuffer.Append(new ConsoleImagePart(name, nameb, height, width, ypos));
 		}
 
 		public void printCustomBar(string barStr, bool isConst)
 		{
+			if (string.IsNullOrEmpty(barStr))
+				throw new CodeEE(trerror.EmptyDrawline.Text);
+			StringStyle ss = userStyle;
+			userStyle.FontStyle = FontStyle.Regular;
+			if (isConst)
+				Print(barStr);
+			else
+				Print(getStBar(barStr));
+			userStyle = ss;
 		}
 
 		public void PrintHtml(string str, bool toPrintBuffer)
 		{
+			if (string.IsNullOrEmpty(str))
+				return;
+			if (!Enabled)
+				return;
+			if (toPrintBuffer)
+			{
+				var buttons = HtmlManager.Html2ButtonList(str, stringMeasure, this);
+				foreach (var btn in buttons)
+				{
+					if (btn != null)
+						printBuffer.AppendButton(btn);
+				}
+			}
+			else
+			{
+				if (!printBuffer.IsEmpty)
+				{
+					ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
+					addRangeDisplayLine(dispList);
+				}
+				addRangeDisplayLine(HtmlManager.Html2DisplayLine(str, stringMeasure, this));
+				RefreshStrings(false);
+			}
 		}
 
 		internal void PrintErrorButton(string str, ScriptPosition? pos, int level = 0)
 		{
+			if (string.IsNullOrEmpty(str))
+				return;
+			if (Program.DebugMode)
+			{
+				DebugPrint(str);
+				DebugNewLine();
+			}
+			UseUserStyle = false;
+			var errColor = Color.FromArgb(255, 255, 255, 160);
+			var errerStyle = Style;
+			errerStyle.Color = level switch
+			{
+				0 => errColor,
+				1 => errColor,
+				2 => errColor,
+				3 => Color.Red,
+				_ => Color.Red
+			};
+
+			ConsoleDisplayLine dispLine = printBuffer.AppendAndFlushErrButton(str, errerStyle, ErrorButtonsText, pos ?? new ScriptPosition("", -1), stringMeasure);
+			if (dispLine == null)
+				return;
+			addDisplayLine(dispLine, true);
+			RefreshStrings(false);
 		}
 
 		#endregion

@@ -4,6 +4,8 @@ using System.Text;
 using System.Drawing;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera;
+using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.Runtime.Config;
 using XEmuera.Drawing;
 using SkiaSharp;
 using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
@@ -20,7 +22,7 @@ namespace MinorShift.Emuera.GameView
 		{
             //if ((StaticConfig.TextDrawingMode != TextDrawingMode.GRAPHICS) && (str.IndexOf('\t') >= 0))
             //    str = str.Replace("\t", "");
-			this.Str = str;
+			this.Text = str;
 			this.StringStyle = style;
 			Font = Config.GetFont(style.Fontname, style.FontStyle);
 			if (Font == null)
@@ -36,8 +38,20 @@ namespace MinorShift.Emuera.GameView
 			PointX = -1;
 			Width = -1;
 		}
+		public ConsoleStyledString(string str, StringStyle style, TextDrawingMode? renderMode, SkiaSharpFontEdging? fontEdging, SkiaSharpFontHinting? fontHinting, float? fontSize)
+			: this(str, style)
+		{
+			RenderMode = renderMode;
+			FontEdging = fontEdging;
+			FontHinting = fontHinting;
+			FontSize = fontSize;
+		}
 		public Font Font{ get; private set;}
 		public StringStyle StringStyle{ get; private set;}
+		public float? FontSize { get; private set; }
+		public TextDrawingMode? RenderMode { get; private set; }
+		public SkiaSharpFontEdging? FontEdging { get; private set; }
+		public SkiaSharpFontHinting? FontHinting { get; private set; }
 		public override bool CanDivide
 		{
 			get { return true; }
@@ -47,7 +61,7 @@ namespace MinorShift.Emuera.GameView
 		//indexの文字数の前方文字列とindex以降の後方文字列に分割
 		public ConsoleStyledString DivideAt(int index, StringMeasure sm)
 		{
-			//if ((index <= 0)||(index > Str.Length)||this.Error)
+			//if ((index <= 0)||(index > Text.Length)||this.Error)
 			//	return null;
 			ConsoleStyledString ret = DivideAt(index);
 			if (ret == null)
@@ -58,13 +72,13 @@ namespace MinorShift.Emuera.GameView
 		}
 		public ConsoleStyledString DivideAt(int index)
 		{
-			if ((index <= 0) || (index > Str.Length) || this.Error)
+			if ((index <= 0) || (index > Text.Length) || this.Error)
 				return null;
-			string str = Str.Substring(index, Str.Length - index);
-			this.Str = Str.Substring(0, index);
+			string str = Text.Substring(index, Text.Length - index);
+			this.Text = Text.Substring(0, index);
 			ConsoleStyledString ret = new ConsoleStyledString();
 			ret.Font = this.Font;
-			ret.Str = str;
+			ret.Text = str;
 			ret.Color = this.Color;
 			ret.ButtonColor = this.ButtonColor;
 			ret.colorChanged = this.colorChanged;
@@ -80,11 +94,11 @@ namespace MinorShift.Emuera.GameView
 				Width = 0;
 				return;
 			}
-			Width = sm.GetDisplayLength(Str, Font);
+			Width = sm.GetDisplayLength(Text, Font);
 			XsubPixel = subPixel;
 		}
 
-		public override void DrawTo(SKCanvas graph, int pointY, bool isSelecting, bool isBackLog, TextDrawingMode mode)
+		public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 		{
 			if (this.Error)
 				return;
@@ -93,13 +107,13 @@ namespace MinorShift.Emuera.GameView
 				color = this.ButtonColor;
 			else if (isBackLog && !colorChanged)
                 color = Config.LogColor;
-				
-			//if (mode == TextDrawingMode.GRAPHICS)
-			//	graph.DrawString(Str, Font, new SolidBrush(color), new Point(PointX, pointY));
-			//else
-			//	TextRenderer.DrawText(graph, Str, Font, new Point(PointX, pointY), color, TextFormatFlags.NoPrefix);
 
-			DrawTextUtils.DrawText(graph, Str, Font, PointX, pointY, color);
+			//if (mode == TextDrawingMode.GRAPHICS)
+			//	graph.DrawString(Text, Font, new SolidBrush(color), new Point(PointX, (int)point.Y));
+			//else
+			//	TextRenderer.DrawText(graph, Text, Font, new Point(PointX, (int)point.Y), color, TextFormatFlags.NoPrefix);
+
+			DrawTextUtils.DrawText(graph, Text, Font, PointX, (int)point.Y, color);
 		}
 
 		//public override void GDIDrawTo(int pointY, bool isSelecting, bool isBackLog)
@@ -111,10 +125,10 @@ namespace MinorShift.Emuera.GameView
 		//		color = this.ButtonColor;
 		//	else if (isBackLog && !colorChanged)
 		//		color = Config.LogColor;
-		//	GDI.TabbedTextOutFull(Font,color,Str, PointX, pointY);
+		//	GDI.TabbedTextOutFull(Font,color,Text, PointX, pointY);
 		//	//GDI.SetFont(Font);
 		//	//GDI.SetTextColor(color);
-		//	//GDI.TabbedTextOut(Str, PointX, pointY);
+		//	//GDI.TabbedTextOut(Text, PointX, pointY);
 		//}
 
 	}

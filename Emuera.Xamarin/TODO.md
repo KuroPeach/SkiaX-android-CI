@@ -1,6 +1,6 @@
 # Emuera.Xamarin 任务计划
 
-> **最后更新**：2026-05-16
+> **最后更新**：2026-05-17
 > **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/CHANGELOG.md)
 
 ## 当前状态
@@ -8,6 +8,8 @@
 - ✅ Phase 0-2 已完成（编译通过 + 桌面端可启动）
 - ✅ **Phase 4A-Desktop** 已完成（Stub 扩展 + 30+ 处注释代码恢复）
 - ✅ **Phase 3** 已完成（Skia 渲染集成）
+- ✅ **Phase 3.5** 已完成（渲染管线补全 + 桌面端修复）
+- ✅ **Phase 6** 已完成（EM 私家版 HTML 扩展：div + PrintHtmlC 全量版）
 - ⏭️ Phase 4A-Xamarin / Phase 4B / Phase 5
 
 ---
@@ -144,6 +146,60 @@
 
 ---
 
+## Phase 3.5：渲染管线补全 + 桌面端修复 ✅
+
+> 勘探发现：桌面端无法显示文本（pictureBox.Invalidate 不触发 Form.OnPaint）、多个 Print 方法空实现、EscapedParts 交错渲染缺失、HTML_PRINT 岛屿输出缺失
+
+### 切片 3.5-A：桌面端渲染触发修复 ✅
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3.5A-1 | 修复 `TriggerRefresh()` | `pictureBox.Invalidate()` → 注册 `pictureBox.Paint` 事件 | ✅ |
+
+### 切片 3.5-B：CreateSpriteFromFileDynamic 修复 ✅
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3.5B-1 | 实现 `CreateSpriteFromFileDynamic()` | SKBitmap.Decode + ConstImage + SpriteF 注册 | ✅ |
+
+### 切片 3.5-C：EmueraConsole.Print 空方法补全 ✅
+
+> ⚠️ PrintHtmlC 当前为简化版：缺少 `CurrentLineWidth`/`AppendButton(ConsoleButtonString)`/`Html2ButtonList`
+> 三个底层 API，无法实现列内同行渲染，改为 flush 后独立行渲染。全量版见 Phase 6。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3.5C-1 | 实现 `PrintHtmlC()` | HTML 制表打印（LC左对齐/RC右对齐列，简化版无 CurrentLineWidth） | ✅ |
+| 3.5C-2 | 实现 `PrintImg()` 3参数版 | mask 参数暂忽略 | ✅ |
+| 3.5C-3 | 实现 `printCustomBar()` | 自定义 DRAWLINE 字符串 | ✅ |
+| 3.5C-4 | 实现 `PrintHtml()` | HTML 打印（简化版，无 toPrintBuffer 行内模式） | ✅ |
+| 3.5C-5 | 实现 `PrintErrorButton()` | 错误按钮 + 颜色级别 | ✅ |
+
+### 切片 3.5-D：EscapedParts zdepth 交错渲染 ✅
+
+> ⚠️ 渲染循环已升级为 eidx+cidx 双指针，但 div 渲染链三层断裂：
+> 1. **解析层**：HtmlManager 无 `case "div"`，遇到 `<div>` 抛异常
+> 2. **创建层**：无 `new ConsoleDivPart(...)` 代码路径，ConsoleDivPart 是"死类"
+> 3. **注册层**：`FilterEscaped()` 空实现，`ConsoleEscapedParts.Add()` 从未被调用
+> 当前 EscapedParts 系统仅基础设施就绪，实际无数据流过。完整 div 支持见 Phase 6。
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3.5D-1 | 添加 `ConsoleButtonString.FilterEscaped()`/`DrawPartTo()` | 越界部件识别与绘制 | ✅ |
+| 3.5D-2 | 添加 `AConsoleDisplayPart.Parent`/`Depth` 属性 | 越界部件关联 | ✅ |
+| 3.5D-3 | OnPaint 替换为 eidx+cidx 双指针循环 | CBG+EscapedParts 按 depth 降序归并绘制 | ✅ |
+| 3.5D-4 | 使用 LazyLoading 内核 `ConsoleEscapedParts` | 全局静态记录管理 | ✅ |
+
+### 切片 3.5-E：HTML_PRINT 岛屿输出 ✅
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3.5E-1 | 实现 `PrintHTMLIsland()` | Html2DisplayLine → _htmlElementList | ✅ |
+| 3.5E-2 | 实现 `ClearHTMLIsland()` | 清空 _htmlElementList | ✅ |
+| 3.5E-3 | OnPaint 末尾绘制 _htmlElementList | y=0 开始，不受滚动影响 | ✅ |
+
+---
+
 ## Phase 4：Xamarin.Forms UI 集成
 
 > **知识库**：[ui-integration.md](file:///d:/emuera/shared-trae/knowledge/xemuera/ui-integration.md)
@@ -264,3 +320,67 @@
 |---|------|------|
 | 5C-1 | SQLite 路径适配 | `IPathProvider.SqlDir` |
 | 5C-2 | 编译+运行验证 | — |
+
+---
+
+## Phase 6：EM 私家版 HTML 扩展（div + PrintHtmlC 全量版）✅
+
+> **前置条件**：Phase 3.5 完成 ✅
+> **知识库**：[html-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/html-rendering.md)、[graphics-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/graphics-rendering.md)
+> **依赖关系**：6A（类型体系统一）→ 6B（HtmlManager 内部类+状态字段）→ 6C（div 标签解析+递归渲染）→ 6D（EscapedParts 注册）→ 6E（PrintHtmlC 全量版）
+> **核心挑战**：xamarin 将 LazyLoading 的 `AConsoleDisplayNode` 分裂为 `AConsoleDisplayNode` + `AConsoleDisplayPart` 两个基类，ConsoleDivPart 无法放入 StrArray
+
+### 切片 6A：类型体系统一 ✅
+
+> **决策**：合并为统一基类 `AConsoleDisplayNode`，StrArray 改为 `AConsoleDisplayNode[]`
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 6A-1 | 评估合并方案影响 | 搜索所有 `AConsoleDisplayPart` 引用，评估改动范围 | ✅ |
+| 6A-2 | 合并 `AConsoleDisplayPart` → `AConsoleDisplayNode` | 升级 Node 为完整版（Parent=ConsoleButtonString, rikaichaned, Ends, NextLine） | ✅ |
+| 6A-3 | 更新 `ConsoleButtonString.StrArray` 类型 | `AConsoleDisplayPart[]` → `AConsoleDisplayNode[]` | ✅ |
+| 6A-4 | 更新所有 StrArray 消费者 | DrawTo/SetWidth/FilterEscaped/PrintStringBuffer/HtmlManager 等 | ✅ |
+| 6A-5 | 编译验证 | 0 错误 | ✅ |
+
+### 切片 6B：HtmlManager 内部类 + 状态字段 ✅
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 6B-1 | 添加 `HtmlAnalzeState` div 字段 | `StartingSubDivision`/`CurrentDivTag`/`SubDivisionWidth`/`DivState` | ✅ |
+| 6B-2 | 添加 `HtmlAnalzeState` font 扩展属性 | `RenderMode`/`FontEdging`/`FontHinting`/`FontSize` | ✅ |
+| 6B-3 | 添加 `HtmlDivTag` 内部类 | Width/Height/X/Y/Color/Depth/StyledBox/IsRelative/Display/Lines | ✅ |
+| 6B-4 | 添加 `DivState` 内部类 | IsDiv/PosX/PosY/Display/BackgroundColor/Width/Height/HasBorder/BorderWidth/BorderColor/Padding | ✅ |
+| 6B-5 | 添加 `HtmlParentInfo` 内部类 | State/Stream/HasComment/HasReturn | ✅ |
+| 6B-6 | 添加 `ParseParam4IntNum` 方法 | CSS 风格 1~4 值参数解析（margin/border/padding/radius） | ✅ |
+| 6B-7 | 编译验证 | 0 错误 | ✅ |
+
+### 切片 6C：div 标签解析 + 递归渲染 ✅
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 6C-1 | 添加 `tagAnalyze` 的 `case "div"` 开标签 | 解析属性 → 创建 HtmlDivTag → StartingSubDivision=true | ✅ |
+| 6C-2 | 添加 `tagAnalyze` 的 `case "div"` 闭标签 | CurrentDivTag=null | ✅ |
+| 6C-3 | 添加 `html2DisplayLine` 主循环 div 递归分支 | StartingSubDivision → 递归调用 → new ConsoleDivPart | ✅ |
+| 6C-4 | 添加 `<font>` 扩展属性解析 | render/edging/hinting/size | ✅ |
+| 6C-5 | 添加 `<img>` 扩展属性解析 | srcm/cm/display/xpos | ✅ |
+| 6C-6 | 编译验证 | 0 错误 | ✅ |
+
+### 切片 6D：EscapedParts 注册链路 ✅
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 6D-1 | 实现 `FilterEscaped()` 完整逻辑 | 遍历 StrArray 找 Top<0 或 Bottom>LineHeight 的 node | ✅ |
+| 6D-2 | 在 `EmueraConsole.Print` 中添加 `ConsoleEscapedParts.Add()` 注册 | 每行打印后注册越界部件 | ✅ |
+| 6D-3 | 在 CLEARLINE/MaxLog 清理中添加 `ConsoleEscapedParts.Remove/RemoveAt` | 行删除时同步清理记录 | ✅ |
+| 6D-4 | 编译验证 | 0 错误 | ✅ |
+
+### 切片 6E：PrintHtmlC 全量版 ✅
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 6E-1 | 移植 `PrintStringBuffer.CurrentLineWidth` | 遍历 m_buttonList 求和 | ✅ |
+| 6E-2 | 移植 `PrintStringBuffer.AppendButton(ConsoleButtonString)` | 直接追加按钮对象 | ✅ |
+| 6E-3 | 移植 `HtmlManager.Html2ButtonList()` | HTML→按钮列表（buttonsOutput 分支） | ✅ |
+| 6E-4 | 升级 `PrintHtmlC()` 为全量版 | 列内同行渲染 + 空白填充 + LC/RC 对齐 | ✅ |
+| 6E-5 | 升级 `PrintHtml()` 为全量版 | toPrintBuffer 行内模式 | ✅ |
+| 6E-6 | 编译验证 | 0 错误 | ✅ |

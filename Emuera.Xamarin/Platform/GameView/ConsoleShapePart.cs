@@ -9,6 +9,8 @@ using XEmuera;
 using MixedNum = MinorShift.Emuera.Runtime.Utils.EvilMask.Utils.MixedNum;
 using HtmlManager = MinorShift.Emuera.GameView.HtmlManager;
 using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
+using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.Runtime.Config;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -125,7 +127,7 @@ namespace MinorShift.Emuera.GameView
 	{
 		public ConsoleRectangleShapePart(RectangleF theRect)
 		{
-			Str = "";
+			Text = "";
 			originalRectF = theRect;
 			WidthF = theRect.X + theRect.Width;
 			rect.Y = (int)theRect.Y;
@@ -144,13 +146,13 @@ namespace MinorShift.Emuera.GameView
 		readonly RectangleF originalRectF;
 		bool visible = false;
 		Rectangle rect;
-		public override void DrawTo(SKCanvas graph, int pointY, bool isSelecting, bool isBackLog, TextDrawingMode mode)
+		public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 		{
 			if (!visible)
 				return;
 			Rectangle targetRect = rect;
 			targetRect.X = targetRect.X + PointX;
-			targetRect.Y = targetRect.Y + pointY;
+			targetRect.Y = targetRect.Y + (int)point.Y;
 			Color dcolor = isSelecting ? ButtonColor : Color;
 			//graph.FillRectangle(new SolidBrush(dcolor), targetRect);
 
@@ -188,12 +190,12 @@ namespace MinorShift.Emuera.GameView
 	{
 		public ConsoleSpacePart(RectangleF theRect)
 		{
-			Str = "";
+			Text = "";
 			WidthF = theRect.Width;
 			//Width = width;
 		}
 
-		public override void DrawTo(SKCanvas graph, int pointY, bool isSelecting, bool isBackLog, TextDrawingMode mode) { }
+		public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false) { }
 
 		//public override void GDIDrawTo(int pointY, bool isSelecting, bool isBackLog) { }
 
@@ -209,23 +211,23 @@ namespace MinorShift.Emuera.GameView
 	{
 		public ConsoleErrorShapePart(string errMes)
 		{
-			Str = errMes;
+			Text = errMes;
 			AltText = errMes;
 		}
 
-		public override void DrawTo(SKCanvas graph, int pointY, bool isSelecting, bool isBackLog, TextDrawingMode mode)
+		public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 		{
 			//if (mode == TextDrawingMode.GRAPHICS)
-			//	graph.DrawString(Str, Config.Font, new SolidBrush(Config.ForeColor), new Point(PointX, pointY));
+			//	graph.DrawString(Text, Config.Font, new SolidBrush(Config.ForeColor), new Point(PointX, (int)point.Y));
 			//else
-			//	System.Windows.Forms.TextRenderer.DrawText(graph, Str, Config.Font, new Point(PointX, pointY), Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
+			//	System.Windows.Forms.TextRenderer.DrawText(graph, Text, Config.Font, new Point(PointX, (int)point.Y), Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
 
-			DrawTextUtils.DrawText(graph, Str, Config.Font, PointX, pointY, Config.ForeColor);
+			DrawTextUtils.DrawText(graph, Text, Config.Font, PointX, (int)point.Y, Config.ForeColor);
 		}
 
 		//public override void GDIDrawTo(int pointY, bool isSelecting, bool isBackLog)
 		//{
-		//	GDI.TabbedTextOutFull(Config.Font, Config.ForeColor, Str, PointX, pointY);
+		//	GDI.TabbedTextOutFull(Config.Font, Config.ForeColor, Text, PointX, pointY);
 		//}
 
 		public override void SetWidth(StringMeasure sm, float subPixel)
@@ -235,7 +237,7 @@ namespace MinorShift.Emuera.GameView
 				Width = 0;
 				return;
 			}
-			Width = sm.GetDisplayLength(Str, Config.Font);
+			Width = sm.GetDisplayLength(Text, Config.Font);
 			XsubPixel = subPixel;
 		}
 	}

@@ -1,6 +1,7 @@
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.GameView;
 using SkiaSharp;
+using System.Drawing;
 using System.Text;
 
 namespace MinorShift.Emuera.UI.Game;
@@ -28,11 +29,23 @@ abstract class AConsoleDisplayNode
 		return Text;
 	}
 
-	public object Parent { get; set; }
+	public ConsoleButtonString Parent { get; set; }
 	public int Depth { get; set; }
 	public virtual StringBuilder BuildString(StringBuilder sb)
 	{
 		if (Text != null) sb.Append(Text);
 		return sb;
 	}
+
+	public bool rikaichaned;
+	public int[] Ends;
+	public AConsoleDisplayNode NextLine;
+}
+
+abstract class AConsoleColoredPart : AConsoleDisplayNode
+{
+	public Color Color { get; set; }
+	protected Color? BackgroundColor { get; set; }
+	protected Color ButtonColor { get; set; }
+	protected bool colorChanged;
 }

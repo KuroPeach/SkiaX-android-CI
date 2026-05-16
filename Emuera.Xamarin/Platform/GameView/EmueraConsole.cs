@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Linq;
 using System.Text;
 using XEmuera.Forms;
 using System.IO;
@@ -246,6 +247,7 @@ namespace MinorShift.Emuera.GameView
 		private readonly ImageLayerManager _imageLayerManager = new();
 		private SKBitmap bakedBackground;
 		private List<KeyValuePair<long, ConsoleBackground>> backgroundList = [];
+		private List<ConsoleDisplayLine> _htmlElementList = new(10);
 
 		MinorShift.Emuera.GameProc.Process emuera;
 		ConsoleState state = ConsoleState.Initializing;
@@ -502,6 +504,7 @@ namespace MinorShift.Emuera.GameView
 		ConsoleButtonString lastSelectingButton = null;
 		public ConsoleButtonString SelectingButton { get { return selectingButton; } }
 		public bool ButtonIsSelected(ConsoleButtonString button) { return selectingButton == button; }
+		public bool ButtonIsPointing(ConsoleButtonString button) { return pointingString == button; }
 
 		/// <summary>
 		/// ToolTip表示したフラグ
@@ -1427,22 +1430,22 @@ namespace MinorShift.Emuera.GameView
 					graph.DrawBitmap(bakedBackground, 0, 0);
 				_imageLayerManager.DrawTo(graph, ClientWidth, ClientHeight, window.ScrollBar.Value * Config.LineHeight);
 				//1823 cbg追加
+				#region EM_私家版_描画拡張
+				var escapedParts = EscapedParts;
+				if (ConsoleEscapedParts.Changed || !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
+					ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
+				var edepth = escapedParts.Keys.ToArray();
+				Array.Sort(edepth, (int a, int b) => -a.CompareTo(b));
+				int eidx = 0, cidx = 0;
 				int topPointY = pointY;
-				int cidx = 0;
-				while (cidx < cbgList.Count)
+				while (eidx < edepth.Length || cidx < cbgList.Count)
 				{
-					var cbg = cbgList[cidx];
-					if (cbg.zdepth == 0)
+					var depth = Math.Max(eidx < edepth.Length ? edepth[eidx] : int.MinValue,
+						cidx < cbgList.Count ? cbgList[cidx].zdepth : int.MinValue);
+
+					if (cidx < cbgList.Count && cbgList[cidx].zdepth == depth)
 					{
-						for (int i = topLineNo; i <= bottomLineNo && i < displayLineList.Count; i++)
-						{
-							try { displayLineList[i].DrawTo(graph, pointY, isBackLog, true, Config.TextDrawingMode); }
-							catch { }
-							pointY += Config.LineHeight;
-						}
-					}
-					else
-					{
+						var cbg = cbgList[cidx];
 						ASprite img = cbg.Img;
 						if (cbg.isButton && cbg.buttonValue == selectingCBGButtonInt)
 							img = cbg.ImgB;
@@ -1462,8 +1465,51 @@ namespace MinorShift.Emuera.GameView
 							}
 							catch { }
 						}
+						cidx++;
 					}
-					cidx++;
+
+					if (depth == 0)
+					{
+						for (int i = topLineNo; i <= bottomLineNo && i < displayLineList.Count; i++)
+						{
+							try { displayLineList[i].DrawTo(graph, pointY, isBackLog, true, Config.TextDrawingMode); }
+							catch { }
+							pointY += Config.LineHeight;
+						}
+					}
+
+					if (eidx < edepth.Length && edepth[eidx] == depth)
+					{
+						foreach (var p in escapedParts[edepth[eidx]])
+						{
+							var btn = p.Parent as ConsoleButtonString;
+							if (btn == null) continue;
+							var baseLineNo = btn.ParentLine.LineNo;
+							if (GlobalStatic.Console?.GetLineNo > Config.MaxLog)
+							{
+								var correction = GlobalStatic.Console.GetLineNo - Config.MaxLog;
+								baseLineNo -= correction;
+							}
+							try
+							{
+								btn.DrawPartTo(graph, p, topPointY + (baseLineNo - topLineNo) * Config.LineHeight, isBackLog, Config.TextDrawingMode);
+							}
+							catch { }
+						}
+						eidx++;
+					}
+				}
+				#endregion
+
+				var y = 0;
+				foreach (var element in _htmlElementList)
+				{
+					try
+					{
+						element.DrawTo(graph, y, false, true, Config.TextDrawingMode);
+					}
+					catch { }
+					y += Config.LineHeight;
 				}
 
 			//}
@@ -1870,7 +1916,7 @@ namespace MinorShift.Emuera.GameView
 						//	if(pointing.IsButton)
 						//		goto breakfor;
 						//}
-						foreach(AConsoleDisplayPart part in button.StrArray)
+						foreach(AConsoleDisplayNode part in button.StrArray)
 						{
 							if(part == null)
 								continue;

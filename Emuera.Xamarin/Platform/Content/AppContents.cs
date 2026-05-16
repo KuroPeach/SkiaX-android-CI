@@ -92,7 +92,21 @@ namespace MinorShift.Emuera.Content
 				return true;
 			if (!System.IO.File.Exists(filepath))
 				return false;
-			return false;
+			try
+			{
+				var bmp = SKBitmap.Decode(filepath);
+				if (bmp == null)
+					return false;
+				ConstImage img = new ConstImage(name + "_DYN");
+				img.CreateFrom(bmp, false);
+				ASprite newSprite = new SpriteF(name, img, new Rectangle(0, 0, bmp.Width, bmp.Height), Point.Empty);
+				imageDictionary[name] = newSprite;
+				return true;
+			}
+			catch
+			{
+				return false;
+			}
 		}
 
 		static public bool GetSprite_OnlyCheckExists(string name)

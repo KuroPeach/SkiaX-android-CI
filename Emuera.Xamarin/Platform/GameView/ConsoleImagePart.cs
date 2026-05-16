@@ -1,6 +1,8 @@
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Content;
 using MinorShift.Emuera.UI.Game.Image;
+using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.Runtime.Config;
 using SkiaSharp;
 using XEmuera.Drawing;
 using System;
@@ -13,7 +15,7 @@ using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
 
 namespace MinorShift.Emuera.GameView
 {
-	class ConsoleImagePart : AConsoleDisplayPart
+	class ConsoleImagePart : AConsoleDisplayNode
 	{
 		#region EM_私家版_HTMLパラメータ拡張
 		//public ConsoleImagePart(string resName, string resNameb, int raw_height, int raw_width, int raw_ypos)
@@ -21,7 +23,7 @@ namespace MinorShift.Emuera.GameView
 		{
 			top = 0;
 			bottom = Config.FontSize;
-			Str = "";
+			Text = "";
 			ResourceName = resName ?? "";
 			ButtonResourceName = resNameb;
 			StringBuilder sb = new StringBuilder();
@@ -60,7 +62,7 @@ namespace MinorShift.Emuera.GameView
 			//	cImage = null;
 			if (cImage == null)
 			{
-				Str = AltText;
+				Text = AltText;
 				return;
 			}
 			int height;
@@ -117,17 +119,27 @@ namespace MinorShift.Emuera.GameView
 				//	cImageB = null;
 			}
 		}
+
+		public ConsoleImagePart(string resName, string resNameb, string resm, MixedNum raw_height, MixedNum raw_width, MixedNum raw_ypos, MixedNum raw_xpos, DisplayMode display, string cm)
+			: this(resName, resNameb, raw_height, raw_width, raw_ypos)
+		{
+			ResourceNameM = resm;
+			ColorMatrix = cm;
+			Display = display;
+			Xpos = raw_xpos;
+		}
 		#endregion
 		private readonly ASprite cImage;
 		private readonly ASprite cImageB;
 		private readonly int top;
 		private readonly int bottom;
 		private readonly Rectangle destRect;
-//#pragma warning disable CS0649 // フィールド 'ConsoleImagePart.ia' は割り当てられません。常に既定値 null を使用します。
-//		private readonly ImageAttributes ia;
-//#pragma warning restore CS0649 // フィールド 'ConsoleImagePart.ia' は割り当てられません。常に既定値 null を使用します。
 		public readonly string ResourceName;
 		public readonly string ButtonResourceName;
+		public readonly string ResourceNameM;
+		public readonly string ColorMatrix;
+		public readonly DisplayMode Display;
+		public readonly MixedNum Xpos;
 		public override int Top { get { return top; } }
 		public override int Bottom { get { return bottom; } }
 		
@@ -141,7 +153,7 @@ namespace MinorShift.Emuera.GameView
 			}
 			if (cImage != null)
 				return;
-			Width = sm.GetDisplayLength(Str, Config.Font);
+			Width = sm.GetDisplayLength(Text, Config.Font);
 			XsubPixel = subPixel;
 		}
 
@@ -152,7 +164,7 @@ namespace MinorShift.Emuera.GameView
 			return AltText;
 		}
 
-		public override void DrawTo(SKCanvas graph, int pointY, bool isSelecting, bool isBackLog, TextDrawingMode mode)
+		public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 		{
 			if (this.Error)
 				return;
@@ -165,7 +177,7 @@ namespace MinorShift.Emuera.GameView
 				Rectangle rect = destRect;
 				//PointX微調整
 				rect.X = destRect.X + PointX + Config.DrawingParam_ShapePositionShift;
-				rect.Y = destRect.Y + pointY + DisplayUtils.ShapeHeightOffset;
+				rect.Y = destRect.Y + (int)point.Y + DisplayUtils.ShapeHeightOffset;
 				img.GraphicsDraw(graph, rect);
 			}
 			else
@@ -175,7 +187,7 @@ namespace MinorShift.Emuera.GameView
 				//else
 				//	System.Windows.Forms.TextRenderer.DrawText(graph, AltText, Config.Font, new Point(PointX, pointY), Config.ForeColor, System.Windows.Forms.TextFormatFlags.NoPrefix);
 
-				DrawTextUtils.DrawText(graph, AltText, Config.Font, PointX, pointY, Config.ForeColor);
+				DrawTextUtils.DrawText(graph, AltText, Config.Font, PointX, (int)point.Y, Config.ForeColor);
 			}
 		}
 
@@ -198,7 +210,7 @@ namespace MinorShift.Emuera.GameView
 		//		GDI.DrawImage(x, y, Width, destRect.Height, img.BaseImage.GDIhDC, img.SrcRectangle);
 		//	}
 		//	else
-		//		GDI.TabbedTextOutFull(Config.Font, Config.ForeColor, AltText, PointX, pointY);
+		//	GDI.TabbedTextOutFull(Config.Font, Config.ForeColor, AltText, PointX, pointY);
 		//}
 	}
 }
