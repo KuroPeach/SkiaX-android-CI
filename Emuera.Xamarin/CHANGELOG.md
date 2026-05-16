@@ -1,5 +1,41 @@
 # Emuera.Xamarin 变更记录
 
+## [0.16.0] - 2026-05-17
+
+### Slice 8A：Core 项目创建 ✅
+
+- 创建 `Emuera.Xamarin.Core` 项目（net8.0 + net8.0-windows 双目标类库）
+- Runtime/ 编译引用：`<Compile Include="../Emuera/Runtime/**/*.cs" />` + 排除 Windows-only 文件
+- Platform/ + Drawing/ + Models/ + Forms/ 编译引用
+- Using Alias：12 个类型别名（Color/Rectangle/Point/Size/FontStyle/Brush/Pen/Font 等）+ 12 个命名空间转发
+- Stubs：RikaichanStub（空实现）、SoundStub（no-op）、SystemSoundsStub（no-op）
+- NuGet：SkiaSharp + SkiaSharp.Svg + Microsoft.Data.Sqlite + Xamarin.Forms（ExcludeAssets=build）
+- InternalsVisibleTo：`XEmuera.Desktop`
+- `#if WINDOWS` 守卫：DrawBitmapUtils/DrawTextUtils 的 System.Drawing 互操作
+- Creator.Method：`#if WINDOWS` 守护 SKBitmap.ToBitmap()，修复 SKColor→Color 隐式转换
+
+### Slice 8B：Desktop 项目创建 ✅
+
+- 创建 `Emuera.Xamarin.Desktop` 项目（net8.0-windows WinExe）
+- 引用 Core 项目 + WinForms + SkiaSharp.Views.WindowsForms
+- Desktop-only 文件：DesktopHost + DesktopConfigDialog + DesktopDebugDialog + VersionUpdate + SoundAndBgm
+- `#if DESKTOP_APP` 分离入口点：Program.MainDesktop 只在 Desktop 项目中编译
+- 移除 Desktop 文件中的 `using System.Drawing;`：避免 Using Alias 冲突
+
+### 额外 WinForms 依赖清理
+
+- App.cs：`Application.DoEvents()` → `PlatformInterop.DoEvents()`
+- Dialog.cs：`MessageBox.Show()` → `PlatformInterop.ShowMessage()`/`ShowMessageWithTitle()`/`ShowQuestion()`
+- EmueraConsole.cs：`Control.MousePosition` → `PlatformInterop.GetMousePosition()`
+- Program.cs：`MessageBox.Show()` → `PlatformInterop.ShowMessageWithTitle()`，Main→MainDesktop + `#if DESKTOP_APP`
+- PlatformInterop：添加 `ShowMessageWithTitle` 委托
+
+### 三项目编译验证 ✅
+
+- Emuera.Xamarin（原项目）：0 错误
+- Emuera.Xamarin.Core（双目标）：0 错误
+- Emuera.Xamarin.Desktop：0 错误
+
 ## [0.15.0] - 2026-05-19
 
 ### Slice 8A-P1：Runtime/ WinForms 依赖清理 ✅

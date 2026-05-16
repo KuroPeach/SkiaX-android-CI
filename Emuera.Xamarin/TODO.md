@@ -22,6 +22,8 @@
 | G6 | GDI 注释残留清理 + 删除 5 组死对话框文件 | 0.13 |
 | Phase 8A-P0 | System.Drawing 值类型垫片（Color/Rectangle/Point/Size） | 0.14 |
 | Phase 8A-P1 | Runtime/ WinForms 依赖清理（PlatformInterop 抽象） | 0.15 |
+| Phase 8A | 创建 Core 项目（net8.0 + net8.0-windows 双目标） | 0.16 |
+| Phase 8B | 创建 Desktop 项目（net8.0-windows） | 0.16 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -74,24 +76,24 @@ Emuera.Xamarin.sln
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 8A-1 | 创建 `Emuera.Xamarin.Core.csproj` | TFM=net8.0，从现有 csproj 提取共享代码 | ⏭️ |
-| 8A-2 | 迁移 Runtime/ 编译引用 | `<Compile Include="../Emuera/Runtime/**/*.cs" />` | ⏭️ |
-| 8A-3 | 迁移 Platform/ 编译引用 | Stubs/ + GameView/ + Config/ + Content/ | ⏭️ |
-| 8A-4 | 迁移 Drawing/ + Models/ + Forms/ | Skia 渲染 + 数据模型 + MessageBox | ⏭️ |
-| 8A-5 | 迁移 NuGet 包 | SkiaSharp/Xamarin.Forms/Xamarin.Essentials/Sqlite 等 | ⏭️ |
-| 8A-6 | 排除 Windows-only 文件 | DesktopHost/NAudio/Sound.WMP 等 | ⏭️ |
-| 8A-7 | 编译验证 | Core 项目 0 错误 | ⏭️ |
+| 8A-1 | 创建 `Emuera.Xamarin.Core.csproj` | TFM=net8.0;net8.0-windows，从现有 csproj 提取共享代码 | ✅ |
+| 8A-2 | 迁移 Runtime/ 编译引用 | `<Compile Include="../Emuera/Runtime/**/*.cs" />` | ✅ |
+| 8A-3 | 迁移 Platform/ 编译引用 | Stubs/ + GameView/ + Config/ + Content/ | ✅ |
+| 8A-4 | 迁移 Drawing/ + Models/ + Forms/ | Skia 渲染 + 数据模型 + MessageBox | ✅ |
+| 8A-5 | 迁移 NuGet 包 | SkiaSharp/Xamarin.Forms/Sqlite 等 | ✅ |
+| 8A-6 | 排除 Windows-only 文件 | DesktopHost/NAudio/Sound.WMP/Rikaichan 等 | ✅ |
+| 8A-7 | 编译验证 | Core 项目双目标 0 错误 | ✅ |
 
 ##### 切片 8B：创建 Desktop 项目（WinForms 验证）
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 8B-1 | 创建 `Emuera.Xamarin.Desktop.csproj` | TFM=net8.0-windows, UseWindowsForms=true | ⏭️ |
-| 8B-2 | 迁移 DesktopHost.cs + Desktop*Dialog.cs | WinForms 桌面宿主 | ⏭️ |
-| 8B-3 | 迁移 Program.cs (WinForms 入口) | Application.Run(new DesktopHostForm()) | ⏭️ |
-| 8B-4 | 引用 Core 项目 | `<ProjectReference>` | ⏭️ |
-| 8B-5 | NAudio NuGet 仅 Desktop 引用 | Windows-only 音频 | ⏭️ |
-| 8B-6 | 编译验证 | Desktop 项目 0 错误，功能与现有一致 | ⏭️ |
+| 8B-1 | 创建 `Emuera.Xamarin.Desktop.csproj` | TFM=net8.0-windows, UseWindowsForms=true | ✅ |
+| 8B-2 | 迁移 DesktopHost.cs + Desktop*Dialog.cs | WinForms 桌面宿主 | ✅ |
+| 8B-3 | 迁移 Program.cs (WinForms 入口) | Program.MainDesktop() + `#if DESKTOP_APP` | ✅ |
+| 8B-4 | 引用 Core 项目 | `<ProjectReference>` | ✅ |
+| 8B-5 | NAudio/SoundAndBgm 仅 Desktop 引用 | Windows-only 音频 | ✅ |
+| 8B-6 | 编译验证 | Desktop 项目 0 错误，功能与现有一致 | ✅ |
 
 ##### 切片 8C：创建 Android 项目（APK 产出）
 
