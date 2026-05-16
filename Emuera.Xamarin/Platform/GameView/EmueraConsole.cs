@@ -2348,6 +2348,52 @@ namespace MinorShift.Emuera.GameView
 
 		public ConsoleButtonString PointingSring => pointingString;
 
+		public void GotoTitleAndLoadAndRepeatInput()
+		{
+			if (!Config.Ctrl_Z_Enabled) return;
+			if (GlobalStatic.ctrlZ.mLastSave < 0) return;
+			if (GlobalStatic.ctrlZ.mInputs.Count == 0) return;
+			if (GlobalStatic.ctrlZ.mRewindInProgress)
+			{
+				GlobalStatic.ctrlZ.mRepeatedUndoRequested = true;
+				return;
+			}
+
+		again:
+			forceStopTimer();
+			ClearDisplay();
+			AppContents.UnloadGraphicList();
+			redraw = ConsoleRedraw.Normal;
+			UseUserStyle = false;
+			userStyle = new StringStyle(Config.ForeColor, FontStyle.Regular, null);
+			emuera.BeginTitle();
+			ReadAnyKey(false, false);
+			callEmueraProgram("");
+			RefreshStrings(true);
+
+			GlobalStatic.ctrlZ.mRewindInProgress = true;
+			GlobalStatic.VEvaluator.Rand.SetRand(GlobalStatic.ctrlZ.mRandomSeed);
+			GlobalStatic.Process.LoadSilent();
+			PressEnterKey(true, GlobalStatic.ctrlZ.mLastSave.ToString(), false);
+
+			var inputs = GlobalStatic.ctrlZ.mInputs;
+			if (inputs.Count > 0)
+				inputs.RemoveAt(inputs.Count - 1);
+
+			for (int i = 0; i < inputs.Count; i++)
+			{
+				if (GlobalStatic.ctrlZ.mRepeatedUndoRequested)
+				{
+					GlobalStatic.ctrlZ.mRepeatedUndoRequested = false;
+					goto again;
+				}
+				PressEnterKey(true, inputs[i], false);
+			}
+
+			GlobalStatic.ctrlZ.mRewindInProgress = false;
+			GlobalStatic.ctrlZ.mRepeatedUndoRequested = false;
+		}
+
 		public bool CBG_SetImage(ASprite img, int x, int y, int zdepth, int width, int height, float opacity, float[] colorMatrix)
 		{
 			if (img == null || !img.IsCreated) return false;

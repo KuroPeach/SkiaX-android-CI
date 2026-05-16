@@ -321,6 +321,14 @@ namespace MinorShift.Emuera
             if (console == null || console.IsInProcess)
                 return;
 
+            if (e.KeyCode == Keys.Z && e.Control)
+            {
+                console.GotoTitleAndLoadAndRepeatInput();
+                e.SuppressKeyPress = true;
+                e.Handled = true;
+                return;
+            }
+
             if (console.IsWaitingPrimitive)
             {
                 console.PressPrimitiveKey((int)e.KeyCode, (int)e.KeyData, (int)e.Modifiers);

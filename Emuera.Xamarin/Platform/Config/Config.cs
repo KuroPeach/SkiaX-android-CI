@@ -751,6 +751,7 @@ namespace MinorShift.Emuera
 		#endregion
 
 		public static SkiaSharp.SKFont DefaultFont { get { return Runtime.Config.Config.DefaultFont; } }
+		public static bool Ctrl_Z_Enabled { get { return Runtime.Config.Config.Ctrl_Z_Enabled; } }
 
 	}
 }
