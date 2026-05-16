@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="XEmuera.Desktop" />
+    <InternalsVisibleTo Include="XEmuera.Android" />
   </ItemGroup>
 
   <!-- 全局 using：System.Drawing → XEmuera.Drawing 类型别名 -->

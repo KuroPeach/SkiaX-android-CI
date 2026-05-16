@@ -1,15 +1,11 @@
 .vs/*
 .idea/*
-Emuera/bin/*
-Emuera/obj/*
-artifacts/*
+**/bin/*
+**/obj/*
+**/artifacts/**
 Emuera/Properties/PublishProfiles/FolderProfile.pubxml.user
 /Emuera/Properties/PublishProfiles/FolderProfile1.pubxml.user
-EmueraPluginExample/bin/*
-EmueraPluginExample/obj/*
 *.patch
-
-*/artifacts/*
-
-*/Emuera.csproj.user
+*.user
+*.suo
 

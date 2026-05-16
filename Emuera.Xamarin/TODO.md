@@ -24,93 +24,45 @@
 | Phase 8A-P1 | Runtime/ WinForms 依赖清理（PlatformInterop 抽象） | 0.15 |
 | Phase 8A | 创建 Core 项目（net8.0 + net8.0-windows 双目标） | 0.16 |
 | Phase 8B | 创建 Desktop 项目（net8.0-windows） | 0.16 |
+| Phase 8C | 创建 Android 项目（net8.0-android） | 0.17 |
+| Phase 5B-A | Android 音频实现（AndroidSound : Sound + MediaPlayer） | 0.17 |
 
 ### ⏭️ 待推进：APK 目标路径
 
 > **项目定位**：LazyLoading 原版桌面端已完备，本项目的**唯一目标产物是 Android APK**。
 > 桌面端（net8.0-windows）仅作为功能验证手段，不是目的。
-> **XEmuera-1 是可运行的 APK 项目**，其 Android 基础设施可直接继承。
 > 知识库：[android-migration.md](file:///d:/emuera/shared-trae/knowledge/xemuera/android-migration.md)
 
-#### Phase 8：项目拆分 + Android APK（核心里程碑）
-
-> **目标**：拆分为 Core+Desktop+Android 三项目，产出可安装 APK
-> **前置条件**：Phase 0-6 桌面端功能验证通过 ✅
-> **架构决策**：方案 B（项目拆分），Core 用 net8.0（Runtime/ 依赖 .NET 8 API，不能用 netstandard2.1）
-> **关键勘测发现**：XEmuera-1 用旧 Xamarin 工具链（MonoAndroid），不能直接复制 Android 项目；必须用 .NET 8 Android 工作负载（net8.0-android）重写 Android 层
-> **知识库**：[android-migration.md](file:///d:/emuera/shared-trae/knowledge/xemuera/android-migration.md)
+#### 当前项目结构
 
 ```
 Emuera.Xamarin.sln
-├── Emuera.Xamarin.Core      (net8.0)           — 共享代码 + System.Drawing 垫片
-├── Emuera.Xamarin.Desktop   (net8.0-windows)    — WinForms 桌面验证
-└── Emuera.Xamarin.Android   (net8.0-android)    — APK 产出（.NET 8 SDK 风格）
+├── Emuera.Xamarin.Core      (net8.0;net8.0-windows) — 共享代码 + System.Drawing 垫片
+├── Emuera.Xamarin.Desktop   (net8.0-windows)         — WinForms 桌面验证
+├── Emuera.Xamarin.Android   (net8.0-android)         — APK 产出（.NET 8 SDK 风格）
+└── Emuera.Xamarin           (net8.0-windows)         — 原项目（仍可独立编译）
 ```
 
-##### 切片 8A-P0：System.Drawing 值类型垫片（前置条件，可在当前项目内完成）
+#### 任务流总览（按执行顺序）
 
-> **阻塞问题**：去掉 `-windows` 后缀后，`System.Drawing.Color/Rectangle/Point/Size` 不可用，20+ 个文件受影响
+```
+✅ 8A-P0 值类型垫片 → ✅ 8A-P1 WinForms 清理 → ✅ 8A Core → ✅ 8B Desktop → ✅ 8C Android 骨架
+→ ✅ 5B-A Android 音频
+→ ⏭️ 8D Android 功能补全（APK 可运行分界线）
+→ ⏭️ 5B-D Desktop 音频验证（可与 8D 并行）
+─── APK 可运行 ───
+→ ⏭️ 4A-Xamarin SKCanvasView + 触摸 + 输入（回归框架开发）
+→ ⏭️ 7G 游戏列表 + 侧边菜单
+→ ⏭️ 5B-E 音频 ERB 指令补全
+→ ⏭️ 7C-P1 字体缩放 / 7E 本地化 / 7F 日志查看器（P2）
+```
 
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 8A-P0-1 | 创建 `XEmuera.Drawing.Color` | 封装 SKColor，API 兼容 System.Drawing.Color | ✅ |
-| 8A-P0-2 | 创建 `XEmuera.Drawing.Rectangle` | 纯值类型，API 兼容 System.Drawing.Rectangle | ✅ |
-| 8A-P0-3 | 创建 `XEmuera.Drawing.Point` | 纯值类型，API 兼容 System.Drawing.Point | ✅ |
-| 8A-P0-4 | 创建 `XEmuera.Drawing.Size` | 纯值类型，API 兼容 System.Drawing.Size | ✅ |
-| 8A-P0-5 | csproj 添加 `<Using Alias>` | Color/Rectangle/Point/Size 全局别名替换 | ✅ |
-| 8A-P0-6 | 修复 `SkiaPfc.cs`/`InstalledFontCollection.cs` | `System.Drawing.FontFamily` 引用替换 | ✅ |
-| 8A-P0-7 | 编译验证 | 当前 net8.0-windows 项目 + 别名替换后 0 错误 | ✅ |
-
-##### 切片 8A-P1：Runtime/ WinForms 依赖清理（前置条件，可在当前项目内完成）
-
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 8A-P1-1 | `Sys.cs`: `Application.ProductVersion` | 替换为 `PlatformInterop.GetProductVersion()` | ✅ |
-| 8A-P1-2 | `ErbLoader.cs`/`ErhLoader.cs`: `Application.DoEvents()` | 替换为 `PlatformInterop.DoEvents()` | ✅ |
-| 8A-P1-3 | `Instraction.Child.cs`: `MessageBox.Show` | 替换为 `PlatformInterop.ShowQuestion()` | ✅ |
-| 8A-P1-4 | `Config.cs`/`VariableEvaluator.cs`: `MessageBox.Show` | 替换为 `PlatformInterop.ShowMessage()` | ✅ |
-| 8A-P1-5 | `Creator.Method.cs`: `Control.MousePosition` | 替换为 `PlatformInterop.GetMousePosition()` | ✅ |
-| 8A-P1-6 | 编译验证 | 当前项目 + 清理后 0 错误 | ✅ |
-
-##### 切片 8A：创建 Core 项目
-
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 8A-1 | 创建 `Emuera.Xamarin.Core.csproj` | TFM=net8.0;net8.0-windows，从现有 csproj 提取共享代码 | ✅ |
-| 8A-2 | 迁移 Runtime/ 编译引用 | `<Compile Include="../Emuera/Runtime/**/*.cs" />` | ✅ |
-| 8A-3 | 迁移 Platform/ 编译引用 | Stubs/ + GameView/ + Config/ + Content/ | ✅ |
-| 8A-4 | 迁移 Drawing/ + Models/ + Forms/ | Skia 渲染 + 数据模型 + MessageBox | ✅ |
-| 8A-5 | 迁移 NuGet 包 | SkiaSharp/Xamarin.Forms/Sqlite 等 | ✅ |
-| 8A-6 | 排除 Windows-only 文件 | DesktopHost/NAudio/Sound.WMP/Rikaichan 等 | ✅ |
-| 8A-7 | 编译验证 | Core 项目双目标 0 错误 | ✅ |
-
-##### 切片 8B：创建 Desktop 项目（WinForms 验证）
-
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 8B-1 | 创建 `Emuera.Xamarin.Desktop.csproj` | TFM=net8.0-windows, UseWindowsForms=true | ✅ |
-| 8B-2 | 迁移 DesktopHost.cs + Desktop*Dialog.cs | WinForms 桌面宿主 | ✅ |
-| 8B-3 | 迁移 Program.cs (WinForms 入口) | Program.MainDesktop() + `#if DESKTOP_APP` | ✅ |
-| 8B-4 | 引用 Core 项目 | `<ProjectReference>` | ✅ |
-| 8B-5 | NAudio/SoundAndBgm 仅 Desktop 引用 | Windows-only 音频 | ✅ |
-| 8B-6 | 编译验证 | Desktop 项目 0 错误，功能与现有一致 | ✅ |
-
-##### 切片 8C：创建 Android 项目（APK 产出）
-
-| # | 操作 | 说明 | XEmuera 参考 | 状态 |
-|---|------|------|-------------|------|
-| 8C-1 | 创建 `Emuera.Xamarin.Android.csproj` | TFM=net8.0-android | XEmuera.Android.csproj | ⏭️ |
-| 8C-2 | 创建 `MainActivity.cs` | FormsAppCompatActivity + LoadApplication + 沉浸式模式 | **直接复制** XEmuera MainActivity.cs | ⏭️ |
-| 8C-3 | 创建 `DroidDependencyService.cs` | IPlatformService + IPlayer (MobileMediaPlayer) | **直接复制** XEmuera DroidDependencyService.cs | ⏭️ |
-| 8C-4 | 创建 `AndroidManifest.xml` | minSdk=23, targetSdk=31, 权限声明 | **直接复制** XEmuera AndroidManifest.xml | ⏭️ |
-| 8C-5 | 创建 Android Resources/ | icon/style/values | 参考 XEmuera Resources/ | ⏭️ |
-| 8C-6 | 引用 Core 项目 + NuGet | SkiaSharp.Views.Android 等 | 参考 XEmuera.Android.csproj | ⏭️ |
-| 8C-7 | 恢复 XAML code-behind | 移除 Core 项目中对 Views/*.xaml.cs 的排除 | — | ⏭️ |
-| 8C-8 | 替换 NAudio → AndroidSound | Sound.NAudio.cs 排除，Android 项目使用 AndroidSound 子类 | 参考 XEmuera DroidDependencyService | ⏭️ |
-| 8C-9 | 替换 MousePosition | WinForms Control.MousePosition → 触摸坐标 | 参考 XEmuera 触摸转鼠标 | ⏭️ |
-| 8C-10 | 编译验证 | Android 目标 0 错误 | — | ⏭️ |
+#### 🔴 P0：APK 可运行（当前焦点）
 
 ##### 切片 8D：Android 功能补全
+
+> **目标**：让 APK 可安装启动、可交互
+> **前置条件**：8C ✅ + 5B-A ✅
 
 | # | 操作 | 说明 | XEmuera 参考 | 状态 |
 |---|------|------|-------------|------|
@@ -121,15 +73,73 @@ Emuera.Xamarin.sln
 | 8D-5 | 配置页面 | ConfigPage + ConfigValuePopup | **直接复制** XEmuera Views/ | ⏭️ |
 | 8D-6 | APK 打包验证 | 签名 + 安装 + 启动测试 | — | ⏭️ |
 
-#### 桌面端可继续推进的验证项（不阻塞 APK，优先级低）
+##### 切片 5B-D：Desktop 音频验证（可与 8D 并行）
 
-| 工作项 | 说明 | 优先级 |
-|--------|------|--------|
-| 5B-D：Desktop 音频验证 | NAudio 接入 + SoundStub 架构验证 | **P0** |
-| 8C：Android 项目骨架 | csproj + MainActivity + AndroidManifest | **P0** |
-| 5A-4 音频路径构建 | `IPathProvider.MusicDir` 替换硬编码 | P1 |
-| 7C-P1 静态字体缩放 | 配置层 FontScale 属性 + 启动时应用 | P2 |
-| ToolTip OwnerDraw | SKBitmap→Bitmap 转换 | P2 |
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 5B-D1 | SoundStub.cs 添加 `Playing` 字段 | `public volatile bool Playing = false;` | ✅ |
+| 5B-D2 | Desktop csproj 添加 NAudio NuGet | `NAudio` 2.2.1 + `NAudio.Vorbis` 1.5.0 | ⏭️ |
+| 5B-D3 | Desktop csproj 包含 NAudio 源文件 | `Sound.NAudio.cs` + `NAudio_LoopStream.cs` + `SoundTouch_byMarkHeath/**` | ⏭️ |
+| 5B-D4 | 修改 Sound.NAudio.cs：`Sound` → `NAudioSound : Sound` | 继承 SoundStub，override 虚方法，更新 SoundMixer 引用 | ⏭️ |
+| 5B-D5 | DesktopHost.InitEmuera() 初始化音频 | `GlobalStatic.Sound = new NAudioSound[16]` + `GlobalStatic.Bgm = new NAudioSound()` | ⏭️ |
+| 5B-D6 | 编译+运行验证 | 桌面端播放 WAV/OGG/BGM | ⏭️ |
+
+#### 🟡 P1：框架开发（APK 可运行后回归）
+
+##### 切片 4A-Xamarin：启用 ContentPage MainWindow
+
+> **前置条件**：8D 完成（APK 可运行）
+> **与 8D 的关系**：8D-2（触摸）= 4A-X4，8D-3（输入）= 4A-X5，8D-4（游戏列表）= 7G
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 4A-X1 | 移除 csproj 中 `Platform\Forms\**` 排除项 | 启用 XAML 代码生成 | ⏭️ |
+| 4A-X2 | 移除 csproj 中 XAML 页面排除项 | Views/\*.xaml.cs + MainPage.xaml.cs + App.xaml.cs | ⏭️ |
+| 4A-X3 | 连接 SKCanvasView 到 EmueraConsole.OnPaint | `mainPicBox_Paint` → `console.OnPaint(canvas)` | ⏭️ |
+| 4A-X4 | 实现触摸事件转发 | `EraPictureBox_Touch` → `console.MouseDown`/`PressEnterKey` | ⏭️ |
+| 4A-X5 | 实现文本输入 | `Entry` → `console.PressEnterKey`（ONEPHRASE/ANYKEY 自动提交） | ⏭️ |
+| 4A-X6 | 移植 App.xaml + MainPage.xaml | FlyoutPage 导航框架 + GameItemPage 游戏列表 | ⏭️ |
+| 4A-X7 | 编译+运行验证 | — | ⏭️ |
+
+##### 切片 5B-E：音频路径 + ERB 指令补全
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 5B-E1 | 替换音频路径构建 | `Path.GetFullPath(".\\sound\\")` → `IPathProvider.MusicDir` + `Program.FileExists()` | ⏭️ |
+| 5B-E2 | 升级 PLAYSOUND ArgumentBuilder | 支持 repeat 参数（移植 `SpHtmlPrint`） | ⏭️ |
+| 5B-E3 | 移植 GETSOUNDORBGMINFO | `Creator.Method.cs` 新增方法 | ⏭️ |
+| 5B-E4 | 移植 ISPLAYINGSOUND/ISPLAYINGBGM | `Creator.Method.cs` 新增方法 | ⏭️ |
+| 5B-E5 | 移植 SOUNDCONTROL/BGMCONTROL | `Creator.Method.cs` 新增方法 | ⏭️ |
+| 5B-E6 | 编译+运行验证 | — | ⏭️ |
+
+##### 切片 4B：配置页面
+
+| # | 操作 | 说明 | 决策 |
+|---|------|------|------|
+| 4B-1 | 移植 XEmuera-1 ConfigPage 体系 | `SettingsPage` → `ConfigSettingsPage` → `ConfigPage` → `ConfigValuePopup` | 方案 A：移植 XEmuera-1 |
+| 4B-2 | 移植 ConfigModel | 配置分组管理 + MVVM 绑定 | — |
+| 4B-3 | 扩展 ConfigCodeGroups 添加 LazyLoading 独有分组 | CB 配置 / Rikaichan / Rendering / Debug | — |
+| 4B-4 | 保持 LazyLoading 的 Copy+SaveConfig 保存策略 | 不改用 Preferences，保持 emuera.config 文件格式 | 方案 A |
+| 4B-5 | 实现 DebugConfigDialog（低优先级） | `GetDebugItem()` 通道 + `SaveDebugConfig()` | — |
+| 4B-6 | 编译+运行验证 | — | — |
+
+##### 切片 7G：游戏列表 + 侧边菜单
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7G-1 | 移植 `GameItemModel` + `GameItemPage` | 游戏列表 + 长按配置编辑 | ⏭️ |
+| 7G-2 | 移植 `MainMenuPage` | 侧边菜单（重启/回到标题/设置/解释器日志） | ⏭️ |
+| 7G-3 | 移植 `GameUtils` 游戏管理 | `StartEmuera()`/`CurrentGamePath`/`PrefKeyLastGamePath` | ⏭️ |
+| 7G-4 | 编译+运行验证 | — | ⏭️ |
+
+#### 🟢 P2：框架优化
+
+| 工作项 | 说明 | 切片 |
+|--------|------|------|
+| 静态字体缩放 | 配置层 FontScale 属性 + 启动时应用 | 7C-P1 |
+| 本地化 UI | LanguagePage + CultureInfo 联动 | 7E |
+| 日志查看器 | TxtFilePage + 侧边菜单入口 | 7F |
+| ToolTip OwnerDraw | SKBitmap→Bitmap 转换 | — |
 | Rikaichan 词典悬浮提示 | Core 已排除 Rikaichan.cs，Android 端不需要 | **P3 最低** |
 
 ***
@@ -506,14 +516,14 @@ Emuera.Xamarin.sln
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 5B-A1 | 创建 `AndroidSound : Runtime.Utils.Sound` | override 13 个虚方法，内部用 Android MediaPlayer | ⏭️ |
-| 5B-A2 | Android 多通道 | 16 个 Sound 通道 = 16 个 MediaPlayer 实例 | ⏭️ |
-| 5B-A3 | Android BGM 循环 | `MediaPlayer.Looping = true` | ⏭️ |
-| 5B-A4 | Android 音量映射 | `setVolume(0-100)` → `MediaPlayer.SetVolume(0.0-1.0)` | ⏭️ |
-| 5B-A5 | Android 暂停/恢复 | `MediaPlayer.Pause()/Start()` + `CurrentPosition` 保存 | ⏭️ |
-| 5B-A6 | Android 变速 | MediaPlayer 无原生变速，`setSpeed` 返回 0 | ⏭️ |
-| 5B-A7 | MainActivity 初始化 GlobalStatic.Sound/Bgm | 创建 AndroidSound 实例 | ⏭️ |
-| 5B-A8 | 编译验证 | Android 目标 0 错误 | ⏭️ |
+| 5B-A1 | 创建 `AndroidSound : Runtime.Utils.Sound` | override 13 个虚方法，内部用 Android MediaPlayer | ✅ |
+| 5B-A2 | Android 多通道 | 16 个 Sound 通道 = 16 个 AndroidSound 实例 | ✅ |
+| 5B-A3 | Android BGM 循环 | `MediaPlayer.Looping = true` | ✅ |
+| 5B-A4 | Android 音量映射 | `setVolume(0-100)` → `MediaPlayer.SetVolume(0.0-1.0)` | ✅ |
+| 5B-A5 | Android 暂停/恢复 | `MediaPlayer.Pause()/Start()` + `CurrentPosition` 保存 | ✅ |
+| 5B-A6 | Android 变速 | MediaPlayer 无原生变速，`setSpeed` 空实现 | ✅ |
+| 5B-A7 | AndroidHost 初始化 GlobalStatic.Sound/Bgm | 创建 AndroidSound 实例 | ✅ |
+| 5B-A8 | 编译验证 | Android 目标 0 错误 | ✅ |
 
 #### 切片 5B-E：音频路径 + ERB 指令补全（P1）
 

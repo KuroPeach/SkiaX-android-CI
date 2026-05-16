@@ -1,5 +1,28 @@
 # Emuera.Xamarin 变更记录
 
+## [0.17.0] - 2026-05-17
+
+### Slice 8C：Android 项目创建 ✅
+
+- 创建 `Emuera.Xamarin.Android` 项目（net8.0-android SDK 风格 Exe）
+- 引用 Core 项目 + Xamarin.Forms 5.0.0.2478 + Xamarin.Essentials 1.7.3 + Xamarin.AndroidX.Media
+- `MainActivity.cs`：FormsAppCompatActivity + 沉浸式模式（SystemUiFlags.ImmersiveSticky）
+- `AndroidHost.cs`：PlatformInterop 委托初始化（AlertDialog 替代 MessageBox、ClipboardManager 替代 Clipboard、SKPaint 文本测量）
+- `AndroidApp.cs`：Xamarin.Forms Application 子类（ContentPage 占位）
+- `AndroidManifest.xml`：minSdk=23, targetSdk=34, 外部存储权限
+- Resources/：styles.xml + colors.xml + strings.xml + mipmap icon（引用 Xamarin 项目 app_icon.png）
+- Core 项目添加 `InternalsVisibleTo Include="XEmuera.Android"`
+- `#if ANDROID_APP` 条件编译符号
+
+### Slice 5B-A：Android 音频实现 ✅
+
+- 创建 `AndroidSound : Sound`（继承 SoundStub 虚方法基类）
+- override 13 个虚方法：play/stop/pause/resume/close/isPlaying/setVolume/getVolume/setSpeed/getSpeed/SetPreservePitch/GetTotalTime/GetCurrentTime
+- Android MediaPlayer 封装：WAV/OGG/MP3 播放、音量映射（0-100→0.0-1.0）、循环播放（MediaPlayer.Looping）、暂停/恢复（CurrentPosition 保存/恢复）
+- 变速限制：MediaPlayer 无原生变速 API，`setSpeed()` 空实现
+- AndroidHost.InitEmuera()：初始化 16 通道 Sound + 1 BGM 通道
+- 编译验证：0 错误，2 警告（SystemUiVisibility 已过时）
+
 ## [0.16.0] - 2026-05-17
 
 ### Slice 8A：Core 项目创建 ✅

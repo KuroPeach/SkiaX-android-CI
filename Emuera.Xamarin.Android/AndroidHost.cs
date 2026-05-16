@@ -1,0 +1,150 @@
+using System;
+using System.Threading.Tasks;
+using Android.App;
+using Android.Content;
+using Android.OS;
+using Android.Widget;
+using MinorShift.Emuera;
+using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.Runtime.Utils;
+using XEmuera.Drawing;
+using SkiaSharp;
+using AndroidEnvironment = Android.OS.Environment;
+using SysEnvironment = System.Environment;
+
+namespace XEmuera.Droid
+{
+    internal class AndroidHost
+    {
+        private EmueraConsole console;
+
+        public void InitEmuera()
+        {
+            InitPlatformInterop();
+            InitAudio();
+            InitEmueraEngine();
+        }
+
+        private void InitPlatformInterop()
+        {
+            PlatformInterop.DoEvents = () => { };
+
+            PlatformInterop.ShowMessage = (msg) =>
+            {
+                var activity = MainActivity.Instance;
+                if (activity == null) return;
+                activity.RunOnUiThread(() =>
+                {
+                    var builder = new AlertDialog.Builder(activity);
+                    builder.SetMessage(msg);
+                    builder.SetPositiveButton(Android.Resource.String.Ok, (_, __) => { });
+                    builder.Show();
+                });
+            };
+
+            PlatformInterop.ShowMessageWithTitle = (msg, caption) =>
+            {
+                var activity = MainActivity.Instance;
+                if (activity == null) return;
+                activity.RunOnUiThread(() =>
+                {
+                    var builder = new AlertDialog.Builder(activity);
+                    builder.SetTitle(caption);
+                    builder.SetMessage(msg);
+                    builder.SetPositiveButton(Android.Resource.String.Ok, (_, __) => { });
+                    builder.Show();
+                });
+            };
+
+            PlatformInterop.ShowQuestion = (msg, caption) =>
+            {
+                return false;
+            };
+
+            PlatformInterop.GetProductVersion = () =>
+            {
+                var context = MainActivity.Instance;
+                if (context == null) return "0.0.0.0";
+                try
+                {
+                    var pkgInfo = context.PackageManager.GetPackageInfo(context.PackageName, 0);
+                    return pkgInfo?.VersionName ?? "0.0.0.0";
+                }
+                catch
+                {
+                    return "0.0.0.0";
+                }
+            };
+
+            PlatformInterop.GetMousePosition = () => Point.Empty;
+
+            PlatformInterop.SetClipboardText = (text) =>
+            {
+                var context = MainActivity.Instance;
+                if (context == null) return;
+                try
+                {
+                    var clipboard = (ClipboardManager)context.GetSystemService(Context.ClipboardService);
+                    clipboard.PrimaryClip = ClipData.NewPlainText("Emuera", text);
+                }
+                catch { }
+            };
+
+            PlatformInterop.MeasureTextWidth = (text, fontName, fontSize, fontStyle) =>
+            {
+                var weight = fontStyle.HasFlag(XEmuera.Drawing.FontStyle.Bold) ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal;
+                var slant = fontStyle.HasFlag(XEmuera.Drawing.FontStyle.Italic) ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright;
+                var style = new SKFontStyle(weight, SKFontStyleWidth.Normal, slant);
+                using var typeface = SKTypeface.FromFamilyName(fontName, style) ?? SKTypeface.Default;
+                using var paint = new SKPaint { Typeface = typeface, TextSize = fontSize, IsStroke = false };
+                return paint.MeasureText(text);
+            };
+
+            PlatformInterop.MeasureText = (text, fontName, fontSize, fontStyle) =>
+            {
+                var weight = fontStyle.HasFlag(XEmuera.Drawing.FontStyle.Bold) ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal;
+                var slant = fontStyle.HasFlag(XEmuera.Drawing.FontStyle.Italic) ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright;
+                var style = new SKFontStyle(weight, SKFontStyleWidth.Normal, slant);
+                using var typeface = SKTypeface.FromFamilyName(fontName, style) ?? SKTypeface.Default;
+                using var paint = new SKPaint { Typeface = typeface, TextSize = fontSize, IsStroke = false };
+                var bounds = new SKRect();
+                paint.MeasureText(text, ref bounds);
+                return (bounds.Width, bounds.Height);
+            };
+        }
+
+        private void InitAudio()
+        {
+            GlobalStatic.Sound = new Sound[16];
+            for (int i = 0; i < GlobalStatic.Sound.Length; i++)
+                GlobalStatic.Sound[i] = new AndroidSound();
+            GlobalStatic.Bgm = new AndroidSound();
+        }
+
+        private void InitEmueraEngine()
+        {
+            var context = MainActivity.Instance;
+            if (context == null) return;
+
+            var exeDir = GetStoragePath() + "/emuera/";
+            GlobalStatic.PathProvider = new DefaultPathProvider(exeDir);
+
+            Task.Run(() =>
+            {
+                if (!Program.Init())
+                    return;
+
+                DrawTextUtils.Reset();
+                DrawBitmapUtils.Reset();
+
+                console = new EmueraConsole(null);
+                console.Initialize();
+            });
+        }
+
+        private string GetStoragePath()
+        {
+            return AndroidEnvironment.ExternalStorageDirectory.AbsolutePath;
+        }
+    }
+}

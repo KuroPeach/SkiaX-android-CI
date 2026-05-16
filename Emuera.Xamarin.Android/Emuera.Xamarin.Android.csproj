@@ -1,0 +1,77 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>XEmuera.Droid</RootNamespace>
+    <AssemblyName>XEmuera.Android</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <LangVersion>latest</LangVersion>
+    <DefineConstants>$(DefineConstants);ANDROID_APP</DefineConstants>
+    <NoWarn>CS0436;CS8981;CS0037;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS0266;CS1503;CS0029;CS1929;CS0176;CS0120;CS0019;CS0030;CS1501;CS0117;CS1061;CS0246;CS0121;CS0119;CS0103;CS7036;CS0200;CS0021;CS1729;CS0122;CS1977;CS0104</NoWarn>
+    <Nullable>disable</Nullable>
+    <AndroidApplication>True</AndroidApplication>
+    <AndroidResgenFile>Resources\Resource.designer.cs</AndroidResgenFile>
+    <AndroidResgenClass>Resource</AndroidResgenClass>
+    <AndroidManifest>Properties\AndroidManifest.xml</AndroidManifest>
+    <MonoAndroidResourcePrefix>Resources</MonoAndroidResourcePrefix>
+    <MonoAndroidAssetsPrefix>Assets</MonoAndroidAssetsPrefix>
+    <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <Optimize>False</Optimize>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <EmbedAssembliesIntoApk>false</EmbedAssembliesIntoApk>
+    <MandroidI18n>CJK</MandroidI18n>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>portable</DebugType>
+    <Optimize>true</Optimize>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <MandroidI18n>CJK</MandroidI18n>
+    <AndroidSupportedAbis>armeabi-v7a;x86;x86_64;arm64-v8a</AndroidSupportedAbis>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emuera.Xamarin.Core\Emuera.Xamarin.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="MainActivity.cs" />
+    <Compile Include="AndroidHost.cs" />
+    <Compile Include="AndroidSound.cs" />
+    <Compile Include="AndroidApp.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Properties\AndroidManifest.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AndroidResource Include="Resources\values\styles.xml" />
+    <AndroidResource Include="Resources\values\colors.xml" />
+    <AndroidResource Include="Resources\values\strings.xml" />
+    <AndroidResource Include="Resources\mipmap-anydpi-v26\icon.xml" />
+    <AndroidResource Include="Resources\mipmap-anydpi-v26\icon_round.xml" />
+    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-hdpi\icon.png" />
+    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-mdpi\icon.png" />
+    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-xhdpi\icon.png" />
+    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-xxhdpi\icon.png" />
+    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-xxxhdpi\icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Xamarin.Forms" Version="5.0.0.2478" />
+    <PackageReference Include="Xamarin.Essentials" Version="1.7.3" />
+    <PackageReference Include="Xamarin.AndroidX.Media" Version="1.4.3.2" />
+  </ItemGroup>
+
+</Project>
