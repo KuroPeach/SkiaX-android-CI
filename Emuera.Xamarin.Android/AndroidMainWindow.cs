@@ -333,6 +333,11 @@ namespace XEmuera.Droid
 
         public override void Reboot()
         {
+            if (console == null) return;
+            Task.Run(() =>
+            {
+                console.GotoTitle();
+            });
         }
 
         public override void Close()
@@ -342,6 +347,17 @@ namespace XEmuera.Droid
 
         public override void Focus()
         {
+        }
+
+        public override void MainMenu_Reboot()
+        {
+            Reboot();
+        }
+
+        public override void MainMenu_GotoTitle()
+        {
+            if (console == null || console.IsInProcess) return;
+            Reboot();
         }
 
         public override void update_lastinput()

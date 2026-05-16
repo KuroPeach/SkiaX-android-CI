@@ -38,8 +38,8 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public void ResetTextBoxPos() { TextBoxPosChanged = false; }
 		public virtual void SetTextBoxPos(int x, int y, int width = 0) { }
 		public virtual bool TextBoxIgnoreScrollBarChanges { get; set; }
-		public void MainMenu_Reboot() { }
-		public void MainMenu_GotoTitle() { }
+		public virtual void MainMenu_Reboot() { }
+		public virtual void MainMenu_GotoTitle() { }
 
 		public HotkeyState hotkeyState { get; } = new HotkeyState();
 
