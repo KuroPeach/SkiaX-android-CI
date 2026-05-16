@@ -12,7 +12,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.Runtime.Script.Statements.Variable;
@@ -2395,7 +2394,7 @@ internal sealed class VariableEvaluator : IDisposable
 		}
 		catch
 		{
-			MessageBox.Show(trerror.FailedCreateDataFolder.Text);
+			PlatformInterop.ShowMessage(trerror.FailedCreateDataFolder.Text);
 			throw new CodeEE(trerror.FailedCreateDataFolder.Text);
 		}
 	}

@@ -1,4 +1,3 @@
-﻿using System.Windows.Forms;
 using System.IO;
 using System;
 
@@ -16,7 +15,7 @@ public static class AssemblyData
 		ExeName = Path.GetFileName(ExePath);
 		emueraVer = typeof(AssemblyData).Assembly.GetName().Version;
 
-		EmueraVersionText = "Emuera.NET SkiaSharp " + Application.ProductVersion;
+		EmueraVersionText = "Emuera.NET SkiaSharp " + PlatformInterop.GetProductVersion();
 	}
 
 	/// <summary>

@@ -24,7 +24,6 @@ using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
 using System.Xml;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 // using MinorShift.Emuera.GameProc.Function;
@@ -7375,18 +7374,11 @@ internal static partial class FunctionMethodCreator
 						fs |= FontStyle.Underline;
 				}
 				Font fnt = new(fontname, fontsize, fs, GraphicsUnit.Pixel);
-				var bitmap = new Bitmap(16, 16);
-				//Graphics canvas = Graphics.FromImage(bitmap);
-				var graphics = Graphics.FromImage(bitmap);
-				var size = graphics.MeasureString(text, fnt, int.MaxValue, StringFormat.GenericTypographic);
+				var measured = PlatformInterop.MeasureText(text, fontname, fontsize, fs);
 
-				//TextRenderer
-				//Size tsize = TextRenderer.MeasureText(canvas, text, fnt,
-				//    new Size(2000, 2000), TextFormatFlags.NoPadding);
 				var resultArray = exm.VEvaluator.RESULT_ARRAY;
-				//resultArray[1] = (Int64)tsize.Width;
-				resultArray[1] = (long)size.Height;
-				return (long)size.Width;
+				resultArray[1] = (long)measured.Height;
+				return (long)measured.Width;
 			}
 			catch (Exception ex)
 			{
@@ -8852,7 +8844,7 @@ internal static partial class FunctionMethodCreator
 			//if (exm.Console.SelectingButton != null)
 			//	return exm.Console.SelectingButton.ToString();
 			bool b = exm.Console.AlwaysRefresh;
-			Point point = exm.Console.Window.MainPicBox.PointToClient(new Point(Control.MousePosition.X, Control.MousePosition.Y));
+			Point point = exm.Console.Window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 			exm.Console.AlwaysRefresh = true;
 			if (exm.Console.Window.MainPicBox.ClientRectangle.Contains(point))
 				exm.Console.MoveMouse(point);

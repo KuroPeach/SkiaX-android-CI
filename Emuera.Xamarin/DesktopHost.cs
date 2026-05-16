@@ -128,6 +128,37 @@ namespace MinorShift.Emuera
 
         public void InitEmuera()
         {
+            PlatformInterop.DoEvents = () => System.Windows.Forms.Application.DoEvents();
+            PlatformInterop.ShowMessage = (msg) => System.Windows.Forms.MessageBox.Show(msg);
+            PlatformInterop.ShowQuestion = (msg, caption) => System.Windows.Forms.MessageBox.Show(msg, caption, System.Windows.Forms.MessageBoxButtons.YesNo, System.Windows.Forms.MessageBoxIcon.None, System.Windows.Forms.MessageBoxDefaultButton.Button2) == System.Windows.Forms.DialogResult.Yes;
+            PlatformInterop.GetProductVersion = () => System.Windows.Forms.Application.ProductVersion;
+            PlatformInterop.GetMousePosition = () =>
+            {
+                var pos = System.Windows.Forms.Control.MousePosition;
+                return new Point(pos.X, pos.Y);
+            };
+            PlatformInterop.SetClipboardText = (text) => System.Windows.Forms.Clipboard.SetDataObject(text, false, 3, 200);
+            PlatformInterop.MeasureTextWidth = (text, fontName, fontSize, fontStyle) =>
+            {
+                var weight = fontStyle.HasFlag(XEmuera.Drawing.FontStyle.Bold) ? SkiaSharp.SKFontStyleWeight.Bold : SkiaSharp.SKFontStyleWeight.Normal;
+                var slant = fontStyle.HasFlag(XEmuera.Drawing.FontStyle.Italic) ? SkiaSharp.SKFontStyleSlant.Italic : SkiaSharp.SKFontStyleSlant.Upright;
+                var style = new SkiaSharp.SKFontStyle(weight, SkiaSharp.SKFontStyleWidth.Normal, slant);
+                using var typeface = SkiaSharp.SKTypeface.FromFamilyName(fontName, style) ?? SkiaSharp.SKTypeface.Default;
+                using var paint = new SkiaSharp.SKPaint { Typeface = typeface, TextSize = fontSize, IsStroke = false };
+                return paint.MeasureText(text);
+            };
+            PlatformInterop.MeasureText = (text, fontName, fontSize, fontStyle) =>
+            {
+                var weight = fontStyle.HasFlag(XEmuera.Drawing.FontStyle.Bold) ? SkiaSharp.SKFontStyleWeight.Bold : SkiaSharp.SKFontStyleWeight.Normal;
+                var slant = fontStyle.HasFlag(XEmuera.Drawing.FontStyle.Italic) ? SkiaSharp.SKFontStyleSlant.Italic : SkiaSharp.SKFontStyleSlant.Upright;
+                var style = new SkiaSharp.SKFontStyle(weight, SkiaSharp.SKFontStyleWidth.Normal, slant);
+                using var typeface = SkiaSharp.SKTypeface.FromFamilyName(fontName, style) ?? SkiaSharp.SKTypeface.Default;
+                using var paint = new SkiaSharp.SKPaint { Typeface = typeface, TextSize = fontSize, IsStroke = false };
+                var bounds = new SkiaSharp.SKRect();
+                paint.MeasureText(text, ref bounds);
+                return (bounds.Width, bounds.Height);
+            };
+
             mainWindow = new DesktopMainWindow(this);
             console = new EmueraConsole(mainWindow);
             Task.Run(() =>

@@ -7,7 +7,6 @@ using System.Linq;
 using System.Drawing;
 using System.IO;
 using System.Text;
-using System.Windows.Forms;
 using System.Reflection;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 
@@ -227,7 +226,7 @@ internal static class Config
 		}
 		if (TextDrawingMode == TextDrawingMode.WINAPI)
 		{
-			MessageBox.Show(trmb.DoNotSupportWINAPI.Text);
+			PlatformInterop.ShowMessage(trmb.DoNotSupportWINAPI.Text);
 			TextDrawingMode = TextDrawingMode.TEXTRENDERER;
 		}
 

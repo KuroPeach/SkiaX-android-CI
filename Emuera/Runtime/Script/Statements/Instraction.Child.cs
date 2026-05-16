@@ -22,7 +22,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
-using System.Windows.Forms;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
@@ -2992,13 +2991,8 @@ internal sealed partial class FunctionIdentifier
 					}
 					if (version != GlobalStatic.GameBaseData.VersionName)
 					{
-						DialogResult result = MessageBox.Show(string.Format(trmb.NewVersionAvailable.Text, version, link),
-							trmb.UpdateCheck.Text,
-							MessageBoxButtons.YesNo,
-							MessageBoxIcon.None,
-							MessageBoxDefaultButton.Button2
-							);
-						if (result == DialogResult.Yes)
+						bool result = PlatformInterop.ShowQuestion(string.Format(trmb.NewVersionAvailable.Text, version, link), "");
+					if (result)
 						{
 							exm.VEvaluator.RESULT = 2;
 							System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
