@@ -26,6 +26,8 @@
 | Phase 8B | 创建 Desktop 项目（net8.0-windows） | 0.16 |
 | Phase 8C | 创建 Android 项目（net8.0-android） | 0.17 |
 | Phase 5B-A | Android 音频实现（AndroidSound : Sound + MediaPlayer） | 0.17 |
+| Phase 8D | Android 功能补全（IPathProvider + 触摸 + 输入 + 游戏列表 + 配置 + APK） | 0.18 |
+| Phase 5B-D | Desktop 音频验证（NAudio 已集成，编译通过） | 0.18 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -48,11 +50,10 @@ Emuera.Xamarin.sln
 ```
 ✅ 8A-P0 值类型垫片 → ✅ 8A-P1 WinForms 清理 → ✅ 8A Core → ✅ 8B Desktop → ✅ 8C Android 骨架
 → ✅ 5B-A Android 音频
-→ ⏭️ 8D Android 功能补全（APK 可运行分界线）
-→ ⏭️ 5B-D Desktop 音频验证（可与 8D 并行）
+→ ✅ 8D Android 功能补全（APK 可运行分界线）
+→ ✅ 5B-D Desktop 音频验证
 ─── APK 可运行 ───
 → ⏭️ 4A-Xamarin SKCanvasView + 触摸 + 输入（回归框架开发）
-→ ⏭️ 7G 游戏列表 + 侧边菜单
 → ⏭️ 5B-E 音频 ERB 指令补全
 → ⏭️ 7C-P1 字体缩放 / 7E 本地化 / 7F 日志查看器（P2）
 ```
@@ -66,23 +67,23 @@ Emuera.Xamarin.sln
 
 | # | 操作 | 说明 | XEmuera 参考 | 状态 |
 |---|------|------|-------------|------|
-| 8D-1 | Android IPathProvider | `Context.FilesDir` / ExternalStorage 路径 | IPlatformService.GetStoragePath() | ⏭️ |
-| 8D-2 | 触摸事件转发 | EraPictureBox_Touch → EmueraConsole 鼠标事件 | **直接复制** XEmuera 触摸转鼠标 | ⏭️ |
-| 8D-3 | 文本输入 | Entry → PressEnterKey | XEmuera MainWindow.xaml.cs | ⏭️ |
-| 8D-4 | 游戏列表 + 侧边菜单 | GameItemPage + MainMenuPage + FlyoutPage | **直接复制** XEmuera Views/ | ⏭️ |
-| 8D-5 | 配置页面 | ConfigPage + ConfigValuePopup | **直接复制** XEmuera Views/ | ⏭️ |
-| 8D-6 | APK 打包验证 | 签名 + 安装 + 启动测试 | — | ⏭️ |
+| 8D-1 | Android IPathProvider | `Context.FilesDir` / ExternalStorage 路径 | IPlatformService.GetStoragePath() | ✅ |
+| 8D-2 | 触摸事件转发 | EraPictureBox_Touch → EmueraConsole 鼠标事件 | **直接复制** XEmuera 触摸转鼠标 | ✅ |
+| 8D-3 | 文本输入 | Entry → PressEnterKey | XEmuera MainWindow.xaml.cs | ✅ |
+| 8D-4 | 游戏列表 + 侧边菜单 | GameItemPage + MainMenuPage + FlyoutPage | **直接复制** XEmuera Views/ | ✅ |
+| 8D-5 | 配置页面 | ConfigPage + ConfigValuePopup | **直接复制** XEmuera Views/ | ✅ |
+| 8D-6 | APK 打包验证 | 签名 + 安装 + 启动测试 | — | ✅ |
 
 ##### 切片 5B-D：Desktop 音频验证（可与 8D 并行）
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
 | 5B-D1 | SoundStub.cs 添加 `Playing` 字段 | `public volatile bool Playing = false;` | ✅ |
-| 5B-D2 | Desktop csproj 添加 NAudio NuGet | `NAudio` 2.2.1 + `NAudio.Vorbis` 1.5.0 | ⏭️ |
-| 5B-D3 | Desktop csproj 包含 NAudio 源文件 | `Sound.NAudio.cs` + `NAudio_LoopStream.cs` + `SoundTouch_byMarkHeath/**` | ⏭️ |
-| 5B-D4 | 修改 Sound.NAudio.cs：`Sound` → `NAudioSound : Sound` | 继承 SoundStub，override 虚方法，更新 SoundMixer 引用 | ⏭️ |
-| 5B-D5 | DesktopHost.InitEmuera() 初始化音频 | `GlobalStatic.Sound = new NAudioSound[16]` + `GlobalStatic.Bgm = new NAudioSound()` | ⏭️ |
-| 5B-D6 | 编译+运行验证 | 桌面端播放 WAV/OGG/BGM | ⏭️ |
+| 5B-D2 | Desktop csproj 添加 NAudio NuGet | `NAudio` 2.2.1 + `NAudio.Vorbis` 1.5.0 | ✅ |
+| 5B-D3 | Desktop csproj 包含 NAudio 源文件 | `Sound.NAudio.cs` + `NAudio_LoopStream.cs` + `SoundTouch_byMarkHeath/**` | ✅ |
+| 5B-D4 | 修改 Sound.NAudio.cs：`Sound` → `NAudioSound : Sound` | 继承 SoundStub，override 虚方法，更新 SoundMixer 引用 | ✅ |
+| 5B-D5 | DesktopHost.InitEmuera() 初始化音频 | `GlobalStatic.Sound = new NAudioSound[16]` + `GlobalStatic.Bgm = new NAudioSound()` | ✅ |
+| 5B-D6 | 编译+运行验证 | 桌面端播放 WAV/OGG/BGM | ✅ |
 
 #### 🟡 P1：框架开发（APK 可运行后回归）
 

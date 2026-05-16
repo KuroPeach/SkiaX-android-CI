@@ -1,5 +1,56 @@
 # Emuera.Xamarin 变更记录
 
+## [0.18.0] - 2026-05-17
+
+### Slice 8D：Android 功能补全 ✅
+
+#### 8D-1：Android IPathProvider ✅
+
+- 创建 `AndroidPathProvider : IPathProvider`
+  - `ExeDir`：`ExternalStorageDirectory/emuera/`（支持 `gamePath` 参数覆盖）
+  - `TempDir`：`Context.CacheDir.AbsolutePath`
+  - `ExeName`：`PackageManager.GetPackageInfo` 获取包名
+  - `ResolveDir()`：大小写不敏感目录回退（erb/ERB）
+
+#### 8D-2+8D-3：触摸事件转发 + 文本输入 ✅
+
+- 创建 `AndroidMainWindow : MainWindow`
+  - SKCanvasView + Entry + QuickButton 布局
+  - SKCanvasView.Touch → EmueraConsole 鼠标事件转换
+  - 长按模拟右键（500ms LongPressTimer）
+  - 垂直拖动 → ScrollBar 滚动
+  - Entry.Completed → PressEnterKey
+  - extern alias `skviews` 解决 Core stub 与 NuGet 类型冲突
+  - MainWindow override：Invoke/Refresh/Close/update_lastinput/clear_richText/ShowConfigDialog
+
+#### 8D-4：游戏列表 + 侧边菜单 ✅
+
+- `AndroidGameItemModel`：扫描 ExeDir 下含 ERB/erb 子目录的文件夹
+- `AndroidGameListPage`：ListView 游戏列表，下拉刷新，点击启动
+- `AndroidMainMenuPage`：FlyoutPage 侧边菜单（Reboot/GotoTitle/Settings）
+- `AndroidApp`：FlyoutPage 组合菜单+游戏列表+游戏页面
+- `AndroidHost.StartGame(gamePath)`：延迟引擎初始化
+
+#### 8D-5：配置页面 ✅
+
+- `AndroidConfigPage`：ListView 显示 ConfigData 所有配置项
+- bool 配置点击切换，string/int 配置点击弹出编辑页
+- Save & Close 按钮保存配置
+- MainWindow.ShowConfigDialog() → 导航到配置页
+
+#### 8D-6：APK 打包验证 ✅
+
+- `dotnet publish -c Debug -f net8.0-android` 成功
+- 生成 `com.xemuera.app-Signed.apk`（~30.5 MB）
+- 编译验证：0 错误，4 警告
+
+### Slice 5B-D：Desktop 音频验证 ✅
+
+- 确认 NAudio NuGet 已集成（NAudio 2.2.1 + NAudio.Vorbis 1.5.0 + NVorbis 0.10.5）
+- 确认 NAudioSound.cs 已存在，继承 Sound 虚方法基类
+- 确认 DesktopHost.InitEmuera() 已初始化 16 通道 Sound + 1 BGM 通道
+- 编译验证：0 错误
+
 ## [0.17.0] - 2026-05-17
 
 ### Slice 8C：Android 项目创建 ✅
