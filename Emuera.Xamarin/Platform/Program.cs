@@ -7,6 +7,7 @@ using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using System.IO;
+using XEmuera;
 using XEmuera.Resources;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift._Library;
@@ -230,7 +231,7 @@ namespace MinorShift.Emuera
 			{
 				foreach (string ext in new[] { "*.ttf", "*.otf", "*.ttc" })
 				{
-					foreach (string fontFile in Directory.GetFiles(fontDir, ext, SearchOption.AllDirectories))
+					foreach (string fontFile in FileUtils.GetFiles(fontDir, ext, SearchOption.AllDirectories))
 					{
 						GlobalStatic.Pfc.AddFontFile(fontFile);
 						try
@@ -259,7 +260,7 @@ namespace MinorShift.Emuera
 		/// 実行ファイルのディレクトリ。最後に\を付けたstring
 		/// </summary>
 		public static string ExeDir => GlobalStatic.PathProvider?.ExeDir ?? "";
-		public static string WorkingDir = "";
+		public static string WorkingDir => GlobalStatic.PathProvider?.ExeDir ?? "";
 		public static string CsvDir => GlobalStatic.PathProvider?.CsvDir ?? "";
 		public static string ErbDir => GlobalStatic.PathProvider?.ErbDir ?? "";
 		public static string DebugDir => GlobalStatic.PathProvider?.DebugDir ?? "";

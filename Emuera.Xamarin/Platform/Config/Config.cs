@@ -455,7 +455,7 @@ namespace MinorShift.Emuera
 			List<KeyValuePair<string, string>> retList = new List<KeyValuePair<string, string>>();
 			if (!toponly)
 			{//サブフォルダ内の検索
-				string[] dirList = Directory.GetDirectories(dir, "*", SearchOption.TopDirectoryOnly);
+				string[] dirList = FileUtils.GetDirectories(dir);
 				if (dirList.Length > 0)
 				{
 					if (sort)

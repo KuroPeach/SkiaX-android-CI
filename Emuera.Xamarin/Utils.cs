@@ -275,6 +275,13 @@ namespace XEmuera
 			return Directory.EnumerateFiles(path, "*", searchOption).Where(file => regex.IsMatch(Path.GetFileName(file))).ToArray();
 		}
 
+		public static string[] GetDirectories(string path)
+		{
+			if (!Directory.Exists(path))
+				return new string[0];
+			return Directory.GetDirectories(path);
+		}
+
 		public static bool Exists(ref string filePath)
 		{
 			if (string.IsNullOrEmpty(filePath))

@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Linq;
+using XEmuera;
 
 namespace XEmuera.Models
 {
@@ -66,7 +67,7 @@ namespace XEmuera.Models
 			if (!Directory.Exists(mainPath))
 				return;
 
-			var gameItemPaths = Directory.GetDirectories(mainPath);
+			var gameItemPaths = FileUtils.GetDirectories(mainPath);
 			if (gameItemPaths.Length == 0)
 				return;
 

@@ -90,7 +90,7 @@ namespace MinorShift.Emuera.Content
 			name = name.ToUpper();
 			if (imageDictionary.ContainsKey(name))
 				return true;
-			if (!System.IO.File.Exists(filepath))
+			if (!FileUtils.Exists(ref filepath))
 				return false;
 			try
 			{
