@@ -1,17 +1,18 @@
 using SkiaSharp;
 using System;
+using Xamarin.Forms;
 
 namespace MinorShift.Emuera.UI.Framework.Forms
 {
-	internal class MainWindow
+	internal class MainWindow : ContentPage
 	{
 		public MainWindow() { }
 		public MainWindow(string[] args) { }
 
-		public virtual string Title { get; set; } = "";
+		public new virtual string Title { get; set; } = "";
 		public virtual string Text { get => Title; set => Title = value; }
-		public virtual SKColor BackgroundColor { get; set; } = SKColors.Black;
-		public virtual bool IsEnabled { get; set; } = true;
+		public new virtual SKColor BackgroundColor { get; set; } = SKColors.Black;
+		public new virtual bool IsEnabled { get; set; } = true;
 		public virtual bool Created { get => IsEnabled; }
 
 		public virtual ScrollBar ScrollBar { get; } = new ScrollBar();
@@ -24,7 +25,7 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public virtual void Close() { }
 		public virtual void Refresh() { }
 		public virtual void Invoke(Action action) { action?.Invoke(); }
-		public virtual void Focus() { }
+		public new virtual void Focus() { }
 		public virtual void ShowConfigDialog() { }
 		public virtual void ShowDebugDialog() { }
 		public void RefreshQuickButtonGroup() { }
