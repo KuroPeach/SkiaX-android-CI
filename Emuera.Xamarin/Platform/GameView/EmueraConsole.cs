@@ -521,7 +521,7 @@ namespace MinorShift.Emuera.GameView
 		ConsoleButtonString lastSelectingButton = null;
 		public ConsoleButtonString SelectingButton { get { return selectingButton; } }
 		public bool ButtonIsSelected(ConsoleButtonString button) { return selectingButton == button; }
-		public bool ButtonIsPointing(ConsoleButtonString button) { return pointingString == button; }
+		public bool ButtonIsPointing(ConsoleButtonString button) { return pointingStrings.Contains(button); }
 
 		/// <summary>
 		/// ToolTip表示したフラグ
@@ -532,6 +532,7 @@ namespace MinorShift.Emuera.GameView
 		/// ToolTip表示用。世代無視、履歴中も表示
 		/// </summary>
 		ConsoleButtonString pointingString = null;
+		HashSet<ConsoleButtonString> pointingStrings = new HashSet<ConsoleButtonString>();
 		ConsoleButtonString lastPointingString = null;
 		#endregion
 
@@ -1869,6 +1870,7 @@ namespace MinorShift.Emuera.GameView
 					bool ret = (pointingString != null || selectingButton != null || buttonNum != selectingCBGButtonInt);
 					selectingCBGButtonInt = buttonNum;
 					pointingString = null;
+					pointingStrings.Clear();
 					selectingButton = null;
 					return ret;
 				}
@@ -1876,6 +1878,7 @@ namespace MinorShift.Emuera.GameView
 				{
 					selectingCBGButtonInt = -1;
 					pointingString = null;
+					pointingStrings.Clear();
 					selectingButton = null;
 					return true;
 				}
@@ -1883,6 +1886,8 @@ namespace MinorShift.Emuera.GameView
 			selectingCBGButtonInt = -1;
 			ConsoleButtonString select = null;
 			ConsoleButtonString pointing = null;
+			int prevPointingStringsLen = pointingStrings.Count;
+			pointingStrings.Clear();
 			bool canSelect = false;
 			//数値か文字列の入力待ち状態でなければ選択中にはならない
 			if (state == ConsoleState.Error)
@@ -1940,7 +1945,10 @@ namespace MinorShift.Emuera.GameView
 								pointing = button;
 								curLineY = window.MainPicBox.Height - Config.LineHeight * (bottomLineNo - i + 1);
 								if (pointing.IsButton)
+								{
+									pointingStrings.Add(button);
 									goto breakfor;
+								}
 							}
 						}
 					}
@@ -1971,7 +1979,7 @@ namespace MinorShift.Emuera.GameView
 		end:
 			if (canSelect)
 				select = pointing;
-			bool needRefresh = select != selectingButton || pointing != pointingString;
+			bool needRefresh = select != selectingButton || pointing != pointingString || pointingStrings.Count != prevPointingStringsLen;
 			pointingString = pointing;
 			selectingButton = select;
 			#region EmuEra-Rikaichan
@@ -2043,6 +2051,7 @@ namespace MinorShift.Emuera.GameView
 			bool needRefresh = selectingButton != null || pointingString != null;
 			selectingButton = null;
 			pointingString = null;
+			pointingStrings.Clear();
 			if(needRefresh)
 			{
 				RefreshStrings(true);
@@ -2360,14 +2369,20 @@ namespace MinorShift.Emuera.GameView
 
 		public bool AlwaysRefresh { get; set; }
 
-		public long AnimeTimer => 0;
+		public long AnimeTimer => redrawTimer.Enabled ? (long)redrawTimer.Interval : 0;
 
 		public void SetImageLayer(string spriteName, long depth, int x, int y, int width, int height, int opacity, float[] colorMatrix, bool followScroll)
 		{
 			_imageLayerManager.SetLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, followScroll, window.ScrollBar.Value * Config.LineHeight);
 		}
 
-		public void OutputLog(string path, bool append) { }
+		public void OutputLog(string path, bool append)
+		{
+			if (path == null)
+				OutputLog((string)null);
+			else
+				OutputLog(path);
+		}
 
 		public void SetToolTipFontName(string fontName) { _tooltipFontName = fontName; }
 

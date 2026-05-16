@@ -35,7 +35,7 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public virtual void clear_richText() { }
 		public virtual bool TextBoxPosChanged { get; set; }
 		public void ResetTextBoxPos() { TextBoxPosChanged = false; }
-		public void SetTextBoxPos(int x, int y, int width = 0) { }
+		public virtual void SetTextBoxPos(int x, int y, int width = 0) { }
 		public virtual bool TextBoxIgnoreScrollBarChanges { get; set; }
 		public void MainMenu_Reboot() { }
 		public void MainMenu_GotoTitle() { }

@@ -494,6 +494,17 @@ namespace MinorShift.Emuera
             inputTextBox.KeyDown += InputTextBox_KeyDown;
         }
 
+        public void SetTextBoxPosition(int x, int y, int width)
+        {
+            if (inputTextBox.IsDisposed)
+                return;
+            var newX = Math.Max(0, Math.Min(x, pictureBox.Width - 50));
+            var newY = Math.Min(Math.Max(pictureBox.Height - y - inputTextBox.Height, 0), pictureBox.Height - inputTextBox.Height);
+            inputTextBox.Location = new System.Drawing.Point(newX, newY);
+            if (width > 0)
+                inputTextBox.Width = Math.Max(50, Math.Min(width, pictureBox.Width - newX));
+        }
+
         #endregion
     }
 
@@ -632,6 +643,11 @@ namespace MinorShift.Emuera
         public override void clear_richText()
         {
             form.ClearTextBoxText();
+        }
+
+        public override void SetTextBoxPos(int x, int y, int width = 0)
+        {
+            form.SetTextBoxPosition(x, y, width);
         }
 
         public override void ChangeTextBox(string str)

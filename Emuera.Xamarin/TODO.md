@@ -14,6 +14,8 @@
 - ✅ **Phase 4B-Desktop** 已完成（WinForms 配置对话框）
 - ✅ **Phase 4A-Desktop 续2** 已完成（ToolTip + QuickButton + DebugDialog 完善）
 - ✅ **Phase 4C-Desktop** 已完成（DebugDialog 属性恢复 + OpenDebugDialog 激活）
+- ✅ **Phase 4A-D20** 已完成（P0-P1 修复 + PressPrimitiveKey 恢复）
+- ✅ **Phase 4A-D21** 已完成（Rikaichan 词典悬浮提示系统移植）
 - 📋 **Phase 7** 已规划（XEmuera 上游跟进：~~编码识别~~❌已覆盖/~~虚拟手柄~~❌不移植/字体缩放/外部字体/本地化/日志查看器/游戏列表）
 - ⏭️ Phase 4A-Xamarin / Phase 4B-Xamarin / Phase 5 / Phase 7
 
@@ -94,7 +96,7 @@
 | 3C-1 | 移植 `ValidateBackground()` + `bakedBackground` | 背景预烘焙机制 | ✅ |
 | 3C-2 | 移植 EscapedParts + CBG 混合渲染 | 按 zdepth 降序排列，depth=0 时绘制文本行 | ✅ |
 | 3C-3 | 集成 `_imageLayerManager.DrawTo()` | 在背景和文本之间绘制图层 | ✅ |
-| 3C-4 | 移植 `rikaichan.OnPaint()` | Rikaichan 悬浮提示渲染 | ⏭️ 延后 |
+| 3C-4 | 移植 `rikaichan.OnPaint()` | Rikaichan 悬浮提示渲染 | ✅ |
 | 3C-5 | 移植 `_htmlElementList` HTML 元素绘制 | HTML_PRINT 岛屿输出 | ⏭️ 延后 |
 | 3C-6 | 编译+运行验证 | — | ✅ |
 
