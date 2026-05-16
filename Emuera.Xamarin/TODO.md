@@ -41,43 +41,103 @@
 
 > **知识库**：[graphics-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/graphics-rendering.md)、[font-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/font-rendering.md)
 > **前置条件**：Phase 2 + 4A-Desktop 完成 ✅
+> **勘探日期**：2026-05-16
+> **关键发现**：
+> 1. LazyLoading 内核渲染管线**已完全 Skia 化**，GDI+ 仅在光栅字体回退路径残留
+> 2. xamarin OnPaint 是**旧版简化**，缺少背景烘焙/图层混合/EscapedParts/Rikaichan
+> 3. Drawing/ 目录的 DrawBitmapUtils + DrawTextUtils 是**完整实现**，可直接使用
+> 4. ImageLayerManager 和 ColorMatrixHelper 是**P0 级 stub**，必须优先实现
+> 5. FontFactory 需要从简化版升级为完整版（4层回退链+缓存）
 
-### 切片 3A：SETIMAGELAYER 图层管理
+### 切片 3A：ImageLayerManager 图层管理（P0）
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 3A-1 | 升级 `ImageLayerManager.cs` 存根 | 从空方法 → 真实实现（ZDepth 排序 + SKPicture 烘焙） |
-| 3A-2 | 实现 `ImageLayer` 数据结构 | 直接移植 LazyLoading 版本 |
-| 3A-3 | 实现 `DrawAll(SKCanvas, scrollY)` | 视口裁剪 + 烘焙绘制 |
-| 3A-4 | 编译+运行验证 | — |
+> **目标**：实现 SETIMAGELAYER 系列指令的图层管理
+> **参考**：LazyLoading `Emuera/UI/Game/ImageLayerManager.cs`（117行，完全 Skia）
 
-### 切片 3B：ColorMatrix 颜色矩阵
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3A-1 | 升级 `ImageLayer` 数据结构 | 添加 `ASprite Image`（替换 `object`）、`SKColorFilter?`、`SpriteAnime` 动画管理 | ✅ |
+| 3A-2 | 实现 `SetLayer()` | 创建 ImageLayer 并存入 `_layers` 字典，查找 ASprite | ✅ |
+| 3A-3 | 实现 `DrawAll()` → 改名 `DrawTo()` | 按 Depth 升序绘制，视口裁剪，离屏暂停动画，FollowScroll 偏移 | ✅ |
+| 3A-4 | 集成到 EmueraConsole.OnPaint | 添加 `_imageLayerManager.DrawTo(graph, ...)` 调用 | ✅ |
+| 3A-5 | 编译+运行验证 | 0 编译错误 | ✅ |
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 3B-1 | 升级 `ColorMatrixHelper.cs` 存根 | GDI+ float[5][5] → SkiaSharp float[20] 转换 |
-| 3B-2 | 修改 HtmlManager 解析 `cm` 属性 | `ConsoleImagePart._cmVariableName` |
-| 3B-3 | 实现 `GSETCOLORMATRIX` 指令 | 新增到 BuiltInFunctionCode |
-| 3B-4 | 编译+运行验证 | — |
+**隐含依赖**：`AppContents.CreateSprite<XXX>()` 系列方法需能正确返回 ASprite（当前 `CreateSpriteFromFileDynamic` 返回 false）
 
-### 切片 3C：字体渲染
+### 切片 3B：ColorMatrix 颜色矩阵（P0）
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 3C-1 | 移植 LazyLoading 字体回退链 | 4 层回退（自定义→安全字体→MatchCharacter→Default） |
-| 3C-2 | 升级 `FontFactory.cs` 存根 | 实现字体加载+缓存 |
-| 3C-3 | 去掉 GDI+ 回退路径 | Android/iOS 不可用 |
-| 3C-4 | 新增 ConfigCode 配置项 | SkiaSharpFontHinting/SkiaSharpFontEdging |
-| 3C-5 | 编译+运行验证 | — |
+> **目标**：实现 GSETCOLORMATRIX 指令和 HTML img cm 属性
+> **参考**：LazyLoading `Emuera/UI/Game/image/ColorMatrixHelper.cs`（84行，完全 Skia）
 
-### 切片 3D：增量渲染（可选优化）
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3B-1 | 重写 `CreateColorMatrix()` | 移除（无调用者，直接用 SKColorFilter.CreateColorMatrix） | ✅ |
+| 3B-2 | 实现 `ReadFromVariableTerm()` | 从 ERB 变量表达式读取 5x5 矩阵，调用 `ToSkia()` 转换 | ✅ |
+| 3B-3 | 实现 `ReadFromVariable()` | 从 VariableToken 读取 2D/3D 数组，支持角色变量 | ✅ |
+| 3B-4 | 验证 `SKColorFilter.CreateColorMatrix()` | 确认 offset × 255 转换正确 | ✅ |
+| 3B-5 | 编译+运行验证 | 0 编译错误 | ✅ |
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 3D-1 | 移植 `DirtyLineTracker` | 脏行追踪 |
-| 3D-2 | 移植 `IncrementalRenderer` | 增量渲染 |
-| 3D-3 | 移植 `RenderLoop` | 渲染循环 |
-| 3D-4 | 性能对比测试 | 全屏重绘 vs 增量渲染 |
+### 切片 3C：OnPaint 升级（P0）
+
+> **目标**：将 xamarin OnPaint 从旧版简化升级为 LazyLoading 完整版
+> **这是 Phase 3 的核心工作量**
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3C-1 | 移植 `ValidateBackground()` + `bakedBackground` | 背景预烘焙机制 | ⏳ |
+| 3C-2 | 移植 EscapedParts + CBG 混合渲染 | 按 zdepth 降序排列，depth=0 时绘制文本行 | ⏳ |
+| 3C-3 | 集成 `_imageLayerManager.DrawTo()` | 在背景和文本之间绘制图层 | ⏳ |
+| 3C-4 | 移植 `rikaichan.OnPaint()` | Rikaichan 悬浮提示渲染 | ⏳ |
+| 3C-5 | 移植 `_htmlElementList` HTML 元素绘制 | HTML_PRINT 岛屿输出 | ⏳ |
+| 3C-6 | 编译+运行验证 | — | ⏳ |
+
+**风险**：OnPaint 升级涉及大量行级修改，需逐段 diff LazyLoading 版和 xamarin 版
+
+### 切片 3D：FontFactory 完善（P1）
+
+> **目标**：从简化版升级为完整版字体工厂
+> **参考**：LazyLoading `Emuera/UI/FontFactory.cs`（294行）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3D-1 | 移植字体回退链 | 4 层回退：自定义→安全字体→MatchCharacter→Default | ⏳ |
+| 3D-2 | 实现 `GetFont()` 完整参数 | 应用 style/edging/hinting 参数 | ⏳ |
+| 3D-3 | 实现 `IsRasterFont()` | 检测 MS Gothic 等光栅字体 | ⏳ |
+| 3D-4 | 实现字体缓存 | `fontDic` + `fallbackTypefaceCache` | ⏳ |
+| 3D-5 | 实现 `GetFallbackFontForChar()` | 按字符获取回退字体 | ⏳ |
+| 3D-6 | 编译+运行验证 | — | ⏳ |
+
+**注意**：光栅字体的 GDI 桥接路径（`TextRenderer.DrawText` → `SKBitmap`）在 Android/iOS 不可用，需条件编译或替代方案
+
+### 切片 3E：ConsoleDivPart 实现（P1）
+
+> **目标**：实现 div 容器的渲染和宽度计算
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3E-1 | 移植 `ConsoleDivPart.DrawTo()` | div 容器绘制逻辑 | ⏳ |
+| 3E-2 | 移植 `ConsoleDivPart.SetWidth()` | div 宽度计算 | ⏳ |
+| 3E-3 | 编译+运行验证 | — | ⏳ |
+
+### 切片 3F：GraphicsImage 缺失方法（P2）
+
+> **目标**：补全 GBitmapToInt64Array/GByteArrayToBitmap 等像素操作
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3F-1 | 实现 `GBitmapToInt64Array()` | SkiaSharp 像素读取 | ⏳ |
+| 3F-2 | 实现 `GByteArrayToBitmap()` | SkiaSharp 像素写入 | ⏳ |
+| 3F-3 | 修复 `GDrawLine()`/`GDrawPolygon()` | surface 未写回 Bitmap 的 bug | ⏳ |
+| 3F-4 | 编译+运行验证 | — | ⏳ |
+
+### 切片 3G：增量渲染（可选优化，P3）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 3G-1 | 移植 `DirtyLineTracker` | 脏行追踪 | ⏭️ 可选 |
+| 3G-2 | 移植 `IncrementalRenderer` | 增量渲染 | ⏭️ 可选 |
+| 3G-3 | 移植 `RenderLoop` | 渲染循环 | ⏭️ 可选 |
+| 3G-4 | 性能对比测试 | 全屏重绘 vs 增量渲染 | ⏭️ 可选 |
 
 ---
 

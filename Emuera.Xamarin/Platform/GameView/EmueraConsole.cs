@@ -17,6 +17,7 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.GameData.Variable;
 //using System.Drawing.Imaging;
 using MinorShift.Emuera.UI.Framework.Forms;
+using MinorShift.Emuera.UI.Game.Rendering;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Function;
 using MinorShift.Emuera.Content;
@@ -243,6 +244,7 @@ namespace MinorShift.Emuera.GameView
 
 		const string ErrorButtonsText = "__openFileWithDebug__";
         private readonly MainWindow window;
+		private readonly ImageLayerManager _imageLayerManager = new();
 
 		MinorShift.Emuera.GameProc.Process emuera;
 		ConsoleState state = ConsoleState.Initializing;
@@ -1419,6 +1421,7 @@ namespace MinorShift.Emuera.GameView
 			//else
 			//{
 				graph.Clear(DisplayUtils.ToSKColor(this.bgColor));
+				_imageLayerManager.DrawTo(graph, ClientWidth, ClientHeight, window.ScrollBar.Value * Config.LineHeight);
 				//1823 cbg追加
 				for (int j = 0; j < cbgList.Count; j++)
 				{
@@ -2148,17 +2151,20 @@ namespace MinorShift.Emuera.GameView
 
 		public long AnimeTimer => 0;
 
-		public void SetImageLayer(string spriteName, long depth, int x, int y, int width, int height, int opacity, float[] colorMatrix, bool followScroll) { }
+		public void SetImageLayer(string spriteName, long depth, int x, int y, int width, int height, int opacity, float[] colorMatrix, bool followScroll)
+		{
+			_imageLayerManager.SetLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, followScroll, window.ScrollBar.Value * Config.LineHeight);
+		}
 
 		public void OutputLog(string path, bool append) { }
 
 		public void SetToolTipFontName(string fontName) { }
 
-		public bool ExistsImageLayer(long depth) => false;
+		public bool ExistsImageLayer(long depth) => _imageLayerManager.Exists(depth);
 
 		public bool bitmapCacheEnabledForNextLine { get; set; }
-		public void ClearImageLayerAll() { }
-		public void ClearImageLayer(long zdepth) { }
+		public void ClearImageLayerAll() { _imageLayerManager.ClearAll(); }
+		public void ClearImageLayer(long zdepth) { _imageLayerManager.ClearLayer(zdepth); }
 		public bool strictFontFallback { get; set; }
 		public void SetToolTipImg(ASprite sprite) { }
 		public void SetToolTipImg(bool value) { }

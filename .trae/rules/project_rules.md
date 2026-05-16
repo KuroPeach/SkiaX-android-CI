@@ -25,6 +25,7 @@
 
 | 技能 | 激活条件 |
 |------|---------|
+| **xemuera** | Xamarin 移植工作（IO/字体/AWAIT/图形渲染/MainWindow 集成） |
 | **grill-with-docs** | 对齐设计决策、锐化术语 |
 | **zoom-out** | 不熟悉代码区域 |
 | **diagnose** | 引擎 Bug（Emuera 是 GUI，用 `dotnet build` 替代运行） |

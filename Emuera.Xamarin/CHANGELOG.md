@@ -1,5 +1,35 @@
 # Emuera.Xamarin 变更记录
 
+## [0.4.0] - 2026-05-16
+
+### Phase 3A：ImageLayerManager 图层管理 ✅
+
+- 完整重写 `ImageLayerManager`（从 LazyLoading 117行移植）
+  - `ImageLayer` 数据结构：`ASprite Image`（替换 `object`）、`Depth`/`X`/`Y`/`Width`/`Height`/`Opacity`/`ColorMatrix`/`FollowScroll`/`InitialScrollY`/`IsOffScreen`
+  - `SetLayer()`：创建 ImageLayer 并存入字典，查找 ASprite
+  - `DrawTo()`：按 Depth 升序绘制，视口裁剪，FollowScroll 偏移，SKColorFilter 支持
+  - `ClearLayer()`/`ClearAll()`/`Exists()`：图层管理
+  - `BuildFilter()`：ColorMatrix 或透明度 SKColorFilter 创建
+- 添加 `_imageLayerManager` 字段到 EmueraConsole
+- 连接 EmueraConsole 4 个方法：`SetImageLayer`/`ClearImageLayer`/`ClearImageLayerAll`/`ExistsImageLayer`
+- 集成 `_imageLayerManager.DrawTo()` 到 OnPaint（`graph.Clear()` 之后、cbgList 遍历之前）
+- 注意：SpriteAnime.PauseAnimation/ResumeAnimation 暂未实现（xamarin 版 SpriteAnime 缺少此 API）
+
+### Phase 3B：ColorMatrix 颜色矩阵 ✅
+
+- 完整移植 `ColorMatrixHelper`（从 LazyLoading 84行移植）
+  - 修正命名空间：`MinorShift.Emuera.Runtime.Utils.EvilMask` → `MinorShift.Emuera.UI.Game.Image`（与调用者 using 一致）
+  - `ReadFromVariableTerm()`：从 ERB 变量表达式读取 5x5 矩阵
+  - `ReadFromVariable()`：支持 2D/3D 数组 + 角色变量，值范围 0-256（÷256f 转 0.0-1.0）
+  - `ToSkia()`：5x5 float[][] → 20 元素 float[]，offset 列 × 255
+  - 移除 `CreateColorMatrix()`（无调用者，直接用 `SKColorFilter.CreateColorMatrix()`）
+
+### 基础设施修复
+
+- `project_rules.md`：注册 `xemuera` 辅助技能（Xamarin 移植工作路由）
+- `graphics-rendering.md`：更新核心洞见（LazyLoading 内核已完全 Skia 化）
+- `_index.md`：更新 graphics-rendering.md 描述
+
 ## [0.3.0] - 2026-05-16
 
 ### Phase 2：运行时适配（已完成部分）
