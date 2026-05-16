@@ -64,10 +64,7 @@
   <!-- 内核 Runtime/ 排除项（仅排除 WinForms/Desktop 专用文件） -->
   <ItemGroup>
     <!-- WinForms/Desktop 音频 -->
-    <Compile Remove="..\Emuera\Runtime\Utils\Sound.NAudio.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
-    <Compile Remove="..\Emuera\Runtime\Utils\NAudio_LoopStream.cs" />
-    <Compile Remove="..\Emuera\Runtime\Utils\SoundTouch_byMarkHeath\**" />
     <!-- WinForms 插件系统 -->
     <Compile Remove="..\Emuera\Runtime\Utils\PluginSystem\**" />
     <!-- System.Drawing.Graphics / Drawing2D -->
@@ -117,6 +114,7 @@
     <Compile Remove="Platform\Forms\**" />
     <!-- WinForms stub 与真正的 System.Windows.Forms 冲突 -->
     <Compile Remove="Platform\Stubs\WinForms.cs" />
+    <Compile Remove="Platform\Stubs\SoundAndBgm.cs" />
     <!-- Lang.cs 与 LazyLoading 内核的 Lang.cs 冲突 -->
     <Compile Remove="Platform\Lang.cs" />
     <!-- ConfigCode.cs 与 LazyLoading 内核的 ConfigCode.cs 冲突（枚举重复定义） -->
@@ -201,6 +199,8 @@
   <!-- ============================================================ -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
     <PackageReference Include="ReorderableCollectionView.Forms" Version="1.0.0" />
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
     <PackageReference Include="SkiaSharp.Svg" Version="1.60.0" />
