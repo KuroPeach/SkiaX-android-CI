@@ -177,17 +177,52 @@ namespace XEmuera
 	{
 		public const int HeightOffset = 4;
 
-		public static readonly double ScreenDensity = DeviceDisplay.MainDisplayInfo.Density;
+		public static double ScreenDensity { get; set; } = 1.0;
 
 		public static int ShapeHeightOffset { get; set; }
 
-		public static int MainLayoutWidth { get => GetRealLength(GameUtils.MainLayout.Width); }
+		public static int MainLayoutWidth
+		{
+			get
+			{
+				if (GameUtils.MainLayout != null)
+					return GetRealLength(GameUtils.MainLayout.Width);
+				return _desktopWidth;
+			}
+		}
 
-		public static int MainLayoutHeight { get => GetRealLength(GameUtils.MainLayout.Height); }
+		public static int MainLayoutHeight
+		{
+			get
+			{
+				if (GameUtils.MainLayout != null)
+					return GetRealLength(GameUtils.MainLayout.Height);
+				return _desktopHeight;
+			}
+		}
 
-		public static int PicBoxWidth { get => GetRealLength(GameUtils.MainPicBox.Width); }
+		public static int PicBoxWidth
+		{
+			get
+			{
+				if (GameUtils.MainPicBox != null)
+					return GetRealLength(GameUtils.MainPicBox.Width);
+				return _desktopWidth;
+			}
+		}
 
-		public static int PicBoxHeight { get => GetRealLength(GameUtils.MainPicBox.Height); }
+		public static int PicBoxHeight
+		{
+			get
+			{
+				if (GameUtils.MainPicBox != null)
+					return GetRealLength(GameUtils.MainPicBox.Height);
+				return _desktopHeight;
+			}
+		}
+
+		internal static int _desktopWidth = 800;
+		internal static int _desktopHeight = 560;
 
 		public static bool DirectionLimitX(int sign, double value, double min, double max)
 		{

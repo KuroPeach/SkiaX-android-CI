@@ -9,24 +9,24 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public MainWindow() { }
 		public MainWindow(string[] args) { }
 
-		public string Title { get; set; } = "";
-		public SKColor BackgroundColor { get; set; } = SKColors.Black;
-		public bool IsEnabled { get; set; } = true;
+		public virtual string Title { get; set; } = "";
+		public virtual SKColor BackgroundColor { get; set; } = SKColors.Black;
+		public virtual bool IsEnabled { get; set; } = true;
 
-		public ScrollBar ScrollBar { get; } = new ScrollBar();
+		public virtual ScrollBar ScrollBar { get; } = new ScrollBar();
 		public QuickButtonGroup quickButtonGroup { get; } = new QuickButtonGroup();
 		public ScrollView quickButtonScrollView { get; set; } = new ScrollView();
 		public MainPicBoxStub MainPicBox { get; } = new MainPicBoxStub();
 
-		public void Reboot() { }
-		public void Close() { }
-		public void Refresh() { }
+		public virtual void Reboot() { }
+		public virtual void Close() { }
+		public virtual void Refresh() { }
 		public void RefreshQuickButtonGroup() { }
 		public void quickButton_Clicked(object sender, EventArgs e) { }
 		public void ApplyTextBoxChanges() { }
 		public void Load() { }
-		public void update_lastinput() { }
-		public void clear_richText() { }
+		public virtual void update_lastinput() { }
+		public virtual void clear_richText() { }
 		public void ResetTextBoxPos() { }
 		public void SetTextBoxPos(int x, int y, int width = 0) { }
 		public void MainMenu_Reboot() { }
@@ -37,14 +37,14 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public TextBoxStub TextBox { get; } = new TextBoxStub();
 
 		public void ChangeTextBox(int type = 0) { }
-		public void ChangeTextBox(string str) { }
+		public virtual void ChangeTextBox(string str) { }
 	}
 
 	internal class ScrollBar
 	{
-		public int Minimum { get; set; }
-		public int Maximum { get; set; }
-		public int Value { get; set; }
+		public virtual int Minimum { get; set; }
+		public virtual int Maximum { get; set; }
+		public virtual int Value { get; set; }
 		public int LargeChange { get; set; }
 		public bool Visible { get; set; }
 	}

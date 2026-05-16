@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
     <RootNamespace>XEmuera</RootNamespace>
@@ -101,12 +102,15 @@
     <Compile Include="VersionUpdate.cs" />
     <Compile Include="App.xaml.cs" />
     <Compile Include="MainPage.xaml.cs" />
+    <Compile Include="DesktopHost.cs" />
   </ItemGroup>
 
   <!-- Platform 层排除项 -->
   <ItemGroup>
     <!-- WinForms 专用 -->
     <Compile Remove="Platform\Forms\**" />
+    <!-- WinForms stub 与真正的 System.Windows.Forms 冲突 -->
+    <Compile Remove="Platform\Stubs\WinForms.cs" />
     <!-- Lang.cs 与 LazyLoading 内核的 Lang.cs 冲突 -->
     <Compile Remove="Platform\Lang.cs" />
     <!-- ConfigCode.cs 与 LazyLoading 内核的 ConfigCode.cs 冲突（枚举重复定义） -->
@@ -139,6 +143,23 @@
     <EmbeddedResource Include="Resources\Fonts\MS Gothic.ttf" />
     <EmbeddedResource Include="Resources\Fonts\Microsoft YaHei.ttf" />
     <EmbeddedResource Include="Resources\Images\app_icon.png" />
+    <!-- RESX 资源文件 -->
+    <EmbeddedResource Include="Resources\ConfigsText.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>ConfigsText.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\ConfigsText.ja-JP.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>ConfigsText.ja-JP.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\StringsText.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>StringsText.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\StringsText.ja-JP.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>StringsText.ja-JP.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
   </ItemGroup>
 
   <!-- XAML 资源 -->
@@ -175,14 +196,27 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="ReorderableCollectionView.Forms" Version="1.0.0" />
-    <PackageReference Include="SkiaSharp" Version="2.88.0" />
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
     <PackageReference Include="SkiaSharp.Svg" Version="1.60.0" />
-    <PackageReference Include="SkiaSharp.Views.WPF" Version="2.88.0" />
-    <PackageReference Include="SkiaSharp.Views.Forms" Version="2.88.0" />
+    <PackageReference Include="SkiaSharp.Views.WPF" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.Views.Forms" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.Views.Forms.WPF" Version="2.88.8" />
     <PackageReference Include="Spillman.Xamarin.Forms.ColorPicker" Version="1.0.8" />
     <PackageReference Include="Xamarin.CommunityToolkit" Version="2.0.2" />
     <PackageReference Include="Xamarin.Forms" Version="5.0.0.2478" />
     <PackageReference Include="Xamarin.Essentials" Version="1.7.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Resources\ConfigsText.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ConfigsText.resx</DependentUpon>
+    </Compile>
+    <Compile Update="Resources\StringsText.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>StringsText.resx</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 using System;
 //using System.Drawing;
 using System.Collections.Generic;
-using XEmuera.Forms;
+using System.Windows.Forms;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.GameView;
@@ -16,6 +16,20 @@ namespace MinorShift.Emuera
 {
 	internal static class Program
 	{
+		[STAThread]
+		static void Main(string[] args)
+		{
+			global::System.Windows.Forms.Application.EnableVisualStyles();
+			global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+			global::System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.SystemAware);
+
+			if (!Init())
+				return;
+
+			var form = new DesktopHostForm();
+			form.Shown += (s, e) => form.InitEmuera();
+			global::System.Windows.Forms.Application.Run(form);
+		}
 		/*
 		コードの開始地点。
 		ここでMainWindowを作り、
@@ -93,12 +107,12 @@ namespace MinorShift.Emuera
 
 			if (!Directory.Exists(CsvDir))
 			{
-				MessageBox.Show(Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text, Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
+				global::System.Windows.Forms.MessageBox.Show(Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text, Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
 				return false;
 			}
 			if (!Directory.Exists(ErbDir))
 			{
-				MessageBox.Show(Lang.UI.MainWindow.MsgBox.NoErbFolder.Text, Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
+				global::System.Windows.Forms.MessageBox.Show(Lang.UI.MainWindow.MsgBox.NoErbFolder.Text, Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
 				return false;
 			}
 
@@ -120,7 +134,7 @@ namespace MinorShift.Emuera
 			if ((!Config.AllowMultipleInstances) && (Sys.PrevInstance()))
 			{
 				//MessageBox.Show("多重起動を許可する場合、emuera.configを書き換えて下さい", "既に起動しています");
-				MessageBox.Show(Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text, Lang.UI.MainWindow.MsgBox.InstaceExists.Text);
+				global::System.Windows.Forms.MessageBox.Show(Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text, Lang.UI.MainWindow.MsgBox.InstaceExists.Text);
 				return false;
 			}
 			
@@ -182,39 +196,6 @@ namespace MinorShift.Emuera
 			//while (true)
 			//{
 			StartTime = WinmmTimer.TickCount;
-			// 	using (win = new MainWindow())
-			// 	{
-					#region EM_私家版_Emuera多言語化改造
-			// 		win.TranslateUI();
-					#endregion
-					#region EM_私家版_Icon指定機能
-			// 		if (icon != null)
-			// 			win.SetupIcon(icon);
-					#endregion
-			// 		Application.Run(win);
-			// 		Content.AppContents.UnloadContents();
-			// 		if (!Reboot)
-			// 			break;
-			// 		RebootWinState = win.WindowState;
-			// 		if (win.WindowState == FormWindowState.Normal)
-			// 		{
-			// 			RebootClientY = win.ClientSize.Height;
-			// 			RebootLocation = win.Location;
-			// 		}
-			// 		else
-			// 		{
-			// 			RebootClientY = 0;
-			// 			RebootLocation = new Point();
-			// 		}
-			// 	}
-			// 	//条件次第ではParserMediatorが空でない状態で再起動になる場合がある
-			// 	ParserMediator.ClearWarningList();
-			// 	ParserMediator.Initialize(null);
-			// 	GlobalStatic.Reset();
-			// 	//GC.Collect();
-			// 	Reboot = false;
-			// 	ConfigData.Instance.ReLoadConfig();
-			// }
 
 			return true;
 		}

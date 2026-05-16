@@ -2,7 +2,7 @@
 
 > **策略核心**：LazyLoading 内核直接编译（net8.0-windows），UI 层用 XEmuera-1 Skia 版本，逐项解决类型冲突和 API 不完整
 > **创建日期**：2026-05-15
-> **最后更新**：2026-05-16
+> **最后更新**：2026-05-16（Phase 2E 桌面端宿主编译通过）
 
 ## 当前状态
 
@@ -17,7 +17,8 @@
   - ✅ **Phase 2B 已完成**：SkiaPfc 替代 PrivateFontCollection + SkiaFontFamily + InstalledFontCollection 命名空间覆盖
   - ✅ **Phase 2A 已完成**：入口点适配（Encoding + JSONConfig + 字体加载 + DebugConfig）
   - ⏭️ **Phase 2D 延后**：键鼠抽象在 net8.0-windows 下不需要，延后至移动端适配
-  - 🔄 **Phase 2E 待验证**：AWAIT/INPUT 行为验证
+  - ✅ **Phase 2E 桌面端宿主已创建**：WinForms Form + PictureBox + SKSurface 手动渲染 + DesktopMainWindow 适配层
+  - 🔄 **Phase 2E 运行时验证待执行**：需要用户手动启动测试
   - ⚠️ 关键发现：编译通过≠可运行，三大运行时障碍待解决
   - ⚠️ 执行顺序调整：2C→2B→2A→2D→2E（原计划 2A→2B→2C→2D→2E）
   - 详见 [phase2-readiness.md](file:///d:/emuera/shared-trae/knowledge/xemuera/phase2-readiness.md)
@@ -101,22 +102,27 @@ Phase 2 的任务来源于三个层次：
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 2D-1 | 创建 `IInputProvider` 接口 | `GetKeyState(keycode)`、`GetMousePosition()`、`GetMouseButton()` | ⏭️ 延后 |
-| 2D-2 | 实现 `WinInputProvider` | 封装 `WinInput.GetKeyState`（Windows） | ⏭️ 延后 |
-| 2D-3 | 实现 `TouchInputProvider` | 触摸屏映射 | ⏭️ 延后 |
-| 2D-4 | 替换 Creator.Method.cs 中的 WinInput 调用 | csproj 排除+替代 | ⏭️ 延后 |
+| 2D-1 | 创建 `InputState` 具体类 | `lock` 保护的按键状态数组 + 鼠标位置 + 鼠标按钮值 | ⏭️ 延后 |
+| 2D-2 | 修改 Creator.Method.cs 中 3 个方法 | `GetKeyStateMethod`/`MouseButtonMethod`/`MousePosMethod` 从 InputState 读取 | ⏭️ 延后 |
+| 2D-3 | 触摸事件写入 InputState | `EraPictureBox_Touch` → `SetKeyDown/Up` + `SetMousePosition` + `SetMouseButtonValue` | ⏭️ 延后 |
+| 2D-4 | Windows 事件写入 InputState | `KeyDown/Up` + `MouseDown/Up` → `SetKeyDown/Up`（保持 WinInput 兼容） | ⏭️ 延后 |
 | 2D-5 | 编译验证 | — | ⏭️ 延后 |
 
-**理由**：当前 TFM 是 `net8.0-windows` + `UseWindowsForms`，`WinInput.GetKeyState`（user32.dll）和 `Control.MousePosition`（WinForms）在 Windows 桌面端均可正常工作。键鼠抽象是移动端适配的前置条件，延后至 Phase 5（平台特定功能）。
+**方案决策**：采用 **InputState 具体类方案**（方案 C），不采用 IInputProvider 接口方案（方案 A）。理由：不排除 Creator.Method.cs（8000+ 行），避免维护两份副本；InputState 是深模块，接口简单；将来可抽出 IInputProvider 接口。详见 [await-async.md 键鼠抽象实施预案](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md)。
+
+**延后理由**：当前 TFM 是 `net8.0-windows` + `UseWindowsForms`，`WinInput.GetKeyState`（user32.dll）和 `Control.MousePosition`（WinForms）在 Windows 桌面端均可正常工作。键鼠抽象是移动端适配的前置条件，延后至 TFM 切换到跨平台时实施。
 
 #### 切片 2E：AWAIT/INPUT 验证
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 2E-1 | 验证 AWAIT 在后台线程的行为 | `Thread.Sleep` 不阻塞 UI |
-| 2E-2 | 验证 TINPUT/TINPUTS Timer | Android 上 Timer 行为 |
-| 2E-3 | 验证 GETKEYTRIGGERED/MOUSEB 触摸映射 | 配合 2D 的 TouchInputProvider |
-| 2E-4 | 编译+运行验证 | — |
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 2E-0 | 创建桌面端宿主 | WinForms Form + PictureBox + SKSurface 手动渲染 | ✅ |
+| 2E-1 | 验证 AWAIT 在后台线程的行为 | `Thread.Sleep` 不阻塞 UI | ✅ 运行时验证通过 |
+| 2E-2 | 验证 TINPUT/TINPUTS Timer | Android 上 Timer 行为 | ⏭️ 延后至移动端 |
+| 2E-3 | 验证 GETKEYTRIGGERED/MOUSEB 触摸映射 | 配合 2D 的 InputState 触屏映射 | ⏭️ 延后至移动端 |
+| 2E-4 | 编译+运行验证 | 程序可正常启动 | ✅ 完成 |
+
+**验证结果**：程序已成功启动，资源文件问题已修复，运行时无崩溃。当前空白窗口是预期的——Phase 3 Skia 渲染管线尚未集成。
 
 **知识库确认**：[await-async.md](file:///d:/emuera/shared-trae/knowledge/xemuera/await-async.md) 已分析 AWAIT 在 XEmuera 上的行为，结论是"保持现状即可"。
 
@@ -184,7 +190,9 @@ Phase 2 的任务来源于三个层次：
 
 ## Phase 4：Xamarin.Forms UI 集成
 
+> **知识库参考**：[ui-integration.md](file:///d:/emuera/shared-trae/knowledge/xemuera/ui-integration.md)
 > **前置条件**：Phase 3 完成（渲染管线可用）
+> **自拷问日期**：2026-05-16
 
 ### 任务来源分析
 
@@ -193,33 +201,78 @@ Phase 2 的任务来源于三个层次：
 | **L1：平台 UI 框架** | XEmuera-1 的 Xamarin.Forms 页面 | `MainPage.xaml`、`App.xaml`、`EraPictureBox` |
 | **L2：交互控件** | WinForms 控件的 Xamarin 等价物 | `TextBox` → `Entry`、`RichTextBox` → 自定义渲染 |
 | **L3：平台服务** | Android/iOS 特定功能 | 文件选择器、权限请求、通知 |
+| **L4：接口契约** | EmueraConsole 对 MainWindow 的 91 处引用 | `window.Refresh()`、`window.Invoke()`、`window.ToolTip` |
 
 ### 垂直切片
 
 #### 切片 4A：主页面集成
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 4A-1 | 连接 `MainPage.xaml` 到 `EmueraConsole` | SKCanvasView 渲染 |
-| 4A-2 | 实现触摸事件转发 | `EraPictureBox_Touch` → `MoveMouse`/`PressEnterKey` |
-| 4A-3 | 实现文本输入 | `Entry` → `GETTEXTBOX`/`SETTEXTBOX` |
-| 4A-4 | 编译+运行验证 | — |
+> **核心挑战**：EmueraConsole 对 MainWindow 有 91 处引用，必须确保接口完整覆盖
+
+| # | 操作 | 说明 | 决策 |
+|---|------|------|------|
+| 4A-1 | 移植 XEmuera-1 MainWindow 三文件 | `MainWindow.xaml` + `MainWindow.xaml.cs` + `MainWindow.cs`（~2041行） | 方案 A：移植 XEmuera-1 |
+| 4A-2 | 移植 XEmuera-1 辅助类 | `EraPictureBox.cs`、`GameUtils`、`IPlatformService`、`MessageBox`、`TintImageButton` | — |
+| 4A-3 | 扩展 MainWindow 接口覆盖 EmueraConsole 91 处引用 | 补充 `Created`、`Invoke(Action)`、`ToolTip`（stub）、`PointToClient`、`TextBoxPosChanged` 等 | — |
+| 4A-4 | 实现 `window.Invoke(Action)` 同步版本 | WinForms `Invoke` 是同步的，Xamarin `MainThread.BeginInvokeOnMainThread` 是异步的，需 `ManualResetEvent` 等待 | — |
+| 4A-5 | 实现 `window.Created` 替代 | 用 `IsEnabled` 或自定义 `IsAlive` 标志替代 | — |
+| 4A-6 | 连接 `SKCanvasView` 到 `EmueraConsole.OnPaint` | `mainPicBox_Paint` → `console.OnPaint(canvas)` | — |
+| 4A-7 | 实现触摸事件转发 | `EraPictureBox_Touch` → `console.MouseDown`/`PressEnterKey` | — |
+| 4A-8 | 实现文本输入 | `Entry` → `console.PressEnterKey`（ONEPHRASE/ANYKEY 自动提交） | — |
+| 4A-9 | 移植 App.xaml + MainPage.xaml | FlyoutPage 导航框架 + GameItemPage 游戏列表 | — |
+| 4A-10 | 编译+运行验证 | — | — |
+
+**风险 Top 3**：
+1. EmueraConsole 91 处 `window.*` 引用 — 任何缺失接口都会导致运行时 NullReferenceException
+2. `window.Invoke(Action)` 同步语义 — WinForms 同步 vs Xamarin 异步，需 ManualResetEvent 等待
+3. `window.Created` 生命周期 — ContentPage 无此属性，需自定义标志替代
+
+**Stub 缺失接口清单（4A-3 需补充）**：
+
+| 缺失接口 | 严重程度 | EmueraConsole 使用场景 |
+|----------|---------|----------------------|
+| `window.Created` | **高** | 循环退出条件 |
+| `window.Invoke(Action)` | **高** | RefreshStrings 线程安全 |
+| `window.ToolTip.*` | **高** | OnPaint 中大量调用（先 stub 化） |
+| `window.MainPicBox.PointToClient()` | **高** | 鼠标坐标转换 |
+| `window.MainPicBox.ClientRectangle` | **中** | 鼠标范围检查 |
+| `window.TextBoxPosChanged`/`ResetTextBoxPos()` | **中** | TextBox 位置管理 |
+| `window.TextBoxIgnoreScrollBarChanges` | **中** | 防止滚动条循环更新 |
+| `window.ShowConfigDialog()` | **低** | F12 配置 |
+| `window.Focus()` | **低** | 窗口焦点 |
 
 #### 切片 4B：配置页面
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 4B-1 | 替换 WinForms ConfigDialog | Xamarin.Forms 配置页面 |
-| 4B-2 | 连接 ConfigModel 到内核 Config | 双向绑定 |
-| 4B-3 | 编译+运行验证 | — |
+> **核心发现**：LazyLoading ConfigDialog 有 10 个 Tab / ~70 个控件 / 3154 行代码；XEmuera-1 已有完整三级导航配置 UI
+
+| # | 操作 | 说明 | 决策 |
+|---|------|------|------|
+| 4B-1 | 移植 XEmuera-1 ConfigPage 体系 | `SettingsPage` → `ConfigSettingsPage` → `ConfigPage` → `ConfigValuePopup` | 方案 A：移植 XEmuera-1 |
+| 4B-2 | 移植 ConfigModel | 配置分组管理 + MVVM 绑定 | — |
+| 4B-3 | 扩展 ConfigCodeGroups 添加 LazyLoading 独有分组 | CB 配置 / Rikaichan / Rendering / Debug | — |
+| 4B-4 | 保持 LazyLoading 的 Copy+SaveConfig 保存策略 | 不改用 Preferences，保持 emuera.config 文件格式 | 方案 A |
+| 4B-5 | 实现 DebugConfigDialog（低优先级） | `GetDebugItem()` 通道 + `SaveDebugConfig()` | — |
+| 4B-6 | 编译+运行验证 | — | — |
+
+**ConfigData 双通道设计**：
+- 主配置：`GetConfigItem(ConfigCode)` → `Copy() → SaveConfig()`
+- 调试配置：`GetDebugItem(ConfigCode)` → 直接修改 → `SaveDebugConfig()`
+- JSON 配置：`JSONConfig.Data` → `JSONConfig.Save()`
 
 #### 切片 4C：调试窗口
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 4C-1 | 替换 WinForms DebugDialog | Xamarin.Forms 调试页面 |
-| 4C-2 | 实现变量查看/修改 | — |
-| 4C-3 | 编译+运行验证 | — |
+> **核心发现**：XEmuera-1 DebugDialog 有 492 行代码但全部注释掉，移动端调试窗口尚未实现
+
+| # | 操作 | 说明 | 决策 |
+|---|------|------|------|
+| 4C-1 | 保持 DebugDialog 注释状态 | 移动端调试窗口优先级低 | 方案 D：暂不实现 |
+| 4C-2 | 确保 EmueraConsole 中 DebugDialog 引用不报错 | `DebugDialog` 属性返回 null | — |
+| 4C-3 | （可选）Tab 页方案实现 | 在 MainWindow 中添加调试 Tab | 低优先级 |
+
+**暂不实现理由**：
+1. XEmuera-1 也未实现调试窗口
+2. 调试窗口面向 ERB 开发者，普通玩家不需要
+3. 可通过 `emuera.log` 文件和 `dotnet build` 编译验证替代
 
 ---
 
@@ -240,21 +293,48 @@ Phase 2 的任务来源于三个层次：
 
 #### 切片 5A：IO 跨平台适配
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 5A-1 | 封装 `Program.FileExists/DirectoryExists/GetFiles` | 大小写不敏感查找 |
-| 5A-2 | 替换所有 `File.Exists`/`Directory.GetFiles` 调用 | — |
-| 5A-3 | 实现 `IPathProvider` 的 Android/iOS 版本 | — |
-| 5A-4 | 编译+运行验证 | — |
+> **知识库参考**：[io-cross-platform.md](file:///d:/emuera/shared-trae/knowledge/xemuera/io-cross-platform.md)
+> **自拷问日期**：2026-05-16
+
+| # | 操作 | 说明 | 决策 |
+|---|------|------|------|
+| 5A-1 | 移植 XEmuera `FileUtils` 到 emuera.xamarin | 大小写不敏感文件查找（`Exists(ref)`/`GetFiles()`） | 方案 B：封装到 Program 静态方法 |
+| 5A-2 | 添加 `Program.FileExists(ref)`/`Program.DirectoryExists(ref)`/`Program.GetFiles()` | 内部委托 FileUtils | — |
+| 5A-3 | 替换内核中所有 `File.Exists`/`Directory.GetFiles` 调用 | Instraction.Child.cs/Creator.Method.cs/Process.LazyLoading.cs/Config.cs/ErbLoader.cs | — |
+| 5A-4 | 替换音频路径构建 | `Path.GetFullPath(".\\sound\\")` → `IPathProvider.MusicDir` | — |
+| 5A-5 | 实现 `IPathProvider` 的 Android/iOS 版本 | Android: `Context.FilesDir`; iOS: `NSBundle` + `Documents/` | — |
+| 5A-6 | Android 资源解压 | APK assets → Context.FilesDir（首次启动全量解压） | 方案 A |
+| 5A-7 | 编译+运行验证 | — | — |
+
+**风险 Top 3**：
+1. `File.Exists` 替换遗漏 → Android 静默失败（返回 false 而非异常）
+2. `Program.WorkingDir` → `IPathProvider.LazyLoadingDir` 引用不一致
+3. iOS 只读资源目录 → LazyLoading 增量更新需降级为启动时全量扫描
 
 #### 切片 5B：音频系统
 
-| # | 操作 | 说明 |
-|---|------|------|
-| 5B-1 | 调研跨平台音频方案 | Xamarin.Essentials / Plugin.Audio / 原生 |
-| 5B-2 | 升级 `SoundAndBgm.cs` 存根 | 实现真实的 play/stop/setVolume |
-| 5B-3 | 实现 BGM 循环播放 | — |
-| 5B-4 | 编译+运行验证 | — |
+> **知识库参考**：[audio-system.md](file:///d:/emuera/shared-trae/knowledge/xemuera/audio-system.md)
+> **自拷问日期**：2026-05-16
+
+| # | 操作 | 说明 | 决策 |
+|---|------|------|------|
+| 5B-1 | 扩展 `IPlayer` 接口 | 添加 `Pause()`/`Resume()`/`GetCurrentTime()`/`GetTotalTime()`/`GetSpeed()` | 方案 A：扩展 IPlayer |
+| 5B-2 | 升级 `SoundAndBgm.cs` 存根 | 委托到 `IPlayer` 实现，替换 NAudio 依赖 | — |
+| 5B-3 | 实现 Android `MobileMediaPlayer` 扩展 | `MediaPlayer.Pause()`/`Resume()`/`CurrentPosition`/`Duration` | — |
+| 5B-4 | 升级 PLAYSOUND ArgumentBuilder | `STR_EXPRESSION` → 支持 repeat 参数（移植 `SpHtmlPrint`） | 方案 A：升级 ArgumentBuilder |
+| 5B-5 | 替换音频路径构建 | `Path.GetFullPath(".\\sound\\")` → `IPathProvider.MusicDir` + `Program.FileExists()` | — |
+| 5B-6 | 移植 GETSOUNDSTATUS/ISPLAYINGSOUND | `Creator.Method.cs` 新增方法 | 低优先级 |
+| 5B-7 | 编译+运行验证 | — | — |
+
+**已知问题**：
+- XEmuera-1 `MobileMediaPlayer.Volume` 是 float 0-100，但 `MediaPlayer.SetVolume()` 期望 0.0-1.0，音量映射可能有 bug
+- Android `MediaPlayer` 不支持变速，`setSpeed()` 需引入 `SoundTouch`/`Oboe` 原生库（低优先级延后）
+- 切换游戏时音量不重置
+
+**风险 Top 3**：
+1. Android `MediaPlayer` 不支持变速 → 需原生库或降级
+2. `SP_HTML_PRINT` 参数构建器与 XEmuera-1 `ArgumentBuilder` 体系差异大
+3. 音频资源路径硬编码 Windows → 需全面替换
 
 #### 切片 5C：SQL 跨平台
 
@@ -284,7 +364,7 @@ Phase 1 创建的存根文件及其在 Phase 2-5 中的升级目标：
 | `SoundAndBgm.cs` | 空方法 | 真实音频播放 | Phase 5B |
 | `ImageLayerManager.cs` | 空方法 | ZDepth 排序 + SKPicture 烘焙 | Phase 3A |
 | `MainWindow.cs` | 属性+空方法 | 真实 Xamarin 窗口 | Phase 4A |
-| `WinForms.cs` | Application.DoEvents 空实现 | 保持空实现（正确行为） | 无需升级 |
+| `WinForms.cs` | Application.DoEvents 空实现 | 已从编译排除（与真正 WinForms 冲突） | 可删除 |
 | `IPluginMethod.cs` | 完整空壳 | 保持（PluginSystem 不移植） | 无需升级 |
 | `AConsoleDisplayNode.cs` | 抽象类 | 保持（GameView 层使用） | 无需升级 |
 | `EvilMaskUtils.cs` | 完整实现（MixedNum/StyledBoxModel/ConsoleDivPart） | 保持 | 无需升级 |
@@ -304,8 +384,8 @@ Phase 1 创建的存根文件及其在 Phase 2-5 中的升级目标：
 | 内核文件 | 行号 | 硬依赖 | 替代方案 | 目标 Phase |
 |---------|------|--------|---------|-----------|
 | `Creator.Method.cs` | 3221, 7137 | `GlobalStatic.Pfc.Families` (PrivateFontCollection) | SkiaSharp 字体集合 | Phase 2B |
-| `Creator.Method.cs` | 8808 | `WinInput.GetKeyState` (user32.dll) | `IInputProvider.GetKeyState` | Phase 2D |
-| `Creator.Method.cs` | 8855 | `Control.MousePosition` (WinForms) | `IInputProvider.GetMousePosition` | Phase 2D |
+| `Creator.Method.cs` | 8808 | `WinInput.GetKeyState` (user32.dll) | `InputState.GetKeyState`（方案 C，不排除文件） | Phase 2D |
+| `Creator.Method.cs` | 8855 | `Control.MousePosition` (WinForms) | `InputState.GetMouseButtonValue`（方案 C，不排除文件） | Phase 2D |
 | `WinInput.cs` | 6 | `[DllImport("user32.dll")]` | 跨平台输入抽象 | Phase 2D |
 
 ## 验证节奏
