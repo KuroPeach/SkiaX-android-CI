@@ -5,6 +5,7 @@
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <DefineConstants>$(DefineConstants);DESKTOP_APP</DefineConstants>
     <RootNamespace>XEmuera</RootNamespace>
     <AssemblyName>XEmuera</AssemblyName>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>

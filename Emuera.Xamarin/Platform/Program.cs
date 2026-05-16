@@ -4,6 +4,7 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
+using MinorShift.Emuera.UI;
 using System.IO;
 using XEmuera;
 using XEmuera.Resources;
@@ -15,7 +16,7 @@ namespace MinorShift.Emuera
 {
 	internal static class Program
 	{
-#if WINDOWS
+#if DESKTOP_APP
 		[STAThread]
 		internal static void Main(string[] args)
 		{

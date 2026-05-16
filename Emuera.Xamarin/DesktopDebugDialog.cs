@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using MinorShift.Emuera.GameView;
 using SD = System.Drawing;
 
 namespace MinorShift.Emuera

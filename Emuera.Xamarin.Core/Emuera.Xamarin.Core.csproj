@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFrameworks>net8.0;net8.0-windows</TargetFrameworks>
     <OutputType>Library</OutputType>
     <RootNamespace>XEmuera</RootNamespace>
     <AssemblyName>XEmuera.Core</AssemblyName>
@@ -12,6 +12,16 @@
     <NoWarn>CS0436;CS8981;CS0037;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS0266;CS1503;CS0029;CS1929;CS0176;CS0120;CS0019;CS0030;CS1501;CS0117;CS1061;CS0246;CS0121;CS0119;CS0103;CS7036;CS0200;CS0021;CS1729;CS0122;CS1977</NoWarn>
     <Nullable>disable</Nullable>
   </PropertyGroup>
+
+  <!-- net8.0-windows 目标：启用 WINDOWS 条件编译 + System.Drawing 隐式转换 -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="XEmuera.Desktop" />
+  </ItemGroup>
 
   <!-- 全局 using：System.Drawing → XEmuera.Drawing 类型别名 -->
   <ItemGroup>
@@ -156,6 +166,11 @@
       <ExcludeAssets>build;buildTransitive</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Xamarin.Essentials" Version="1.7.3" />
+  </ItemGroup>
+
+  <!-- net8.0-windows 目标：SkiaSharp Desktop 扩展（提供 ToBitmap 等） -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <PackageReference Include="SkiaSharp.Views.Desktop.Common" Version="2.88.8" />
   </ItemGroup>
 
   <ItemGroup>

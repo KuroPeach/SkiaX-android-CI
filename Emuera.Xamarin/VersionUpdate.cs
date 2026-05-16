@@ -1,4 +1,5 @@
-﻿using MinorShift.Emuera;
+using MinorShift.Emuera;
+using MinorShift.Emuera.Runtime.Config;
 using System;
 using System.Collections.Generic;
 using System.Text;

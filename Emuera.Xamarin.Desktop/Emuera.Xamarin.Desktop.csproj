@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>XEmuera</RootNamespace>
+    <AssemblyName>XEmuera.Desktop</AssemblyName>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <LangVersion>latest</LangVersion>
+    <DefineConstants>$(DefineConstants);WINDOWS;DESKTOP_APP</DefineConstants>
+    <NoWarn>CS0436;CS8981;CS0037;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS0266;CS1503;CS0029;CS1929;CS0176;CS0120;CS0019;CS0030;CS1501;CS0117;CS1061;CS0246;CS0121;CS0119;CS0103;CS7036;CS0200;CS0021;CS1729;CS0122;CS1977;CS0104</NoWarn>
+    <Nullable>disable</Nullable>
+    <ApplicationIcon>..\Emuera\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emuera.Xamarin.Core\Emuera.Xamarin.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Desktop 项目不使用 XEmuera.Drawing 别名，直接用 System.Drawing -->
+  <!-- Core 项目的全局 using 别名通过程序集元数据传递，无法通过 MSBuild 移除 -->
+  <!-- 解决方案：在 Desktop 源文件中移除 using System.Drawing，改用完全限定名 -->
+
+  <!-- Desktop-only 源文件 -->
+  <ItemGroup>
+    <Compile Include="..\Emuera.Xamarin\Platform\Program.cs" Link="Program.cs" />
+    <Compile Include="..\Emuera.Xamarin\DesktopHost.cs" LinkBase="Desktop" />
+    <Compile Include="..\Emuera.Xamarin\DesktopConfigDialog.cs" LinkBase="Desktop" />
+    <Compile Include="..\Emuera.Xamarin\DesktopDebugDialog.cs" LinkBase="Desktop" />
+    <Compile Include="..\Emuera.Xamarin\VersionUpdate.cs" LinkBase="Desktop" />
+    <Compile Include="..\Emuera.Xamarin\Platform\Stubs\SoundAndBgm.cs" LinkBase="Desktop" />
+  </ItemGroup>
+
+  <!-- NuGet 包引用（Desktop-only） -->
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp.Views.Desktop.Common" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="2.88.8" />
+  </ItemGroup>
+
+</Project>
