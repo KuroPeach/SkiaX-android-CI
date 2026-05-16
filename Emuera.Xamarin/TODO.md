@@ -22,6 +22,7 @@
 - ✅ **Phase 5B-D1** 已完成（NAudio 音频系统集成）
 - ✅ **Phase 5A-D1** 已完成（IO 跨平台适配：FileUtils + WorkingDir + 替换活跃代码）
 - ✅ **Phase 5C-D1** 已完成（SqlManager 资源清理 + FormClosing 退出流程）
+- ✅ **G6** 已完成（GDI 注释残留清理 + 删除 5 组死对话框文件）
 - 📋 **Phase 7** 已规划（XEmuera 上游跟进：~~编码识别~~❌已覆盖/~~虚拟手柄~~❌不移植/字体缩放/外部字体/本地化/日志查看器/游戏列表）
 - ⏭️ Phase 4A-Xamarin / Phase 4B-Xamarin / Phase 5 / Phase 7
 

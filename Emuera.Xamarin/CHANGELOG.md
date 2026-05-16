@@ -1,5 +1,22 @@
 # Emuera.Xamarin 变更记录
 
+## [0.13.0] - 2026-05-17
+
+### G6：GDI 注释残留清理 ✅
+
+**第一次提交**（删除 9402 行）：
+- 删除 5 组完全注释掉的 GDI 对话框文件（15 个文件）：
+  ConfigDialog.cs/.Designer.cs/.resx、DebugDialog、DebugConfigDialog、ClipBoardDialog、ColorBox
+- 清理 4 处 `//using System.Drawing` / `//using System.Drawing.Imaging` 注释残留
+- 清理 8 处 `//xxx.Dispose()` 注释残留（Program.cs/Config.cs/AppContents.cs/EmueraConsole.cs/GraphicsImage.cs/StringMeasure.cs）
+- 清理 Program.cs 图标加载注释块、AppContents.cs 超大图片注释块、Config.cs Font Dispose 注释块
+
+**第二次提交**：
+- 清理 EmueraConsole.cs 旧 ConsoleState 枚举值（WaitKey/WaitInteger 等 13 个）
+- 清理 EmueraConsole.cs `getGraphics()` 方法注释块（GDI CreateGraphics）
+- 清理 EmueraConsole.cs `selectingButton`/`lastSelectingButton` 注释字段声明
+- 清理 GraphicsImage.cs LockGraphics/UnlockGraphics/created/locked/fontStyle 注释块
+
 ## [0.12.0] - 2026-05-17
 
 ### Slice 5A-D1：IO 跨平台适配 ✅
