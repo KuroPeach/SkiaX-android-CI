@@ -1,4 +1,5 @@
 using SkiaSharp;
+using SkiaSharp.Views.Forms;
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -18,15 +19,18 @@ namespace MinorShift.Emuera
         private EmueraConsole console;
         private VScrollBar vScrollBar;
         private TextBox inputTextBox;
+        private DesktopMainWindow mainWindow;
 
         private int scrollBarValue = 1;
         private int scrollBarMaximum = 1;
         private int renderWidth = 800;
         private int renderHeight = 560;
 
+        private bool pressEnterKeyInProcess;
+
         public DesktopHostForm()
         {
-            Text = "Emuera.Xamarin Desktop Test";
+            Text = "Emuera.Xamarin";
             ClientSize = new Size(800, 600);
             BackColor = Color.Black;
             FormBorderStyle = FormBorderStyle.Sizable;
@@ -51,6 +55,13 @@ namespace MinorShift.Emuera
             };
             pictureBox.Resize += PictureBox_Resize;
             pictureBox.Paint += PictureBox_Paint;
+            pictureBox.MouseMove += PictureBox_MouseMove;
+            pictureBox.MouseDown += PictureBox_MouseDown;
+            pictureBox.MouseUp += PictureBox_MouseUp;
+            pictureBox.MouseWheel += PictureBox_MouseWheel;
+            pictureBox.MouseLeave += PictureBox_MouseLeave;
+            pictureBox.MouseEnter += PictureBox_MouseEnter;
+            pictureBox.TabStop = true;
 
             inputTextBox = new TextBox
             {
@@ -100,7 +111,8 @@ namespace MinorShift.Emuera
 
         public void InitEmuera()
         {
-            console = new EmueraConsole(new DesktopMainWindow(this));
+            mainWindow = new DesktopMainWindow(this);
+            console = new EmueraConsole(mainWindow);
             Task.Run(() =>
             {
                 DrawTextUtils.Reset();
@@ -155,11 +167,138 @@ namespace MinorShift.Emuera
             }
         }
 
-        private void VScrollBar_ValueChanged(object sender, EventArgs e)
+        #region Mouse Event Handling
+
+        private void PictureBox_MouseMove(object sender, MouseEventArgs e)
         {
-            scrollBarValue = vScrollBar.Value;
-            TriggerRefresh();
+            if (console == null)
+                return;
+
+            var point = e.Location;
+            if (console.MoveMouse(point))
+                RefreshStrings(true);
         }
+
+        private void PictureBox_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (console == null)
+                return;
+
+            if (console.IsWaitingPrimitive)
+            {
+                var point = e.Location;
+                var button = WinFormsMouseButtonToSK(e.Button);
+                console.MouseDown(point, button);
+            }
+        }
+
+        private void PictureBox_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (console == null)
+                return;
+
+            MouseReleased(e);
+            Task.Run(() => console.LeaveMouse());
+        }
+
+        private void PictureBox_MouseWheel(object sender, MouseEventArgs e)
+        {
+            if (console == null)
+                return;
+
+            if (console.IsWaitingPrimitive)
+            {
+                var point = e.Location;
+                console.MouseWheel(point, e.Delta);
+                return;
+            }
+
+            int lines = e.Delta / SystemInformation.MouseWheelScrollDelta;
+            int newValue = scrollBarValue - lines;
+            newValue = Math.Max(vScrollBar.Minimum, Math.Min(vScrollBar.Maximum, newValue));
+            if (newValue != scrollBarValue)
+            {
+                scrollBarValue = newValue;
+                if (!vScrollBar.IsDisposed)
+                {
+                    if (vScrollBar.InvokeRequired)
+                        vScrollBar.BeginInvoke(new Action(() => { if (!vScrollBar.IsDisposed) vScrollBar.Value = newValue; }));
+                    else
+                        vScrollBar.Value = newValue;
+                }
+                TriggerRefresh();
+            }
+        }
+
+        private void PictureBox_MouseLeave(object sender, EventArgs e)
+        {
+            if (console == null)
+                return;
+
+            Task.Run(() => console.LeaveMouse());
+        }
+
+        private void PictureBox_MouseEnter(object sender, EventArgs e)
+        {
+            if (!pictureBox.IsDisposed)
+                pictureBox.Focus();
+        }
+
+        private void MouseReleased(MouseEventArgs e)
+        {
+            if (console.IsInProcess)
+                return;
+
+            if (console.IsWaitingPrimitive)
+                return;
+
+            bool isBacklog = scrollBarValue != scrollBarMaximum;
+            string str = console.SelectedString;
+
+            if (isBacklog)
+            {
+                if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
+                {
+                    UpdateScrollBar(scrollBarMaximum, scrollBarMaximum);
+                    RefreshStrings(true);
+                }
+            }
+
+            if (console.IsWaitingEnterKey && !console.IsError && str == null)
+            {
+                if (isBacklog)
+                    return;
+                if (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right)
+                {
+                    if (e.Button == MouseButtons.Right)
+                        PressEnterKey(true, "", true);
+                    else
+                        PressEnterKey(false, "", true);
+                    return;
+                }
+            }
+
+            if (str != null && e.Button == MouseButtons.Left)
+            {
+                SetTextBoxText(str);
+                PressEnterKey(false, str, true);
+                return;
+            }
+        }
+
+        private SKMouseButton WinFormsMouseButtonToSK(MouseButtons button)
+        {
+            return button switch
+            {
+                MouseButtons.Right => SKMouseButton.Right,
+                MouseButtons.Middle => SKMouseButton.Middle,
+                _ => SKMouseButton.Left
+            };
+        }
+
+        #endregion
+
+        #region Input Handling
 
         private void InputTextBox_KeyDown(object sender, KeyEventArgs e)
         {
@@ -170,8 +309,8 @@ namespace MinorShift.Emuera
             {
                 e.SuppressKeyPress = true;
                 string str = inputTextBox.Text ?? "";
-                console.PressEnterKey(e.Shift, str, false);
-                inputTextBox.Text = "";
+                PressEnterKey(e.Shift, str, false);
+                ClearTextBoxText();
             }
             else if (e.KeyCode == Keys.Escape)
             {
@@ -182,8 +321,48 @@ namespace MinorShift.Emuera
             }
         }
 
+        private void PressEnterKey(bool mesSkip, string str, bool inputsByMouse)
+        {
+            if (console == null || console.IsInProcess)
+                return;
+            if (pressEnterKeyInProcess)
+                return;
+
+            pressEnterKeyInProcess = true;
+            Task.Run(() =>
+            {
+                try
+                {
+                    console.PressEnterKey(mesSkip, str, inputsByMouse);
+                }
+                finally
+                {
+                    pressEnterKeyInProcess = false;
+                }
+            });
+        }
+
+        private void RefreshStrings(bool force_Paint)
+        {
+            if (console == null)
+                return;
+            Task.Run(() => console.RefreshStrings(force_Paint));
+        }
+
+        #endregion
+
+        #region ScrollBar
+
+        private void VScrollBar_ValueChanged(object sender, EventArgs e)
+        {
+            scrollBarValue = vScrollBar.Value;
+            TriggerRefresh();
+        }
+
         public void UpdateScrollBar(int maximum, int value)
         {
+            if (vScrollBar.IsDisposed)
+                return;
             if (vScrollBar.InvokeRequired)
             {
                 vScrollBar.BeginInvoke(new Action(() => UpdateScrollBar(maximum, value)));
@@ -199,6 +378,11 @@ namespace MinorShift.Emuera
 
         public int GetScrollBarValue() => scrollBarValue;
         public int GetScrollBarMaximum() => scrollBarMaximum;
+
+        #endregion
+
+        #region Accessors
+
         public int GetRenderWidth() => renderWidth;
         public int GetRenderHeight() => renderHeight;
         public System.Windows.Forms.PictureBox GetPictureBox() => pictureBox;
@@ -206,6 +390,8 @@ namespace MinorShift.Emuera
         public string GetTextBoxText() => inputTextBox?.Text ?? "";
         public void SetTextBoxText(string text)
         {
+            if (inputTextBox.IsDisposed)
+                return;
             if (inputTextBox.InvokeRequired)
                 inputTextBox.BeginInvoke(new Action(() => inputTextBox.Text = text));
             else
@@ -213,29 +399,38 @@ namespace MinorShift.Emuera
         }
         public void ClearTextBoxText()
         {
+            if (inputTextBox.IsDisposed)
+                return;
             if (inputTextBox.InvokeRequired)
                 inputTextBox.BeginInvoke(new Action(() => inputTextBox.Text = ""));
             else
                 inputTextBox.Text = "";
         }
+
+        #endregion
     }
 
     internal class DesktopMainWindow : MainWindow
     {
         private readonly DesktopHostForm form;
+        private readonly DesktopScrollBar scrollBar;
+        private readonly DesktopMainPicBox mainPicBox;
+        private readonly DesktopTextBox textBox;
+        private readonly DesktopToolTip toolTip;
 
         public DesktopMainWindow(DesktopHostForm form)
         {
             this.form = form;
+            this.scrollBar = new DesktopScrollBar(form);
+            this.mainPicBox = new DesktopMainPicBox(form);
+            this.textBox = new DesktopTextBox(form);
+            this.toolTip = new DesktopToolTip(form);
         }
 
-        public override UI.Framework.Forms.ScrollBar ScrollBar => new DesktopScrollBar(form);
-
-        public override MainPicBoxStub MainPicBox => new DesktopMainPicBox(form);
-
-        public override TextBoxStub TextBox => new DesktopTextBox(form);
-
-        public override ToolTipStub ToolTip => new DesktopToolTip(form);
+        public override UI.Framework.Forms.ScrollBar ScrollBar => scrollBar;
+        public override MainPicBoxStub MainPicBox => mainPicBox;
+        public override TextBoxStub TextBox => textBox;
+        public override ToolTipStub ToolTip => toolTip;
 
         public override void Refresh()
         {
@@ -244,6 +439,8 @@ namespace MinorShift.Emuera
 
         public override void Close()
         {
+            if (form.IsDisposed)
+                return;
             if (form.InvokeRequired)
                 form.BeginInvoke(new Action(form.Close));
             else
@@ -258,7 +455,7 @@ namespace MinorShift.Emuera
 
         public override string Title
         {
-            get => form.InvokeRequired ? "Emuera" : form.Text;
+            get => form.IsDisposed ? "Emuera" : form.Text;
             set { if (!form.IsDisposed) form.BeginInvoke(new Action(() => form.Text = value)); }
         }
 
@@ -268,11 +465,7 @@ namespace MinorShift.Emuera
             set { }
         }
 
-        public override bool IsEnabled
-        {
-            get => !form.IsDisposed;
-        }
-
+        public override bool IsEnabled => !form.IsDisposed;
         public override bool Created => !form.IsDisposed;
 
         public override void Invoke(Action action)
@@ -301,6 +494,21 @@ namespace MinorShift.Emuera
         {
             if (!form.IsDisposed)
                 form.BeginInvoke(new Action(() => form.Activate()));
+        }
+
+        public override void ShowConfigDialog()
+        {
+            if (form.IsDisposed)
+                return;
+            form.BeginInvoke(new Action(() =>
+            {
+                using (var dialog = new DesktopConfigDialog())
+                {
+                    dialog.ShowDialog(form);
+                }
+                if (GlobalStatic.Console != null)
+                    GlobalStatic.Console.RefreshStrings(true);
+            }));
         }
 
         public override void update_lastinput()
@@ -388,7 +596,7 @@ namespace MinorShift.Emuera
         public override int Value
         {
             get => form.GetScrollBarValue();
-            set => form.UpdateScrollBar(Maximum, value);
+            set => form.UpdateScrollBar(form.GetScrollBarMaximum(), value);
         }
 
         public override int Maximum

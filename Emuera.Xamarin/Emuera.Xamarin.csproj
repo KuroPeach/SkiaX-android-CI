@@ -103,6 +103,7 @@
     <Compile Include="App.xaml.cs" />
     <Compile Include="MainPage.xaml.cs" />
     <Compile Include="DesktopHost.cs" />
+    <Compile Include="DesktopConfigDialog.cs" />
   </ItemGroup>
 
   <!-- Platform 层排除项 -->
