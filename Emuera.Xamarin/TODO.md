@@ -1,30 +1,42 @@
 # Emuera.Xamarin 任务计划
 
-> **最后更新**：2026-05-16
+> **最后更新**：2026-05-17
 > **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/CHANGELOG.md)
 
 ## 当前状态
 
-- ✅ Phase 0-2 已完成（编译通过 + 桌面端可启动）
-- ✅ **Phase 4A-Desktop** 已完成（Stub 扩展 + 30+ 处注释代码恢复）
-- ✅ **Phase 3** 已完成（Skia 渲染集成）
-- ✅ **Phase 3.5** 已完成（渲染管线补全 + 桌面端修复）
-- ✅ **Phase 6** 已完成（EM 私家版 HTML 扩展：div + PrintHtmlC 全量版）
-- ✅ **Phase 4A-Desktop 续** 已完成（鼠标交互 + ConfigDialog + WinForms 兼容性修复）
-- ✅ **Phase 4B-Desktop** 已完成（WinForms 配置对话框）
-- ✅ **Phase 4A-Desktop 续2** 已完成（ToolTip + QuickButton + DebugDialog 完善）
-- ✅ **Phase 4C-Desktop** 已完成（DebugDialog 属性恢复 + OpenDebugDialog 激活）
-- ✅ **Phase 4A-D20** 已完成（P0-P1 修复 + PressPrimitiveKey 恢复）
-- ✅ **Phase 4A-D21** 已完成（Rikaichan 词典悬浮提示系统移植）
-- ✅ **Phase 4A-D22** 已完成（P1-P2 快速修复：AnimeTimer/OutputLog/pointingStrings/SetTextBoxPos/WinmmTimer）
-- ✅ **Phase 4A-D23** 已完成（GotoTitleAndLoadAndRepeatInput + Ctrl+Z 快捷键）
-- ✅ **Phase 7D-P1** 已完成（外部字体加载增强：fonts 目录 + 别名映射）
-- ✅ **Phase 5B-D1** 已完成（NAudio 音频系统集成）
-- ✅ **Phase 5A-D1** 已完成（IO 跨平台适配：FileUtils + WorkingDir + 替换活跃代码）
-- ✅ **Phase 5C-D1** 已完成（SqlManager 资源清理 + FormClosing 退出流程）
-- ✅ **G6** 已完成（GDI 注释残留清理 + 删除 5 组死对话框文件）
-- 📋 **Phase 7** 已规划（XEmuera 上游跟进：~~编码识别~~❌已覆盖/~~虚拟手柄~~❌不移植/字体缩放/外部字体/本地化/日志查看器/游戏列表）
-- ⏭️ Phase 4A-Xamarin / Phase 4B-Xamarin / Phase 5 / Phase 7
+### ✅ 已完成
+
+| 阶段 | 内容 | 版本 |
+|------|------|------|
+| Phase 0-2 | 项目骨架 + 编译通过 + 桌面端可启动 + 路径/字体/入口适配 | 0.1-0.3 |
+| Phase 3 | Skia 渲染集成（图层/ColorMatrix/OnPaint/FontFactory/DivPart/像素操作） | 0.4 |
+| Phase 3.5 | 渲染管线补全 + 桌面端修复（触发/精灵/Print补全/EscapedParts/HTML岛屿） | 0.5 |
+| Phase 4A-Desktop | Stub 扩展 + 鼠标交互 + ConfigDialog + ToolTip + QuickButton + DebugDialog | 0.6-0.8 |
+| Phase 4A-D20~D23 | P0-P1修复 + Rikaichan + AnimeTimer + GotoTitleAndLoadAndRepeatInput | 0.9-0.10 |
+| Phase 5B-D1 | NAudio 音频系统集成 | 0.11 |
+| Phase 7D-P1 | 外部字体加载增强（fonts目录 + 别名映射） | 0.11 |
+| Phase 5A-D1 | IO 跨平台适配（FileUtils + WorkingDir） | 0.12 |
+| Phase 5C-D1 | SqlManager 资源清理 + FormClosing 退出流程 | 0.12 |
+| Phase 6 | EM 私家版 HTML 扩展（div + PrintHtmlC 全量版） | 0.6 |
+| G6 | GDI 注释残留清理 + 删除 5 组死对话框文件 | 0.13 |
+
+### ⏭️ 待推进（按优先级排序）
+
+| 优先级 | 工作项 | TFM 要求 | 说明 |
+|--------|--------|----------|------|
+| **P1** | 7C-P1 静态字体缩放 | net8.0-windows ✅ | 配置层 FontScale 属性 + 启动时应用 |
+| **P1** | 5A-4 音频路径构建 | net8.0-windows ✅ | `IPathProvider.MusicDir` 替换硬编码 |
+| **P2** | 4A-Xamarin 启用 ContentPage | **net8.0-android** | 需 TFM 切换 |
+| **P2** | 4B-Xamarin 配置页面体系 | **net8.0-android** | 需 TFM 切换 |
+| **P2** | 7G 游戏列表+侧边菜单 | **net8.0-android** | 需 TFM 切换 |
+| **P2** | 7E 本地化 UI | **net8.0-android** | 内核层已完成 |
+| **P2** | 7F 日志查看器 | **net8.0-android** | 需 TFM 切换 |
+| **P3** | 7C-P2 动态缩放 | **net8.0-android** | ReflowDisplayLines 核心难点 |
+| **P3** | 2D 键鼠输入抽象 | **net8.0-android** | WinInput 在桌面端可用 |
+| **P3** | 5A-5/6 IPathProvider Android + 资源解压 | **net8.0-android** | 需 TFM 切换 |
+| **P3** | G5 MainThread 残留清理 | **net8.0-android** | 仅影响 Xamarin 层 |
+| **P3** | ToolTip OwnerDraw | net8.0-windows ✅ | SKBitmap→Bitmap 转换 |
 
 ***
 
