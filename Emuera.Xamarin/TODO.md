@@ -25,45 +25,78 @@
 
 > **项目定位**：LazyLoading 原版桌面端已完备，本项目的**唯一目标产物是 Android APK**。
 > 桌面端（net8.0-windows）仅作为功能验证手段，不是目的。
-> TFM 切换是项目核心里程碑，不是"未来计划"。
+> **XEmuera-1 是可运行的 APK 项目**，其 Android 基础设施可直接继承。
+> 知识库：[android-migration.md](file:///d:/emuera/shared-trae/knowledge/xemuera/android-migration.md)
 
-#### Phase 8：TFM 切换到 Android（核心里程碑）
+#### Phase 8：项目拆分 + Android APK（核心里程碑）
 
-> **目标**：从 net8.0-windows 切换到 net8.0-android，产出可安装 APK
+> **目标**：拆分为 Core+Desktop+Android 三项目，产出可安装 APK
 > **前置条件**：Phase 0-6 桌面端功能验证通过 ✅
+> **架构决策**：方案 B（项目拆分），因为内核依赖 .NET 8 API，不能用 netstandard2.1
+
+```
+Emuera.Xamarin.sln
+├── Emuera.Xamarin.Core      (net8.0)       — 共享代码（Runtime/ + Platform/ + Drawing/ + Models/）
+├── Emuera.Xamarin.Desktop   (net8.0-windows)— WinForms 桌面验证（DesktopHost + Desktop*Dialog）
+└── Emuera.Xamarin.Android   (net8.0-android)— APK 产出（MainActivity + DroidDependencyService）
+```
+
+##### 切片 8A：创建 Core 项目（共享核心）
+
+| # | 操作 | 说明 | XEmuera 参考 | 状态 |
+|---|------|------|-------------|------|
+| 8A-1 | 创建 `Emuera.Xamarin.Core.csproj` | TFM=net8.0，从现有 csproj 提取共享代码 | XEmuera.csproj (netstandard2.1) | ⏭️ |
+| 8A-2 | 迁移 Runtime/ 编译引用 | `<Compile Include="../Emuera/Runtime/**/*.cs" />` | 同 | ⏭️ |
+| 8A-3 | 迁移 Platform/ 编译引用 | Stubs/ + GameView/ + Config/ + Content/ | 同 | ⏭️ |
+| 8A-4 | 迁移 Drawing/ + Models/ + Forms/ | Skia 渲染 + 数据模型 + MessageBox | 同 | ⏭️ |
+| 8A-5 | 迁移 NuGet 包 | SkiaSharp/Xamarin.Forms/Xamarin.Essentials/Sqlite 等 | 同 | ⏭️ |
+| 8A-6 | 排除 Windows-only 文件 | DesktopHost/NAudio/Sound.WMP 等 | — | ⏭️ |
+| 8A-7 | 编译验证 | Core 项目 0 错误 | — | ⏭️ |
+
+##### 切片 8B：创建 Desktop 项目（WinForms 验证）
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 8-1 | csproj TFM 切换 | `net8.0-windows` → `net8.0-android`，移除 `UseWindowsForms`/`OutputType=WinExe` | ⏭️ |
-| 8-2 | 创建 Android 入口点 | `MainActivity.cs` + `AndroidManifest.xml` + Resources 目录 | ⏭️ |
-| 8-3 | NuGet 包条件化 | NAudio/NAudio.Vorbis/SkiaSharp.Views.WPF 仅 Windows；添加 SkiaSharp.Views.Android | ⏭️ |
-| 8-4 | 排除 Windows-only 代码 | DesktopHost.cs / DesktopConfigDialog.cs / DesktopDebugDialog.cs 条件编译排除 | ⏭️ |
-| 8-5 | 排除 NAudio 源码 | `Sound.NAudio.cs` / `NAudio_LoopStream.cs` 加入排除列表 | ⏭️ |
-| 8-6 | 恢复 SoundAndBgm.cs Stub | 移除 csproj 中对 SoundAndBgm.cs 的排除 | ⏭️ |
-| 8-7 | 恢复 XAML code-behind | 移除 10 个 Views/*.xaml.cs + App.xaml.cs + MainPage.xaml.cs 的排除 | ⏭️ |
-| 8-8 | 拆分 Platform/Forms/ | MainWindow.xaml/.xaml.cs 恢复编译；MainWindow.cs/.Designer.cs 保持排除 | ⏭️ |
-| 8-9 | 替换 MousePosition | `System.Windows.Forms.Control.MousePosition` → 跨平台方案 | ⏭️ |
-| 8-10 | 编译验证 | Android 目标 0 错误 | ⏭️ |
+| 8B-1 | 创建 `Emuera.Xamarin.Desktop.csproj` | TFM=net8.0-windows, UseWindowsForms=true | ⏭️ |
+| 8B-2 | 迁移 DesktopHost.cs + Desktop*Dialog.cs | WinForms 桌面宿主 | ⏭️ |
+| 8B-3 | 迁移 Program.cs (WinForms 入口) | Application.Run(new DesktopHostForm()) | ⏭️ |
+| 8B-4 | 引用 Core 项目 | `<ProjectReference>` | ⏭️ |
+| 8B-5 | NAudio NuGet 仅 Desktop 引用 | Windows-only 音频 | ⏭️ |
+| 8B-6 | 编译验证 | Desktop 项目 0 错误，功能与现有一致 | ⏭️ |
 
-#### Phase 8 续：Android 功能补全
+##### 切片 8C：创建 Android 项目（APK 产出）
 
-| # | 操作 | 说明 | 状态 |
-|---|------|------|------|
-| 8-11 | Android IPathProvider | `Context.FilesDir` 路径解析 | ⏭️ |
-| 8-12 | Android 资源解压 | APK assets → FilesDir 首次解压 | ⏭️ |
-| 8-13 | Android 音频后端 | 替代 NAudio：MediaPlayer 或跨平台音频库 | ⏭️ |
-| 8-14 | 触摸事件转发 | EraPictureBox_Touch → EmueraConsole 鼠标事件 | ⏭️ |
-| 8-15 | 文本输入 | Entry → PressEnterKey | ⏭️ |
-| 8-16 | APK 打包验证 | 签名 + 安装 + 启动测试 | ⏭️ |
+| # | 操作 | 说明 | XEmuera 参考 | 状态 |
+|---|------|------|-------------|------|
+| 8C-1 | 创建 `Emuera.Xamarin.Android.csproj` | TFM=net8.0-android | XEmuera.Android.csproj | ⏭️ |
+| 8C-2 | 创建 `MainActivity.cs` | FormsAppCompatActivity + LoadApplication + 沉浸式模式 | **直接复制** XEmuera MainActivity.cs | ⏭️ |
+| 8C-3 | 创建 `DroidDependencyService.cs` | IPlatformService + IPlayer (MobileMediaPlayer) | **直接复制** XEmuera DroidDependencyService.cs | ⏭️ |
+| 8C-4 | 创建 `AndroidManifest.xml` | minSdk=23, targetSdk=31, 权限声明 | **直接复制** XEmuera AndroidManifest.xml | ⏭️ |
+| 8C-5 | 创建 Android Resources/ | icon/style/values | 参考 XEmuera Resources/ | ⏭️ |
+| 8C-6 | 引用 Core 项目 + NuGet | SkiaSharp.Views.Android 等 | 参考 XEmuera.Android.csproj | ⏭️ |
+| 8C-7 | 恢复 XAML code-behind | 移除 Core 项目中对 Views/*.xaml.cs 的排除 | — | ⏭️ |
+| 8C-8 | 替换 NAudio → IPlayer | Sound.NAudio.cs 排除，恢复 SoundAndBgm.cs Stub | 参考 XEmuera IPlayer | ⏭️ |
+| 8C-9 | 替换 MousePosition | WinForms Control.MousePosition → 触摸坐标 | 参考 XEmuera 触摸转鼠标 | ⏭️ |
+| 8C-10 | 编译验证 | Android 目标 0 错误 | — | ⏭️ |
 
-#### 桌面端可继续推进的验证项（不阻塞 APK）
+##### 切片 8D：Android 功能补全
 
-| 优先级 | 工作项 | 说明 |
-|--------|--------|------|
-| P1 | 7C-P1 静态字体缩放 | 配置层 FontScale 属性 + 启动时应用 |
-| P1 | 5A-4 音频路径构建 | `IPathProvider.MusicDir` 替换硬编码 |
-| P2 | ToolTip OwnerDraw | SKBitmap→Bitmap 转换 |
-| P2 | G5 MainThread 残留清理 | 仅影响 Xamarin 层，Android 上 MainThread 可用 |
+| # | 操作 | 说明 | XEmuera 参考 | 状态 |
+|---|------|------|-------------|------|
+| 8D-1 | Android IPathProvider | `Context.FilesDir` / ExternalStorage 路径 | IPlatformService.GetStoragePath() | ⏭️ |
+| 8D-2 | 触摸事件转发 | EraPictureBox_Touch → EmueraConsole 鼠标事件 | **直接复制** XEmuera 触摸转鼠标 | ⏭️ |
+| 8D-3 | 文本输入 | Entry → PressEnterKey | XEmuera MainWindow.xaml.cs | ⏭️ |
+| 8D-4 | 游戏列表 + 侧边菜单 | GameItemPage + MainMenuPage + FlyoutPage | **直接复制** XEmuera Views/ | ⏭️ |
+| 8D-5 | 配置页面 | ConfigPage + ConfigValuePopup | **直接复制** XEmuera Views/ | ⏭️ |
+| 8D-6 | APK 打包验证 | 签名 + 安装 + 启动测试 | — | ⏭️ |
+
+#### 桌面端可继续推进的验证项（不阻塞 APK，优先级低）
+
+| 工作项 | 说明 |
+|--------|------|
+| 7C-P1 静态字体缩放 | 配置层 FontScale 属性 + 启动时应用 |
+| 5A-4 音频路径构建 | `IPathProvider.MusicDir` 替换硬编码 |
+| ToolTip OwnerDraw | SKBitmap→Bitmap 转换 |
 
 ***
 
