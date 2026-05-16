@@ -75,8 +75,10 @@ namespace XEmuera.Drawing
 	{
 		public Color Color => DrawingColor;
 		public SolidBrush(Color color) : base(color) { }
+#if WINDOWS
 		public SolidBrush(System.Drawing.SolidBrush sb) : base(sb.Color) { }
 		public static implicit operator SolidBrush(System.Drawing.SolidBrush sb) => new SolidBrush(sb);
+#endif
 	}
 
 	public class Brush : Pen
@@ -85,11 +87,13 @@ namespace XEmuera.Drawing
 		{
 			IsStroke = false;
 		}
+#if WINDOWS
 		public Brush(System.Drawing.Brush b) : base(((System.Drawing.SolidBrush)b).Color)
 		{
 			IsStroke = false;
 		}
 		public static implicit operator Brush(System.Drawing.Brush b) => new Brush(b);
+#endif
 	}
 
 	public class Pen : SKPaint
@@ -109,6 +113,7 @@ namespace XEmuera.Drawing
 			FilterQuality = Config.ShapeFilterQuality;
 		}
 
+#if WINDOWS
 		public Pen(System.Drawing.Pen p)
 		{
 			DrawingColor = p.Color;
@@ -120,6 +125,7 @@ namespace XEmuera.Drawing
 		}
 
 		public static implicit operator Pen(System.Drawing.Pen p) => new Pen(p);
+#endif
 	}
 
 	public enum DashStyle

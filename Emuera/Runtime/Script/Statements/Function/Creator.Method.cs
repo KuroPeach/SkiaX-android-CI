@@ -7014,7 +7014,7 @@ internal static partial class FunctionMethodCreator
 			Point p = ReadPoint(Name, exm, arguments, 1);
 			if (p.X < 0 || p.X >= g.Width || p.X < 0 || p.Y >= g.Height)
 				return -1;
-			var c = g.GGetColor(p.X, p.Y).ToDrawingColor();
+			var c = (Color)g.GGetColor(p.X, p.Y);
 			//Color.ToArgb()はInt32の負の値をとることがあり、Int64にうまく変換できない?（と思ったが気のせいだった
 			return c.ToArgb() & 0xFFFFFFFFL;
 		}
@@ -9126,7 +9126,11 @@ internal static partial class FunctionMethodCreator
 			try
 			{
 				Config.CreateSavDir();
+#if WINDOWS
 				g.SKBitmap.ToBitmap().Save(filepath);
+#else
+				return 0;
+#endif
 			}
 			catch
 			{
