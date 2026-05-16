@@ -130,6 +130,7 @@ namespace MinorShift.Emuera
         {
             PlatformInterop.DoEvents = () => System.Windows.Forms.Application.DoEvents();
             PlatformInterop.ShowMessage = (msg) => System.Windows.Forms.MessageBox.Show(msg);
+            PlatformInterop.ShowMessageWithTitle = (msg, caption) => System.Windows.Forms.MessageBox.Show(msg, caption);
             PlatformInterop.ShowQuestion = (msg, caption) => System.Windows.Forms.MessageBox.Show(msg, caption, System.Windows.Forms.MessageBoxButtons.YesNo, System.Windows.Forms.MessageBoxIcon.None, System.Windows.Forms.MessageBoxDefaultButton.Button2) == System.Windows.Forms.DialogResult.Yes;
             PlatformInterop.GetProductVersion = () => System.Windows.Forms.Application.ProductVersion;
             PlatformInterop.GetMousePosition = () =>

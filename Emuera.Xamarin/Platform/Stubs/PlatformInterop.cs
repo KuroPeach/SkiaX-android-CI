@@ -8,6 +8,8 @@ namespace MinorShift.Emuera
 
 		public static Action<string> ShowMessage { get; set; } = _ => { };
 
+		public static Action<string, string> ShowMessageWithTitle { get; set; } = (_, __) => { };
+
 		public static Func<string, string, bool> ShowQuestion { get; set; } = (_, __) => false;
 
 		public static Func<string, string, float, FontStyle, float> MeasureTextWidth { get; set; } = (_, __, ___, ____) => 0f;

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Windows.Forms;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.GameView;
@@ -16,12 +15,13 @@ namespace MinorShift.Emuera
 {
 	internal static class Program
 	{
+#if WINDOWS
 		[STAThread]
-		static void Main(string[] args)
+		internal static void Main(string[] args)
 		{
 			global::System.Windows.Forms.Application.EnableVisualStyles();
 			global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
-			global::System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.SystemAware);
+			global::System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.SystemAware);
 
 			if (!Init())
 				return;
@@ -30,6 +30,7 @@ namespace MinorShift.Emuera
 			form.Shown += (s, e) => form.InitEmuera();
 			global::System.Windows.Forms.Application.Run(form);
 		}
+#endif
 		/*
 		コードの開始地点。
 		ここでMainWindowを作り、
@@ -96,12 +97,12 @@ namespace MinorShift.Emuera
 
 			if (!Directory.Exists(CsvDir))
 			{
-				global::System.Windows.Forms.MessageBox.Show(Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text, Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
+				PlatformInterop.ShowMessageWithTitle(Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text, Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
 				return false;
 			}
 			if (!Directory.Exists(ErbDir))
 			{
-				global::System.Windows.Forms.MessageBox.Show(Lang.UI.MainWindow.MsgBox.NoErbFolder.Text, Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
+				PlatformInterop.ShowMessageWithTitle(Lang.UI.MainWindow.MsgBox.NoErbFolder.Text, Lang.UI.MainWindow.MsgBox.FolderNotFound.Text);
 				return false;
 			}
 
@@ -123,7 +124,7 @@ namespace MinorShift.Emuera
 			if ((!Config.AllowMultipleInstances) && (Sys.PrevInstance()))
 			{
 				//MessageBox.Show("多重起動を許可する場合、emuera.configを書き換えて下さい", "既に起動しています");
-				global::System.Windows.Forms.MessageBox.Show(Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text, Lang.UI.MainWindow.MsgBox.InstaceExists.Text);
+				PlatformInterop.ShowMessageWithTitle(Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text, Lang.UI.MainWindow.MsgBox.InstaceExists.Text);
 				return false;
 			}
 			

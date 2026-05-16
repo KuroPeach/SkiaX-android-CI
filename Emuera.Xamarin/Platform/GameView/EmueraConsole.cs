@@ -558,7 +558,7 @@ namespace MinorShift.Emuera.GameView
 //				setTimer();
 			}
 			//updateMousePosition();
-			Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+			Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 			if (window.MainPicBox.ClientRectangle.Contains(point))
 			{
 				PrintFlush(false);
@@ -711,7 +711,7 @@ namespace MinorShift.Emuera.GameView
 				InputMouseKey(4, 0, 0, 0, 0, 0);
 				if (state == ConsoleState.WaitInput && inputReq.NeedValue)
 				{
-					Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+					Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 					if (window.MainPicBox.ClientRectangle.Contains(point))
 						MoveMouse(point);
 				}
@@ -726,7 +726,7 @@ namespace MinorShift.Emuera.GameView
 			callEmueraProgram("");//ディフォルト入力の処理はcallEmueraProgram側で
 			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
 			{
-				Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+				Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 				if (window.MainPicBox.ClientRectangle.Contains(point))
 					MoveMouse(point);
 			}
@@ -923,7 +923,7 @@ namespace MinorShift.Emuera.GameView
 				callEmueraProgram(null);
 				if (state == ConsoleState.WaitInput && inputReq.NeedValue)
 				{
-					Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+					Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 					if (window.MainPicBox.ClientRectangle.Contains(point))
 						MoveMouse(point);
 				}
@@ -1044,7 +1044,7 @@ namespace MinorShift.Emuera.GameView
 			endMacro:
 			if(state == ConsoleState.WaitInput && inputReq.NeedValue)
 			{
-				Point point = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+				Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 				if (window.MainPicBox.ClientRectangle.Contains(point))
 					MoveMouse(point);
 			}
@@ -1541,7 +1541,7 @@ namespace MinorShift.Emuera.GameView
 					{
 						if (window.ToolTip.InitialDelay == 0)
 						{
-							Point mousePos = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+							Point mousePos = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 							window.ToolTip.Show(title, window.MainPicBox, new Point(mousePos.X, mousePos.Y + 18), tooltip_duration);
 						}
 						else
@@ -1556,7 +1556,7 @@ namespace MinorShift.Emuera.GameView
 									MoveMouse(GetMousePosition());
 									if (lastPointingString == savedPointingString)
 									{
-										Point mousePos = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+										Point mousePos = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 										window.ToolTip.Show(title, window.MainPicBox, new Point(mousePos.X, mousePos.Y + 18), tooltip_duration);
 									}
 								}, null);
@@ -1793,7 +1793,7 @@ namespace MinorShift.Emuera.GameView
 		{
 			if (window == null || !window.Created)
 				return new Point();
-			Point pos = window.MainPicBox.PointToClient(System.Windows.Forms.Control.MousePosition);
+			Point pos = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 			pos.Y -= ClientHeight;
 			return pos;
 		}

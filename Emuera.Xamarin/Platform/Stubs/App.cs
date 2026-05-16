@@ -1,4 +1,4 @@
-using System.Windows.Forms;
+using MinorShift.Emuera;
 
 namespace XEmuera
 {
@@ -6,7 +6,7 @@ namespace XEmuera
     {
         public static void DoEvents()
         {
-            Application.DoEvents();
+            PlatformInterop.DoEvents();
         }
     }
 }
