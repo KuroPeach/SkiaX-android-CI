@@ -1,5 +1,22 @@
 # Emuera.Xamarin 变更记录
 
+## [0.10.0] - 2026-05-18
+
+### Phase 4A-D22：P1-P2 快速修复 ✅
+
+- `AnimeTimer`：从硬编码 0 改为 `redrawTimer.Enabled ? (long)redrawTimer.Interval : 0`
+- `OutputLog(string, bool)`：从空壳改为委托 `OutputLog(string)`
+- `pointingStrings`：添加 `HashSet<ConsoleButtonString>` 支持多按钮重叠高亮
+- `SetTextBoxPos`：从空壳改为 `DesktopMainWindow` override + 坐标裁剪
+- `WinmmTimer`：恢复 `winmm.dll` P/Invoke（`timeGetTime`/`timeBeginPeriod`），跨平台 fallback 到 `Environment.TickCount64`
+
+### Phase 4A-D23：GotoTitleAndLoadAndRepeatInput + Ctrl+Z ✅
+
+- `GotoTitleAndLoadAndRepeatInput()`：完整 Ctrl+Z 回退重放实现
+- `DesktopHostForm`：Ctrl+Z 键盘快捷键处理
+- `Config.Ctrl_Z_Enabled`：委托到 Runtime Config
+- 编译验证：0 错误，64 警告
+
 ## [0.9.0] - 2026-05-18
 
 ### Phase 4A-D20：桌面端 P0-P1 修复 + PressPrimitiveKey 恢复 ✅

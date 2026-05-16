@@ -16,6 +16,8 @@
 - ✅ **Phase 4C-Desktop** 已完成（DebugDialog 属性恢复 + OpenDebugDialog 激活）
 - ✅ **Phase 4A-D20** 已完成（P0-P1 修复 + PressPrimitiveKey 恢复）
 - ✅ **Phase 4A-D21** 已完成（Rikaichan 词典悬浮提示系统移植）
+- ✅ **Phase 4A-D22** 已完成（P1-P2 快速修复：AnimeTimer/OutputLog/pointingStrings/SetTextBoxPos/WinmmTimer）
+- ✅ **Phase 4A-D23** 已完成（GotoTitleAndLoadAndRepeatInput + Ctrl+Z 快捷键）
 - 📋 **Phase 7** 已规划（XEmuera 上游跟进：~~编码识别~~❌已覆盖/~~虚拟手柄~~❌不移植/字体缩放/外部字体/本地化/日志查看器/游戏列表）
 - ⏭️ Phase 4A-Xamarin / Phase 4B-Xamarin / Phase 5 / Phase 7
 

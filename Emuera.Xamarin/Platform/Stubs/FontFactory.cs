@@ -20,6 +20,38 @@ internal static class FontFactory
 	static readonly Dictionary<(char, string), SKTypeface> fallbackTypefaceCache = [];
 	static readonly Dictionary<(int, string), SKTypeface> fallbackTypefaceCodepointCache = [];
 	static readonly Dictionary<(string fontname, int fontSize, FontStyle font_style), Font> gdiFontDic = [];
+	static readonly Dictionary<string, SKTypeface> fontAliases = new(StringComparer.OrdinalIgnoreCase);
+
+	static FontFactory()
+	{
+		RegisterKnownAliases();
+	}
+
+	private static void RegisterKnownAliases()
+	{
+		var pairs = new (string alias, string target)[]
+		{
+			("ＭＳ ゴシック", "MS Gothic"),
+			("ＭＳ Ｐゴシック", "MS PGothic"),
+			("ＭＳ 明朝", "MS Mincho"),
+			("ＭＳ Ｐ明朝", "MS PMincho"),
+			("微软雅黑", "Microsoft YaHei"),
+		};
+		foreach (var (alias, target) in pairs)
+		{
+			var typeface = SKTypeface.FromFamilyName(target);
+			if (typeface != null)
+				fontAliases[alias] = typeface;
+		}
+	}
+
+	public static void RegisterFontAlias(string name, SKTypeface typeface)
+	{
+		if (string.IsNullOrEmpty(name) || typeface == null)
+			return;
+		if (!fontAliases.ContainsKey(name))
+			fontAliases[name] = typeface;
+	}
 
 	public static bool IsRasterFont(string fontName)
 	{
@@ -89,6 +121,9 @@ internal static class FontFactory
 		SKTypeface typeface = SKTypeface.FromFamilyName(fontName);
 		if (typeface != null)
 			return typeface;
+
+		if (fontAliases.TryGetValue(fontName, out var aliasTypeface))
+			return aliasTypeface;
 
 		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
 		{
@@ -238,5 +273,7 @@ internal static class FontFactory
 			typeface?.Dispose();
 		fallbackTypefaceCodepointCache.Clear();
 		gdiFontDic.Clear();
+		fontAliases.Clear();
+		RegisterKnownAliases();
 	}
 }
