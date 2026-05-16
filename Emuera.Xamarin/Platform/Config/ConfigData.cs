@@ -193,6 +193,14 @@ namespace MinorShift.Emuera
 			configArray.Add(new ConfigItem(ConfigCode.LongPressSkipTime, ConfigsText.LongPressSkipTime, "", 800));
 			#endregion
 
+			#region EmuEra-Rikaichan related settings
+			configArray.Add(new ConfigItem(ConfigCode.RikaiEnabled, "Rikaichanを使用する", "Rikai- Enabled", false));
+			configArray.Add(new ConfigItem(ConfigCode.RikaiFilename, "Rikaichanのファイルパス", "Rikai- Dictionary Filename", "Emuera-Rikai-edict.txt-eucjp"));
+			configArray.Add(new ConfigItem(ConfigCode.RikaiColorBack, "ポップアップの背景色", "Rikai- Back Color", Color.FromArgb(0, 0, 0x8B)));
+			configArray.Add(new ConfigItem(ConfigCode.RikaiColorText, "ポップアップの文字色", "Rikai- Text Color", Color.FromArgb(0xFF, 0xFF, 0xFF)));
+			configArray.Add(new ConfigItem(ConfigCode.RikaiUseSeparateBoxes, "翻訳中の語句を強調表示する", "Rikai- Use Separate Boxes", true));
+			#endregion
+
 			ConfigsText.Culture = new CultureInfo("ja-JP");
 		}
 		#endregion

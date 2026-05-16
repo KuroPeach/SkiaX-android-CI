@@ -243,6 +243,10 @@ namespace MinorShift.Emuera.GameView
 					{
 						ConsoleButtonString newButton = buttonList[i].DivideAt(divIndex, stringMeasure);
 						//newButton.CalcPointX(buttonList[i].PointX + buttonList[i].Width);
+						#region EmuEra-Rikaichan
+						if (Config.RikaiEnabled)
+							buttonList[i].StrArray[0].NextLine = newButton.StrArray[0];
+						#endregion
 						buttonList.Insert(i + 1, newButton);
 						lineButtonList.Add(buttonList[i]);
 						i++;
@@ -270,6 +274,15 @@ namespace MinorShift.Emuera.GameView
 				}
 				i--;//buttonList[i]は新しい行に含めないので次の行のために再検討する必要がある(直後のi++と相殺)
 			}
+			#region EmuEra-Rikaichan
+			if (Config.RikaiEnabled)
+			{
+				for (int i = lineButtonList.Count - 1; i > 0; i--)
+				{
+					lineButtonList[i - 1].StrArray[0].NextLine = lineButtonList[i].StrArray[0];
+				}
+			}
+			#endregion
 			if (lineButtonList.Count > 0)
 			{
 				lineList.Add(m_buttonsToDisplayLine(lineButtonList, firstLine, temporary));

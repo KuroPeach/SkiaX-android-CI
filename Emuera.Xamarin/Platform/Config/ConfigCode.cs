@@ -1,4 +1,4 @@
-﻿
+
 namespace MinorShift.Emuera
 {
 	//難読化用属性。enum.ToString()やenum.Parse()を行うなら(Exclude=true)にすること。
@@ -189,6 +189,14 @@ namespace MinorShift.Emuera
 
 		LongPressSkip,
 		LongPressSkipTime,
+
+		#region EmuEra-Rikaichan related settings
+		RikaiEnabled = 250,
+		RikaiFilename,
+		RikaiColorBack,
+		RikaiColorText,
+		RikaiUseSeparateBoxes,
+		#endregion
 
 	}
 }

@@ -96,6 +96,19 @@ namespace MinorShift.Emuera.GameView
 			}
 			Width = sm.GetDisplayLength(Text, Font);
 			XsubPixel = subPixel;
+			#region EmuEra-Rikaichan
+			if (!rikaichaned && Config.RikaiEnabled)
+			{
+				rikaichaned = true;
+				int len = Text.Length;
+				Ends = new int[len];
+				for (int i = 0; i < len; i++)
+				{
+					string temp = Text.Substring(0, i + 1);
+					Ends[i] = sm.GetDisplayLength(temp, Font);
+				}
+			}
+			#endregion
 		}
 
 		public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)

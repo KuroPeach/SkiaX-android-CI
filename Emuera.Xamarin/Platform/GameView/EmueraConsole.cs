@@ -247,6 +247,7 @@ namespace MinorShift.Emuera.GameView
 		private SKBitmap bakedBackground;
 		private List<KeyValuePair<long, ConsoleBackground>> backgroundList = [];
 		private List<ConsoleDisplayLine> _htmlElementList = new(10);
+		public Rikaichan rikaichan = new();
 
 		MinorShift.Emuera.GameProc.Process emuera;
 		#region EM_私家版_描画拡張
@@ -1516,6 +1517,19 @@ namespace MinorShift.Emuera.GameView
 				}
 				#endregion
 
+				#region EmuEra-Rikaichan
+				if (Config.RikaiEnabled)
+				{
+					try
+					{
+						rikaichan.OnPaint(graph, stringMeasure, window.MainPicBox.Width);
+					}
+					catch
+					{
+					}
+				}
+				#endregion
+
 				var y = 0;
 				foreach (var element in _htmlElementList)
 				{
@@ -1875,6 +1889,7 @@ namespace MinorShift.Emuera.GameView
 				canSelect = true;
 			else if (state == ConsoleState.WaitInput && inputReq.NeedValue)
 				canSelect = true;
+			int curLineY = 0;
 			//スクリプト実行中は無視//入力・マクロ処理中は無視
 			if(this.IsInProcess)
 				goto end;
@@ -1923,6 +1938,7 @@ namespace MinorShift.Emuera.GameView
 								&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
 							{
 								pointing = button;
+								curLineY = window.MainPicBox.Height - Config.LineHeight * (bottomLineNo - i + 1);
 								if (pointing.IsButton)
 									goto breakfor;
 							}
@@ -1958,6 +1974,66 @@ namespace MinorShift.Emuera.GameView
 			bool needRefresh = select != selectingButton || pointing != pointingString;
 			pointingString = pointing;
 			selectingButton = select;
+			#region EmuEra-Rikaichan
+			if (Config.RikaiEnabled && rikaichan.enabled)
+			{
+				if (pointing == null || pointing.StrArray.Length == 0) goto rikaichan_not_found;
+
+				AConsoleDisplayNode cdp;
+				ConsoleStyledString css;
+				for (int first_subbutton_i = 0; first_subbutton_i < pointing.StrArray.Length; first_subbutton_i++)
+				{
+					cdp = pointing.StrArray[first_subbutton_i];
+					if (cdp.rikaichaned)
+					{
+						css = cdp as ConsoleStyledString;
+						if (css.PointX + css.Width > point.X)
+						{
+							goto rikaichan_found;
+						}
+					}
+				}
+
+				goto rikaichan_not_found;
+
+			rikaichan_found:
+				int xpos = point.X - css.PointX;
+
+				rikaichan.laststr = css.Text;
+				if (css.NextLine != null)
+				{
+					rikaichan.laststr += css.NextLine.Text;
+				}
+
+				rikaichan.strpos = css.Ends.Length - 1;
+				for (int i = css.Ends.Length - 1; i >= 0; i--)
+				{
+					if (css.Ends[i] < xpos) break;
+					rikaichan.strpos = i;
+				}
+
+				if (pointingString == lastPointingString && rikaichan.strpos == rikaichan.laststrpos) goto rikaichan_end;
+
+				rikaichan.css = css;
+				rikaichan.point = point;
+				rikaichan.curLineY = curLineY;
+
+				rikaichan.hidden = false;
+				rikaichan.laststrpos = rikaichan.strpos;
+				rikaichan.output = rikaichan.laststr.Substring(rikaichan.strpos);
+
+				needRefresh = true;
+				goto rikaichan_end;
+
+			rikaichan_not_found:
+				if (rikaichan.hidden == false)
+				{
+					rikaichan.hidden = true;
+					needRefresh = true;
+				}
+			}
+		rikaichan_end:
+			#endregion
 			return needRefresh;
 		}
 

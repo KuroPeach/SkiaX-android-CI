@@ -14,7 +14,7 @@
 - ✅ **Phase 4B-Desktop** 已完成（WinForms 配置对话框）
 - ✅ **Phase 4A-Desktop 续2** 已完成（ToolTip + QuickButton + DebugDialog 完善）
 - ✅ **Phase 4C-Desktop** 已完成（DebugDialog 属性恢复 + OpenDebugDialog 激活）
-- 📋 **Phase 7** 已规划（XEmuera 上游跟进：~~编码识别~~❌已覆盖/虚拟手柄/字体缩放/外部字体/本地化/日志查看器/游戏列表）
+- 📋 **Phase 7** 已规划（XEmuera 上游跟进：~~编码识别~~❌已覆盖/~~虚拟手柄~~❌不移植/字体缩放/外部字体/本地化/日志查看器/游戏列表）
 - ⏭️ Phase 4A-Xamarin / Phase 4B-Xamarin / Phase 5 / Phase 7
 
 ---
@@ -473,91 +473,165 @@
 | 7A-4 | ~~添加 Config 选项 AutoDetectEncoding~~ | 已默认自动检测 | ❌ 不需要 |
 | 7A-5 | ~~编译+运行验证~~ | — | ❌ 不需要 |
 
-### 切片 7B：虚拟手柄映射（框架，P0）
+### 切片 7B：虚拟手柄映射（框架）— ❌ 不移植
 
-> **研判**：移动端核心交互，XEmuera 已实现完整虚拟手柄系统（方向键/确认/返回/数字键盘/虚拟选择导航）。
-> LazyLoading 内核已有 `VirtualSelectionDirection`/`ClickSelectedButton()`/`NavigateVirtualSelection()` 等虚拟选择逻辑，
-> 但无虚拟手柄 UI 和触摸事件映射。需在 Phase 4A-Xamarin 之后实施。
+> **研判修正（2026-05-16）**：虚拟手柄不移植。
+> 理由：移动端触屏直接点击按钮比虚拟手柄更自然；虚拟手柄是键盘机/功能机时代的遗留设计；
+> LazyLoading 内核已有 `VirtualSelectionDirection`/`ClickSelectedButton()`/`NavigateVirtualSelection()` 触屏选择导航，
+> 无需额外虚拟手柄层。
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 7B-1 | 移植虚拟手柄 XAML 布局 | 方向键/确认/返回/数字键盘/缩放按钮 | ⏭️ |
-| 7B-2 | 移植 `ActivateKeypadButton()` | 数字键 → `PressPrimitiveKey` | ⏭️ |
-| 7B-3 | 移植 `TryActivateKeywordButton()` | 扩展关键词：确认/确定/调合/选定/是 + 返回/取消/归返/结束/完毕/否 | ⏭️ |
-| 7B-4 | 移植虚拟选择导航 | `NavigateVirtualSelection()` — 上下左右方向选择按钮 | ⏭️ |
-| 7B-5 | 移植 `RefreshVirtualControllerState()` | 根据输入状态动态显示/隐藏按钮 | ⏭️ |
-| 7B-6 | 编译+运行验证 | — | ⏭️ |
-
-**前置条件**：Phase 4A-Xamarin 完成
+| 7B-1 | ~~移植虚拟手柄 XAML 布局~~ | 触屏直接点击更自然 | ❌ 不移植 |
+| 7B-2 | ~~移植 ActivateKeypadButton~~ | — | ❌ 不移植 |
+| 7B-3 | ~~移植 TryActivateKeywordButton~~ | — | ❌ 不移植 |
+| 7B-4 | ~~移植虚拟选择导航~~ | 内核已有 | ❌ 不移植 |
+| 7B-5 | ~~移植 RefreshVirtualControllerState~~ | — | ❌ 不移植 |
+| 7B-6 | ~~编译+运行验证~~ | — | ❌ 不移植 |
 
 ### 切片 7C：运行时字体缩放（框架，P1）
 
-> **研判**：XEmuera 0.63 新增 `ApplyRuntimeDisplayScale()` 实现运行时缩放（0.5x~5.0x），
-> 核心是 `ToLogicalTouchPoint()` 将触摸坐标转换为逻辑坐标，以及 `ReflowDisplayLinesForCurrentScale()` 重排显示行。
-> LazyLoading 有 `Config.FontScale` 但无运行时动态调整。
+> **研判（2026-05-16 深化）**：分阶段实施。
+> 
+> **LazyLoading 现状**：`ConfigCode.FontScale`/`AdaptiveFont`/`AdaptiveFontSize` 枚举已定义，
+> 但核心 `Config.cs` 无 `FontScale` 属性，启动时不读取也不应用。
+> Xamarin 子项目 `Config.cs` 已有 `FontScale` 属性 + AdaptiveFont 应用逻辑（可直接参考）。
+> 
+> **三层差距**：
+> 1. **配置层（低难度）**：添加 `FontScale` 属性 + 启动时应用 → 静态缩放重启生效
+> 2. **运行时入口（中难度）**：`ApplyRuntimeDisplayScale()` + `AdjustRuntimeDisplayScale()` + `ToLogicalTouchPoint()`
+> 3. **显示行重排（高难度）**：`ReflowDisplayLinesForCurrentScale()` — XEmuera 用 `HtmlManager.DisplayLine2Html` → `Html2DisplayLine` 序列化/反序列化重排，LazyLoading 无 HTML 中间层
+> 
+> **分阶段策略**：先实现 7C-Phase1（静态缩放），后实现 7C-Phase2（动态缩放）
+
+#### 7C-Phase1：静态缩放（配置层，低难度）
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 7C-1 | 移植 `ApplyRuntimeDisplayScale()` | 缩放应用 + InitGameView 重初始化 | ⏭️ |
-| 7C-2 | 移植 `ToLogicalTouchPoint()` | 触摸坐标逻辑缩放转换 | ⏭️ |
-| 7C-3 | 移植 `AdjustRuntimeDisplayScale()` | 缩放按钮 +/- 0.1 调整 | ⏭️ |
-| 7C-4 | 实现 `ReflowDisplayLinesForCurrentScale()` | 缩放后重排显示行 | ⏭️ |
-| 7C-5 | 添加缩放 UI 按钮 | zoom_in/zoom_out 按钮 | ⏭️ |
-| 7C-6 | 编译+运行验证 | — | ⏭️ |
+| 7C-P1-1 | 在 LazyLoading `Config.cs` 添加 `FontScale` 属性 | 参考 Xamarin 子项目 Config.cs | ⏭️ |
+| 7C-P1-2 | 在 `SetConfig()` 中读取 `ConfigCode.FontScale` 并应用 | `FontSize *= FontScale; LineHeight *= FontScale` | ⏭️ |
+| 7C-P1-3 | 在 ConfigDialog 添加 FontScale 编辑 | 数值 0.5~5.0，步进 0.1 | ⏭️ |
+| 7C-P1-4 | 编译+运行验证 | 重启后缩放生效 | ⏭️ |
+
+#### 7C-Phase2：动态缩放（运行时，高难度）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7C-P2-1 | 移植 `ApplyRuntimeDisplayScale()` | 缩放应用 + InitGameView 重初始化 | ⏭️ |
+| 7C-P2-2 | 移植 `ToLogicalTouchPoint()` | 触摸坐标逻辑缩放转换 | ⏭️ |
+| 7C-P2-3 | 移植 `AdjustRuntimeDisplayScale()` | 缩放按钮 +/- 0.1 调整 | ⏭️ |
+| 7C-P2-4 | 实现 `ReflowDisplayLinesForCurrentScale()` | DisplayLine → HTML → 重新排版 → DisplayLine（核心难点） | ⏭️ |
+| 7C-P2-5 | 添加缩放 UI 按钮 | zoom_in/zoom_out 按钮 | ⏭️ |
+| 7C-P2-6 | 编译+运行验证 | — | ⏭️ |
 
 **前置条件**：Phase 4A-Xamarin 完成
+**风险**：ReflowDisplayLines 依赖 HTML 中间层，LazyLoading 无此机制，需引入或另辟蹊径
 
 ### 切片 7D：外部字体加载（框架，P1）
 
-> **研判**：XEmuera 的 `FontModel` 从游戏目录 `font/`/`fonts/` 加载 ttf/otf 文件，
-> 并有 `KnownExternalFontAliases` 别名系统（如 EraMonoSC、EraPixel）。
-> LazyLoading 的 `FontFactory` 已有 4 层回退链，但无外部目录扫描。
-> 需在 FontFactory 回退链中插入外部字体查找层。
+> **研判（2026-05-16 深化）**：推荐最小方案。
+> 
+> **LazyLoading 现状**：`Program.cs` 启动时扫描 `ExeDir + "font\\"` 目录（仅 `font`，不支持 `fonts`），
+> 扩展名 `*.ttf`/`*.otf`/`*.ttc`，直接 `SKTypeface.FromFile` 加入 `GlobalStatic.CustomTypefaces`。
+> `FontFactory` 有 4 层回退链但无别名映射、无 FamilyName 去重、无版本后缀剥离。
+> 
+> **关键差距**：当 ERB 脚本写 `SETFONT 等距时代黑体 SC` 时，XEmuera 通过别名映射找到 `EraMonoSC` 字体文件，
+> LazyLoading 会回退到默认字体。
+> 
+> **两种方案**：
+> - **最小方案（推荐）**：扩展目录扫描 + 在 `FontFactory.CreateTypefaceWithFallback` 插入精确别名解析层
+> - **完整方案**：移植 `FontModel` 的完整别名系统
+
+#### 7D-Phase1：最小方案（推荐）
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 7D-1 | 移植 `FontModel` 外部字体扫描 | `ExternalFontDirectoryNames` + `ExternalFontExtensions` + `KnownExternalFontAliases` | ⏭️ |
-| 7D-2 | 在 `FontFactory.GetFont()` 中插入外部字体层 | 自定义字体 → **外部目录字体** → 安全字体 → MatchCharacter → Default | ⏭️ |
-| 7D-3 | 添加字体选择 UI | `FontSettingsPage` — 启用/禁用字体 + 别名映射 | ⏭️ |
-| 7D-4 | 编译+运行验证 | — | ⏭️ |
+| 7D-P1-1 | 扩展 `Program.cs` 扫描 `fonts` 目录 | 同时支持 `font` 和 `fonts` | ⏭️ |
+| 7D-P1-2 | 在 `FontFactory` 添加 `FontAliases` 字典 | 文件名/FamilyName → SKTypeface 映射 | ⏭️ |
+| 7D-P1-3 | 在 `CreateTypefaceWithFallback` 插入别名解析层 | 系统字体查找失败后、CustomTypefaces 遍历之前 | ⏭️ |
+| 7D-P1-4 | 添加 `KnownExternalFontAliases` 硬编码表 | EraMonoSC/等距时代黑体SC、EraPixel/eraPixel | ⏭️ |
+| 7D-P1-5 | 编译+运行验证 | — | ⏭️ |
+
+#### 7D-Phase2：完整方案（可选扩展）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 7D-P2-1 | 移植 `StripVersionSuffix()` | `EraMonoSC-v2` → `EraMonoSC` | ⏭️ |
+| 7D-P2-2 | 移植 `FontNameMapping` 双向字典 | 日文名/英文名互转 | ⏭️ |
+| 7D-P2-3 | 添加 FamilyName 去重 | `AllModels.ContainsKey(familyName)` 检查 | ⏭️ |
+| 7D-P2-4 | 添加字体启用/禁用排序 | `EnabledList`/`DisabledList` 优先级控制 | ⏭️ |
+| 7D-P2-5 | 添加字体选择 UI | `FontSettingsPage` | ⏭️ |
+| 7D-P2-6 | 编译+运行验证 | — | ⏭️ |
 
 **前置条件**：Phase 3D（FontFactory 完善）完成 ✅
 
 ### 切片 7E：本地化系统（框架，P2）
 
-> **研判**：XEmuera 的本地化系统基于 `EvilMask.Emuera.Lang` + `LanguageModel` + 嵌入式 XML 翻译资源。
-> LazyLoading 内核已有 `EvilMask.Emuera.Lang` 完整实现（含 `TranslatableString` + `LoadLanguageFile()`），
-> 但缺少 UI 选择器和嵌入式中文/英文翻译资源。移动端需添加 `LanguagePage`。
+> **研判（2026-05-16 深化）**：内核层已完成，仅需 UI 层。
+> 
+> **LazyLoading 现状**：`EvilMask.Emuera.Lang` 完整本地化框架已就绪：
+> - `TranslatableString` + 反射注册 + XML 翻译文件加载
+> - 已有嵌入资源：`emuera-zhs.xml`（简体中文）、`emuera-eng.xml`（English）
+> - 已有 `<ExeDir>/lang/` 目录扫描 + 嵌入资源扫描
+> - `Config.EmueraLang` 配置项控制语言选择
+> - **缺失**：无移动端 UI 选择器、无 `CultureInfo.CurrentUICulture` 联动
+> 
+> **无需移植 `LanguageModel`**：LazyLoading 的 `Lang` 类翻译加载机制比 XEmuera 更完整，
+> 只需添加 UI 选择器调用 `Config.EmueraLang` + `Lang.SetLanguage()` 即可。
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 7E-1 | 移植 `LanguageModel` | ja-JP/zh-CN/en 三语言 + Preferences 持久化 | ⏭️ |
-| 7E-2 | 移植 `LanguagePage` | 语言选择 ListView + 重启提示 | ⏭️ |
-| 7E-3 | 添加嵌入式中文翻译资源 | `emuera-zhs.xml` | ⏭️ |
-| 7E-4 | 添加嵌入式英文翻译资源 | `emuera-eng.xml` | ⏭️ |
-| 7E-5 | 编译+运行验证 | — | ⏭️ |
+| 7E-1 | 移植 `LanguagePage` | ListView 选择语言 + 重启提示 | ⏭️ |
+| 7E-2 | 适配持久化方式 | XEmuera 用 `Preferences`，LazyLoading 用 `emuera.config` | ⏭️ |
+| 7E-3 | 添加 `CultureInfo.CurrentUICulture` 联动 | 语言切换时同步设置 | ⏭️ |
+| 7E-4 | 编译+运行验证 | — | ⏭️ |
 
 **前置条件**：Phase 4A-Xamarin 完成
 
 ### 切片 7F：解释器日志查看器（框架，P2）
 
-> **研判**：XEmuera 在侧边菜单添加"解释器日志"入口，通过 `TxtFilePage` 查看 `emuera.log`，
-> 支持剪贴板复制和刷新。LazyLoading 有 `ParserMediator` 警告系统但无移动端查看器。
-> 实现简单，可提前到 Phase 4A-Xamarin 中一起做。
+> **研判（2026-05-16 深化）**：实现简单，可直接移植。
+> 
+> **LazyLoading 现状**：`EmueraConsole.OutputLog()`/`OutputSystemLog()` 写入 `Program.ExeDir + "emuera.log"`，
+> 错误/崩溃时自动输出。桌面端直接用文本编辑器打开，移动端需查看器。
+> 
+> **XEmuera 的 `TxtFilePage`** 是通用文本查看器（`Func<string>` 加载器 + Copy + Refresh），
+> 可直接移植。日志读取用 `EncodingHandler.DetectEncoding()` 解码。
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 7F-1 | 移植 `TxtFilePage` | 文本查看器 + 复制 + 刷新 | ⏭️ |
-| 7F-2 | 在侧边菜单添加"解释器日志"入口 | 读取 `emuera.log` + `EncodingHandler.DetectEncoding()` | ⏭️ |
+| 7F-1 | 移植 `TxtFilePage` | 通用文本查看器 + SelectableLabel + Copy + Refresh | ⏭️ |
+| 7F-2 | 在侧边菜单添加"解释器日志"入口 | `Func<string>` 读取 `emuera.log` + `EncodingHandler.DetectEncoding()` | ⏭️ |
 | 7F-3 | 编译+运行验证 | — | ⏭️ |
 
 **前置条件**：Phase 4A-Xamarin 完成
 
 ### 切片 7G：游戏列表+侧边菜单（框架，P0）
 
-> **研判**：XEmuera 使用 `FlyoutPage` + `GameItemPage` 实现游戏列表和侧边菜单导航。
-> 这是移动端的基础导航框架，需在 Phase 4A-Xamarin 中优先实现。
-> 已在 TODO Phase 4A-X6 中规划（移植 App.xaml + MainPage.xaml），此处补充细节。
+> **研判（2026-05-16 深化）**：移动端导航基础，与 4A-X6 合并。
+> 
+> **XEmuera 导航架构**：
+> ```
+> App.MainPage (FlyoutPage)
+> ├── Flyout: MainMenuPage (侧边菜单)
+> │   ├── 设置 → PushAsync(SettingsPage)
+> │   ├── 解释器日志 → PushAsync(TxtFilePage)
+> │   ├── 重启 → MainWindow.MainMenu_Reboot()
+> │   └── 回到标题 → MainWindow.MainMenu_GotoTitle()
+> └── Detail: NavigationPage
+>     ├── [0] GameItemPage (游戏列表，始终在栈底)
+>     ├── [1] MainWindow (游戏运行页，PushAsync 进入)
+>     └── [2] SettingsPage / TxtFilePage (从侧边菜单进入)
+> ```
+> 
+> **LazyLoading 现状**：桌面版直接创建 WinForms `MainWindow`，无游戏选择界面，无 Flyout/导航栈概念。
+> `GameItemModel` 的整个概念是移动端特有的——移动端需要在一个根目录下管理多个游戏。
+> 
+> **实施要点**：
+> - `GameItemModel.Load()` 扫描根目录下含 ERB/erb 子目录的文件夹
+> - `GameUtils.StartEmuera(path)` 设置游戏路径 → 加载字体 → 创建 MainWindow → PushAsync
+> - `MainMenuPage` 动态构建菜单项（运行中显示重启/回到标题，始终显示设置）
+> - 持久化用 `Xamarin.Essentials.Preferences`（收藏/最后游戏路径），需适配
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
