@@ -575,6 +575,22 @@ namespace MinorShift.Emuera
             }));
         }
 
+        public override void ShowDebugDialog()
+        {
+            if (form.IsDisposed)
+                return;
+            var console = GlobalStatic.Console;
+            if (console == null)
+                return;
+            form.BeginInvoke(new Action(() =>
+            {
+                using (var dialog = new DesktopDebugDialog(console))
+                {
+                    dialog.ShowDialog(form);
+                }
+            }));
+        }
+
         public override void update_lastinput()
         {
         }

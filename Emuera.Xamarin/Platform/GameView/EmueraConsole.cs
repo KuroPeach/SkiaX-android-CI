@@ -386,11 +386,11 @@ namespace MinorShift.Emuera.GameView
             emuera = new GameProc.Process(this);
 			GlobalStatic.Process = emuera;
 
-			//if (Program.DebugMode && Config.DebugShowWindow)
-			//{
-			//	OpenDebugDialog();
-				window.Focus();
-			//}
+			if (Program.DebugMode && Config.DebugShowWindow)
+			{
+				OpenDebugDialog();
+			}
+			window.Focus();
 			ClearDisplay();
 			if (!emuera.Initialize(null).Result)
 			{
@@ -1251,7 +1251,7 @@ namespace MinorShift.Emuera.GameView
 					RefreshStrings(true);
 					return;
 				}
-				//OpenDebugDialog();
+				OpenDebugDialog();
 			}
 			else
 			{
@@ -1650,24 +1650,9 @@ namespace MinorShift.Emuera.GameView
 		}
 		public void OpenDebugDialog()
 		{
-			// if (!Program.DebugMode)
-			// 	return;
-			// if (dd != null)
-			// {
-			// 	if (dd.Created)
-			// 	{
-			// 		dd.Focus();
-			// 		return;
-			// 	}
-			// 	else
-			// 	{
-			// 		dd.Dispose();
-			// 		dd = null;
-			// 	}
-			// }
-			// dd = new DebugDialog();
-			// dd.SetParent(this, emuera);
-			// dd.Show();
+			if (!Program.DebugMode)
+				return;
+			window.ShowDebugDialog();
 		}
 
 		public void DebugPrint(string str)
@@ -2291,7 +2276,7 @@ namespace MinorShift.Emuera.GameView
 
 		public void OutputLog(string path, bool append) { }
 
-		public void SetToolTipFontName(string fontName) { }
+		public void SetToolTipFontName(string fontName) { _tooltipFontName = fontName; }
 
 		public bool ExistsImageLayer(long depth) => _imageLayerManager.Exists(depth);
 
@@ -2299,11 +2284,21 @@ namespace MinorShift.Emuera.GameView
 		public void ClearImageLayerAll() { _imageLayerManager.ClearAll(); }
 		public void ClearImageLayer(long zdepth) { _imageLayerManager.ClearLayer(zdepth); }
 		public bool strictFontFallback { get; set; }
-		public void SetToolTipImg(ASprite sprite) { }
-		public void SetToolTipImg(bool value) { }
-		public void SetToolTipFormat(long format) { }
-		public void CustomToolTip(bool b) { }
-		public void SetToolTipFontSize(float size) { }
+		public void SetToolTipImg(ASprite sprite) { _tooltipImg = sprite; }
+		public void SetToolTipImg(bool value) { _tooltipImgEnabled = value; }
+		public void SetToolTipFormat(long format) { _tooltipFormat = format; }
+		public void CustomToolTip(bool b)
+		{
+			window.ToolTip.OwnerDraw = b;
+		}
+		public void SetToolTipFontSize(float size) { _tooltipFontSize = size; }
+
+		private string _tooltipFontName = null;
+		private float _tooltipFontSize = 0;
+		private long _tooltipFormat = 0;
+		private bool _tooltipImgEnabled = false;
+		private ASprite _tooltipImg = null;
+		private int _tooltipDuration = 0;
 
 		#endregion
 

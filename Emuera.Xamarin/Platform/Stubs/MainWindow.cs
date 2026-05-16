@@ -26,6 +26,7 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public virtual void Invoke(Action action) { action?.Invoke(); }
 		public virtual void Focus() { }
 		public virtual void ShowConfigDialog() { }
+		public virtual void ShowDebugDialog() { }
 		public void RefreshQuickButtonGroup() { }
 		public void quickButton_Clicked(object sender, EventArgs e) { }
 		public void ApplyTextBoxChanges() { }
