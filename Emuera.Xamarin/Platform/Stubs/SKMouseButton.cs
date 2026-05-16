@@ -1,4 +1,4 @@
-namespace SkiaSharp.Views.Forms
+namespace MinorShift.Emuera.UI.Framework.Forms
 {
 	public enum SKMouseButton
 	{

@@ -12,7 +12,6 @@ using MinorShift.Emuera.UI.Framework.Forms;
 using SkiaSharp;
 using Xamarin.Forms;
 using XEmuera.Drawing;
-using CoreSKMouseButton = SkiaSharp.Views.Forms.SKMouseButton;
 using Point = XEmuera.Drawing.Point;
 using Timer = System.Timers.Timer;
 using XFView = Xamarin.Forms.View;
@@ -194,7 +193,7 @@ namespace XEmuera.Droid
             if (console.IsInProcess)
                 return;
 
-            var button = IsLongPressed ? CoreSKMouseButton.Right : CoreSKMouseButton.Left;
+            var button = IsLongPressed ? SKMouseButton.Right : SKMouseButton.Left;
 
             if (console.IsWaitingPrimitive)
             {
@@ -216,14 +215,14 @@ namespace XEmuera.Droid
             if (console.IsWaitingEnterKey && !console.IsError && str == null)
             {
                 if (isBacklog) return;
-                if (button == CoreSKMouseButton.Right)
+                if (button == SKMouseButton.Right)
                     PressEnterKey(true, "", true);
                 else
                     PressEnterKey(false, "", true);
                 return;
             }
 
-            if (str != null && button == CoreSKMouseButton.Left)
+            if (str != null && button == SKMouseButton.Left)
             {
                 textEntry.Text = str;
                 PressEnterKey(false, str, true);

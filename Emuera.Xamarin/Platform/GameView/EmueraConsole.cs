@@ -23,7 +23,6 @@ using MinorShift.Emuera.Runtime.Script.Statements.Function;
 using MinorShift.Emuera.Content;
 using MinorShift.Emuera.UI.Game.Image;
 using System.Timers;
-using SkiaSharp.Views.Forms;
 using XEmuera.Drawing;
 using SkiaSharp;
 using XEmuera;

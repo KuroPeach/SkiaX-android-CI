@@ -126,7 +126,16 @@
     <!-- LanguageModel: depends on excluded Lang.cs -->
     <Compile Remove="..\Emuera.Xamarin\Models\LanguageModel.cs" />
     <!-- XAML pages: need XAML code generation -->
-    <Compile Remove="..\Emuera.Xamarin\Views\**\*.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\ConfigValuePopup.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\TxtFilePage.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\SettingsPage.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\MainMenuPage.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\LanguagePage.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\GameItemPage.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\FontSettingsPage.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\ConfigSettingsPage.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\ConfigPage.xaml.cs" />
+    <Compile Remove="..\Emuera.Xamarin\Views\AboutPage.xaml.cs" />
     <Compile Remove="..\Emuera.Xamarin\App.xaml.cs" />
     <Compile Remove="..\Emuera.Xamarin\MainPage.xaml.cs" />
     <!-- Rikaichan: references System.Windows.Forms -->
