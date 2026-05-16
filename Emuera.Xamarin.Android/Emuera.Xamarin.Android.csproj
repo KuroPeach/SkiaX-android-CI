@@ -49,6 +49,7 @@
     <Compile Include="AndroidHost.cs" />
     <Compile Include="AndroidSound.cs" />
     <Compile Include="AndroidApp.cs" />
+    <Compile Include="AndroidPathProvider.cs" />
   </ItemGroup>
 
   <ItemGroup>

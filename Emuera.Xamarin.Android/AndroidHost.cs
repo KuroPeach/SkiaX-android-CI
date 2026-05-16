@@ -9,8 +9,6 @@ using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Utils;
 using XEmuera.Drawing;
 using SkiaSharp;
-using AndroidEnvironment = Android.OS.Environment;
-using SysEnvironment = System.Environment;
 
 namespace XEmuera.Droid
 {
@@ -126,8 +124,7 @@ namespace XEmuera.Droid
             var context = MainActivity.Instance;
             if (context == null) return;
 
-            var exeDir = GetStoragePath() + "/emuera/";
-            GlobalStatic.PathProvider = new DefaultPathProvider(exeDir);
+            GlobalStatic.PathProvider = new AndroidPathProvider(context);
 
             Task.Run(() =>
             {
@@ -140,11 +137,6 @@ namespace XEmuera.Droid
                 console = new EmueraConsole(null);
                 console.Initialize();
             });
-        }
-
-        private string GetStoragePath()
-        {
-            return AndroidEnvironment.ExternalStorageDirectory.AbsolutePath;
         }
     }
 }
