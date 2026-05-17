@@ -36,15 +36,13 @@ namespace XEmuera.Droid
         private StackLayout quickButtonLayout;
         private Grid mainLayout;
         private ScrollView quickScroll;
+        private Label statusLabel;
 
         private bool IsMouseMoveAction;
         private SKPoint StartPoint;
         private SKPoint PrevPoint;
         private Timer LongPressTimer;
         private bool IsLongPressed;
-        private int scrollBarValue;
-        private int scrollBarMaximum;
-        private int scrollBarMinimum;
         private bool pressEnterKeyInProcess;
 
         public AndroidMainWindow(Activity activity)
@@ -57,12 +55,40 @@ namespace XEmuera.Droid
             BuildLayout();
         }
 
+        public void UpdateStatus(string text)
+        {
+            activity?.RunOnUiThread(() =>
+            {
+                try
+                {
+                    if (statusLabel == null) return;
+                    statusLabel.Text = text;
+                    statusLabel.IsVisible = !string.IsNullOrEmpty(text);
+                }
+                catch { }
+            });
+        }
+
         private void BuildLayout()
         {
             canvasView = new SKCanvasView();
             canvasView.EnableTouchEvents = true;
+            canvasView.IgnorePixelScaling = true;
             canvasView.PaintSurface += OnPaintSurface;
             canvasView.Touch += OnTouch;
+
+            statusLabel = new Label
+            {
+                Text = "",
+                IsVisible = false,
+                TextColor = Xamarin.Forms.Color.White,
+                BackgroundColor = Xamarin.Forms.Color.FromRgba(0, 0, 0, 180),
+                FontSize = 14,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalTextAlignment = TextAlignment.Center,
+                Padding = new Thickness(16, 8),
+            };
 
             textEntry = new Entry
             {
@@ -115,21 +141,6 @@ namespace XEmuera.Droid
 
             quickButtonScrollView = quickScroll;
 
-            var menuButton = new Button
-            {
-                Text = "☰",
-                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
-                TextColor = Xamarin.Forms.Color.White,
-                WidthRequest = 40,
-                HeightRequest = 40,
-                FontSize = 18,
-                CornerRadius = 20,
-            };
-            menuButton.Clicked += (s, e) =>
-            {
-                flyoutPage?.SetValue(FlyoutPage.IsPresentedProperty, true);
-            };
-
             var editButton = new Button
             {
                 Text = "⌨",
@@ -179,6 +190,22 @@ namespace XEmuera.Droid
                 AdjustFontScale(-0.1f);
             };
 
+            var menuButton = new Button
+            {
+                Text = "☰",
+                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
+                TextColor = Xamarin.Forms.Color.White,
+                WidthRequest = 40,
+                HeightRequest = 40,
+                FontSize = 16,
+                CornerRadius = 20,
+            };
+            menuButton.Clicked += (s, e) =>
+            {
+                if (flyoutPage != null)
+                    flyoutPage.IsPresented = !flyoutPage.IsPresented;
+            };
+
             var toolbar = new StackLayout
             {
                 Orientation = StackOrientation.Horizontal,
@@ -197,6 +224,7 @@ namespace XEmuera.Droid
                 {
                     canvasView,
                     toolbar,
+                    statusLabel,
                 },
             };
 
@@ -269,11 +297,13 @@ namespace XEmuera.Droid
                         int sign = moveY / RConfig.LineHeight;
                         if (sign != 0)
                         {
-                            int newValue = scrollBarValue - sign;
-                            newValue = Math.Max(scrollBarMinimum, Math.Min(scrollBarMaximum, newValue));
-                            if (newValue != scrollBarValue)
+                            int curValue = ScrollBar.Value;
+                            int curMax = ScrollBar.Maximum;
+                            int curMin = ScrollBar.Minimum;
+                            int newValue = curValue - sign;
+                            newValue = Math.Max(curMin, Math.Min(curMax, newValue));
+                            if (newValue != curValue)
                             {
-                                scrollBarValue = newValue;
                                 ScrollBar.Value = newValue;
                                 RefreshStrings(true);
                             }
@@ -315,13 +345,12 @@ namespace XEmuera.Droid
                 return;
             }
 
-            bool isBacklog = scrollBarValue != scrollBarMaximum;
+            bool isBacklog = ScrollBar.Value != ScrollBar.Maximum;
             string str = console.SelectedString;
 
             if (isBacklog)
             {
-                scrollBarValue = scrollBarMaximum;
-                ScrollBar.Value = scrollBarMaximum;
+                ScrollBar.Value = ScrollBar.Maximum;
                 RefreshStrings(true);
             }
 
@@ -509,14 +538,6 @@ namespace XEmuera.Droid
         #endregion
 
         #region ScrollBar Helpers
-
-        public void UpdateScrollBar(int value, int maximum)
-        {
-            scrollBarValue = value;
-            scrollBarMaximum = maximum;
-            ScrollBar.Value = value;
-            ScrollBar.Maximum = maximum;
-        }
 
         private void RefreshStrings(bool force)
         {

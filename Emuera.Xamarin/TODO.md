@@ -1,6 +1,6 @@
 # Emuera.Xamarin 任务计划
 
-> **最后更新**：2026-05-17
+> **最后更新**：2026-05-18
 > **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/CHANGELOG.md)
 
 ## 当前状态
@@ -34,6 +34,8 @@
 | Phase 8E | Android 引擎启动修复（7 项：资源命名空间/WinmmTimer/FontModel/PathProvider/SpinLock/存储权限/沉浸式） | 0.20 |
 | Phase 9A | Preload 缓存 miss 修复 + eratw-chs 闪退诊断（5 项：Lang/engineInitialized/DoEvents/fire-and-forget/异常捕获） | 0.21 |
 | Phase 9B | 悬浮工具栏（☰ 菜单 + ⌨ 编辑 + A+/A- 缩放）+ 输入条修复（发送按钮 + FillAndExpand）+ 沉浸式全屏 | 0.21 |
+| Phase 9C | AOT 崩溃修复 + Lang 初始化顺序 + 诊断日志 + 真机验证（eratw-chs 进入脚本预加载阶段） | 0.22 |
+| Phase 9D | SQL 懒加载 + Config 双类同步 + GetConfigItem 大小写修复 + 工具栏/滚动/渲染修复 + eratw-chs 完整启动 | 0.23 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -65,7 +67,11 @@ Emuera.Xamarin.sln
 → ✅ 8E Android 引擎启动修复
 → ✅ 9A Preload 缓存 miss + 闪退诊断修复
 → ✅ 9B 悬浮工具栏 + 输入条修复 + 沉浸式全屏
-─── UI 可交互 ───
+→ ✅ 9C AOT 崩溃修复 + Lang 初始化顺序 + 诊断日志 + 真机验证
+→ ✅ 9D SQL 懒加载 + Config 同步 + 工具栏/滚动/渲染修复 + eratw-chs 完整启动
+─── 引擎完整启动 ───
+→ 🔴 9E UI 交互验证：滚动/点击/输入是否正常工作
+→ 🔴 渲染范围验证：文本是否填满屏幕底部
 → ⏭️ 7C-P2 动态缩放（高难度）
 → ⏭️ 7E 本地化 / 7F 日志查看器（P2）
 → ⏭️ 真机测试

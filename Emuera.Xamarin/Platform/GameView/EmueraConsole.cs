@@ -389,15 +389,21 @@ namespace MinorShift.Emuera.GameView
 			}
 			window.Focus();
 			ClearDisplay();
-			if (!emuera.Initialize(null).Result)
+			System.Diagnostics.Debug.WriteLine("[Emuera] console.Initialize: calling emuera.Initialize()...");
+			var initTask = emuera.Initialize(null);
+			System.Diagnostics.Debug.WriteLine($"[Emuera] emuera.Initialize task created, Status={initTask.Status}");
+			if (!initTask.Result)
 			{
+				System.Diagnostics.Debug.WriteLine("[Emuera] ERROR: emuera.Initialize returned false!");
 				state = ConsoleState.Error;
 				OutputLog(null);
 				PrintFlush(false);
 				RefreshStrings(true);
 				return;
 			}
+			System.Diagnostics.Debug.WriteLine("[Emuera] emuera.Initialize done, calling callEmueraProgram...");
 			callEmueraProgram("");
+			System.Diagnostics.Debug.WriteLine("[Emuera] callEmueraProgram done");
 			RefreshStrings(true);
 
 			RefreshQuickButton();

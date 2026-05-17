@@ -1,5 +1,105 @@
 # Emuera.Xamarin 变更记录
 
+## [0.23.0] - 2026-05-18
+
+### Phase 9D：SQL 懒加载 + Config 同步 + 工具栏/滚动修复 + 完整启动验证
+
+#### 修复项
+
+1. **OOM 崩溃（lowmemorykiller 杀掉 5.7GB RSS 进程）**
+   - Xamarin 版 AppContents.LoadContents 全量解码 25421 个 sprite → 内存爆炸
+   - 修复：重写 AppContents.cs，使用 SQLite 内存数据库存储元数据，启动时只解析 CSV 写入 SQLite，不解码任何图片
+   - 修复：ConstImage.CreateFrom 改为只读尺寸信息（SKCodec.Info），延迟到实际使用时解码
+   - 修复：GetSprite 改为按需从 SQLite 查询并解码
+
+2. **Config 双类不同步**
+   - Xamarin 版 `MinorShift.Emuera.Config` 和 Runtime 版 `MinorShift.Emuera.Runtime.Config.Config` 是两个独立的类
+   - Runtime 代码引用 Runtime 版 Config，但只有 Xamarin 版被初始化
+   - 修复：在 Xamarin Config.SetConfig() 中同步 SystemSaveInBinary 到 Runtime.Config.Config
+   - 修复：Runtime.Config.Config.SystemSaveInBinary setter 改为 internal
+
+3. **GetConfigItem 大小写比较 Bug**
+   - `key.ToUpper()` 后与 `item.EngText`（未转大写）比较，导致英文配置键无法匹配
+   - 修复：所有比较项都调用 `.ToUpper()`
+
+4. **工具栏布局修复**
+   - ☰ 汉堡菜单按钮移入悬浮工具栏（与其他按钮并排），不再被侧边栏遮挡
+   - 移除 AndroidApp.cs 中的浮动 ☰ 按钮（冗余，无法关闭侧边栏）
+
+5. **滚动修复**
+   - 移除本地 scrollBarValue/scrollBarMaximum 字段，直接使用 ScrollBar stub 属性
+   - 修复滚动时 Value 与 Maximum 不同步导致无法滚动
+
+6. **渲染范围修复**
+   - 添加 canvasView.IgnorePixelScaling = true，确保渲染填满整个屏幕
+
+#### 真机验证
+
+- ✅ eratw-chs 完整启动成功（Process.Initialize: SUCCESS, starting TITLE）
+- ✅ SQL 懒加载：25421 sprite 元数据写入 SQLite，0 图片解码
+- ✅ 进程存活（无 OOM 崩溃）
+- ✅ 工具栏布局正确：☰/⌨/A+/A- 四按钮右上角并排
+- ✅ Canvas 区域占满屏幕 [0,0][1920,1059]
+
+#### 知识库更新
+
+- [android-engine-init.md](file:///d:/emuera/shared-trae/knowledge/xemuera/android-engine-init.md)：新增 OOM/SQL 懒加载、Config 双类、GetConfigItem 大小写、ConstImage 延迟解码等知识条目
+
+## [0.22.0] - 2026-05-18
+
+### Phase 9C：AOT 崩溃修复 + Lang 初始化顺序 + 诊断日志 + 真机验证
+
+#### 修复项
+
+1. **Release 模式 AOT GUID 不匹配崩溃（SIGABRT）**
+   - `dotnet publish` Release 模式启用 AOT 编译，缓存过期 GUID 导致运行时崩溃
+   - 错误：`module 'XEmuera.Android.dll.so' is unusable (GUID of dependent assembly Xamarin.Forms.Platform.Android doesn't match)`
+   - 修复：Debug 和 Release 均设置 `AotAssemblies=false` + `RunAOTCompilation=false` + `EmbedAssembliesIntoApk=true` + `AndroidUseSharedRuntime=false`
+   - 需清理 obj/bin 目录后重新构建
+
+2. **Lang.SetLanguage() ArgumentNullException**
+   - `Lang.SetLanguage()` 在 `ConfigData.LoadConfig()` 之前调用，`Config.Config.EmueraLang` 为 null
+   - 修复：将 `Lang.SetLanguage()` 移到 `ConfigData.Instance.LoadConfig()` + `JSONConfig.Load()` 之后
+   - 修复：在 `Lang.SetLanguage()` 中添加 `string.IsNullOrEmpty(Config.Config.EmueraLang)` null guard
+
+3. **MANAGE_EXTERNAL_STORAGE 权限无法通过 ADB 授予**
+   - `adb pm grant` 抛 `SecurityException: not a changeable permission type`
+   - 修复：通过 ADB uiautomator dump + input tap 自动化 Android Settings UI 授予
+
+4. **Debug 模式 APK 不更新**
+   - `EmbedAssembliesIntoApk=false` 时 `dotnet publish` 不重新生成 APK
+   - 修复：Debug 配置也设置 `EmbedAssembliesIntoApk=true` + `AndroidUseSharedRuntime=false`
+
+5. **Android.Util.Log 在 Core 项目不可用**
+   - Core 项目 TFM 是 net8.0，不含 Android API
+   - 修复：所有日志改用 `System.Diagnostics.Debug.WriteLine("[Emuera] ...")`
+
+#### 新增功能
+
+1. **Process.Initialize 诊断日志** — 7+ 个关键阶段 Debug.WriteLine
+   - start / AppContents / KeyMacro+Replace+Rename / GAMEBASE.CSV / other CSVs / ERH files / ERB files
+   - 异常处理器 / labelDic null 检查 / 成功点
+
+2. **EmueraConsole.Initialize 诊断日志**
+   - emuera.Initialize() 调用前后 + callEmueraProgram 完成点
+
+3. **AppContents.LoadContents 诊断日志**
+   - ContentDir 路径 + CSV 文件数量 + 目录不存在跳过
+
+4. **状态标签** — AndroidHost.UpdateStatus() 显示引擎初始化状态
+
+#### 真机验证
+
+- ✅ APK 成功安装到 Android 模拟器（ADB 127.0.0.1:16384）
+- ✅ MANAGE_EXTERNAL_STORAGE 权限通过 Settings UI 授予
+- ✅ 引擎成功启动 eratw-chs，进入脚本预加载阶段
+- ✅ logcat 确认初始化流程：start → AppContents(93 CSV) → KeyMacro → GAMEBASE.CSV → other CSVs → ERH → ERB
+- ⚠️ 脚本预加载阶段报 IO/逻辑错误，需进一步调试
+
+#### 知识库更新
+
+- [android-engine-init.md](file:///d:/emuera/shared-trae/knowledge/xemuera/android-engine-init.md)：新增 6 个知识条目 + 6 个反模式
+
 ## [0.21.0] - 2026-05-17
 
 ### Preload 缓存 miss 修复 + eratw-chs 闪退诊断 + UI 功能

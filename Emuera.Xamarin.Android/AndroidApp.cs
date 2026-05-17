@@ -12,7 +12,6 @@ namespace XEmuera.Droid
         private AndroidGameListPage gameListPage;
         private AndroidMainMenuPage menuPage;
         private ContentPage gamePage;
-        private Button floatingMenuButton;
 
         public AndroidApp(AndroidHost host)
         {
@@ -46,39 +45,12 @@ namespace XEmuera.Droid
             var mainWindow = host.MainWindow as AndroidMainWindow;
             mainWindow.SetFlyoutPage(flyoutPage);
 
-            floatingMenuButton = new Button
-            {
-                Text = "☰",
-                FontSize = 20,
-                WidthRequest = 48,
-                HeightRequest = 48,
-                CornerRadius = 24,
-                BackgroundColor = Color.FromRgba(0, 0, 0, 128),
-                TextColor = Color.White,
-                HorizontalOptions = LayoutOptions.End,
-                VerticalOptions = LayoutOptions.Start,
-                Margin = new Thickness(0, 8, 8, 0),
-            };
-            floatingMenuButton.Clicked += (s, e) =>
-            {
-                flyoutPage.IsPresented = !flyoutPage.IsPresented;
-            };
-
             var gameView = mainWindow.GetView();
-
-            var overlay = new Grid
-            {
-                Children =
-                {
-                    gameView,
-                    floatingMenuButton,
-                },
-            };
 
             gamePage = new ContentPage
             {
                 Title = "Emuera",
-                Content = overlay,
+                Content = gameView,
             };
             NavigationPage.SetHasNavigationBar(gamePage, false);
 

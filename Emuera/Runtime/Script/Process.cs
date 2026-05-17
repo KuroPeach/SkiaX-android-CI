@@ -78,6 +78,7 @@ internal sealed partial class Process(EmueraConsole view)
 		initialiing = true;
 		try
 		{
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: start");
 			logWriter?.WriteLine($"Proc:Init:Start {stopWatch.ElapsedMilliseconds}ms");
 			logWriter?.WriteLine($"Proc:Init:Parser:Start {stopWatch.ElapsedMilliseconds}ms");
 			ParserMediator.Initialize(console);
@@ -94,7 +95,7 @@ internal sealed partial class Process(EmueraConsole view)
 			logWriter?.WriteLine($"Proc:Init:Parser:End {stopWatch.ElapsedMilliseconds}ms");
 
 			logWriter?.WriteLine($"Proc:Init:Image:Start {stopWatch.ElapsedMilliseconds}ms");
-			//リソースフォルダ読み込み
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: Loading AppContents...");
 			if (!AppContents.LoadContents(false))
 			{
 				ParserMediator.FlushWarningList();
@@ -105,7 +106,7 @@ internal sealed partial class Process(EmueraConsole view)
 			logWriter?.WriteLine($"Proc:Init:Image:End {stopWatch.ElapsedMilliseconds}ms");
 
 			logWriter?.WriteLine($"Proc:Init:KeyMacro:Start {stopWatch.ElapsedMilliseconds}ms");
-			//キーマクロ読み込み
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: KeyMacro+Replace+Rename...");
 			#region eee_カレントディレクトリー
 			if (Config.UseKeyMacro && !Program.AnalysisMode)
 			{
@@ -168,6 +169,7 @@ internal sealed partial class Process(EmueraConsole view)
 				console.RefreshStrings(true);
 			}
 			//gamebase.csv読み込み
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: Loading GAMEBASE.CSV...");
 			gamebase = new GameBase();
 			if (!await Task.Run(() => gamebase.LoadGameBaseCsv(Program.CsvDir + "GAMEBASE.CSV")))
 			{
@@ -180,6 +182,7 @@ internal sealed partial class Process(EmueraConsole view)
 			logWriter?.WriteLine($"Proc:Init:MainCSV:End {stopWatch.ElapsedMilliseconds}ms");
 
 			//前記以外のcsvを全て読み込み
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: Loading other CSVs...");
 			ConstantData constant = new();
 			constant.LoadData(Program.CsvDir, console, Config.DisplayReport);
 			logWriter?.WriteLine($"Proc:Init:EtcCSV:End {stopWatch.ElapsedMilliseconds}ms");
@@ -201,6 +204,7 @@ internal sealed partial class Process(EmueraConsole view)
 			GlobalStatic.EMediator = exm;
 
 			logWriter?.WriteLine($"Proc:Init:ERH:Start {stopWatch.ElapsedMilliseconds}ms");
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: Loading ERH files...");
 
 			labelDic = new LabelDictionary();
 			GlobalStatic.LabelDictionary = labelDic;
@@ -212,12 +216,29 @@ internal sealed partial class Process(EmueraConsole view)
 			PluginManager.GetInstance().LoadPlugins();
 
 			//ERH読込
-			if (!await Task.Run(() => hLoader.LoadHeaderFiles(Program.ErbDir, Config.DisplayReport)))
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: Loading ERH files (LoadHeaderFiles)...");
+			bool erhResult = false;
+			Exception erhEx = null;
+			try
 			{
+				erhResult = await Task.Run(() => hLoader.LoadHeaderFiles(Program.ErbDir, Config.DisplayReport));
+			}
+			catch (Exception ex)
+			{
+				erhEx = ex;
+				System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: ERH LoadHeaderFiles EXCEPTION: {ex.GetType().Name}: {ex.Message}");
+			}
+			if (!erhResult)
+			{
+				if (erhEx != null)
+					System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: ERH failed due to exception: {erhEx.StackTrace}");
+				else
+					System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: ERH LoadHeaderFiles returned false (no exception)");
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine("");
 				return false;
 			}
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: ERH loaded successfully");
 			LexicalAnalyzer.UseMacro = idDic.UseMacro();
 			logWriter?.WriteLine($"Proc:Init:ERH:End {stopWatch.ElapsedMilliseconds}ms");
 
@@ -225,6 +246,7 @@ internal sealed partial class Process(EmueraConsole view)
 
 			//ERB読込
 			logWriter?.WriteLine($"Proc:Init:ERB:Start {stopWatch.ElapsedMilliseconds}ms");
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: Loading ERB files...");
 			var loader = new ErbLoader(console, exm, this);
 			if (Program.AnalysisMode)
 				noError = await loader.LoadErbList(Program.AnalysisFiles, labelDic);
@@ -239,14 +261,17 @@ internal sealed partial class Process(EmueraConsole view)
 		}
 		catch (Exception e)
 		{
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize EXCEPTION: {e.GetType().Name}: {e.Message}");
 			handleException(e, null, true);
 			console.PrintSystemLine(trsl.ErhLoadingError.Text);
 			return false;
 		}
 		if (labelDic == null)
 		{
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: labelDic is null, returning false");
 			return false;
 		}
+		System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: SUCCESS, starting TITLE");
 		state.Begin(BeginType.TITLE);
 		return true;
 	}

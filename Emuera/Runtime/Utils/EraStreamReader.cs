@@ -72,8 +72,9 @@ internal sealed partial class EraStreamReader : IDisposable
 			_fileLines = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(path));
 			return true;
 		}
-		catch
+		catch (Exception ex)
 		{
+			System.Diagnostics.Debug.WriteLine($"[Emuera] EraStreamReader.OpenOnCache FAILED: {filepath}: {ex.GetType().Name}: {ex.Message}");
 			Dispose();
 			return false;
 		}

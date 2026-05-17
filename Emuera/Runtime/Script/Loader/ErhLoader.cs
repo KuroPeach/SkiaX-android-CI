@@ -50,17 +50,22 @@ internal sealed class ErhLoader
 		{
 			foreach (var (filename, file) in headerFiles)
 			{
+				System.Diagnostics.Debug.WriteLine($"[Emuera] ERH loading: {filename}");
 				if (displayReport)
 					output.PrintSystemLine(string.Format(trsl.LoadingFile.Text, filename));
 				noError = loadHeaderFile(file, filename);
 				if (!noError)
+				{
+					System.Diagnostics.Debug.WriteLine($"[Emuera] ERH FAILED: {filename}");
 					break;
+				}
 			}
 			//エラーが起きてる場合でも読み込めてる分だけはチェックする
 			if (dimlines.Count > 0)
 			{
-				//&=でないと、ここで起きたエラーをキャッチできない
 				noError &= analyzeSharpDimLines();
+				if (!noError)
+					System.Diagnostics.Debug.WriteLine($"[Emuera] ERH analyzeSharpDimLines FAILED");
 			}
 
 			dimlines.Clear();
@@ -104,6 +109,7 @@ internal sealed class ErhLoader
 				var sharpID = LexicalAnalyzer.ReadSingleIdentifierROS(st);
 				if (sharpID.IsEmpty)
 				{
+					System.Diagnostics.Debug.WriteLine($"[Emuera] ERH parse error: empty sharpID at {filename}:{eReader.LineNo}");
 					ParserMediator.Warn(trerror.CanNotInterpretSharpLine.Text, position, 1);
 					return false;
 				}
@@ -148,6 +154,7 @@ internal sealed class ErhLoader
 		{
 			if (e.Position != null)
 				position = e.Position;
+			System.Diagnostics.Debug.WriteLine($"[Emuera] ERH loadHeaderFile CodeEE: {filename}: {e.Message}");
 			ParserMediator.Warn(e.Message, position, 2);
 			return false;
 		}
@@ -155,6 +162,7 @@ internal sealed class ErhLoader
 		{
 			eReader.Close();
 		}
+		System.Diagnostics.Debug.WriteLine($"[Emuera] ERH loaded OK: {filename}");
 		return true;
 	}
 
@@ -360,8 +368,10 @@ internal sealed class ErhLoader
 						noError = true;
 					}
 				}
-				catch (CodeEE e)
+					catch (CodeEE e)
 				{
+					var pos = dimline.SC;
+					System.Diagnostics.Debug.WriteLine($"[Emuera] ERH #DIM CodeEE: {e.Message} (at {pos?.Filename}:{pos?.LineNo})");
 					ParserMediator.Warn(e.Message, dimline.SC, 2);
 					noError = false;
 				}

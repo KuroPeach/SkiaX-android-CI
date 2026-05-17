@@ -293,10 +293,11 @@ namespace MinorShift.Emuera
 
 		public ConfigItem GetConfigItem(string key)
 		{
-			#region EM_私家版_Emuera多言語化改造
 			key = key.ToUpper();
-			return configArray.FirstOrDefault(item => item.Name == key || item.Text == key || item.EngText == key);
-			#endregion
+			return configArray.FirstOrDefault(item =>
+				(item.Name != null && item.Name.ToUpper() == key) ||
+				(item.Text != null && item.Text.ToUpper() == key) ||
+				(item.EngText != null && item.EngText.ToUpper() == key));
 		}
 
 		public ConfigItem GetReplaceItem(ConfigCode code)

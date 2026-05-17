@@ -3,6 +3,7 @@ using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Text;
 
 namespace MinorShift.Emuera.Content
@@ -11,11 +12,7 @@ namespace MinorShift.Emuera.Content
 	{
 		public const int MAX_IMAGESIZE = 8192;
 		public SKBitmap Bitmap;
-		//public IntPtr GDIhDC { get; protected set; }
 		protected SKCanvas g;
-		//protected IntPtr hBitmap;
-		//protected IntPtr hDefaultImg;
-		//protected bool gdi;
 	}
 
 	internal sealed class ConstImage : AbstractImage
@@ -23,8 +20,8 @@ namespace MinorShift.Emuera.Content
 		public ConstImage(string name)
 		{ Name = name; }
 
-
 		public readonly string Name;
+		private string filepath;
 
 		internal void CreateFrom(SKBitmap bmp, bool useGDI)
 		{
@@ -33,14 +30,6 @@ namespace MinorShift.Emuera.Content
 			try
 			{
 				Bitmap = bmp;
-				//if (useGDI)
-				//{
-				//	gdi = true;
-				//	hBitmap = Bitmap.GetHbitmap();
-				//	g = Graphics.FromImage(Bitmap);
-				//	GDIhDC = g.GetHdc();
-				//	hDefaultImg = GDI.SelectObject(GDIhDC, hBitmap);
-				//}
 			}
 			catch
 			{
@@ -48,42 +37,48 @@ namespace MinorShift.Emuera.Content
 			}
 			return;
 		}
-		//public void Load(bool useGDI)
-		//{
-		//	if (Loaded)
-		//		return;
-		//	try
-		//	{
-		//		Bitmap = new Bitmap(Filepath);
-		//		if (useGDI)
-		//		{
-		//			hBitmap = Bitmap.GetHbitmap();
-		//			g = Graphics.FromImage(Bitmap);
-		//			GDIhDC = g.GetHdc();
-		//			hDefaultImg = GDI.SelectObject(GDIhDC, hBitmap);
-		//		}
-		//		Loaded = true;
-		//		Enabled = true;
-		//	}
-		//	catch
-		//	{
-		//		return;
-		//	}
-		//	return;
-		//}
+
+		internal void CreateFrom(string filepath, bool useGDI)
+		{
+			if (Bitmap != null)
+				throw new Exception();
+			this.filepath = filepath;
+			try
+			{
+				using var codec = SKCodec.Create(filepath);
+				if (codec != null)
+				{
+					var info = codec.Info;
+					Bitmap = new SKBitmap(info.Width, info.Height);
+				}
+				else
+				{
+					Bitmap = SKBitmap.Decode(filepath);
+				}
+			}
+			catch
+			{
+				return;
+			}
+		}
+
+		public void EnsureBitmapLoaded()
+		{
+			if (Bitmap != null && filepath != null)
+			{
+				var decoded = SKBitmap.Decode(filepath);
+				if (decoded != null)
+				{
+					Bitmap.Dispose();
+					Bitmap = decoded;
+				}
+			}
+		}
 
 		public override void Dispose()
 		{
 			if (Bitmap == null)
 				return;
-			//if (gdi)
-			//{
-			//	GDI.SelectObject(GDIhDC, hDefaultImg);
-			//	GDI.DeleteObject(hBitmap);
-			//	//gがすでに死んでると例外になる
-			//	if(g != null)
-			//	g.ReleaseHdc(GDIhDC);
-			//}
 			if (g != null)
 			{
 				g.Dispose();
@@ -96,11 +91,10 @@ namespace MinorShift.Emuera.Content
 			}
 		}
 
-        ~ConstImage()
-        {
-            Dispose();
-        }
-
+		~ConstImage()
+		{
+			Dispose();
+		}
 
 		public override bool IsCreated
 		{

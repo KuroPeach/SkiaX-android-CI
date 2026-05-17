@@ -154,6 +154,8 @@ namespace MinorShift.Emuera
 				SaveEncode = Encoding.UTF8;
 
 			SystemSaveInBinary = instance.GetConfigValue<bool>(ConfigCode.SystemSaveInBinary);
+			Runtime.Config.Config.SystemSaveInBinary = SystemSaveInBinary;
+			System.Diagnostics.Debug.WriteLine($"[Emuera] Config.SystemSaveInBinary = {SystemSaveInBinary}");
 			SystemIgnoreTripleSymbol = instance.GetConfigValue<bool>(ConfigCode.SystemIgnoreTripleSymbol);
 			SystemIgnoreStringSet = instance.GetConfigValue<bool>(ConfigCode.SystemIgnoreStringSet);
 			

@@ -5,14 +5,17 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using SkiaSharp;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using XEmuera;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
+using Microsoft.Data.Sqlite;
 
 namespace MinorShift.Emuera.Content
 {
@@ -21,20 +24,28 @@ namespace MinorShift.Emuera.Content
 		static AppContents()
 		{
 			gList = new Dictionary<int, GraphicsImage>();
+			metaDb = new SqliteConnection("Data Source=:memory:");
+			metaDb.Open();
+			using var cmd = metaDb.CreateCommand();
+			cmd.CommandText = @"
+				CREATE TABLE SpriteMeta (
+					Name TEXT,
+					FrameIndex INTEGER,
+					FilePath TEXT,
+					RectX INTEGER, RectY INTEGER, RectW INTEGER, RectH INTEGER,
+					PosX INTEGER, PosY INTEGER,
+					Delay INTEGER,
+					IsAnime INTEGER,
+					PRIMARY KEY (Name, FrameIndex)
+				)";
+			cmd.ExecuteNonQuery();
 		}
-		static readonly Dictionary<string, AContentFile> resourceDic = new Dictionary<string, AContentFile>();
-		static readonly Dictionary<string, ASprite> imageDictionary = new Dictionary<string, ASprite>();
-		static readonly Dictionary<int, GraphicsImage> gList;
 
-		//static public T GetContent<T>(string name)where T :AContentItem
-		//{
-		//	if (name == null)
-		//		return null;
-		//	name = name.ToUpper();
-		//	if (!itemDic.ContainsKey(name))
-		//		return null;
-		//	return itemDic[name] as T;
-		//}
+		static readonly Dictionary<string, AContentFile> resourceDic = new Dictionary<string, AContentFile>();
+		static readonly ConcurrentDictionary<string, ASprite> imageDictionary = new ConcurrentDictionary<string, ASprite>(Config.StrComper);
+		static readonly Dictionary<int, GraphicsImage> gList;
+		static readonly SqliteConnection metaDb;
+
 		static public GraphicsImage GetGraphics(int i)
 		{
 			if (gList.TryGetValue(i, out var g))
@@ -48,24 +59,107 @@ namespace MinorShift.Emuera.Content
 		{
 			if (name == null)
 				return null;
-			name = name.ToUpper();
-			if (!imageDictionary.TryGetValue(name, out var aSprite))
+			name = name.ToUpper(CultureInfo.InvariantCulture);
+			if (imageDictionary.TryGetValue(name, out ASprite sprite))
+				return sprite;
+			return LoadSpriteFromMeta(name);
+		}
+
+		static private ASprite LoadSpriteFromMeta(string name)
+		{
+			using var cmd = metaDb.CreateCommand();
+			cmd.CommandText = "SELECT * FROM SpriteMeta WHERE Name = @name ORDER BY FrameIndex ASC";
+			cmd.Parameters.AddWithValue("@name", name);
+			using var reader = cmd.ExecuteReader();
+
+			var rows = new List<(string FilePath, Rectangle Rect, Point Pos, int Delay, bool IsAnimeHeader)>();
+			bool isAnimeHeader = false;
+			while (reader.Read())
+			{
+				int isAnimeVal = reader.GetInt32(reader.GetOrdinal("IsAnime"));
+				if (reader.GetInt32(reader.GetOrdinal("FrameIndex")) == 0 && isAnimeVal == 1)
+				{
+					isAnimeHeader = true;
+					continue;
+				}
+				string fp = reader.GetString(reader.GetOrdinal("FilePath"));
+				int rx = reader.GetInt32(reader.GetOrdinal("RectX"));
+				int ry = reader.GetInt32(reader.GetOrdinal("RectY"));
+				int rw = reader.GetInt32(reader.GetOrdinal("RectW"));
+				int rh = reader.GetInt32(reader.GetOrdinal("RectH"));
+				int px = reader.GetInt32(reader.GetOrdinal("PosX"));
+				int py = reader.GetInt32(reader.GetOrdinal("PosY"));
+				int delay = reader.GetInt32(reader.GetOrdinal("Delay"));
+				rows.Add((fp, new Rectangle(rx, ry, rw, rh), new Point(px, py), delay, false));
+			}
+
+			if (rows.Count == 0)
 				return null;
-			return aSprite;
+
+			ASprite newSprite = null;
+
+			if (isAnimeHeader)
+			{
+				SpriteAnime anime = null;
+				foreach (var r in rows)
+				{
+					if (!resourceDic.TryGetValue(r.FilePath, out var aContentFile))
+					{
+						ConstImage img = new ConstImage(r.FilePath);
+						img.CreateFrom(r.FilePath, false);
+						if (!img.IsCreated)
+							return null;
+						resourceDic[r.FilePath] = img;
+						aContentFile = img;
+					}
+					if (!(aContentFile is ConstImage parentImage) || !parentImage.IsCreated)
+						return null;
+					Rectangle fRect = r.Rect;
+					if (fRect.Width <= 0 || fRect.Height <= 0)
+						fRect = new Rectangle(0, 0, parentImage.Bitmap.Width, parentImage.Bitmap.Height);
+					if (anime == null)
+					{
+						anime = new SpriteAnime(name, new Size(fRect.Width, fRect.Height));
+					}
+					anime.AddFrame(parentImage, fRect, r.Pos, r.Delay);
+				}
+				newSprite = anime;
+			}
+			else
+			{
+				var r = rows[0];
+				if (!resourceDic.TryGetValue(r.FilePath, out var aContentFile))
+				{
+					ConstImage img = new ConstImage(r.FilePath);
+					img.CreateFrom(r.FilePath, false);
+					if (!img.IsCreated)
+						return null;
+					resourceDic[r.FilePath] = img;
+					aContentFile = img;
+				}
+				if (!(aContentFile is ConstImage parentImage) || !parentImage.IsCreated)
+					return null;
+				Rectangle rect = r.Rect;
+				if (rect.Width <= 0 || rect.Height <= 0)
+					rect = new Rectangle(0, 0, parentImage.Bitmap.Width, parentImage.Bitmap.Height);
+				newSprite = new SpriteF(name, parentImage, rect, r.Pos);
+			}
+
+			if (newSprite != null)
+				imageDictionary[name] = newSprite;
+			return newSprite;
 		}
 
 		static public void SpriteDispose(string name)
 		{
 			if (name == null)
 				return;
-			name = name.ToUpper();
-			if (!imageDictionary.TryGetValue(name, out var aSprite))
-				return;
-			aSprite.Dispose();
-			imageDictionary.Remove(name);
+			name = name.ToUpper(CultureInfo.InvariantCulture);
+			if (imageDictionary.TryRemove(name, out var aSprite))
+				aSprite.Dispose();
 		}
 
-		static public void CreateSpriteG(string imgName, GraphicsImage parent,Rectangle rect)
+		static public void CreateSpriteG(string imgName, GraphicsImage parent, Rectangle rect)
 		{
 			if (string.IsNullOrEmpty(imgName))
 				throw new ArgumentOutOfRangeException();
@@ -87,7 +181,7 @@ namespace MinorShift.Emuera.Content
 		{
 			if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(filepath))
 				return false;
-			name = name.ToUpper();
+			name = name.ToUpper(CultureInfo.InvariantCulture);
 			if (imageDictionary.ContainsKey(name))
 				return true;
 			if (!FileUtils.Exists(ref filepath))
@@ -113,8 +207,14 @@ namespace MinorShift.Emuera.Content
 		{
 			if (string.IsNullOrEmpty(name))
 				return false;
-			name = name.ToUpper();
-			return imageDictionary.ContainsKey(name);
+			name = name.ToUpper(CultureInfo.InvariantCulture);
+			if (imageDictionary.ContainsKey(name))
+				return true;
+			using var cmd = metaDb.CreateCommand();
+			cmd.CommandText = "SELECT Name FROM SpriteMeta WHERE Name = @name LIMIT 1";
+			cmd.Parameters.AddWithValue("@name", name);
+			using var reader = cmd.ExecuteReader();
+			return reader.Read();
 		}
 
 		static public long SpriteDisposeAll(bool delCsvImage)
@@ -134,29 +234,50 @@ namespace MinorShift.Emuera.Content
 			SpriteAnime newCImg = new SpriteAnime(imgName, new Size(w, h));
 			imageDictionary[imgName] = newCImg;
 		}
-		
+
 		static public bool LoadContents(bool useAsync = false)
 		{
+			System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: ContentDir={Program.ContentDir}");
 			if (!Directory.Exists(Program.ContentDir))
+			{
+				System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: ContentDir does not exist, skipping");
 				return true;
+			}
 			try
 			{
-				//resourcesフォルダ内の全てのcsvファイルを探索する
-				//string[] csvFiles = Directory.GetFiles(Program.ContentDir, "*.csv", SearchOption.AllDirectories);
 				string[] csvFiles = FileUtils.GetFiles(Program.ContentDir, "*.csv", SearchOption.AllDirectories);
+				System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: found {csvFiles.Length} csv files, writing metadata to SQLite");
+
+				using var trans = metaDb.BeginTransaction();
+				using var insertCmd = metaDb.CreateCommand();
+				insertCmd.Transaction = trans;
+				insertCmd.CommandText = @"
+					INSERT OR REPLACE INTO SpriteMeta (Name, FrameIndex, FilePath, RectX, RectY, RectW, RectH, PosX, PosY, Delay, IsAnime)
+					VALUES (@Name, @FrameIndex, @FilePath, @RectX, @RectY, @RectW, @RectH, @PosX, @PosY, @Delay, @IsAnime)";
+
+				var pName = insertCmd.Parameters.Add("@Name", SqliteType.Text);
+				var pFrameIndex = insertCmd.Parameters.Add("@FrameIndex", SqliteType.Integer);
+				var pFilePath = insertCmd.Parameters.Add("@FilePath", SqliteType.Text);
+				var pRectX = insertCmd.Parameters.Add("@RectX", SqliteType.Integer);
+				var pRectY = insertCmd.Parameters.Add("@RectY", SqliteType.Integer);
+				var pRectW = insertCmd.Parameters.Add("@RectW", SqliteType.Integer);
+				var pRectH = insertCmd.Parameters.Add("@RectH", SqliteType.Integer);
+				var pPosX = insertCmd.Parameters.Add("@PosX", SqliteType.Integer);
+				var pPosY = insertCmd.Parameters.Add("@PosY", SqliteType.Integer);
+				var pDelay = insertCmd.Parameters.Add("@Delay", SqliteType.Integer);
+				var pIsAnime = insertCmd.Parameters.Add("@IsAnime", SqliteType.Integer);
+
+				int spriteCount = 0;
 
 				foreach (var filepath in csvFiles)
 				{
-					//".csv"のみを拾うように
-					//if (0 != ".csv".CompareTo(Path.GetExtension(filepath).ToLower()))
-					//	continue;
-					//アニメスプライト宣言。nullでないとき、フレーム追加モード
 					SpriteAnime currentAnime = null;
-					//string directory = Path.GetDirectoryName(filepath).ToUpper() + "\\";
 					string directory = Path.GetDirectoryName(filepath) + Path.DirectorySeparatorChar;
 					string filename = Path.GetFileName(filepath);
 					string[] lines = File.ReadAllLines(filepath, Config.Encode);
 					int lineNo = 0;
+					int frameIndex = 0;
+
 					foreach (var line in lines)
 					{
 						lineNo++;
@@ -166,29 +287,103 @@ namespace MinorShift.Emuera.Content
 						if (str.Length == 0 || str.StartsWith(";"))
 							continue;
 						string[] tokens = str.Split(',');
-						//AContentItem item = CreateFromCsv(tokens);
 						ScriptPosition sp = new ScriptPosition(filename, lineNo);
-						if (CreateFromCsv(tokens, directory, currentAnime, sp) is ASprite item)
+
+						string name = tokens[0].Trim().ToUpper();
+						string arg2 = tokens.Length > 1 ? tokens[1].Replace('\\', Path.DirectorySeparatorChar) : "";
+						if (name.Length == 0 || arg2.Length == 0)
+							continue;
+
+						if (arg2.Equals("ANIME", StringComparison.OrdinalIgnoreCase))
 						{
-							//アニメスプライト宣言ならcurrentAnime上書きしてフレーム追加モードにする。そうでないならnull
-							currentAnime = item as SpriteAnime;
-							if (!imageDictionary.ContainsKey(item.Name))
+							if (tokens.Length < 4)
+								continue;
+							int[] sizeValue = new int[2];
+							bool sccs = true;
+							for (int i = 0; i < 2; i++)
+								sccs &= int.TryParse(tokens[i + 2], out sizeValue[i]);
+							if (!sccs || sizeValue[0] <= 0 || sizeValue[1] <= 0)
+								continue;
+
+							pName.Value = name;
+							pFrameIndex.Value = 0;
+							pFilePath.Value = "";
+							pRectX.Value = 0;
+							pRectY.Value = 0;
+							pRectW.Value = sizeValue[0];
+							pRectH.Value = sizeValue[1];
+							pPosX.Value = 0;
+							pPosY.Value = 0;
+							pDelay.Value = 0;
+							pIsAnime.Value = 1;
+							insertCmd.ExecuteNonQuery();
+							spriteCount++;
+							currentAnime = new SpriteAnime(name, new Size(sizeValue[0], sizeValue[1]));
+							frameIndex = 1;
+							continue;
+						}
+
+						if (arg2.IndexOf('.') < 0)
+							continue;
+
+						string parentName = directory + arg2;
+						if (!FileUtils.Exists(ref parentName))
+						{
+							ParserMediator.Warn(string.Format(trerror.NotExistImageFile.Text, arg2), sp, 1);
+							continue;
+						}
+
+						Rectangle rect = new Rectangle();
+						Point pos = new Point();
+						int delay = 1000;
+						bool isAnimeFrame = currentAnime != null && currentAnime.Name == name;
+
+						if (tokens.Length >= 6)
+						{
+							int[] rectValue = new int[4];
+							bool sccs = true;
+							for (int i = 0; i < 4; i++)
+								sccs &= int.TryParse(tokens[i + 2], out rectValue[i]);
+							if (sccs)
+								rect = new Rectangle(rectValue[0], rectValue[1], rectValue[2], rectValue[3]);
+							if (tokens.Length >= 8)
 							{
-								imageDictionary.Add(item.Name, item);
-							}
-							else
-							{
-								ParserMediator.Warn(string.Format(trerror.SpriteNameAlreadyUsed.Text, item.Name), sp, 0);
-								item.Dispose();
+								sccs = true;
+								for (int i = 0; i < 2; i++)
+									sccs &= int.TryParse(tokens[i + 6], out rectValue[i]);
+								if (sccs)
+									pos = new Point(rectValue[0], rectValue[1]);
+								if (tokens.Length >= 9)
+									int.TryParse(tokens[8], out delay);
 							}
 						}
+
+						pName.Value = name;
+						pFrameIndex.Value = isAnimeFrame ? frameIndex++ : 1;
+						pFilePath.Value = parentName;
+						pRectX.Value = rect.X;
+						pRectY.Value = rect.Y;
+						pRectW.Value = rect.Width;
+						pRectH.Value = rect.Height;
+						pPosX.Value = pos.X;
+						pPosY.Value = pos.Y;
+						pDelay.Value = delay;
+						pIsAnime.Value = isAnimeFrame ? 0 : 0;
+						insertCmd.ExecuteNonQuery();
+						spriteCount++;
+
+						if (!isAnimeFrame)
+							currentAnime = null;
 					}
 				}
+
+				trans.Commit();
+				System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: {spriteCount} sprite metadata entries written to SQLite (no images decoded)");
 			}
-			catch
+			catch (Exception ex)
 			{
+				System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents EXCEPTION: {ex.Message}");
 				return false;
-				//throw new CodeEE("リソースファイルのロード中にエラーが発生しました");
 			}
 			return true;
 		}
@@ -204,159 +399,11 @@ namespace MinorShift.Emuera.Content
 			gList.Clear();
 		}
 
-		//タイトルに戻る時用（コードの変更はないので、動的に作られた分だけ削除）
 		static public void UnloadGraphicList()
 		{
 			foreach (var graph in gList.Values)
 				graph.GDispose();
 			gList.Clear();
-		}
-		/// <summary>
-		/// resourcesフォルダ中のcsvの1行を読んで新しいリソースを作る(or既存のアニメーションスプライトに1フレーム追加する)
-		/// </summary>
-		/// <param name="tokens"></param>
-		/// <param name="dir"></param>
-		/// <param name="currentAnime"></param>
-		/// <param name="sp"></param>
-		/// <returns></returns>
-		static private AContentItem CreateFromCsv(string[] tokens, string dir, SpriteAnime currentAnime, ScriptPosition sp)
-		{
-			if (tokens.Length < 2)
-				return null;
-			string name = tokens[0].Trim().ToUpper();//
-			//string arg2 = tokens[1].ToUpper();//画像ファイル名
-			string arg2 = tokens[1].Replace('\\', Path.DirectorySeparatorChar);
-			if (name.Length == 0 || arg2.Length == 0)
-				return null;
-			//アニメーションスプライト宣言
-			if (arg2.Equals("ANIME", StringComparison.OrdinalIgnoreCase))
-			{
-				if (tokens.Length < 4)
-				{
-					ParserMediator.Warn(trerror.NotDeclaredAnimationSpriteSize.Text, sp, 1);
-					return null;
-				}
-				//w,h
-				int[] sizeValue = new int[2];
-				bool sccs = true;
-				for (int i = 0; i < 2; i++)
-					sccs &= int.TryParse(tokens[i + 2], out sizeValue[i]);
-				if (!sccs || sizeValue[0] <= 0 || sizeValue[1] <= 0 || sizeValue[0] > AbstractImage.MAX_IMAGESIZE || sizeValue[1] > AbstractImage.MAX_IMAGESIZE)
-				{
-					ParserMediator.Warn(trerror.InvalidAnimationSpriteSize.Text, sp, 1);
-					return null;
-				}
-				SpriteAnime anime = new SpriteAnime(name, new Size(sizeValue[0],sizeValue[1]));
-
-				return anime;
-			}
-			//アニメ宣言以外（アニメ用フレーム含む
-
-			if(arg2.IndexOf('.') < 0)
-			{
-				ParserMediator.Warn(string.Format(trerror.MissingSecondArgumentExtension.Text, arg2), sp, 1);
-				return null;
-			}
-			string parentName = dir + arg2;
-
-
-			//親画像のロードConstImage
-			if (!FileUtils.Exists(ref parentName))
-			{
-				string filepath = parentName;
-				if (!FileUtils.Exists(ref filepath))
-				{
-					ParserMediator.Warn(string.Format(trerror.NotExistImageFile.Text, arg2), sp, 1);
-					return null;
-				}
-				// #region EM_私家版_webp
-				// // Bitmap bmp = new Bitmap(filepath);
-				// var bmp = Utils.LoadImage(filepath);
-				// #endregion
-			}
-			if (!resourceDic.TryGetValue(parentName, out var aContentFile))
-			{
-				SKBitmap bmp = SKBitmap.Decode(parentName);
-				if (bmp == null)
-				{
-					ParserMediator.Warn(string.Format(trerror.FailedLoadFile.Text, arg2), sp, 1);
-					return null;
-				}
-				if (bmp.Width > AbstractImage.MAX_IMAGESIZE || bmp.Height > AbstractImage.MAX_IMAGESIZE)
-				{
-					ParserMediator.Warn(string.Format(trerror.TooLargeImageFile.Text, AbstractImage.MAX_IMAGESIZE.ToString(), arg2), sp, 1);
-				}
-				ConstImage img = new ConstImage(parentName);
-				img.CreateFrom(bmp, Config.TextDrawingMode == TextDrawingMode.WINAPI);
-				if (!img.IsCreated)
-				{
-					ParserMediator.Warn(string.Format(trerror.FailedCreateResource.Text, arg2), sp, 1);
-					return null;
-				}
-				resourceDic.Add(parentName, img);
-				aContentFile = img;
-			}
-            if (!(aContentFile is ConstImage parentImage) || !parentImage.IsCreated)
-            {
-                ParserMediator.Warn(string.Format(trerror.SpriteCreateFromFailedResource.Text, arg2), sp, 1);
-                return null;
-            }
-            Rectangle rect = new Rectangle(new Point(0, 0), DisplayUtils.ToSize(parentImage.Bitmap.Info.Size));
-			Point pos = new Point();
-			int delay = 1000;
-			//name,parentname, x,y,w,h ,offset_x,offset_y, delayTime
-			if(tokens.Length >= 6)//x,y,w,h
-			{
-				int[] rectValue = new int[4];
-				bool sccs = true;
-				for (int i = 0; i < 4; i++)
-					sccs &= int.TryParse(tokens[i + 2], out rectValue[i]);
-				if (sccs)
-				{
-					rect = new Rectangle(rectValue[0], rectValue[1], rectValue[2], rectValue[3]);
-					if (rect.Width <= 0 || rect.Height <= 0)
-					{
-						ParserMediator.Warn(string.Format(trerror.SpriteSizeIsNegatibe.Text, name), sp, 1);
-						return null;
-					}
-					if (!rect.IntersectsWith(new Rectangle(0,0,parentImage.Bitmap.Width, parentImage.Bitmap.Height)))
-					{
-						ParserMediator.Warn(string.Format(trerror.OoRParentImage.Text, name), sp, 1);
-						return null;
-					}
-				}
-				if(tokens.Length >= 8)
-				{
-					sccs = true;
-					for (int i = 0; i < 2; i++)
-						sccs &= int.TryParse(tokens[i + 6], out rectValue[i]);
-					if (sccs)
-						pos = new Point(rectValue[0], rectValue[1]);
-					if (tokens.Length >= 9)
-					{
-						sccs = int.TryParse(tokens[8], out delay);
-						if (sccs && delay <= 0)
-						{
-							ParserMediator.Warn(string.Format(trerror.FrameTimeIsNegative.Text, name), sp, 1);
-							return null;
-						}
-					}
-				}
-			}
-			//既存のスプライトに対するフレーム追加
-			if (currentAnime != null && currentAnime.Name == name)
-			{
-				if(!currentAnime.AddFrame(parentImage, rect, pos, delay))
-				{
-					ParserMediator.Warn(string.Format(trerror.FailedAddSpriteFrame.Text, arg2), sp, 1);
-					return null;
-				}
-				return null;
-			}
-
-			//新規スプライト定義
-			ASprite image = new SpriteF(name, parentImage, rect, pos);
-			return image;
 		}
 
 		static public void UnloadTempLoadedConstImageNames()
@@ -366,8 +413,5 @@ namespace MinorShift.Emuera.Content
 		static public void UnloadTempLoadedGraphicsImageNames()
 		{
 		}
-
-
-
 	}
 }

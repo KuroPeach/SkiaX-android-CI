@@ -577,7 +577,7 @@ internal static class Config
 	//public static bool CompatiDRAWLINE { get; private set; }
 	public static bool CompatiLinefeedAs1739 { get; private set; }
 	public static bool SystemAllowFullSpace { get; private set; }
-	public static bool SystemSaveInBinary { get; private set; }
+	public static bool SystemSaveInBinary { get; internal set; }
 	public static bool CompatiFuncArgAutoConvert { get; private set; }
 	public static bool CompatiFuncArgOptional { get; private set; }
 	public static bool CompatiCallEvent { get; private set; }

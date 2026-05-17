@@ -36,7 +36,10 @@ namespace XEmuera.Droid
             var context = MainActivity.Instance;
             if (context == null) return;
 
+            Android.Util.Log.Debug("EmueraHost", $"StartGame: path={gamePath}");
+
             GlobalStatic.PathProvider = new AndroidPathProvider(context, gamePath);
+            Android.Util.Log.Debug("EmueraHost", $"PathProvider set: ExeDir={GlobalStatic.PathProvider.ExeDir}");
 
             DisplayUtils.ScreenDensity = context.Resources.DisplayMetrics.Density;
 
@@ -49,36 +52,51 @@ namespace XEmuera.Droid
             try
             {
                 FontModel.Load();
+                Android.Util.Log.Debug("EmueraHost", "FontModel.Load() done");
             }
             catch (Exception ex)
             {
                 Android.Util.Log.Error("EmueraHost", $"FontModel.Load() failed: {ex}");
             }
 
+            mainWindow.UpdateStatus("Initializing engine...");
+
             Task.Run(() =>
             {
                 try
                 {
+                    Android.Util.Log.Debug("EmueraHost", "Calling Program.Init()...");
+                    mainWindow.UpdateStatus("Program.Init()...");
                     if (!Program.Init())
                     {
                         Android.Util.Log.Error("EmueraHost", "Program.Init() returned false!");
+                        mainWindow.UpdateStatus("Init FAILED");
                         return;
                     }
+                    Android.Util.Log.Debug("EmueraHost", "Program.Init() done");
 
                     DrawTextUtils.Reset();
                     DrawBitmapUtils.Reset();
 
+                    Android.Util.Log.Debug("EmueraHost", "Creating EmueraConsole...");
+                    mainWindow.UpdateStatus("Creating console...");
                     console = new EmueraConsole(mainWindow);
                     Android.Util.Log.Debug("EmueraHost", "EmueraConsole created");
                     mainWindow.SetConsole(console);
-                    Android.Util.Log.Debug("EmueraHost", "SetConsole done, calling Initialize");
+                    Android.Util.Log.Debug("EmueraHost", "SetConsole done");
+
+                    Android.Util.Log.Debug("EmueraHost", "Calling console.Initialize()...");
+                    mainWindow.UpdateStatus("Console.Initialize()...");
                     console.Initialize();
                     Android.Util.Log.Debug("EmueraHost", "Initialize done");
+
                     engineInitialized = true;
+                    mainWindow.UpdateStatus("");
                 }
                 catch (Exception ex)
                 {
                     Android.Util.Log.Error("EmueraHost", $"Engine init exception: {ex}");
+                    mainWindow.UpdateStatus($"ERROR: {ex.Message}");
                     engineInitialized = false;
                 }
             });

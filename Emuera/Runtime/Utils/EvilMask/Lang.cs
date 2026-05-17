@@ -1422,7 +1422,7 @@ internal sealed partial class Lang
 
 	public static void SetLanguage()
 	{
-		if (Config.Config.EmueraLang == DefaultLanguage)
+		if (string.IsNullOrEmpty(Config.Config.EmueraLang) || Config.Config.EmueraLang == DefaultLanguage)
         	return;
 
 		if (CurrentCulture.Name.StartsWith(("ja-")))
