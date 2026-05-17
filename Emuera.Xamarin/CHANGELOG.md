@@ -1,5 +1,89 @@
 # Emuera.Xamarin 变更记录
 
+## [0.19.1] - 2026-05-17
+
+### Slice 7C-P1-3：ConfigDialog FontScale 编辑 ✅
+
+- DesktopConfigDialog：添加 `float` 类型专门处理分支
+  - 输入框标题显示范围提示 `(0.5~5.0)`
+  - FontScale 范围验证：超出 0.5~5.0 时弹窗报错并恢复默认值
+- AndroidConfigPage：修复 `float` 类型处理 Bug
+  - BuildConfigItems：添加 `ConfigItem<float>` 分支，保留原始 float 值和 `IsFloat` 标记
+  - OnItemSelected：添加 `IsFloat` 分支，使用 `float.TryParse` 解析输入
+  - FontScale 范围验证：超出 0.5~5.0 时红色提示
+  - 数值键盘（`Keyboard.Numeric`）+ 范围提示标签
+  - 内部 ConfigItem 类添加 `IsFloat` 属性
+- 编译验证：四项目 0 错误
+
+## [0.19.0] - 2026-05-17
+
+### Slice 4A-Xamarin：ContentPage MainWindow + SKCanvasView + 触摸 + 输入 + 导航 ✅
+
+#### 4A-X1：MainWindow extends ContentPage ✅
+
+- Stub MainWindow 从 `internal class MainWindow` 改为 `internal class MainWindow : ContentPage`
+- 添加 `new` 关键字到 Title/BackgroundColor/IsEnabled/Focus 以抑制 CS0108 警告
+- 使 XEmuera-1 的 MainWindow（也是 ContentPage）可正确继承
+
+#### 4A-X2：SKMouseButton 命名空间迁移 + Views 纳入 Core ✅
+
+- SKMouseButton 从 `SkiaSharp.Views.Forms` 命名空间迁移到 `MinorShift.Emuera.UI.Framework.Forms`
+- 消除 Core stub 与 NuGet 包的类型冲突
+- SelectableLabel.cs + TintImageButton.cs 纳入 Core 编译
+- XAML 页面（ConfigPage/SettingsPage 等）仍排除（Core 不支持 XAML 代码生成）
+- Android extern alias `skviews` 恢复，仅用于 NuGet 独有类型
+
+#### 4A-X3~X5：SKCanvasView + 触摸 + 输入连接 ✅
+
+- OnPaintSurface 连接 MainPicBox.Width/Height 到 canvas 尺寸
+- QuickButtonGroup override 返回视觉布局（QuickButtonGroup 类型）
+- quickButton_Clicked override 处理按钮点击 → PressEnterKey
+- quickButtonScrollView 连接到视觉 ScrollView
+- MainWindow stub: quickButton_Clicked 改为 virtual
+
+#### 4A-X6：MainMenu_Reboot/GotoTitle + Reboot ✅
+
+- AndroidMainWindow.Reboot() 调用 console.GotoTitle()（后台线程）
+- MainMenu_Reboot() 委托给 Reboot()
+- MainMenu_GotoTitle() 检查 IsInProcess 后 Reboot()
+- MainWindow stub: MainMenu_Reboot/GotoTitle 改为 virtual
+
+#### 4A-X7：编译验证 ✅
+
+- Core: 0 错误, 105 警告
+- Desktop: 0 错误, 4 警告
+- Android: 0 错误, 4 警告
+
+### Slice 5B-E：音频路径替换 + ERB 指令验证 ✅
+
+#### 5B-E1：音频路径替换 ✅
+
+- Creator.Method.cs ExistSoundMethod: `Path.GetFullPath(".\\sound\\")` → `Program.MusicDir`
+- Instraction.Child.cs PLAYSOUND/PLAYBGM: 同上
+- `File.Exists` → `Program.FileExists`（大小写不敏感查找）
+- Program.cs: 添加 `FileExists()` 委托到 `FileUtils.Exists()`
+
+#### 5B-E2~E5：音频 ERB 指令验证 ✅
+
+- 所有音频 ERB 指令已存在于 LazyLoading 源码中（无需额外移植）：
+  - PLAYSOUND, PLAYBGM, STOPBGM, STOPSOUND (Instraction.Child.cs)
+  - GETSOUNDORBGMINFO, ISPLAYINGSOUND, SOUNDCONTROL (Creator.Method.cs)
+  - ISPLAYINGBGM, BGMCONTROL (Creator.Method.cs)
+
+### Slice 7C-P1：FontScale 配置属性 ✅
+
+- Config.cs: 添加 `FontScale` 属性 (float)，在 SetConfig 中应用
+  - `if (FontScale != 1f) { FontSize = (int)(FontSize * FontScale); LineHeight = (int)(LineHeight * FontScale); }`
+- ConfigData.cs: 添加 FontScale 默认值 (1f) 到两个构造函数
+- ConfigData.cs: 添加 FontScale switch case (SingleFloatTerm)
+- 与 XEmuera-1 行为一致
+
+### 移出编译的文件（未删除，待后续处理）
+
+- `Platform/Forms/**` — Core csproj 排除（XAML 依赖，无法在 net8.0 TFM 编译）
+- `EraPictureBox.cs` — Core csproj 排除（依赖 SkiaSharp.Views.Forms NuGet，不支持 net8.0 TFM）
+- XAML 页面（ConfigValuePopup/TxtFilePage/SettingsPage/MainMenuPage/LanguagePage/GameItemPage/FontSettingsPage/ConfigSettingsPage/ConfigPage/AboutPage/App/MainPage）— Core csproj 排除
+
 ## [0.18.0] - 2026-05-17
 
 ### Slice 8D：Android 功能补全 ✅

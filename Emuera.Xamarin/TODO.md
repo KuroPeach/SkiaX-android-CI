@@ -28,6 +28,9 @@
 | Phase 5B-A | Android 音频实现（AndroidSound : Sound + MediaPlayer） | 0.17 |
 | Phase 8D | Android 功能补全（IPathProvider + 触摸 + 输入 + 游戏列表 + 配置 + APK） | 0.18 |
 | Phase 5B-D | Desktop 音频验证（NAudio 已集成，编译通过） | 0.18 |
+| Phase 4A-X1~X7 | ContentPage MainWindow + SKCanvasView + 触摸 + 输入 + 导航框架 | 0.19 |
+| Phase 5B-E | 音频路径替换 + ERB 指令验证（全部已存在于源码） | 0.19 |
+| Phase 7C-P1 | FontScale 配置属性 + ConfigDialog 编辑 | 0.19 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -53,9 +56,10 @@ Emuera.Xamarin.sln
 → ✅ 8D Android 功能补全（APK 可运行分界线）
 → ✅ 5B-D Desktop 音频验证
 ─── APK 可运行 ───
-→ ⏭️ 4A-Xamarin SKCanvasView + 触摸 + 输入（回归框架开发）
-→ ⏭️ 5B-E 音频 ERB 指令补全
-→ ⏭️ 7C-P1 字体缩放 / 7E 本地化 / 7F 日志查看器（P2）
+→ ✅ 4A-Xamarin SKCanvasView + 触摸 + 输入 + 导航框架
+→ ✅ 5B-E 音频路径替换 + ERB 指令验证
+→ ✅ 7C-P1 字体缩放配置
+→ ⏭️ 7E 本地化 / 7F 日志查看器（P2）
 ```
 
 #### 🔴 P0：APK 可运行（当前焦点）
@@ -94,24 +98,24 @@ Emuera.Xamarin.sln
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 4A-X1 | 移除 csproj 中 `Platform\Forms\**` 排除项 | 启用 XAML 代码生成 | ⏭️ |
-| 4A-X2 | 移除 csproj 中 XAML 页面排除项 | Views/\*.xaml.cs + MainPage.xaml.cs + App.xaml.cs | ⏭️ |
-| 4A-X3 | 连接 SKCanvasView 到 EmueraConsole.OnPaint | `mainPicBox_Paint` → `console.OnPaint(canvas)` | ⏭️ |
-| 4A-X4 | 实现触摸事件转发 | `EraPictureBox_Touch` → `console.MouseDown`/`PressEnterKey` | ⏭️ |
-| 4A-X5 | 实现文本输入 | `Entry` → `console.PressEnterKey`（ONEPHRASE/ANYKEY 自动提交） | ⏭️ |
-| 4A-X6 | 移植 App.xaml + MainPage.xaml | FlyoutPage 导航框架 + GameItemPage 游戏列表 | ⏭️ |
-| 4A-X7 | 编译+运行验证 | — | ⏭️ |
+| 4A-X1 | MainWindow extends ContentPage | Stub 改为继承 ContentPage，添加 new 关键字 | ✅ |
+| 4A-X2 | SKMouseButton 命名空间迁移 + Views 纳入 Core | 迁移到 MinorShift.Emuera.UI.Framework.Forms + SelectableLabel/TintImageButton | ✅ |
+| 4A-X3 | 连接 SKCanvasView 到 EmueraConsole.OnPaint | OnPaintSurface → console.OnPaint + MainPicBox.Width/Height | ✅ |
+| 4A-X4 | 实现触摸事件转发 | `EraPictureBox_Touch` → `console.MouseDown`/`PressEnterKey` | ✅ |
+| 4A-X5 | 实现文本输入 | `Entry` → `console.PressEnterKey`（ONEPHRASE/ANYKEY 自动提交） | ✅ |
+| 4A-X6 | 实现 MainMenu_Reboot/GotoTitle + Reboot | FlyoutPage 导航框架 + 游戏重启/回到标题 | ✅ |
+| 4A-X7 | 编译+运行验证 | 三项目 0 错误 | ✅ |
 
 ##### 切片 5B-E：音频路径 + ERB 指令补全
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 5B-E1 | 替换音频路径构建 | `Path.GetFullPath(".\\sound\\")` → `IPathProvider.MusicDir` + `Program.FileExists()` | ⏭️ |
-| 5B-E2 | 升级 PLAYSOUND ArgumentBuilder | 支持 repeat 参数（移植 `SpHtmlPrint`） | ⏭️ |
-| 5B-E3 | 移植 GETSOUNDORBGMINFO | `Creator.Method.cs` 新增方法 | ⏭️ |
-| 5B-E4 | 移植 ISPLAYINGSOUND/ISPLAYINGBGM | `Creator.Method.cs` 新增方法 | ⏭️ |
-| 5B-E5 | 移植 SOUNDCONTROL/BGMCONTROL | `Creator.Method.cs` 新增方法 | ⏭️ |
-| 5B-E6 | 编译+运行验证 | — | ⏭️ |
+| 5B-E1 | 替换音频路径构建 | `Path.GetFullPath(".\\sound\\")` → `Program.MusicDir` + `Program.FileExists()` | ✅ |
+| 5B-E2 | 升级 PLAYSOUND ArgumentBuilder | 支持 repeat 参数（已存在于源码） | ✅ |
+| 5B-E3 | 移植 GETSOUNDORBGMINFO | 已存在于 Creator.Method.cs | ✅ |
+| 5B-E4 | 移植 ISPLAYINGSOUND/ISPLAYINGBGM | 已存在于 Creator.Method.cs | ✅ |
+| 5B-E5 | 移植 SOUNDCONTROL/BGMCONTROL | 已存在于 Creator.Method.cs | ✅ |
+| 5B-E6 | 编译+运行验证 | Core 0 错误 | ✅ |
 
 ##### 切片 4B：配置页面
 
@@ -474,7 +478,7 @@ Emuera.Xamarin.sln
 | 5A-1 | 移植 XEmuera `FileUtils` 到 emuera.xamarin                                          | 大小写不敏感文件查找（`Exists(ref)`/`GetFiles()`/`GetDirectories()`）                             | 方案 B：封装到 Program 静态方法 | ✅  |
 | 5A-2 | 添加 `Program.FileExists(ref)`/`Program.DirectoryExists(ref)`/`Program.GetFiles()` | 内部委托 FileUtils                                                                       | —                     | ✅  |
 | 5A-3 | 替换内核中所有 `File.Exists`/`Directory.GetFiles` 调用                                    | AppContents/Config/Program/GameItemModel                                              | —                     | ✅  |
-| 5A-4 | 替换音频路径构建                                                                         | `Path.GetFullPath(".\\sound\\")` → `IPathProvider.MusicDir`                          | —                     | ⏭️ |
+| 5A-4 | 替换音频路径构建                                                                         | `Path.GetFullPath(".\\sound\\")` → `Program.MusicDir`                          | —                     | ✅ |
 | 5A-5 | 实现 `IPathProvider` 的 Android/iOS 版本                                              | Android: `Context.FilesDir`; iOS: `NSBundle` + `Documents/`                          | —                     | ⏭️ |
 | 5A-6 | Android 资源解压                                                                     | APK assets → Context.FilesDir（首次启动全量解压）                                              | 方案 A                  | ⏭️ |
 | 5A-7 | 编译+运行验证                                                                          | —                                                                                    | —                     | ✅  |
@@ -687,10 +691,10 @@ Emuera.Xamarin.sln
 
 | #       | 操作                                             | 说明                                               | 状态 |
 | ------- | ---------------------------------------------- | ------------------------------------------------ | -- |
-| 7C-P1-1 | 在 LazyLoading `Config.cs` 添加 `FontScale` 属性    | 参考 Xamarin 子项目 Config.cs                         | ⏭️ |
-| 7C-P1-2 | 在 `SetConfig()` 中读取 `ConfigCode.FontScale` 并应用 | `FontSize *= FontScale; LineHeight *= FontScale` | ⏭️ |
-| 7C-P1-3 | 在 ConfigDialog 添加 FontScale 编辑                 | 数值 0.5\~5.0，步进 0.1                               | ⏭️ |
-| 7C-P1-4 | 编译+运行验证                                        | 重启后缩放生效                                          | ⏭️ |
+| 7C-P1-1 | 在 LazyLoading `Config.cs` 添加 `FontScale` 属性    | 参考 Xamarin 子项目 Config.cs                         | ✅ |
+| 7C-P1-2 | 在 `SetConfig()` 中读取 `ConfigCode.FontScale` 并应用 | `FontSize *= FontScale; LineHeight *= FontScale` | ✅ |
+| 7C-P1-3 | 在 ConfigDialog 添加 FontScale 编辑                 | 数值 0.5\~5.0，步进 0.1                               | ✅ |
+| 7C-P1-4 | 编译+运行验证                                        | 重启后缩放生效                                          | ✅ |
 
 #### 7C-Phase2：动态缩放（运行时，高难度）
 

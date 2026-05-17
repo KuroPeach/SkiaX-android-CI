@@ -259,6 +259,7 @@ namespace MinorShift.Emuera
 		public static string ExeName => GlobalStatic.PathProvider?.ExeName ?? "emuera";
 		#region EE_PLAYSOUND系
 		public static string MusicDir => GlobalStatic.PathProvider?.MusicDir ?? "";
+		public static bool FileExists(ref string filepath) => FileUtils.Exists(ref filepath);
 		//public static IPlayer[] sound = new IPlayer[10];
 		//public static IPlayer bgm = null;
 		#endregion

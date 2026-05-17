@@ -252,6 +252,29 @@ namespace MinorShift.Emuera
                         return;
                 }
             }
+            else if (item.Value is float)
+            {
+                string input = ShowInputDialog(item.Name + " (0.5~5.0)", item.Value.ToString());
+                if (input == null)
+                    return;
+
+                if (!ConfigItem.TryParse(item, input))
+                {
+                    MessageBox.Show(this, "Invalid value.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (item.Code == ConfigCode.FontScale)
+                {
+                    float val = (float)item.Value;
+                    if (val < 0.5f || val > 5.0f)
+                    {
+                        MessageBox.Show(this, "FontScale must be between 0.5 and 5.0.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        item.Value = item.DefaultValue;
+                        return;
+                    }
+                }
+            }
             else
             {
                 string input = ShowInputDialog(item.Name, item.Value.ToString());

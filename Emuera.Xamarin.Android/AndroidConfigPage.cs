@@ -85,6 +85,12 @@ namespace XEmuera.Droid
                             item.Value = intItem.Value;
                             item.DisplayValue = intItem.Value.ToString();
                         }
+                        else if (aItem is ConfigItem<float> floatItem)
+                        {
+                            item.Value = floatItem.Value;
+                            item.DisplayValue = floatItem.Value.ToString("F1");
+                            item.IsFloat = true;
+                        }
                         else if (aItem is ConfigItem<string> strItem)
                         {
                             item.Value = strItem.Value ?? "";
@@ -123,6 +129,52 @@ namespace XEmuera.Droid
                 item.DisplayValue = newVal ? "True (tap to toggle)" : "False (tap to toggle)";
                 listView.ItemsSource = null;
                 listView.ItemsSource = items;
+            }
+            else if (item.IsFloat)
+            {
+                var entry = new Entry
+                {
+                    Text = item.Value is float fv ? fv.ToString("F1") : item.Value?.ToString() ?? "",
+                    Keyboard = Keyboard.Numeric,
+                };
+                var hintLabel = new Label
+                {
+                    Text = item.Code == ConfigCode.FontScale ? "Range: 0.5 ~ 5.0, step 0.1" : "",
+                    FontSize = 12,
+                    TextColor = Color.Gray,
+                };
+                var page = new ContentPage
+                {
+                    Title = item.Name,
+                    Content = new StackLayout
+                    {
+                        Padding = 15,
+                        Children =
+                        {
+                            new Label { Text = item.Name, FontSize = 18 },
+                            hintLabel,
+                            entry,
+                        }
+                    }
+                };
+                entry.Completed += (s, args) =>
+                {
+                    var aItem = configData.GetItem(item.Code);
+                    if (aItem != null && float.TryParse(entry.Text, out float floatVal))
+                    {
+                        if (item.Code == ConfigCode.FontScale && (floatVal < 0.5f || floatVal > 5.0f))
+                        {
+                            hintLabel.TextColor = Color.Red;
+                            hintLabel.Text = "Must be between 0.5 and 5.0!";
+                            return;
+                        }
+                        aItem.SetValue(floatVal);
+                        item.Value = floatVal;
+                        item.DisplayValue = floatVal.ToString("F1");
+                    }
+                    Navigation.PopAsync();
+                };
+                Navigation.PushAsync(page);
             }
             else
             {
@@ -181,6 +233,7 @@ namespace XEmuera.Droid
             public object Value { get; set; }
             public string DisplayValue { get; set; }
             public bool IsBool { get; set; }
+            public bool IsFloat { get; set; }
         }
     }
 }
