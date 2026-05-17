@@ -1373,6 +1373,8 @@ namespace MinorShift.Emuera.GameView
 
 			bool lockTaken = false;
 			displayLineListSpinLock.Enter(ref lockTaken);
+			try
+			{
 
 			//1824 アニメスプライト用・現在フレームの時間を決定
 			WinmmTimer.FrameStart();
@@ -1580,6 +1582,12 @@ namespace MinorShift.Emuera.GameView
 			{
 				need_settimer = false;
 				setTimer();
+			}
+			}
+			finally
+			{
+				if (lockTaken)
+					displayLineListSpinLock.Exit();
 			}
 		}
 

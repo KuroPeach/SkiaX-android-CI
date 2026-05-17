@@ -9,6 +9,7 @@ using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.UI.Framework.Forms;
 using XEmuera.Drawing;
+using XEmuera.Models;
 using SkiaSharp;
 
 namespace XEmuera.Droid
@@ -37,20 +38,50 @@ namespace XEmuera.Droid
 
             GlobalStatic.PathProvider = new AndroidPathProvider(context, gamePath);
 
+            DisplayUtils.ScreenDensity = context.Resources.DisplayMetrics.Density;
+
+            GameFolderModel.Instance = new GameFolderModel
+            {
+                Name = System.IO.Path.GetFileName(gamePath),
+                Path = gamePath
+            };
+
+            try
+            {
+                FontModel.Load();
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Error("EmueraHost", $"FontModel.Load() failed: {ex}");
+            }
+
             Task.Run(() =>
             {
-                if (!Program.Init())
-                    return;
+                try
+                {
+                    if (!Program.Init())
+                    {
+                        Android.Util.Log.Error("EmueraHost", "Program.Init() returned false!");
+                        return;
+                    }
 
-                DrawTextUtils.Reset();
-                DrawBitmapUtils.Reset();
+                    DrawTextUtils.Reset();
+                    DrawBitmapUtils.Reset();
 
-                console = new EmueraConsole(mainWindow);
-                mainWindow.SetConsole(console);
-                console.Initialize();
+                    console = new EmueraConsole(mainWindow);
+                    Android.Util.Log.Debug("EmueraHost", "EmueraConsole created");
+                    mainWindow.SetConsole(console);
+                    Android.Util.Log.Debug("EmueraHost", "SetConsole done, calling Initialize");
+                    console.Initialize();
+                    Android.Util.Log.Debug("EmueraHost", "Initialize done");
+                    engineInitialized = true;
+                }
+                catch (Exception ex)
+                {
+                    Android.Util.Log.Error("EmueraHost", $"Engine init exception: {ex}");
+                    engineInitialized = false;
+                }
             });
-
-            engineInitialized = true;
         }
 
         private void InitPlatformInterop()

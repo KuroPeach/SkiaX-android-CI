@@ -1347,7 +1347,7 @@ namespace MinorShift.Emuera.Forms
 		{
 			richTextBox1.TextChanged -= new EventHandler(richTextBox1_TextChanged);
 			richTextBox1.KeyDown -= new KeyEventHandler(richTextBox1_KeyDown);
-			Application.DoEvents();
+			PlatformInterop.DoEvents();
 			richTextBox1.TextChanged += new EventHandler(richTextBox1_TextChanged);
 			richTextBox1.KeyDown += new KeyEventHandler(richTextBox1_KeyDown);
 			last_inputed = richTextBox1.Text;

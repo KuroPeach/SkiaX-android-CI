@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -18,6 +18,11 @@ static partial class Preload
     public static string[] GetFileLines(string path)
     {
         return files[path];
+    }
+
+    public static bool TryGetFileLines(string path, out string[] lines)
+    {
+        return files.TryGetValue(path, out lines);
     }
 
     private static string[] ReadAndDecodeFile(string path)

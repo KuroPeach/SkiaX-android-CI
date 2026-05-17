@@ -63,7 +63,8 @@ namespace MinorShift.Emuera
 		{
 			System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-			GlobalStatic.PathProvider = new DefaultPathProvider(Sys.ExeDir);
+			if (GlobalStatic.PathProvider == null)
+				GlobalStatic.PathProvider = new DefaultPathProvider(Sys.ExeDir);
 
 #if DEBUG
 			debugMode = true;
@@ -92,7 +93,8 @@ namespace MinorShift.Emuera
 			#endregion
 
 			#region EM_私家版_Emuera多言語化改造
-			//Lang.LoadLanguageFile();
+			Lang.LoadLanguageFiles();
+			Lang.SetLanguage();
 			#endregion
 
 

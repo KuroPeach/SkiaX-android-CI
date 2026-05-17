@@ -130,7 +130,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		{
 			while (_drawStopwatch.ElapsedMilliseconds < msPerFrame)
 			{
-				Application.DoEvents();
+				PlatformInterop.DoEvents();
 			}
 		}
 		RefreshStrings(true);

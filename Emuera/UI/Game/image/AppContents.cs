@@ -287,7 +287,7 @@ static class AppContents
 
 			foreach (var path in csvFiles)
 			{
-				string directory = Path.GetDirectoryName(path) + "\\";
+				string directory = Path.GetDirectoryName(path) + Path.DirectorySeparatorChar;
 				string[] lines = File.ReadAllLines(path, EncodingHandler.DetectEncoding(path));
 
 				Dictionary<string, int> frameCounters = new(Config.StrComper);

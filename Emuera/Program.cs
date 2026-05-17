@@ -264,7 +264,7 @@ static partial class Program
 				if ((File.GetAttributes(path) & FileAttributes.Directory) == FileAttributes.Directory)
 				{
 					//List<KeyValuePair<string, string>> fnames = Config.Config.GetFiles(args[i] + "\\", "*.ERB");
-					List<KeyValuePair<string, string>> fnames = Config.GetFiles(path + "\\", "*.ERB");
+					List<KeyValuePair<string, string>> fnames = Config.GetFiles(path + Path.DirectorySeparatorChar, "*.ERB");
 					for (int j = 0; j < fnames.Count; j++)
 					{
 						AnalysisFiles.Add(fnames[j].Value);

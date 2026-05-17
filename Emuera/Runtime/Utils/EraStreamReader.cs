@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
@@ -62,8 +62,21 @@ internal sealed partial class EraStreamReader : IDisposable
 		filename = name.ToString();
 		curNo = 0;
 		nextNo = 0;
-		_fileLines = Preload.GetFileLines(path);
-		return true;
+		if (Preload.TryGetFileLines(path, out var lines))
+		{
+			_fileLines = lines;
+			return true;
+		}
+		try
+		{
+			_fileLines = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(path));
+			return true;
+		}
+		catch
+		{
+			Dispose();
+			return false;
+		}
 	}
 
 

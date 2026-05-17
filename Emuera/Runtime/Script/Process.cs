@@ -95,12 +95,10 @@ internal sealed partial class Process(EmueraConsole view)
 
 			logWriter?.WriteLine($"Proc:Init:Image:Start {stopWatch.ElapsedMilliseconds}ms");
 			//リソースフォルダ読み込み
-			var err = await Task.Run(() => AppContents.LoadContents(false));
-			if (err != null)
+			if (!AppContents.LoadContents(false))
 			{
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine(trsl.ResourceReadError.Text);
-				console.Print(err.ToString());
 				return false;
 			}
 			ParserMediator.FlushWarningList();

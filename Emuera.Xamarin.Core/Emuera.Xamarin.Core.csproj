@@ -74,6 +74,7 @@
   <!-- 内核 Runtime/ 排除项 -->
   <ItemGroup>
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\WinmmTimer.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\PluginSystem\**" />
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Shape.cs" />
     <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
@@ -152,18 +153,22 @@
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\ConfigsText.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>ConfigsText.Designer.cs</LastGenOutput>
+      <LogicalName>XEmuera.Resources.ConfigsText.resources</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\ConfigsText.ja-JP.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>ConfigsText.ja-JP.Designer.cs</LastGenOutput>
+      <LogicalName>XEmuera.Resources.ConfigsText.ja-JP.resources</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\StringsText.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>StringsText.Designer.cs</LastGenOutput>
+      <LogicalName>XEmuera.Resources.StringsText.resources</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\StringsText.ja-JP.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>StringsText.ja-JP.Designer.cs</LastGenOutput>
+      <LogicalName>XEmuera.Resources.StringsText.ja-JP.resources</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

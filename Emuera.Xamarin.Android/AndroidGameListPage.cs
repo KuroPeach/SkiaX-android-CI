@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using MinorShift.Emuera;
 using Xamarin.Forms;
 
@@ -8,12 +9,22 @@ namespace XEmuera.Droid
     internal class AndroidGameListPage : ContentPage
     {
         private ListView listView;
+        private Label statusLabel;
+        private bool permissionsChecked;
 
         public event Action<string> GameSelected;
 
         public AndroidGameListPage()
         {
             Title = "Emuera";
+
+            statusLabel = new Label
+            {
+                FontSize = 14,
+                TextColor = Color.Gray,
+                HorizontalOptions = LayoutOptions.Center,
+                Margin = new Thickness(10, 5),
+            };
 
             listView = new ListView(ListViewCachingStrategy.RecycleElement)
             {
@@ -54,15 +65,46 @@ namespace XEmuera.Droid
 
             Content = new StackLayout
             {
-                Children = { listView }
+                Children = { statusLabel, listView }
             };
+        }
+
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+
+            if (!permissionsChecked)
+            {
+                permissionsChecked = true;
+                EnsurePermissionsAndRefresh();
+            }
+        }
+
+        private void EnsurePermissionsAndRefresh()
+        {
+            if (MainActivity.HasStoragePermission)
+            {
+                statusLabel.Text = "Scanning for games...";
+                RefreshList();
+            }
+            else
+            {
+                statusLabel.Text = "Storage permission required. Grant permission and pull to refresh.";
+                (MainActivity.Instance as MainActivity)?.RequestStoragePermission();
+            }
         }
 
         private void OnRefreshing(object sender, EventArgs e)
         {
-            var basePath = GlobalStatic.PathProvider?.ExeDir;
-            if (basePath != null)
-                AndroidGameItemModel.Load(basePath);
+            if (MainActivity.HasStoragePermission)
+            {
+                RefreshList();
+            }
+            else
+            {
+                statusLabel.Text = "Storage permission not granted.";
+                (MainActivity.Instance as MainActivity)?.RequestStoragePermission();
+            }
             listView.EndRefresh();
         }
 
@@ -77,9 +119,11 @@ namespace XEmuera.Droid
 
         public void RefreshList()
         {
-            var basePath = GlobalStatic.PathProvider?.ExeDir;
-            if (basePath != null)
-                AndroidGameItemModel.Load(basePath);
+            AndroidGameItemModel.LoadAll();
+            if (AndroidGameItemModel.AllModels.Count == 0)
+                statusLabel.Text = "No games found. Place game files in /storage/emulated/0/emuera/";
+            else
+                statusLabel.Text = $"Found {AndroidGameItemModel.AllModels.Count} game(s)";
         }
     }
 }

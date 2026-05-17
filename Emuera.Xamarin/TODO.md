@@ -31,6 +31,9 @@
 | Phase 4A-X1~X7 | ContentPage MainWindow + SKCanvasView + 触摸 + 输入 + 导航框架 | 0.19 |
 | Phase 5B-E | 音频路径替换 + ERB 指令验证（全部已存在于源码） | 0.19 |
 | Phase 7C-P1 | FontScale 配置属性 + ConfigDialog 编辑 | 0.19 |
+| Phase 8E | Android 引擎启动修复（7 项：资源命名空间/WinmmTimer/FontModel/PathProvider/SpinLock/存储权限/沉浸式） | 0.20 |
+| Phase 9A | Preload 缓存 miss 修复 + eratw-chs 闪退诊断（5 项：Lang/engineInitialized/DoEvents/fire-and-forget/异常捕获） | 0.21 |
+| Phase 9B | 悬浮工具栏（☰ 菜单 + ⌨ 编辑 + A+/A- 缩放）+ 输入条修复（发送按钮 + FillAndExpand）+ 沉浸式全屏 | 0.21 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -59,7 +62,13 @@ Emuera.Xamarin.sln
 → ✅ 4A-Xamarin SKCanvasView + 触摸 + 输入 + 导航框架
 → ✅ 5B-E 音频路径替换 + ERB 指令验证
 → ✅ 7C-P1 字体缩放配置
+→ ✅ 8E Android 引擎启动修复
+→ ✅ 9A Preload 缓存 miss + 闪退诊断修复
+→ ✅ 9B 悬浮工具栏 + 输入条修复 + 沉浸式全屏
+─── UI 可交互 ───
+→ ⏭️ 7C-P2 动态缩放（高难度）
 → ⏭️ 7E 本地化 / 7F 日志查看器（P2）
+→ ⏭️ 真机测试
 ```
 
 #### 🔴 P0：APK 可运行（当前焦点）

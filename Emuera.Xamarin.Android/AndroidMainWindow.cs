@@ -8,6 +8,11 @@ using Android.OS;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Utils;
+using ConfigCode = MinorShift.Emuera.Runtime.Config.ConfigCode;
+using RConfig = MinorShift.Emuera.Runtime.Config.Config;
+using RConfigData = MinorShift.Emuera.Runtime.Config.ConfigData;
+using PConfig = MinorShift.Emuera.Config;
+using PConfigData = MinorShift.Emuera.ConfigData;
 using MinorShift.Emuera.UI.Framework.Forms;
 using SkiaSharp;
 using Xamarin.Forms;
@@ -66,15 +71,32 @@ namespace XEmuera.Droid
                 TextColor = Xamarin.Forms.Color.White,
                 Placeholder = "",
                 ReturnType = ReturnType.Done,
+                HorizontalOptions = LayoutOptions.FillAndExpand,
             };
             textEntry.Completed += OnEntryCompleted;
+
+            var sendButton = new Button
+            {
+                Text = "▶",
+                BackgroundColor = Xamarin.Forms.Color.FromHex("#333333"),
+                TextColor = Xamarin.Forms.Color.White,
+                WidthRequest = 44,
+                HeightRequest = 44,
+                FontSize = 16,
+            };
+            sendButton.Clicked += (s, e) =>
+            {
+                OnEntryCompleted(s, e);
+            };
 
             var entryLayout = new StackLayout
             {
                 Orientation = StackOrientation.Horizontal,
-                Children = { textEntry },
+                Children = { textEntry, sendButton },
                 IsVisible = false,
                 HeightRequest = 50,
+                BackgroundColor = Xamarin.Forms.Color.FromHex("#1a1a1a"),
+                Padding = new Thickness(4, 2),
             };
 
             quickButtonLayout = new QuickButtonGroup
@@ -87,13 +109,100 @@ namespace XEmuera.Droid
             {
                 Orientation = ScrollOrientation.Horizontal,
                 Content = quickButtonLayout,
-                HeightRequest = 40,
+                HeightRequest = 0,
+                IsVisible = false,
             };
 
             quickButtonScrollView = quickScroll;
 
+            var menuButton = new Button
+            {
+                Text = "☰",
+                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
+                TextColor = Xamarin.Forms.Color.White,
+                WidthRequest = 40,
+                HeightRequest = 40,
+                FontSize = 18,
+                CornerRadius = 20,
+            };
+            menuButton.Clicked += (s, e) =>
+            {
+                flyoutPage?.SetValue(FlyoutPage.IsPresentedProperty, true);
+            };
+
+            var editButton = new Button
+            {
+                Text = "⌨",
+                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
+                TextColor = Xamarin.Forms.Color.White,
+                WidthRequest = 40,
+                HeightRequest = 40,
+                FontSize = 16,
+                CornerRadius = 20,
+            };
+            editButton.Clicked += (s, e) =>
+            {
+                entryLayout.IsVisible = !entryLayout.IsVisible;
+                if (entryLayout.IsVisible)
+                {
+                    textEntry.Focus();
+                }
+            };
+
+            var zoomInButton = new Button
+            {
+                Text = "A+",
+                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
+                TextColor = Xamarin.Forms.Color.White,
+                WidthRequest = 40,
+                HeightRequest = 40,
+                FontSize = 12,
+                CornerRadius = 20,
+            };
+            zoomInButton.Clicked += (s, e) =>
+            {
+                AdjustFontScale(0.1f);
+            };
+
+            var zoomOutButton = new Button
+            {
+                Text = "A-",
+                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
+                TextColor = Xamarin.Forms.Color.White,
+                WidthRequest = 40,
+                HeightRequest = 40,
+                FontSize = 12,
+                CornerRadius = 20,
+            };
+            zoomOutButton.Clicked += (s, e) =>
+            {
+                AdjustFontScale(-0.1f);
+            };
+
+            var toolbar = new StackLayout
+            {
+                Orientation = StackOrientation.Horizontal,
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.Start,
+                Spacing = 6,
+                Padding = new Thickness(8, 8, 8, 0),
+                Children = { menuButton, editButton, zoomInButton, zoomOutButton },
+                InputTransparent = true,
+                CascadeInputTransparent = false,
+            };
+
+            var canvasGrid = new Grid
+            {
+                Children =
+                {
+                    canvasView,
+                    toolbar,
+                },
+            };
+
             mainLayout = new Grid
             {
+                BackgroundColor = Xamarin.Forms.Color.Black,
                 RowDefinitions =
                 {
                     new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
@@ -102,7 +211,7 @@ namespace XEmuera.Droid
                 },
                 Children =
                 {
-                    { canvasView, 0, 0 },
+                    { canvasGrid, 0, 0 },
                     { entryLayout, 0, 1 },
                     { quickScroll, 0, 2 },
                 },
@@ -144,7 +253,7 @@ namespace XEmuera.Droid
                     StartPoint = PrevPoint;
 
                     IsLongPressed = false;
-                    if (Config.LongPressSkip)
+                    if (PConfig.LongPressSkip)
                         LongPressTimer.Enabled = true;
 
                     e.Handled = true;
@@ -155,9 +264,9 @@ namespace XEmuera.Droid
 
                     int moveY = (int)(e.Location.Y - PrevPoint.Y);
 
-                    if (Config.LineHeight > 0)
+                    if (RConfig.LineHeight > 0)
                     {
-                        int sign = moveY / Config.LineHeight;
+                        int sign = moveY / RConfig.LineHeight;
                         if (sign != 0)
                         {
                             int newValue = scrollBarValue - sign;
@@ -176,9 +285,8 @@ namespace XEmuera.Droid
                     return;
 
                 case SKTouchAction.Released:
-                    if (Config.LongPressSkip)
+                    if (PConfig.LongPressSkip)
                         LongPressTimer.Enabled = false;
-
                     MouseReleased(e);
                     Task.Run(() => console.LeaveMouse());
 
@@ -415,6 +523,24 @@ namespace XEmuera.Droid
             if (console == null) return;
             console.RefreshStrings(force);
             Refresh();
+        }
+
+        #endregion
+
+        #region Font Scale
+
+        private void AdjustFontScale(float delta)
+        {
+            var current = RConfig.FontScale;
+            var next = Math.Max(0.5f, Math.Min(5.0f, (float)Math.Round(current + delta, 1)));
+            if (Math.Abs(next - current) < 0.01f) return;
+            PConfigData.Instance.GetItem(ConfigCode.FontScale).SetValue(next);
+            RConfig.SetConfig(RConfigData.Instance);
+            if (console != null)
+            {
+                console.RefreshStrings(true);
+                Refresh();
+            }
         }
 
         #endregion

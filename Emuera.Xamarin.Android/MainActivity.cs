@@ -1,8 +1,12 @@
+using System;
 using Android.App;
+using Android.Content;
 using Android.Content.PM;
 using Android.OS;
+using Android.Provider;
 using Android.Views;
 using Android.Runtime;
+using Android.Widget;
 
 namespace XEmuera.Droid
 {
@@ -20,6 +24,20 @@ namespace XEmuera.Droid
         private static bool Init;
         private static int UIOptions;
         private static int EmueraUIOptions;
+
+        internal const int ManageStorageRequestCode = 9101;
+
+        internal static bool HasStoragePermission
+        {
+            get
+            {
+                if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+                    return Android.OS.Environment.IsExternalStorageManager;
+                if (Instance == null) return false;
+                return Instance.CheckSelfPermission(Android.Manifest.Permission.ReadExternalStorage) == Permission.Granted
+                    && Instance.CheckSelfPermission(Android.Manifest.Permission.WriteExternalStorage) == Permission.Granted;
+            }
+        }
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
@@ -44,10 +62,59 @@ namespace XEmuera.Droid
                     | (int)SystemUiFlags.ImmersiveSticky;
             }
 
+            RequestStoragePermission();
+
             var host = new AndroidHost();
             host.InitEmuera();
 
             LoadApplication(new AndroidApp(host));
+        }
+
+        internal void RequestStoragePermission()
+        {
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+            {
+                if (!Android.OS.Environment.IsExternalStorageManager)
+                {
+                    try
+                    {
+                        var intent = new Intent(Settings.ActionManageAppAllFilesAccessPermission);
+                        intent.SetData(Android.Net.Uri.Parse("package:" + PackageName));
+                        intent.AddFlags(ActivityFlags.NewTask);
+                        StartActivityForResult(intent, ManageStorageRequestCode);
+                    }
+                    catch (Exception ex)
+                    {
+                        Toast.MakeText(this, "Failed to request storage permission: " + ex.Message, ToastLength.Long).Show();
+                    }
+                }
+            }
+            else
+            {
+                if (CheckSelfPermission(Android.Manifest.Permission.ReadExternalStorage) != Permission.Granted
+                    || CheckSelfPermission(Android.Manifest.Permission.WriteExternalStorage) != Permission.Granted)
+                {
+                    RequestPermissions(new string[]
+                    {
+                        Android.Manifest.Permission.ReadExternalStorage,
+                        Android.Manifest.Permission.WriteExternalStorage
+                    }, 0);
+                }
+            }
+        }
+
+        protected override void OnActivityResult(int requestCode, Result resultCode, Intent data)
+        {
+            base.OnActivityResult(requestCode, resultCode, data);
+
+            if (requestCode == ManageStorageRequestCode)
+            {
+                var granted = Android.OS.Environment.IsExternalStorageManager;
+                if (!granted)
+                {
+                    Toast.MakeText(this, "Storage permission is required to access game files", ToastLength.Long).Show();
+                }
+            }
         }
 
         public override void OnRequestPermissionsResult(int requestCode, string[] permissions, [GeneratedEnum] Permission[] grantResults)

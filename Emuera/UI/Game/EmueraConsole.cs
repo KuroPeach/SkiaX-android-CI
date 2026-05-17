@@ -671,7 +671,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		RefreshStrings(true);
 		state = ConsoleState.Sleep;
 		process.UpdateCheckInfiniteLoopState();
-		Application.DoEvents();
+		PlatformInterop.DoEvents();
 		if (time > 0)
 			System.Threading.Thread.Sleep(time);
 		////DoEvents()の間にウインドウが閉じられたらおしまい。
@@ -1358,7 +1358,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				if (state != ConsoleState.WaitInput)
 					break;
 				//マクロループ時は待ち処理が起こらないのでここでシステムキューを捌く
-				Application.DoEvents();
+				PlatformInterop.DoEvents();
 #if DEBUG
 				if (state != ConsoleState.WaitInput || inputReq == null)
 					throw new ExeEE("");
@@ -1682,7 +1682,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		{
 			while (_drawStopwatch.ElapsedMilliseconds < msPerFrame)
 			{
-				Application.DoEvents();
+				PlatformInterop.DoEvents();
 			}
 		}
 		window.TextBox.BackColor = bgColor.ToDrawingColor();

@@ -1,5 +1,93 @@
 # Emuera.Xamarin 变更记录
 
+## [0.21.0] - 2026-05-17
+
+### Preload 缓存 miss 修复 + eratw-chs 闪退诊断 + UI 功能
+
+#### 修复项
+
+1. **Preload.GetFileLines 缓存 miss 抛 KeyNotFoundException**
+   - `EraStreamReader.OpenOnCache` 内部 `Preload.GetFileLines(path)` 用 `files[path]` 索引器，缓存未命中时直接崩溃
+   - 添加 `Preload.TryGetFileLines(path, out lines)` 方法
+   - `OpenOnCache` 改为：缓存命中用缓存，缓存 miss 降级到 `File.ReadAllLines` + `EncodingHandler.DetectEncoding`
+
+2. **Lang 未初始化** — `Program.Init()` 前未调用 `Lang.LoadLanguageFiles()` + `Lang.SetLanguage()`
+   - 取消注释 `Emuera.Xamarin/Platform/Program.cs` 中的 Lang 初始化调用
+
+3. **engineInitialized 竞态条件** — `AndroidHost.StartGame()` 中 `engineInitialized = true` 在 `Task.Run` 之前设置
+   - 移到 Task 完成后设置，消除并发访问未初始化对象的风险
+
+4. **Application.DoEvents() 平台不兼容** — `System.Windows.Forms.Application` 仅 Windows 可用
+   - 替换所有 `Application.DoEvents()` 为 `PlatformInterop.DoEvents()`（5 处）
+   - 涉及文件：EmueraConsole.cs (3) + EmueraConsole.Print.cs (1) + MainWindow.cs (1)
+
+5. **console.Initialize() fire-and-forget** — 异步 Task 异常被吞
+   - 改进 `AndroidHost.StartGame()` 中的异常捕获和日志记录
+
+#### 新增功能
+
+1. **悬浮工具栏** — 叠加在 SKCanvasView 上方（InputTransparent）
+   - ☰ 菜单按钮 → 打开 FlyoutPage 侧边菜单
+   - ⌨ 编辑按钮 → 显示/隐藏输入条
+   - A+/A- 缩放按钮 → 运行时 FontScale 调整（0.5~5.0，步进 0.1）
+
+2. **输入条修复**
+   - `HorizontalOptions = FillAndExpand`
+   - 添加发送按钮 ▶
+   - `Completed` 事件处理
+
+3. **沉浸式全屏**
+   - `mainLayout` 黑色背景（消除底部灰色空白条）
+
+#### 对比调研
+
+- 对比 m-emuera 平台实现（Preload/初始化/DoEvents/AWAIT/SQLite）
+- 更新知识库：[android-engine-init.md](file:///d:/emuera/shared-trae/knowledge/xemuera/android-engine-init.md)
+
+## [0.20.0] - 2026-05-17
+
+### Android 引擎启动修复（框架自纠）
+
+勘测 XEmuera-1 和 m-emuera 的引擎初始化流程，对比发现并修复以下问题：
+
+#### 修复项
+
+1. **ConfigsText/StringsText 资源命名空间不匹配** — `MissingManifestResourceException`
+   - `Emuera.Xamarin.Core.csproj` 中 .resx 文件缺少 `LogicalName`，导致嵌入资源名与 Designer.cs 期望的不一致
+   - 为 4 个 .resx 文件添加 `<LogicalName>XEmuera.Resources.{name}.resources</LogicalName>`
+
+2. **WinmmTimer 在 Android 上 DllNotFoundException** — `TypeInitializationException`
+   - `Emuera\Runtime\Utils\WinmmTimer.cs` 直接 P/Invoke `winmm.dll`，Android 上不存在
+   - 在 csproj 中排除原版文件，创建 `WinmmTimer.Runtime.cs` stub（平台检查 + fallback 到 `Environment.TickCount64`）
+
+3. **FontModel.Load() 未被调用** — `NullReferenceException` in StringMeasure
+   - XEmuera-1 在 `GameUtils.Load()` 中调用 `FontModel.Load()`（App 启动时），我们遗漏了
+   - 在 `AndroidHost.StartGame()` 中添加 `FontModel.Load()` 调用 + `GameFolderModel.Instance` 初始化
+   - `GameFolderModel.Instance` setter 改为 `internal set`
+
+4. **Program.Init() 覆盖 AndroidPathProvider** — 路径回退到内部存储
+   - `Program.Init()` 中 `GlobalStatic.PathProvider = new DefaultPathProvider(...)` 覆盖了 Android 设置的路径
+   - 改为 `if (GlobalStatic.PathProvider == null)` 条件赋值
+
+5. **OnPaint 中 SpinLock 缺少 Exit** — `LockRecursionException` 导致崩溃
+   - `EmueraConsole.OnPaint()` 中 `displayLineListSpinLock.Enter()` 后无 `Exit`
+   - 用 try-finally 包裹，确保锁释放
+
+6. **导航栏常驻问题** — 游戏页面应隐藏 NavigationBar
+   - 游戏页面设置 `NavigationPage.SetHasNavigationBar(gamePage, false)`
+   - 添加浮动菜单按钮（☰），点击切换 FlyoutPage 侧边栏
+
+7. **Android 存储权限** — `MANAGE_EXTERNAL_STORAGE`
+   - `AndroidManifest.xml` 添加 `MANAGE_EXTERNAL_STORAGE` 权限声明
+   - `MainActivity` 添加运行时权限请求逻辑（Android 11+ 和低版本分别处理）
+   - `AndroidGameListPage` 添加权限检查
+
+#### 已知问题
+
+- 游戏画面渲染待验证（SpinLock 修复后应正常，需模拟器确认）
+- QuickButton 悬浮 UI 组件待实现（XEmuera 有画布上方的工具按钮栏）
+- 沉浸式全屏模式待完善（参考 XEmuera-1 的 IsEmueraPage 机制）
+
 ## [0.19.1] - 2026-05-17
 
 ### Slice 7C-P1-3：ConfigDialog FontScale 编辑 ✅

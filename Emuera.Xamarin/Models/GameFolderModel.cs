@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -7,7 +7,7 @@ namespace XEmuera.Models
 {
 	public class GameFolderModel
 	{
-		public static GameFolderModel Instance { get; private set; }
+		public static GameFolderModel Instance { get; internal set; }
 
 		public string Name { get; set; }
 		public string Path { get; set; }

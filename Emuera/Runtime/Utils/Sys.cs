@@ -9,9 +9,9 @@ public static class AssemblyData
 	{
 		ExePath = Environment.ProcessPath;
 		#region eee_カレントディレクトリー
-		WorkingDir = Directory.GetCurrentDirectory() + "\\";
+		WorkingDir = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar;
 		#endregion
-		ExeDir = Path.GetDirectoryName(ExePath) + "\\";
+		ExeDir = Path.GetDirectoryName(ExePath) + Path.DirectorySeparatorChar;
 		ExeName = Path.GetFileName(ExePath);
 		emueraVer = typeof(AssemblyData).Assembly.GetName().Version;
 
