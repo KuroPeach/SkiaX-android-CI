@@ -30,14 +30,15 @@ internal sealed partial class Process(EmueraConsole view)
 	internal static void DebugLog(string msg)
 	{
 		if (!DebugLogEnabled) return;
+		var path = Program.ExeDir + "debug_log.log";
 		if (debugLogFirstWrite)
 		{
-			System.IO.File.WriteAllText("debug_log.log", msg);
+			System.IO.File.WriteAllText(path, msg);
 			debugLogFirstWrite = false;
 		}
 		else
 		{
-			System.IO.File.AppendAllText("debug_log.log", msg);
+			System.IO.File.AppendAllText(path, msg);
 		}
 	}
 
@@ -383,6 +384,7 @@ internal sealed partial class Process(EmueraConsole view)
 			}
 			catch (Exception ec)
 			{
+				try { System.IO.File.AppendAllText(Program.ExeDir + "doscript_debug.log", $"[DoScript-catch] Exception: {ec.GetType().Name}: {ec.Message}\n"); } catch { }
 				debugLogFirstWrite = true;
 				DebugLogEnabled = true;
 				LogicalLine currentLine = state.ErrorLine;

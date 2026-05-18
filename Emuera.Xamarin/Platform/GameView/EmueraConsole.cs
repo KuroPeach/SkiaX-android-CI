@@ -59,6 +59,9 @@ namespace MinorShift.Emuera.GameView
 
 	internal sealed partial class EmueraConsole :IDisposable
 	{
+		private bool _debugLogOnce = true;
+		private static string _debugLogPath = "";
+		public static void SetDebugLogPath(string path) { _debugLogPath = path; }
 		public EmueraConsole(MainWindow parent)
 		{
 			window = parent;
@@ -1387,8 +1390,15 @@ namespace MinorShift.Emuera.GameView
 			lastUpdate = WinmmTimer.CurrentFrameTime;//WinmmTimer.TickCount;
 
 			bool isBackLog = window.ScrollBar.Value != window.ScrollBar.Maximum;
-			//int pointY = window.MainPicBox.Height - Config.LineHeight;
 			int pointY = ClientHeight - DisplayUtils.HeightOffset;
+
+			if (displayLineList.Count > 0 || _debugLogOnce)
+			{
+				_debugLogOnce = false;
+				var msg = $"[Emuera] OnPaint: ClientWidth={ClientWidth} ClientHeight={ClientHeight} LineHeight={Config.LineHeight} FontSize={Config.FontSize} ScrollBar.Value={window.ScrollBar.Value} ScrollBar.Maximum={window.ScrollBar.Maximum} displayLineList.Count={displayLineList.Count} pointY={pointY} ScreenDensity={DisplayUtils.ScreenDensity}";
+				System.Diagnostics.Debug.WriteLine(msg);
+				try { System.IO.File.AppendAllText(_debugLogPath, msg + "\n"); } catch { }
+			}
 
 
 			int bottomLineNo = (int)window.ScrollBar.Value - 1;

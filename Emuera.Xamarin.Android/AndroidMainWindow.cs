@@ -8,6 +8,7 @@ using Android.OS;
 using MinorShift.Emuera;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Utils;
+using XEmuera;
 using ConfigCode = MinorShift.Emuera.Runtime.Config.ConfigCode;
 using RConfig = MinorShift.Emuera.Runtime.Config.Config;
 using RConfigData = MinorShift.Emuera.Runtime.Config.ConfigData;
@@ -73,7 +74,6 @@ namespace XEmuera.Droid
         {
             canvasView = new SKCanvasView();
             canvasView.EnableTouchEvents = true;
-            canvasView.IgnorePixelScaling = true;
             canvasView.PaintSurface += OnPaintSurface;
             canvasView.Touch += OnTouch;
 
@@ -257,10 +257,19 @@ namespace XEmuera.Droid
 
         private void OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
+            var density = DisplayUtils.ScreenDensity;
+            int logicalW = density > 0 ? (int)(e.Info.Width / density) : e.Info.Width;
+            int logicalH = density > 0 ? (int)(e.Info.Height / density) : e.Info.Height;
+            MainPicBox.Width = logicalW;
+            MainPicBox.Height = logicalH;
+            if (GameUtils.MainPicBox != null)
+            {
+                GameUtils.MainPicBox.Width = logicalW;
+                GameUtils.MainPicBox.Height = logicalH;
+            }
+            PConfig.RefreshDisplayConfig();
             if (console == null) return;
             var canvas = e.Surface.Canvas;
-            MainPicBox.Width = e.Info.Width;
-            MainPicBox.Height = e.Info.Height;
             console.OnPaint(canvas);
         }
 

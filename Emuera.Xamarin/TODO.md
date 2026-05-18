@@ -69,9 +69,15 @@ Emuera.Xamarin.sln
 → ✅ 9B 悬浮工具栏 + 输入条修复 + 沉浸式全屏
 → ✅ 9C AOT 崩溃修复 + Lang 初始化顺序 + 诊断日志 + 真机验证
 → ✅ 9D SQL 懒加载 + Config 同步 + 工具栏/滚动/渲染修复 + eratw-chs 完整启动
+→ ✅ 9E 渲染范围修复：消除双重 density 缩放，文本填满整个屏幕高度
+→ ✅ 9E-ADB：ADB 测试流程建立（设备连接、APK 安装、日志拉取与分析）
 ─── 引擎完整启动 ───
-→ 🔴 9E UI 交互验证：滚动/点击/输入是否正常工作
-→ 🔴 渲染范围验证：文本是否填满屏幕底部
+→ 🔴 9E-SCRIPT：分析完整 emuera_android.log（1.26MB，引擎页面运行时拉取），分类所有加载错误
+→   - 已知：ConsoleButtonString.CalcWidth → AConsoleDisplayNode.SetWidth → StringMeasure 空引用
+→   - 其他错误：待分析完整日志
+→ 🔴 9E-FIX：修复所有加载错误后，才能进行 UI 交互验证
+→ ⚠️ 9E-COMPATI：CompatiErrorLine 仅在调试模式启用（当前强制 true，需改为条件启用）
+→ ⏏️ 未完整运行的加载页面：emuera_android.log 已就绪待分析
 → ⏭️ 7C-P2 动态缩放（高难度）
 → ⏭️ 7E 本地化 / 7F 日志查看器（P2）
 → ⏭️ 真机测试

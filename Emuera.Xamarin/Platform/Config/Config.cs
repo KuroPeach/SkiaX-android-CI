@@ -142,7 +142,7 @@ namespace MinorShift.Emuera
 			EditorType = instance.GetConfigValue<TextEditorType>(ConfigCode.EditorType);
 			EditorArg = instance.GetConfigValue<string>(ConfigCode.EditorArgument);
 
-			CompatiErrorLine = instance.GetConfigValue<bool>(ConfigCode.CompatiErrorLine);
+			CompatiErrorLine = true;
 			CompatiCALLNAME = instance.GetConfigValue<bool>(ConfigCode.CompatiCALLNAME);
 			UseSaveFolder = instance.GetConfigValue<bool>(ConfigCode.UseSaveFolder);
 			CompatiRAND = instance.GetConfigValue<bool>(ConfigCode.CompatiRAND);
@@ -156,6 +156,8 @@ namespace MinorShift.Emuera
 			SystemSaveInBinary = instance.GetConfigValue<bool>(ConfigCode.SystemSaveInBinary);
 			Runtime.Config.Config.SystemSaveInBinary = SystemSaveInBinary;
 			System.Diagnostics.Debug.WriteLine($"[Emuera] Config.SystemSaveInBinary = {SystemSaveInBinary}");
+
+			SyncToRuntimeConfig();
 			SystemIgnoreTripleSymbol = instance.GetConfigValue<bool>(ConfigCode.SystemIgnoreTripleSymbol);
 			SystemIgnoreStringSet = instance.GetConfigValue<bool>(ConfigCode.SystemIgnoreStringSet);
 			
@@ -268,18 +270,100 @@ namespace MinorShift.Emuera
 		public static void RefreshDisplayConfig()
 		{
 			WindowX = DisplayUtils.PicBoxWidth;
-			WindowY = DisplayUtils.MainLayoutHeight;
+			WindowY = DisplayUtils.PicBoxHeight;
 
 			WindowPosX = 0;
 			WindowPosY = 0;
 
 			DrawingParam_ShapePositionShift = 0;
-			//SkiaSharp上不需要偏移X轴
-			//if (TextDrawingMode != TextDrawingMode.WINAPI)
-			//	DrawingParam_ShapePositionShift = Math.Max(2, FontSize / 6);
 			DrawableWidth = WindowX - DrawingParam_ShapePositionShift;
 
 			DisplayUtils.ShapeHeightOffset = -(LineHeight - 6);
+
+			Runtime.Config.Config.WindowX = WindowX;
+			Runtime.Config.Config.WindowY = WindowY;
+			Runtime.Config.Config.DrawableWidth = DrawableWidth;
+		}
+
+		private static void SyncToRuntimeConfig()
+		{
+			Runtime.Config.Config.nameDic = nameDic;
+			Runtime.Config.Config.FontSize = FontSize;
+			Runtime.Config.Config.LineHeight = LineHeight;
+			Runtime.Config.Config.FontScale = FontScale;
+			Runtime.Config.Config.FontName = FontName;
+			Runtime.Config.Config.MaxLog = MaxLog;
+			Runtime.Config.Config.ForeColor = ForeColor;
+			Runtime.Config.Config.BackColor = BackColor;
+			Runtime.Config.Config.FocusColor = FocusColor;
+			Runtime.Config.Config.LogColor = LogColor;
+			Runtime.Config.Config.ScrollHeight = ScrollHeight;
+			Runtime.Config.Config.TextDrawingMode = TextDrawingMode;
+			Runtime.Config.Config.CompatiErrorLine = CompatiErrorLine;
+			Runtime.Config.Config.IgnoreCase = IgnoreCase;
+			Runtime.Config.Config.UseRenameFile = UseRenameFile;
+			Runtime.Config.Config.UseReplaceFile = UseReplaceFile;
+			Runtime.Config.Config.UseMouse = UseMouse;
+			Runtime.Config.Config.UseMenu = UseMenu;
+			Runtime.Config.Config.UseDebugCommand = UseDebugCommand;
+			Runtime.Config.Config.AllowMultipleInstances = AllowMultipleInstances;
+			Runtime.Config.Config.AutoSave = AutoSave;
+			Runtime.Config.Config.UseKeyMacro = UseKeyMacro;
+			Runtime.Config.Config.SizableWindow = SizableWindow;
+			Runtime.Config.Config.SetWindowPos = SetWindowPos;
+			Runtime.Config.Config.PrintCPerLine = PrintCPerLine;
+			Runtime.Config.Config.PrintCLength = PrintCLength;
+			Runtime.Config.Config.FPS = FPS;
+			Runtime.Config.Config.InfiniteLoopAlertTime = InfiniteLoopAlertTime;
+			Runtime.Config.Config.SaveDataNos = SaveDataNos;
+			Runtime.Config.Config.WarnBackCompatibility = WarnBackCompatibility;
+			Runtime.Config.Config.WindowMaximixed = WindowMaximixed;
+			Runtime.Config.Config.WarnNormalFunctionOverloading = WarnNormalFunctionOverloading;
+			Runtime.Config.Config.SearchSubdirectory = SearchSubdirectory;
+			Runtime.Config.Config.SortWithFilename = SortWithFilename;
+			Runtime.Config.Config.AllowFunctionOverloading = AllowFunctionOverloading;
+			Runtime.Config.Config.WarnFunctionOverloading = WarnFunctionOverloading;
+			Runtime.Config.Config.DisplayWarningLevel = DisplayWarningLevel;
+			Runtime.Config.Config.DisplayReport = DisplayReport;
+			Runtime.Config.Config.ReduceArgumentOnLoad = ReduceArgumentOnLoad;
+			Runtime.Config.Config.IgnoreUncalledFunction = IgnoreUncalledFunction;
+			Runtime.Config.Config.FunctionNotFoundWarning = FunctionNotFoundWarning;
+			Runtime.Config.Config.FunctionNotCalledWarning = FunctionNotCalledWarning;
+			Runtime.Config.Config.ChangeMasterNameIfDebug = ChangeMasterNameIfDebug;
+			Runtime.Config.Config.ButtonWrap = ButtonWrap;
+			Runtime.Config.Config.TextEditor = TextEditor;
+			Runtime.Config.Config.EditorType = EditorType;
+			Runtime.Config.Config.EditorArg = EditorArg;
+			Runtime.Config.Config.CompatiCALLNAME = CompatiCALLNAME;
+			Runtime.Config.Config.UseSaveFolder = UseSaveFolder;
+			Runtime.Config.Config.CompatiRAND = CompatiRAND;
+			Runtime.Config.Config.CompatiLinefeedAs1739 = CompatiLinefeedAs1739;
+			Runtime.Config.Config.SystemAllowFullSpace = SystemAllowFullSpace;
+			Runtime.Config.Config.SystemSaveInBinary = SystemSaveInBinary;
+			Runtime.Config.Config.CompatiFuncArgAutoConvert = CompatiFuncArgAutoConvert;
+			Runtime.Config.Config.CompatiFuncArgOptional = CompatiFuncArgOptional;
+			Runtime.Config.Config.CompatiCallEvent = CompatiCallEvent;
+			Runtime.Config.Config.CompatiSPChara = CompatiSPChara;
+			Runtime.Config.Config.SystemIgnoreTripleSymbol = SystemIgnoreTripleSymbol;
+			Runtime.Config.Config.SystemNoTarget = SystemNoTarget;
+			Runtime.Config.Config.SystemIgnoreStringSet = SystemIgnoreStringSet;
+			Runtime.Config.Config.AllowLongInputByMouse = AllowLongInputByMouse;
+			Runtime.Config.Config.TimesNotRigorousCalculation = TimesNotRigorousCalculation;
+			Runtime.Config.Config.ForbidUpdateCheck = ForbidUpdateCheck;
+			Runtime.Config.Config.UseERD = UseERD;
+			Runtime.Config.Config.VarsizeDimConfig = VarsizeDimConfig;
+			Runtime.Config.Config.ValidExtension = ValidExtension;
+			Runtime.Config.Config.ZipSaveData = ZipSaveData;
+			Runtime.Config.Config.EnglishConfigOutput = EnglishConfigOutput;
+			Runtime.Config.Config.EmueraLang = EmueraLang;
+			Runtime.Config.Config.EmueraIcon = EmueraIcon;
+			Runtime.Config.Config.RikaiEnabled = RikaiEnabled;
+			Runtime.Config.Config.RikaiFilename = RikaiFilename;
+			Runtime.Config.Config.RikaiColorBack = RikaiColorBack;
+			Runtime.Config.Config.RikaiColorText = RikaiColorText;
+			Runtime.Config.Config.RikaiUseSeparateBoxes = RikaiUseSeparateBoxes;
+			Runtime.Config.Config.Language = Language;
+			Runtime.Config.Config.UseLazyLoading = UseLazyLoading;
 		}
 
 		static readonly Dictionary<string, Dictionary<FontStyle, Font>> fontDic = new Dictionary<string, Dictionary<FontStyle, Font>>();
@@ -585,9 +669,9 @@ namespace MinorShift.Emuera
 		public static bool LongPressSkip { get; private set; }
 		public static int LongPressSkipTime { get; private set; }
 
-		public static int FontSize { get; private set; }
+		public static int FontSize { get; internal set; }
 		public static string FontName { get; private set; }
-		public static int LineHeight { get; private set; }
+		public static int LineHeight { get; internal set; }
 		public static int FPS { get; private set; }
 		//public static int SkipFrame { get; private set; }
 		public static int ScrollHeight { get; private set; }

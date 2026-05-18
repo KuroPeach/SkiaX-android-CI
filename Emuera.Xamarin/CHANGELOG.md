@@ -1,5 +1,70 @@
 # Emuera.Xamarin 变更记录
 
+## [0.24.0] - 2026-05-18
+
+### Phase 9E：渲染范围修复 + DebugLog 路径修复 + Config 完整同步 + ADB 测试流程建立
+
+#### 修复项
+
+1. **双重 density 缩放（核心问题）**
+   - `AndroidMainWindow.OnPaintSurface` 将 `e.Info.Width/Height`（物理像素）直接赋给 `MainPicBox.Width/Height`
+   - `DisplayUtils.PicBoxWidth/PicBoxHeight` 又通过 `GetRealLength()` 再次乘以 density
+   - 导致 `ClientWidth/ClientHeight` 是实际画布尺寸的 density 倍
+   - 修复：OnPaintSurface 中将物理像素除以 density 转回逻辑像素
+   - **验证结果**：渲染范围填满整个屏幕高度 ✅
+
+2. **ScreenDensity 恢复设备实际值**
+   - 从硬编码 `1.0` 改为 `context.Resources.DisplayMetrics.Density`
+
+3. **DebugLog 路径修复**
+   - `Process.DebugLog` 使用相对路径 `"debug_log.log"`，在 Android 上写入只读目录
+   - 修复：改为 `Program.ExeDir + "debug_log.log"`
+
+4. **Config 双类完整同步**
+   - `SyncToRuntimeConfig()` 从 12 个属性扩展到 63 个属性
+   - Runtime.Config.Config 的 `private set` 改为 `internal set`（63 个属性）
+
+5. **Runtime.Config.Config.nameDic 同步**
+   - **问题**：ERB 脚本解析时大量 NullReferenceException，堆栈指向 `GetConfigName()`
+   - **根本原因**：Runtime.Config.Config.nameDic 是 private static，SyncToRuntimeConfig() 未同步该字段
+   - **修复**：
+     - Runtime.Config.Config.cs:21：nameDic 从 `private static` 改为 `internal static`
+     - Xamarin.Platform.Config.Config.cs:290：SyncToRuntimeConfig() 中添加 `Runtime.Config.Config.nameDic = nameDic;`
+   - **结果**：消除了大量脚本解析错误
+
+6. **CompatiErrorLine 强制启用**
+   - 在 Xamarin 和 Runtime Config 中强制设置 `CompatiErrorLine = true`
+   - ⚠️ **重要提醒**：此设置仅用于调试阶段！
+     - 启用时：将编译错误推迟到运行时抛出
+     - 禁用时：编译时立即抛出错误（正式版本行为）
+     - 正式版本必须禁用！
+
+#### ADB 测试流程建立
+
+- ✅ 成功连接 MuMu 模拟器：`127.0.0.1:16384`
+- ✅ 成功拉取 emuera.log：`adb pull /storage/emulated/0/emuera/eratw-chs/emuera.log`
+- ✅ 日志分析：定位到 nameDic 同步问题
+- ✅ 创建知识库条目：[adb-testing.md](file:///d:/emuera/shared-trae/knowledge/xemuera/adb-testing.md)
+  - 包含完整测试流程、常见问题、Logcat 过滤技巧、应用私有文件访问
+
+#### 知识库更新
+
+- [android-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/android-rendering.md)：新增密度缩放、坐标系统、渲染管线等知识条目
+- [compati-errorline.md](file:///d:/emuera/shared-trae/knowledge/xemuera/compati-errorline.md)：新增 CompatiErrorLine 配置说明（调试用途、启用条件、风险提示）
+- [adb-testing.md](file:///d:/emuera/shared-trae/knowledge/xemuera/adb-testing.md)：新增完整 ADB 测试流程
+
+#### 验证结果
+
+- ✅ 渲染范围验证：文本填满整个屏幕高度
+- ✅ 脚本解析核心 Bug 修复：nameDic 同步问题已修复
+
+#### 待处理
+
+- 🔴 分析完整 emuera_android.log（1.26MB，引擎页面运行时拉取），分类所有加载错误
+- 🔴 修复所有已知加载错误（ConsoleButtonString.CalcWidth NRE 等）
+- ⚠️ UI 交互验证：触摸/点击/输入（需先完成脚本加载错误修复）
+- ⚠️ CompatiErrorLine 条件化（调试模式启用，正式版本禁用）
+
 ## [0.23.0] - 2026-05-18
 
 ### Phase 9D：SQL 懒加载 + Config 同步 + 工具栏/滚动修复 + 完整启动验证

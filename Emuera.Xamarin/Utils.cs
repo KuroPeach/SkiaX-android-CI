@@ -186,7 +186,7 @@ namespace XEmuera
 			get
 			{
 				if (GameUtils.MainLayout != null)
-					return GetRealLength(GameUtils.MainLayout.Width);
+					return (int)GameUtils.MainLayout.Width;
 				return _desktopWidth;
 			}
 		}
@@ -196,7 +196,7 @@ namespace XEmuera
 			get
 			{
 				if (GameUtils.MainLayout != null)
-					return GetRealLength(GameUtils.MainLayout.Height);
+					return (int)GameUtils.MainLayout.Height;
 				return _desktopHeight;
 			}
 		}

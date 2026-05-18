@@ -18,7 +18,7 @@ internal static class Config
 	#region config
 	public static Encoding Encode = EncodingHandler.UTF8BOMEncoding;
 	public static Encoding SaveEncode = EncodingHandler.UTF8BOMEncoding;
-	private static Dictionary<ConfigCode, string> nameDic;
+	internal static Dictionary<ConfigCode, string> nameDic;
 	public static string GetConfigName(ConfigCode code)
 	{
 		return nameDic[code];
@@ -111,7 +111,7 @@ internal static class Config
 		EditorType = instance.GetConfigValue<TextEditorType>(ConfigCode.EditorType);
 		EditorArg = instance.GetConfigValue<string>(ConfigCode.EditorArgument);
 
-		CompatiErrorLine = instance.GetConfigValue<bool>(ConfigCode.CompatiErrorLine);
+		CompatiErrorLine = true;
 		CompatiCALLNAME = instance.GetConfigValue<bool>(ConfigCode.CompatiCALLNAME);
 		UseSaveFolder = instance.GetConfigValue<bool>(ConfigCode.UseSaveFolder);
 		CompatiRAND = instance.GetConfigValue<bool>(ConfigCode.CompatiRAND);
@@ -479,7 +479,7 @@ internal static class Config
 	/// 関数・属性・BEGINのキーワード 
 	/// どうせeramaker用の互換処理なのでEmuera専用構文については適当に。
 	/// </summary>
-	public static bool IgnoreCase { get; private set; }
+	public static bool IgnoreCase { get; internal set; }
 
 	/// <summary>
 	/// 関数名・属性名的な名前の比較フラグ
@@ -502,38 +502,38 @@ internal static class Config
 	public static int DrawingParam_ShapePositionShift { get; private set; }
 
 
-	public static bool UseRenameFile { get; private set; }
-	public static bool UseReplaceFile { get; private set; }
-	public static bool UseMouse { get; private set; }
-	public static bool UseMenu { get; private set; }
-	public static bool UseDebugCommand { get; private set; }
-	public static bool AllowMultipleInstances { get; private set; }
-	public static bool AutoSave { get; private set; }
-	public static bool UseKeyMacro { get; private set; }
-	public static bool SizableWindow { get; private set; }
+	public static bool UseRenameFile { get; internal set; }
+	public static bool UseReplaceFile { get; internal set; }
+	public static bool UseMouse { get; internal set; }
+	public static bool UseMenu { get; internal set; }
+	public static bool UseDebugCommand { get; internal set; }
+	public static bool AllowMultipleInstances { get; internal set; }
+	public static bool AutoSave { get; internal set; }
+	public static bool UseKeyMacro { get; internal set; }
+	public static bool SizableWindow { get; internal set; }
 	//public static bool UseImageBuffer { get; private set; }
 	public static TextDrawingMode TextDrawingMode { get; set; }
-	public static int WindowX { get; private set; }
+	public static int WindowX { get; internal set; }
 	/// <summary>
 	/// 実際に描画可能な横幅
 	/// </summary>
-	public static int DrawableWidth { get; private set; }
-	public static int WindowY { get; private set; }
+	public static int DrawableWidth { get; internal set; }
+	public static int WindowY { get; internal set; }
 	public static int WindowPosX { get; private set; }
 	public static int WindowPosY { get; private set; }
-	public static bool SetWindowPos { get; private set; }
-	public static int MaxLog { get; private set; }
-	public static int PrintCPerLine { get; private set; }
-	public static int PrintCLength { get; private set; }
-	public static Color ForeColor { get; private set; }
-	public static Color BackColor { get; private set; }
-	public static Color FocusColor { get; private set; }
-	public static Color LogColor { get; private set; }
-	public static int FontSize { get; private set; }
-	public static string FontName { get; private set; }
-	public static int LineHeight { get; private set; }
-	public static float FontScale { get; private set; }
-	public static int FPS { get; private set; }
+	public static bool SetWindowPos { get; internal set; }
+	public static int MaxLog { get; internal set; }
+	public static int PrintCPerLine { get; internal set; }
+	public static int PrintCLength { get; internal set; }
+	public static Color ForeColor { get; internal set; }
+	public static Color BackColor { get; internal set; }
+	public static Color FocusColor { get; internal set; }
+	public static Color LogColor { get; internal set; }
+	public static int FontSize { get; internal set; }
+	public static string FontName { get; internal set; }
+	public static int LineHeight { get; internal set; }
+	public static float FontScale { get; internal set; }
+	public static int FPS { get; internal set; }
 
 	#region EM_尊尼获加_SkiaSharp渲染设置
 	public static SkiaSharpImageQuality ImageQuality { get; set; }
@@ -543,63 +543,63 @@ internal static class Config
 	#endregion
 
 	//public static int SkipFrame { get; private set; }
-	public static int ScrollHeight { get; private set; }
-	public static int InfiniteLoopAlertTime { get; private set; }
-	public static int SaveDataNos { get; private set; }
-	public static bool WarnBackCompatibility { get; private set; }
-	public static bool WindowMaximixed { get; private set; }
-	public static bool WarnNormalFunctionOverloading { get; private set; }
-	public static bool SearchSubdirectory { get; private set; }
-	public static bool SortWithFilename { get; private set; }
+	public static int ScrollHeight { get; internal set; }
+	public static int InfiniteLoopAlertTime { get; internal set; }
+	public static int SaveDataNos { get; internal set; }
+	public static bool WarnBackCompatibility { get; internal set; }
+	public static bool WindowMaximixed { get; internal set; }
+	public static bool WarnNormalFunctionOverloading { get; internal set; }
+	public static bool SearchSubdirectory { get; internal set; }
+	public static bool SortWithFilename { get; internal set; }
 
-	public static bool AllowFunctionOverloading { get; private set; }
-	public static bool WarnFunctionOverloading { get; private set; }
+	public static bool AllowFunctionOverloading { get; internal set; }
+	public static bool WarnFunctionOverloading { get; internal set; }
 
-	public static int DisplayWarningLevel { get; private set; }
-	public static bool DisplayReport { get; private set; }
-	public static ReduceArgumentOnLoadFlag ReduceArgumentOnLoad { get; private set; }
-	public static bool IgnoreUncalledFunction { get; private set; }
-	public static DisplayWarningFlag FunctionNotFoundWarning { get; private set; }
-	public static DisplayWarningFlag FunctionNotCalledWarning { get; private set; }
+	public static int DisplayWarningLevel { get; internal set; }
+	public static bool DisplayReport { get; internal set; }
+	public static ReduceArgumentOnLoadFlag ReduceArgumentOnLoad { get; internal set; }
+	public static bool IgnoreUncalledFunction { get; internal set; }
+	public static DisplayWarningFlag FunctionNotFoundWarning { get; internal set; }
+	public static DisplayWarningFlag FunctionNotCalledWarning { get; internal set; }
 
-	public static bool ChangeMasterNameIfDebug { get; private set; }
+	public static bool ChangeMasterNameIfDebug { get; internal set; }
 	public static long LastKey { get; private set; }
-	public static bool ButtonWrap { get; private set; }
+	public static bool ButtonWrap { get; internal set; }
 
-	public static string TextEditor { get; private set; }
-	public static TextEditorType EditorType { get; private set; }
-	public static string EditorArg { get; private set; }
+	public static string TextEditor { get; internal set; }
+	public static TextEditorType EditorType { get; internal set; }
+	public static string EditorArg { get; internal set; }
 
-	public static bool CompatiErrorLine { get; private set; }
-	public static bool CompatiCALLNAME { get; private set; }
-	public static bool UseSaveFolder { get; private set; }
-	public static bool CompatiRAND { get; private set; }
+	public static bool CompatiErrorLine { get; internal set; }
+	public static bool CompatiCALLNAME { get; internal set; }
+	public static bool UseSaveFolder { get; internal set; }
+	public static bool CompatiRAND { get; internal set; }
 	//public static bool CompatiDRAWLINE { get; private set; }
-	public static bool CompatiLinefeedAs1739 { get; private set; }
-	public static bool SystemAllowFullSpace { get; private set; }
+	public static bool CompatiLinefeedAs1739 { get; internal set; }
+	public static bool SystemAllowFullSpace { get; internal set; }
 	public static bool SystemSaveInBinary { get; internal set; }
-	public static bool CompatiFuncArgAutoConvert { get; private set; }
-	public static bool CompatiFuncArgOptional { get; private set; }
-	public static bool CompatiCallEvent { get; private set; }
-	public static bool CompatiSPChara { get; private set; }
-	public static bool SystemIgnoreTripleSymbol { get; private set; }
-	public static bool SystemNoTarget { get; private set; }
-	public static bool SystemIgnoreStringSet { get; private set; }
+	public static bool CompatiFuncArgAutoConvert { get; internal set; }
+	public static bool CompatiFuncArgOptional { get; internal set; }
+	public static bool CompatiCallEvent { get; internal set; }
+	public static bool CompatiSPChara { get; internal set; }
+	public static bool SystemIgnoreTripleSymbol { get; internal set; }
+	public static bool SystemNoTarget { get; internal set; }
+	public static bool SystemIgnoreStringSet { get; internal set; }
 
-	public static int Language { get; private set; }
+	public static int Language { get; internal set; }
 
 	public static string SavDir { get; private set; }
 	public static string ForceSavDir { get; private set; }
 
 	public static bool NeedReduceArgumentOnLoad { get; private set; }
 
-	public static bool AllowLongInputByMouse { get; private set; }
+	public static bool AllowLongInputByMouse { get; internal set; }
 
-	public static bool TimesNotRigorousCalculation { get; private set; }
+	public static bool TimesNotRigorousCalculation { get; internal set; }
 	//一文字変数の禁止オプションを考えた名残
 	//public static bool ForbidOneCodeVariable { get; private set; }
 
-	public static bool UseLazyLoading { get; private set; }
+	public static bool UseLazyLoading { get; internal set; }
 	#endregion
 
 	#region debug
@@ -668,13 +668,13 @@ internal static class Config
 	public static StringComparer StrComper = StringComparer.OrdinalIgnoreCase;
 
 	#region EE版_UPDATECHECK
-	public static bool ForbidUpdateCheck { get; private set; }
+	public static bool ForbidUpdateCheck { get; internal set; }
 	#endregion
 	#region EE版_ERDConfig
-	public static bool UseERD { get; private set; }
+	public static bool UseERD { get; internal set; }
 	#endregion
 	#region EE_ERDNAME
-	public static bool VarsizeDimConfig { get; private set; }
+	public static bool VarsizeDimConfig { get; internal set; }
 	#endregion
 	#region EE_重複定義の確認
 	public static bool CheckDuplicateIdentifier { get; private set; }
@@ -683,17 +683,17 @@ internal static class Config
 	public static string ReplaceContinuationBR { get; private set; }
 	#endregion
 	#region EM_私家版_LoadText＆SaveText機能拡張
-	public static List<string> ValidExtension { get; private set; }
+	public static List<string> ValidExtension { get; internal set; }
 	#endregion
 	#region EM_私家版_セーブ圧縮
-	public static bool ZipSaveData { get; private set; }
+	public static bool ZipSaveData { get; internal set; }
 	#endregion
 	#region EM_私家版_Emuera多言語化改造
-	public static bool EnglishConfigOutput { get; private set; }
-	public static string EmueraLang { get; private set; }
+	public static bool EnglishConfigOutput { get; internal set; }
+	public static string EmueraLang { get; internal set; }
 	#endregion
 	#region EM_私家版_Icon指定機能
-	public static string EmueraIcon { get; private set; }
+	public static string EmueraIcon { get; internal set; }
 	#endregion
 	#region EE_AnchorのCB機能移植
 	public static bool CBUseClipboard { get; private set; }
@@ -712,11 +712,11 @@ internal static class Config
 	public static int CBMinTimer { get; private set; }
 	#endregion
 	#region EmuEra-Rikaichan related settings
-	public static bool RikaiEnabled { get; private set; }
-	public static string RikaiFilename { get; private set; }
-	public static Color RikaiColorBack { get; private set; }
-	public static Color RikaiColorText { get; private set; }
-	public static bool RikaiUseSeparateBoxes { get; private set; }
+	public static bool RikaiEnabled { get; internal set; }
+	public static string RikaiFilename { get; internal set; }
+	public static Color RikaiColorBack { get; internal set; }
+	public static Color RikaiColorText { get; internal set; }
+	public static bool RikaiUseSeparateBoxes { get; internal set; }
 	#endregion
 
 	public static bool Ctrl_Z_Enabled { get; private set; }

@@ -102,7 +102,7 @@ namespace MinorShift.Emuera
 			configArray.Add(new ConfigItem(ConfigCode.EditorType, ConfigsText.EditorType, "Text editor command line setting", TextEditorType.USER_SETTING));
 			configArray.Add(new ConfigItem(ConfigCode.EditorArgument, ConfigsText.EditorArgument, "Text editor command line arguments", ""));
 			configArray.Add(new ConfigItem(ConfigCode.WarnNormalFunctionOverloading, ConfigsText.WarnNormalFunctionOverloading, "Duplicated functions warning", false));
-			configArray.Add(new ConfigItem(ConfigCode.CompatiErrorLine, ConfigsText.CompatiErrorLine, "Execute error lines", false));
+			configArray.Add(new ConfigItem(ConfigCode.CompatiErrorLine, ConfigsText.CompatiErrorLine, "Execute error lines", true));
 			configArray.Add(new ConfigItem(ConfigCode.CompatiCALLNAME, ConfigsText.CompatiCALLNAME, "Use NAME if CALLNAME is empty", false));
 			configArray.Add(new ConfigItem(ConfigCode.UseSaveFolder, ConfigsText.UseSaveFolder, "Use sav folder", false));
 			configArray.Add(new ConfigItem(ConfigCode.CompatiRAND, ConfigsText.CompatiRAND, "Imitate behavior for RAND", false));
