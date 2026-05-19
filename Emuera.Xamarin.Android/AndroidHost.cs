@@ -178,7 +178,30 @@ namespace XEmuera.Droid
 
             PlatformInterop.ShowQuestion = (msg, caption) =>
             {
-                return false;
+                var resetEvent = new System.Threading.ManualResetEvent(false);
+                bool result = false;
+                var activity = MainActivity.Instance;
+                if (activity == null) return false;
+                activity.RunOnUiThread(() =>
+                {
+                    var builder = new AlertDialog.Builder(activity);
+                    builder.SetTitle(caption);
+                    builder.SetMessage(msg);
+                    builder.SetPositiveButton("Yes", (_, __) =>
+                    {
+                        result = true;
+                        resetEvent.Set();
+                    });
+                    builder.SetNegativeButton("No", (_, __) =>
+                    {
+                        result = false;
+                        resetEvent.Set();
+                    });
+                    builder.SetCancelable(false);
+                    builder.Show();
+                });
+                resetEvent.WaitOne();
+                return result;
             };
 
             PlatformInterop.GetProductVersion = () =>

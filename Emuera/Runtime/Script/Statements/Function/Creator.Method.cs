@@ -9186,6 +9186,10 @@ internal static partial class FunctionMethodCreator
 #if WINDOWS
 				g.SKBitmap.ToBitmap().Save(filepath);
 #else
+				// 跨平台：使用 SkiaSharp SKBitmap.Encode 保存为 PNG
+				using var fileStream = File.OpenWrite(filepath);
+				if (g.SKBitmap.Encode(fileStream, SKEncodedImageFormat.Png, 100))
+					return 1;
 				return 0;
 #endif
 			}
