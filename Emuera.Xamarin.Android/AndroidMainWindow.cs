@@ -379,6 +379,9 @@ namespace XEmuera.Droid
 
         #region SKCanvasView Events
 
+        private int lastLogicalW = 0;
+        private int lastLogicalH = 0;
+
         private void OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var density = DisplayUtils.ScreenDensity;
@@ -392,6 +395,19 @@ namespace XEmuera.Droid
                 GameUtils.MainPicBox.Height = logicalH;
             }
             PConfig.RefreshDisplayConfig();
+
+            // 检测方向/尺寸变化，触发 reflow
+            bool sizeChanged = lastLogicalW > 0 && lastLogicalH > 0
+                && (Math.Abs(logicalW - lastLogicalW) > 10 || Math.Abs(logicalH - lastLogicalH) > 10);
+            lastLogicalW = logicalW;
+            lastLogicalH = logicalH;
+
+            if (sizeChanged && console != null)
+            {
+                // 方向变化：重新应用当前缩放以 reflow 所有行
+                ApplyRuntimeDisplayScale(PConfig.FontScale, false);
+            }
+
             if (console == null) return;
             var canvas = e.Surface.Canvas;
             console.OnPaint(canvas);
@@ -401,7 +417,9 @@ namespace XEmuera.Droid
         {
             if (console == null) return;
 
-            var mouseLocation = new Point((int)e.Location.X, (int)e.Location.Y);
+            // 将物理像素坐标转换为逻辑坐标
+            var touchPoint = ToLogicalTouchPoint(e.Location);
+            var mouseLocation = new Point((int)touchPoint.X, (int)touchPoint.Y);
 
             if (console.MoveMouse(mouseLocation))
                 RefreshStrings(true);
@@ -1168,6 +1186,19 @@ namespace XEmuera.Droid
         #endregion
 
         #region Runtime Display Scale
+
+        /// <summary>
+        /// 将物理像素触摸坐标转换为逻辑坐标
+        /// 考虑屏幕密度差异
+        /// </summary>
+        private SKPoint ToLogicalTouchPoint(SKPoint location)
+        {
+            var density = DisplayUtils.ScreenDensity;
+            if (density <= 0 || Math.Abs(density - 1.0) < 0.01)
+                return location;
+
+            return new SKPoint((float)(location.X / density), (float)(location.Y / density));
+        }
 
         public void ApplyRuntimeDisplayScale(float fontScale, bool refreshSurface = true)
         {
