@@ -41,6 +41,8 @@ namespace XEmuera.Droid
             GlobalStatic.PathProvider = new AndroidPathProvider(context, gamePath);
             Android.Util.Log.Debug("EmueraHost", $"PathProvider set: ExeDir={GlobalStatic.PathProvider.ExeDir}");
 
+            CopyExternalConfigIfNeeded(context, gamePath);
+
             DisplayUtils.ScreenDensity = context.Resources.DisplayMetrics.Density;
 
             GameFolderModel.Instance = new GameFolderModel
@@ -85,8 +87,39 @@ namespace XEmuera.Droid
                     EmueraConsole.SetDebugLogPath(debugLogPath);
                     console = new EmueraConsole(mainWindow);
                     Android.Util.Log.Debug("EmueraHost", "EmueraConsole created");
-                    mainWindow.SetConsole(console);
-                    Android.Util.Log.Debug("EmueraHost", "SetConsole done");
+
+                    // SetConsole modifies UI elements (RefreshVirtualControllerState), must run on UI thread
+                    var activity = MainActivity.Instance;
+                    if (activity != null)
+                    {
+                        var setConsoleEvent = new System.Threading.ManualResetEventSlim(false);
+                        Exception setConsoleEx = null;
+                        activity.RunOnUiThread(() =>
+                        {
+                            try
+                            {
+                                mainWindow.SetConsole(console);
+                                Android.Util.Log.Debug("EmueraHost", "SetConsole done (UI thread)");
+                            }
+                            catch (Exception ex)
+                            {
+                                setConsoleEx = ex;
+                                Android.Util.Log.Error("EmueraHost", $"SetConsole failed: {ex.Message}");
+                            }
+                            finally
+                            {
+                                setConsoleEvent.Set();
+                            }
+                        });
+                        setConsoleEvent.Wait();
+                        if (setConsoleEx != null)
+                            throw setConsoleEx;
+                    }
+                    else
+                    {
+                        mainWindow.SetConsole(console);
+                        Android.Util.Log.Debug("EmueraHost", "SetConsole done (fallback)");
+                    }
 
                     Android.Util.Log.Debug("EmueraHost", "Calling console.Initialize()...");
                     mainWindow.UpdateStatus("Console.Initialize()...");
@@ -98,7 +131,10 @@ namespace XEmuera.Droid
                 }
                 catch (Exception ex)
                 {
-                    Android.Util.Log.Error("EmueraHost", $"Engine init exception: {ex}");
+                    Android.Util.Log.Error("EmueraHost", $"Engine init exception: {ex.GetType().Name}: {ex.Message}");
+                    Android.Util.Log.Error("EmueraHost", $"Stack: {ex.StackTrace}");
+                    if (ex.InnerException != null)
+                        Android.Util.Log.Error("EmueraHost", $"Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
                     mainWindow.UpdateStatus($"ERROR: {ex.Message}");
                     engineInitialized = false;
                 }
@@ -207,6 +243,44 @@ namespace XEmuera.Droid
             if (context == null) return;
             mainWindow = new AndroidMainWindow(context);
             GameUtils.MainPicBox = new EraPictureBox();
+        }
+
+        private void CopyExternalConfigIfNeeded(Context context, string gamePath)
+        {
+            if (string.IsNullOrEmpty(gamePath)) return;
+
+            var sep = System.IO.Path.DirectorySeparatorChar;
+            var gameConfigPath = gamePath.TrimEnd(sep) + sep + "emuera.config";
+            var internalConfigPath = System.IO.Path.Combine(context.FilesDir.AbsolutePath, "emuera.config");
+
+            if (System.IO.File.Exists(gameConfigPath))
+                return;
+
+            if (!System.IO.File.Exists(internalConfigPath))
+                return;
+
+            try
+            {
+                System.IO.File.Copy(internalConfigPath, gameConfigPath, false);
+                Android.Util.Log.Info("EmueraHost", $"Copied emuera.config from {internalConfigPath} to {gameConfigPath}");
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("EmueraHost", $"Failed to copy emuera.config: {ex.Message}");
+            }
+        }
+
+        public void SaveLog()
+        {
+            if (console == null) return;
+            try
+            {
+                console.OutputSystemLog(MinorShift.Emuera.Program.ExeDir + "emuera.log");
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("EmueraHost", $"Failed to save log: {ex.Message}");
+            }
         }
     }
 }

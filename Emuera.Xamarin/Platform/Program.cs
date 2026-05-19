@@ -10,7 +10,6 @@ using XEmuera;
 using XEmuera.Resources;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift._Library;
-using WinmmTimer = MinorShift._Library.WinmmTimer;
 
 namespace MinorShift.Emuera
 {
@@ -138,7 +137,6 @@ namespace MinorShift.Emuera
 				GlobalStatic.Reset();
 				ConfigData.Instance.ReLoadConfig();
 			}
-			WinmmTimer.Reset();
 		}
 
 		private static void LoadFontFiles()

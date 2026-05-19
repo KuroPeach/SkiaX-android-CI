@@ -9,7 +9,6 @@ using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 
-
 namespace MinorShift.Emuera.Runtime.Utils.EvilMask;
 
 class ConsoleDivPart : AConsoleDisplayNode

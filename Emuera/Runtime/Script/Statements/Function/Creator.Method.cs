@@ -274,7 +274,9 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			var dir = Utils.GetValidPath(arguments[0].GetStrValue(exm));
-			if (dir == null || !Directory.Exists(dir)) return -1;
+			if (dir == null) return -1;
+			dir = Path.Combine(Program.ExeDir, dir);
+			if (!Directory.Exists(dir)) return -1;
 			var pattern = arguments.Count > 1 ? arguments[1].GetStrValue(exm) : "*";
 			var option = arguments.Count > 2
 				? (arguments[2].GetIntValue(exm) == 0 ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories)
@@ -1513,7 +1515,11 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			var filepath = Utils.GetValidPath(arguments[0].GetStrValue(exm));
-			if (filepath != null && File.Exists(filepath)) return 1;
+			if (filepath != null)
+			{
+				filepath = Path.Combine(Program.ExeDir, filepath);
+				if (File.Exists(filepath)) return 1;
+			}
 			return 0;
 		}
 	}
@@ -6186,11 +6192,59 @@ internal static partial class FunctionMethodCreator
 				case StrFormType.Lower:
 					return str.ToLower();
 				case StrFormType.Half:
+#if WINDOWS
 					return Microsoft.VisualBasic.Strings.StrConv(str, Microsoft.VisualBasic.VbStrConv.Narrow, Config.Language);
+#else
+					return ToHalfWidth(str);
+#endif
 				case StrFormType.Full:
+#if WINDOWS
 					return Microsoft.VisualBasic.Strings.StrConv(str, Microsoft.VisualBasic.VbStrConv.Wide, Config.Language);
+#else
+					return ToFullWidth(str);
+#endif
 			}
 			return "";
+		}
+
+		static string ToFullWidth(string str)
+		{
+			var sb = new StringBuilder(str.Length);
+			foreach (char c in str)
+			{
+				if (c >= '0' && c <= '9')
+					sb.Append((char)(c + 0xFEE0));
+				else if (c >= 'A' && c <= 'Z')
+					sb.Append((char)(c + 0xFEE0));
+				else if (c >= 'a' && c <= 'z')
+					sb.Append((char)(c - 0x20 + 0xFEE0));
+				else if (c == ' ')
+					sb.Append('\u3000');
+				else
+					sb.Append(c);
+			}
+			return sb.ToString();
+		}
+
+		static string ToHalfWidth(string str)
+		{
+			var sb = new StringBuilder(str.Length);
+			foreach (char c in str)
+			{
+				if (c >= '０' && c <= '９')
+					sb.Append((char)(c - 0xFEE0));
+				else if (c >= 'Ａ' && c <= 'Ｚ')
+					sb.Append((char)(c - 0xFEE0));
+				else if (c >= 'ａ' && c <= 'ｚ')
+					sb.Append((char)(c + 0x20 - 0xFEE0));
+				else if (c == '\u3000')
+					sb.Append(' ');
+				else if (c >= 'ｦ' && c <= 'ﾝ')
+					sb.Append(c);
+				else
+					sb.Append(c);
+			}
+			return sb.ToString();
 		}
 	}
 
@@ -8969,6 +9023,7 @@ internal static partial class FunctionMethodCreator
 			{
 				filepath = Utils.GetValidPath(arguments[1].GetStrValue(exm));
 				if (filepath == null) return 0;
+				filepath = Path.Combine(Program.ExeDir, filepath);
 				string tmp = Path.HasExtension(filepath) ? Path.GetExtension(filepath).ToLower().Substring(1) : "";
 				if (!Config.ValidExtension.Contains(tmp))
 					filepath = Path.ChangeExtension(filepath, "txt");
@@ -8989,8 +9044,9 @@ internal static partial class FunctionMethodCreator
 				}
 				else
 				{
-					if (filepath.LastIndexOf('\\') >= 0)
-						Directory.CreateDirectory(filepath.Substring(0, filepath.LastIndexOf('\\')));
+					var dirPart = Path.GetDirectoryName(filepath);
+					if (!string.IsNullOrEmpty(dirPart))
+						Directory.CreateDirectory(dirPart);
 				}
 
 				File.WriteAllText(filepath, savText, Config.SaveEncode);
@@ -9075,6 +9131,7 @@ internal static partial class FunctionMethodCreator
 			{
 				filepath = Utils.GetValidPath(arguments[0].GetStrValue(exm));
 				if (filepath == null) return string.Empty;
+				filepath = Path.Combine(Program.ExeDir, filepath);
 				string tmp = Path.HasExtension(filepath) ? Path.GetExtension(filepath).ToLower().Substring(1) : "";
 				if (!Config.ValidExtension.Contains(tmp))
 					return "";

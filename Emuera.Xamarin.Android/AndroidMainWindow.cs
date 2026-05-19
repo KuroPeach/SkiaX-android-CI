@@ -38,6 +38,23 @@ namespace XEmuera.Droid
         private Grid mainLayout;
         private ScrollView quickScroll;
         private Label statusLabel;
+        private StackLayout entryLayout;
+
+        // Virtual controller
+        private Grid virtualControllerLayout;
+        private Button virtualConfirmButton;
+        private Button virtualReturnButton;
+        private StackLayout virtualPageActionGroup;
+        private Button virtualPageEnterButton;
+        private Button virtualPageConfirmButton;
+        private Button virtualPageBackButton;
+        private StackLayout virtualKeypadGroup;
+        private Button virtualKeypadEnterActionButton;
+        private Button virtualKeypadAcceptActionButton;
+        private StackLayout virtualAvgButtonGroup;
+        private bool virtualControllerVisible = true;
+        private bool IsDragScrollBar;
+        private Slider vScrollBar;
 
         private bool IsMouseMoveAction;
         private SKPoint StartPoint;
@@ -92,7 +109,6 @@ namespace XEmuera.Droid
 
             textEntry = new Entry
             {
-                IsVisible = false,
                 BackgroundColor = Xamarin.Forms.Color.Black,
                 TextColor = Xamarin.Forms.Color.White,
                 Placeholder = "",
@@ -100,6 +116,15 @@ namespace XEmuera.Droid
                 HorizontalOptions = LayoutOptions.FillAndExpand,
             };
             textEntry.Completed += OnEntryCompleted;
+            textEntry.TextChanged += (s, e) =>
+            {
+                // 同步输入栏文字到 TextBox，使 GETTEXTBOX() 能检测到输入
+                if (TextBox != null)
+                    TextBox.Text = textEntry.Text ?? "";
+                // 输入文字时中断 AWAIT（如 BadApple demo）
+                if (console != null && console.IsInProcess && !string.IsNullOrEmpty(textEntry.Text))
+                    console.InterruptAwait();
+            };
 
             var sendButton = new Button
             {
@@ -115,7 +140,7 @@ namespace XEmuera.Droid
                 OnEntryCompleted(s, e);
             };
 
-            var entryLayout = new StackLayout
+            entryLayout = new StackLayout
             {
                 Orientation = StackOrientation.Horizontal,
                 Children = { textEntry, sendButton },
@@ -141,90 +166,190 @@ namespace XEmuera.Droid
 
             quickButtonScrollView = quickScroll;
 
-            var editButton = new Button
+            // --- 工具栏按钮（对齐 XEmuera TintImageButton 风格） ---
+            // 辅助方法：创建工具栏按钮（半透明背景确保在任何主题下可见）
+            Button MakeToolButton(string text, float fontSize = 10f)
             {
-                Text = "⌨",
-                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
-                TextColor = Xamarin.Forms.Color.White,
-                WidthRequest = 40,
-                HeightRequest = 40,
-                FontSize = 16,
-                CornerRadius = 20,
-            };
+                return new Button
+                {
+                    Text = text,
+                    BackgroundColor = Xamarin.Forms.Color.FromRgba(0, 0, 0, 160),
+                    TextColor = Xamarin.Forms.Color.White,
+                    CornerRadius = 3,
+                    Padding = 5,
+                    WidthRequest = 34,
+                    HeightRequest = 34,
+                    FontAttributes = FontAttributes.Bold,
+                    FontSize = fontSize,
+                };
+            }
+
+            // edit_button（切换式，与 XEmuera 一致）
+            var editButton = MakeToolButton("✏", 12f);
             editButton.Clicked += (s, e) =>
             {
-                entryLayout.IsVisible = !entryLayout.IsVisible;
-                if (entryLayout.IsVisible)
-                {
+                bool show = !entryLayout.IsVisible;
+                entryLayout.IsVisible = show;
+                editButton.Opacity = show ? 1 : 0.5;
+                if (show)
                     textEntry.Focus();
-                }
             };
 
-            var zoomInButton = new Button
+            // gamepad_button（切换虚拟控制器）
+            var gamepadButton = MakeToolButton("🎮", 12f);
+            gamepadButton.Clicked += (s, e) =>
             {
-                Text = "A+",
-                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
-                TextColor = Xamarin.Forms.Color.White,
-                WidthRequest = 40,
-                HeightRequest = 40,
-                FontSize = 12,
-                CornerRadius = 20,
-            };
-            zoomInButton.Clicked += (s, e) =>
-            {
-                AdjustFontScale(0.1f);
+                virtualControllerVisible = !virtualControllerVisible;
+                virtualControllerLayout.IsVisible = virtualControllerVisible;
+                gamepadButton.Opacity = virtualControllerVisible ? 1 : 0.5;
+                if (virtualControllerVisible)
+                    RefreshVirtualControllerState();
             };
 
-            var zoomOutButton = new Button
+            // gallery_view_button（切换快捷按钮面板）
+            var galleryViewButton = MakeToolButton("⊞", 12f);
+            galleryViewButton.Clicked += (s, e) =>
             {
-                Text = "A-",
-                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
-                TextColor = Xamarin.Forms.Color.White,
-                WidthRequest = 40,
-                HeightRequest = 40,
-                FontSize = 12,
-                CornerRadius = 20,
-            };
-            zoomOutButton.Clicked += (s, e) =>
-            {
-                AdjustFontScale(-0.1f);
+                bool show = !quickScroll.IsVisible;
+                quickScroll.IsVisible = show;
+                galleryViewButton.Opacity = show ? 1 : 0.5;
+                if (show)
+                    console?.RefreshQuickButton();
+                else
+                    console?.ClearQuickButton();
             };
 
-            var menuButton = new Button
-            {
-                Text = "☰",
-                BackgroundColor = Xamarin.Forms.Color.FromHex("#CC333333"),
-                TextColor = Xamarin.Forms.Color.White,
-                WidthRequest = 40,
-                HeightRequest = 40,
-                FontSize = 16,
-                CornerRadius = 20,
-            };
-            menuButton.Clicked += (s, e) =>
-            {
-                if (flyoutPage != null)
-                    flyoutPage.IsPresented = !flyoutPage.IsPresented;
-            };
+            // scroll_vertical_button（切换滚动条 Slider）
+            var scrollVerticalButton = MakeToolButton("⇕", 12f);
+            // 注意：scrollBarLayout 在后面创建，事件在创建后绑定
 
+            // zoom buttons
+            var zoomInButton = MakeToolButton("A+");
+            zoomInButton.Clicked += (s, e) => AdjustFontScale(0.1f);
+
+            var zoomOutButton = MakeToolButton("A-");
+            zoomOutButton.Clicked += (s, e) => AdjustFontScale(-0.1f);
+
+            // menu_show_button（收起/展开工具栏，与 XEmuera 一致）
+            var menuShowButton = MakeToolButton("☰", 12f);
             var toolbar = new StackLayout
             {
                 Orientation = StackOrientation.Horizontal,
-                HorizontalOptions = LayoutOptions.End,
-                VerticalOptions = LayoutOptions.Start,
-                Spacing = 6,
-                Padding = new Thickness(8, 8, 8, 0),
-                Children = { menuButton, editButton, zoomInButton, zoomOutButton },
+                HorizontalOptions = LayoutOptions.FillAndExpand,
+                HeightRequest = 48,
+                Padding = new Thickness(0, 6, 12, 6),
+                Spacing = 4,
                 InputTransparent = true,
                 CascadeInputTransparent = false,
             };
+
+            // 占位符（将按钮推到右侧，与 XEmuera BoxView HorizontalOptions=StartAndExpand 一致）
+            var spacer = new BoxView { InputTransparent = true, HorizontalOptions = LayoutOptions.StartAndExpand };
+
+            // 初始状态：gallery 和 scroll 默认隐藏
+            galleryViewButton.Opacity = 0.5;
+            scrollVerticalButton.Opacity = 0.5;
+
+            // 收起/展开逻辑（与 XEmuera ButtonVisibleGroup_Clicked 一致）
+            menuShowButton.Clicked += (s, e) =>
+            {
+                bool visible = !editButton.IsVisible;
+                editButton.IsVisible = visible;
+                gamepadButton.IsVisible = visible;
+                galleryViewButton.IsVisible = visible;
+                scrollVerticalButton.IsVisible = visible;
+                zoomOutButton.IsVisible = visible;
+                zoomInButton.IsVisible = visible;
+                menuShowButton.Opacity = visible ? 1 : 0.5;
+            };
+
+            // 组装工具栏（顺序与 XEmuera 一致：spacer, edit, scroll_vertical, gallery, gamepad, A-, A+, menu_show）
+            toolbar.Children.Add(spacer);
+            toolbar.Children.Add(editButton);
+            toolbar.Children.Add(scrollVerticalButton);
+            toolbar.Children.Add(galleryViewButton);
+            toolbar.Children.Add(gamepadButton);
+            toolbar.Children.Add(zoomOutButton);
+            toolbar.Children.Add(zoomInButton);
+            toolbar.Children.Add(menuShowButton);
+
+            // --- 滚动条 Slider（旋转90°，与 XEmuera 一致） ---
+            vScrollBar = new Slider
+            {
+                Maximum = 1,
+                Value = 1,
+                MaximumTrackColor = Xamarin.Forms.Color.LightGray,
+                MinimumTrackColor = Xamarin.Forms.Color.LightGray,
+                HorizontalOptions = LayoutOptions.FillAndExpand,
+                // 旋转90°后 WidthRequest 变成可视高度
+                // 设置为合理值（约屏幕高度的 60%），避免太小无法操作
+                WidthRequest = 400,
+            };
+            vScrollBar.DragStarted += (s, e) => IsDragScrollBar = true;
+            vScrollBar.DragCompleted += (s, e) => IsDragScrollBar = false;
+            vScrollBar.ValueChanged += (s, e) =>
+            {
+                if (!IsDragScrollBar) return;
+                int newValue = (int)e.NewValue;
+                ScrollBar.Value = newValue;
+                if (newValue == (int)vScrollBar.Minimum || newValue == (int)vScrollBar.Maximum || (int)e.OldValue != newValue)
+                    RefreshStrings(vScrollBar.Value == vScrollBar.Maximum || vScrollBar.Value == vScrollBar.Minimum);
+            };
+
+            var scrollBarLayout = new StackLayout
+            {
+                IsVisible = false,
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.EndAndExpand,
+                Margin = new Thickness(0, 0, 40, 20),
+                Rotation = 90,
+                AnchorX = 1,
+                AnchorY = 0.5,
+                Children = { vScrollBar },
+            };
+
+            // 延迟绑定 scroll_vertical_button 事件（依赖 scrollBarLayout）
+            scrollVerticalButton.Clicked += (s, e) =>
+            {
+                bool show = !scrollBarLayout.IsVisible;
+                scrollBarLayout.IsVisible = show;
+                scrollVerticalButton.Opacity = show ? 1 : 0.5;
+            };
+
+            // --- QuickButton 面板（与 XEmuera 一致：右下角垂直滚动） ---
+            quickScroll.Orientation = ScrollOrientation.Both;
+            quickScroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Never;
+            quickScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Never;
+            quickScroll.Margin = new Thickness(0, 0, 20, 20);
+            quickScroll.HorizontalOptions = LayoutOptions.End;
+            quickScroll.VerticalOptions = LayoutOptions.EndAndExpand;
+            quickButtonLayout.Orientation = StackOrientation.Vertical;
+            quickButtonLayout.Spacing = 3;
+
+            // --- uiLayout（叠加层：工具栏 + 滚动条 + 快捷按钮） ---
+            var uiLayout = new StackLayout
+            {
+                InputTransparent = true,
+                CascadeInputTransparent = false,
+                Orientation = StackOrientation.Vertical,
+                Children =
+                {
+                    toolbar,
+                    scrollBarLayout,
+                    quickScroll,
+                },
+            };
+
+            BuildVirtualController();
 
             var canvasGrid = new Grid
             {
                 Children =
                 {
                     canvasView,
-                    toolbar,
+                    uiLayout,
                     statusLabel,
+                    virtualControllerLayout,
                 },
             };
 
@@ -235,13 +360,11 @@ namespace XEmuera.Droid
                 {
                     new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
                     new RowDefinition { Height = GridLength.Auto },
-                    new RowDefinition { Height = GridLength.Auto },
                 },
                 Children =
                 {
                     { canvasGrid, 0, 0 },
                     { entryLayout, 0, 1 },
-                    { quickScroll, 0, 2 },
                 },
             };
         }
@@ -251,6 +374,7 @@ namespace XEmuera.Droid
         internal void SetConsole(EmueraConsole console)
         {
             this.console = console;
+            RefreshVirtualControllerState();
         }
 
         #region SKCanvasView Events
@@ -293,6 +417,15 @@ namespace XEmuera.Droid
                     if (PConfig.LongPressSkip)
                         LongPressTimer.Enabled = true;
 
+                    if (console.IsInProcess)
+                    {
+                        WinInput.SetKeyPressed(1);   // VK_LBUTTON
+                        WinInput.SetKeyPressed(13);  // VK_RETURN
+                        WinInput.SetKeyPressed(27);  // VK_ESCAPE
+                        // AWAIT (Sleep) 状态下，触摸中断等待
+                        console.InterruptAwait();
+                    }
+
                     e.Handled = true;
                     return;
 
@@ -314,6 +447,7 @@ namespace XEmuera.Droid
                             if (newValue != curValue)
                             {
                                 ScrollBar.Value = newValue;
+                                SyncVScrollBar();
                                 RefreshStrings(true);
                             }
                         }
@@ -326,6 +460,17 @@ namespace XEmuera.Droid
                 case SKTouchAction.Released:
                     if (PConfig.LongPressSkip)
                         LongPressTimer.Enabled = false;
+
+                    if (console.IsInProcess)
+                    {
+                        if (IsLongPressed)
+                            WinInput.SetKeyPressed(2);
+                        WinInput.SetKeyReleased(1);
+                        WinInput.SetKeyReleased(2);
+                        WinInput.SetKeyReleased(27);
+                        Task.Delay(300).ContinueWith(_ => WinInput.SetKeyReleased(13));
+                    }
+
                     MouseReleased(e);
                     Task.Run(() => console.LeaveMouse());
 
@@ -359,7 +504,10 @@ namespace XEmuera.Droid
 
             if (isBacklog)
             {
+                // 先取 SelectedString（历史模式下 MoveMouse 已正确设置），
+                // 再滚回底部（与 XEmuera 行为一致）
                 ScrollBar.Value = ScrollBar.Maximum;
+                SyncVScrollBar();
                 RefreshStrings(true);
             }
 
@@ -428,6 +576,20 @@ namespace XEmuera.Droid
         #region MainWindow Overrides
 
         public override QuickButtonGroup QuickButtonGroup => (QuickButtonGroup)quickButtonLayout;
+
+        public new void RefreshQuickButtonGroup()
+        {
+            activity?.RunOnUiThread(() =>
+            {
+                try
+                {
+                    quickScroll.WidthRequest = Math.Min(quickButtonLayout.Width, canvasView.Width * 3 / 5);
+                    quickScroll.HeightRequest = Math.Min(quickButtonLayout.Height, canvasView.Height - 48 - 30);
+                    quickScroll.ScrollToAsync(0, quickButtonLayout.Height, false);
+                }
+                catch { }
+            });
+        }
 
         public override void quickButton_Clicked(object sender, EventArgs e)
         {
@@ -512,7 +674,7 @@ namespace XEmuera.Droid
             {
                 try
                 {
-                    textEntry.IsVisible = true;
+                    entryLayout.IsVisible = true;
                     textEntry.Focus();
                 }
                 catch { }
@@ -526,7 +688,7 @@ namespace XEmuera.Droid
                 try
                 {
                     textEntry.Text = "";
-                    textEntry.IsVisible = false;
+                    entryLayout.IsVisible = false;
                 }
                 catch { }
             });
@@ -548,29 +710,486 @@ namespace XEmuera.Droid
 
         #region ScrollBar Helpers
 
+        private void SyncVScrollBar()
+        {
+            if (vScrollBar == null) return;
+            if (IsDragScrollBar) return;
+            vScrollBar.Maximum = ScrollBar.Maximum;
+            vScrollBar.Value = ScrollBar.Value;
+        }
+
         private void RefreshStrings(bool force)
         {
             if (console == null) return;
             console.RefreshStrings(force);
+            SyncVScrollBar();
             Refresh();
         }
 
         #endregion
 
-        #region Font Scale
+        #region Virtual Controller
+
+        private Button MakeVCButton(string text, EventHandler handler)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                BackgroundColor = Xamarin.Forms.Color.FromRgba(0, 0, 0, 153),
+                TextColor = Xamarin.Forms.Color.White,
+                WidthRequest = 48,
+                HeightRequest = 48,
+                CornerRadius = 24,
+                FontAttributes = FontAttributes.Bold,
+                FontSize = 14,
+                Padding = 0,
+                Margin = 2,
+                Opacity = 0.9,
+            };
+            btn.Clicked += handler;
+            return btn;
+        }
+
+        private Button MakeRoundButton(string text, EventHandler handler)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                BackgroundColor = Xamarin.Forms.Color.FromRgba(0, 0, 0, 153),
+                TextColor = Xamarin.Forms.Color.White,
+                WidthRequest = 64,
+                HeightRequest = 64,
+                CornerRadius = 32,
+                FontAttributes = FontAttributes.Bold,
+                FontSize = 14,
+                Padding = 0,
+                Margin = 2,
+                Opacity = 0.9,
+            };
+            btn.Clicked += handler;
+            return btn;
+        }
+
+        private void BuildVirtualController()
+        {
+            // Direction pad (left side)
+            var dirUp = MakeVCButton("▲", (s, e) => console?.NavigateSelection(EmueraConsole.VirtualSelectionDirection.Up));
+            var dirLeft = MakeVCButton("◀", (s, e) => console?.NavigateSelection(EmueraConsole.VirtualSelectionDirection.Left));
+            var dirRight = MakeVCButton("▶", (s, e) => console?.NavigateSelection(EmueraConsole.VirtualSelectionDirection.Right));
+            var dirDown = MakeVCButton("▼", (s, e) => console?.NavigateSelection(EmueraConsole.VirtualSelectionDirection.Down));
+
+            var dirGrid = new Grid
+            {
+                RowDefinitions =
+                {
+                    new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) },
+                    new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) },
+                    new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) },
+                },
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) },
+                    new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) },
+                    new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) },
+                },
+                HorizontalOptions = LayoutOptions.Start,
+                VerticalOptions = LayoutOptions.End,
+                RowSpacing = 0,
+                ColumnSpacing = 0,
+            };
+            dirGrid.Children.Add(dirUp, 1, 0);
+            dirGrid.Children.Add(dirLeft, 0, 1);
+            dirGrid.Children.Add(new BoxView { WidthRequest = 48, HeightRequest = 48, Opacity = 0 }, 1, 1);
+            dirGrid.Children.Add(dirRight, 2, 1);
+            dirGrid.Children.Add(dirDown, 1, 2);
+
+            // Page action buttons (center-right)
+            virtualPageEnterButton = MakeVCButton("Enter", VirtualPageEnterButton_Clicked);
+            virtualPageConfirmButton = MakeVCButton("确定", VirtualPageConfirmButton_Clicked);
+            virtualPageBackButton = MakeVCButton("返回", VirtualPageBackButton_Clicked);
+            virtualPageActionGroup = new StackLayout
+            {
+                Orientation = StackOrientation.Vertical,
+                Spacing = 4,
+                Children = { virtualPageEnterButton, virtualPageConfirmButton, virtualPageBackButton },
+                IsVisible = false,
+            };
+
+            // Keypad group
+            virtualKeypadEnterActionButton = MakeVCButton("Enter", VirtualKeypadEnterAction_Clicked);
+            virtualKeypadAcceptActionButton = MakeVCButton("确定", VirtualKeypadAcceptAction_Clicked);
+            var keypadConfirmBtn = MakeVCButton("确认", VirtualKeypadConfirm_Clicked);
+            var keypadBackBtn = MakeVCButton("返回", VirtualKeypadBack_Clicked);
+
+            var keypadGrid = new Grid
+            {
+                RowDefinitions =
+                {
+                    new RowDefinition { Height = GridLength.Auto },
+                    new RowDefinition { Height = GridLength.Auto },
+                    new RowDefinition { Height = GridLength.Auto },
+                    new RowDefinition { Height = GridLength.Auto },
+                    new RowDefinition { Height = GridLength.Auto },
+                },
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition { Width = GridLength.Auto },
+                    new ColumnDefinition { Width = GridLength.Auto },
+                    new ColumnDefinition { Width = GridLength.Auto },
+                    new ColumnDefinition { Width = GridLength.Auto },
+                },
+                RowSpacing = 2,
+                ColumnSpacing = 2,
+            };
+            // Row 0: Enter, Accept
+            keypadGrid.Children.Add(virtualKeypadEnterActionButton, 0, 0); Grid.SetColumnSpan(virtualKeypadEnterActionButton, 2);
+            keypadGrid.Children.Add(virtualKeypadAcceptActionButton, 2, 0); Grid.SetColumnSpan(virtualKeypadAcceptActionButton, 2);
+            // Row 1: / * - +
+            keypadGrid.Children.Add(MakeVCButton("/", (s, e) => ActivateKeypadButton("/", "[/]", "／")), 0, 1);
+            keypadGrid.Children.Add(MakeVCButton("*", (s, e) => ActivateKeypadButton("*", "[*]", "＊")), 1, 1);
+            keypadGrid.Children.Add(MakeVCButton("-", (s, e) => ActivateKeypadButton("-", "[-]", "－")), 2, 1);
+            keypadGrid.Children.Add(MakeVCButton("+", (s, e) => ActivateKeypadButton("+", "[+]", "＋")), 3, 1);
+            // Row 2: 7 8 9
+            keypadGrid.Children.Add(MakeVCButton("7", (s, e) => ActivateKeypadButton("7", "[7]")), 0, 2);
+            keypadGrid.Children.Add(MakeVCButton("8", (s, e) => ActivateKeypadButton("8", "[8]")), 1, 2);
+            keypadGrid.Children.Add(MakeVCButton("9", (s, e) => ActivateKeypadButton("9", "[9]")), 2, 2);
+            // Row 3: 4 5 6
+            keypadGrid.Children.Add(MakeVCButton("4", (s, e) => ActivateKeypadButton("4", "[4]")), 0, 3);
+            keypadGrid.Children.Add(MakeVCButton("5", (s, e) => ActivateKeypadButton("5", "[5]")), 1, 3);
+            keypadGrid.Children.Add(MakeVCButton("6", (s, e) => ActivateKeypadButton("6", "[6]")), 2, 3);
+            // Row 4: 1 2 3
+            keypadGrid.Children.Add(MakeVCButton("1", (s, e) => ActivateKeypadButton("1", "[1]")), 0, 4);
+            keypadGrid.Children.Add(MakeVCButton("2", (s, e) => ActivateKeypadButton("2", "[2]")), 1, 4);
+            keypadGrid.Children.Add(MakeVCButton("3", (s, e) => ActivateKeypadButton("3", "[3]")), 2, 4);
+
+            virtualKeypadGroup = new StackLayout
+            {
+                Orientation = StackOrientation.Vertical,
+                Spacing = 4,
+                Children = { keypadGrid, new StackLayout { Orientation = StackOrientation.Horizontal, Spacing = 2, Children = { MakeVCButton("0", (s, e) => ActivateKeypadButton("0", "[0]")), MakeVCButton(".", (s, e) => ActivateKeypadButton(".", "[.]", "．")), keypadConfirmBtn, keypadBackBtn } } },
+                IsVisible = false,
+            };
+
+            // AVG buttons
+            virtualAvgButtonGroup = new StackLayout
+            {
+                Orientation = StackOrientation.Vertical,
+                Spacing = 4,
+                Children =
+                {
+                    MakeVCButton("日志", (s, e) => TryActivateKeywordButton("日志")),
+                    MakeVCButton("自动", (s, e) => TryActivateKeywordButton("自动")),
+                    MakeVCButton("跳过", (s, e) => TryActivateKeywordButton("跳过")),
+                    MakeVCButton("设置", (s, e) => TryActivateKeywordButton("设置")),
+                },
+                IsVisible = false,
+            };
+
+            // Confirm/Return round buttons (always visible when VC is on)
+            virtualConfirmButton = MakeRoundButton("确认", VirtualConfirmButton_Clicked);
+            virtualReturnButton = MakeRoundButton("返回", VirtualReturnButton_Clicked);
+
+            var rightPanel = new StackLayout
+            {
+                Orientation = StackOrientation.Vertical,
+                Spacing = 4,
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.End,
+                Children =
+                {
+                    virtualKeypadGroup,
+                    virtualAvgButtonGroup,
+                    virtualPageActionGroup,
+                    new StackLayout
+                    {
+                        Orientation = StackOrientation.Horizontal,
+                        Spacing = 8,
+                        HorizontalOptions = LayoutOptions.End,
+                        Children = { virtualConfirmButton, virtualReturnButton },
+                    }
+                },
+            };
+
+            virtualControllerLayout = new Grid
+            {
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                    new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                    new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                },
+                RowDefinitions =
+                {
+                    new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
+                    new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
+                },
+                Padding = new Thickness(16, 56, 16, 16),
+                IsVisible = true,
+                InputTransparent = true,
+                CascadeInputTransparent = false,
+            };
+            virtualControllerLayout.Children.Add(dirGrid, 0, 1);
+            virtualControllerLayout.Children.Add(rightPanel, 2, 1);
+        }
+
+        public void RefreshVirtualControllerState()
+        {
+            if (virtualControllerLayout == null)
+                return;
+
+            bool controlsEnabled = virtualControllerVisible;
+            if (!controlsEnabled || console == null)
+            {
+                virtualPageActionGroup.IsVisible = false;
+                virtualKeypadGroup.IsVisible = false;
+                virtualAvgButtonGroup.IsVisible = false;
+                return;
+            }
+
+            // Enter button
+            bool hasEnterAction = HasEnterAction();
+            virtualPageEnterButton.IsVisible = hasEnterAction;
+
+            // Confirm/Back labels
+            string confirmLabel = console.GetVisibleButtonKeywordLabel("确认", "确定", "调合", "选定", "是");
+            virtualPageConfirmButton.IsVisible = !string.IsNullOrEmpty(confirmLabel);
+            virtualPageConfirmButton.Text = string.IsNullOrEmpty(confirmLabel) ? "确定" : confirmLabel;
+
+            string backLabel = console.GetVisibleButtonKeywordLabel("返回", "取消", "归返", "结束", "完毕", "否");
+            virtualPageBackButton.IsVisible = !string.IsNullOrEmpty(backLabel);
+            virtualPageBackButton.Text = string.IsNullOrEmpty(backLabel) ? "返回" : backLabel;
+
+            // Keypad panel detection
+            bool isKeypadPanel = console.HasRecentDisplayLineKeyword(20, "[2]", "［2］")
+                && console.HasRecentDisplayLineKeyword(20, "[4]", "［4］")
+                && console.HasRecentDisplayLineKeyword(20, "[6]", "［6］")
+                && console.HasRecentDisplayLineKeyword(20, "[8]", "［8］");
+
+            // AVG panel detection
+            string logLabel = console.GetVisibleButtonKeywordLabel("日志");
+            string autoLabel = console.GetVisibleButtonKeywordLabel("自动");
+            string skipLabel = console.GetVisibleButtonKeywordLabel("跳过");
+            string settingLabel = console.GetVisibleButtonKeywordLabel("设置");
+            bool isAvgPanel = !string.IsNullOrEmpty(logLabel)
+                && !string.IsNullOrEmpty(autoLabel)
+                && !string.IsNullOrEmpty(skipLabel)
+                && !string.IsNullOrEmpty(settingLabel);
+
+            // Mutually exclusive: keypad > AVG
+            virtualKeypadGroup.IsVisible = isKeypadPanel;
+            virtualAvgButtonGroup.IsVisible = !isKeypadPanel && isAvgPanel;
+
+            // Keypad action buttons
+            virtualKeypadEnterActionButton.IsVisible = isKeypadPanel && hasEnterAction;
+            virtualKeypadAcceptActionButton.IsVisible = isKeypadPanel && !string.IsNullOrEmpty(confirmLabel);
+
+            // Page action group
+            virtualPageActionGroup.IsVisible = !isKeypadPanel
+                && (virtualPageEnterButton.IsVisible || virtualPageConfirmButton.IsVisible || virtualPageBackButton.IsVisible);
+
+            // Round buttons text
+            virtualConfirmButton.Text = string.IsNullOrEmpty(confirmLabel) ? "确认" : confirmLabel;
+            virtualReturnButton.Text = string.IsNullOrEmpty(backLabel) ? "返回" : backLabel;
+        }
+
+        #endregion
+
+        #region Virtual Controller Event Handlers
+
+        private void VirtualConfirmButton_Clicked(object sender, EventArgs e)
+        {
+            if (console == null || console.IsInProcess) return;
+            ScrollBacklogToBottom();
+            ExecuteCurrentSelectedButtonOnly();
+        }
+
+        private void VirtualReturnButton_Clicked(object sender, EventArgs e)
+        {
+            if (console == null || console.IsInProcess) return;
+            ScrollBacklogToBottom();
+            if (!TryActivateKeywordButton("返回", "取消", "归返", "结束", "完毕", "否"))
+                PressEnterKey(true, "", true);
+        }
+
+        private void VirtualPageEnterButton_Clicked(object sender, EventArgs e)
+        {
+            TryActivateEnterAction();
+        }
+
+        private void VirtualPageConfirmButton_Clicked(object sender, EventArgs e)
+        {
+            TryActivateKeywordButton("确认", "确定", "调合", "选定", "是");
+        }
+
+        private void VirtualPageBackButton_Clicked(object sender, EventArgs e)
+        {
+            TryActivateKeywordButton("返回", "取消", "归返", "结束", "完毕", "否");
+        }
+
+        private void VirtualKeypadEnterAction_Clicked(object sender, EventArgs e)
+        {
+            TryActivateEnterAction();
+        }
+
+        private void VirtualKeypadAcceptAction_Clicked(object sender, EventArgs e)
+        {
+            TryActivateKeywordButton("确认", "确定", "调合", "选定", "是");
+        }
+
+        private void VirtualKeypadConfirm_Clicked(object sender, EventArgs e)
+        {
+            if (console == null || console.IsInProcess) return;
+            ScrollBacklogToBottom();
+            ExecuteCurrentSelectedButtonOnly();
+        }
+
+        private void VirtualKeypadBack_Clicked(object sender, EventArgs e)
+        {
+            TryActivateKeywordButton("返回", "取消", "归返", "结束", "完毕", "否");
+        }
+
+        #endregion
+
+        #region Smart Button Mapping
+
+        private bool TryActivateKeywordButton(params string[] keywords)
+        {
+            if (console == null || console.IsInProcess) return false;
+            if (!console.TrySelectVisibleButtonByKeywords(keywords))
+                return false;
+            ExecuteVirtualSelectedButton(false);
+            return true;
+        }
+
+        private bool TryActivateExactButton(params string[] labels)
+        {
+            if (console == null || console.IsInProcess) return false;
+            if (!console.TrySelectVisibleButtonByLabels(labels))
+                return false;
+            ExecuteVirtualSelectedButton(false);
+            return true;
+        }
+
+        private void ActivateKeypadButton(params string[] labels)
+        {
+            if (console == null || console.IsInProcess) return;
+            ScrollBacklogToBottom();
+            if (TryActivateExactButton(labels))
+                return;
+            if (TryActivateKeywordButton(labels))
+                return;
+
+            string fallbackInput = GetKeypadFallbackInput(labels);
+            if (!string.IsNullOrEmpty(fallbackInput))
+                PressEnterKey(false, fallbackInput, true);
+        }
+
+        private static string GetKeypadFallbackInput(params string[] labels)
+        {
+            if (labels == null) return null;
+            for (int i = 0; i < labels.Length; i++)
+            {
+                string label = labels[i];
+                if (string.IsNullOrWhiteSpace(label)) continue;
+                if (label.StartsWith("[") && label.EndsWith("]")) continue;
+                if (label.StartsWith("［") && label.EndsWith("］")) continue;
+                return label;
+            }
+            return null;
+        }
+
+        private bool HasEnterAction()
+        {
+            if (console == null) return false;
+            // Check if there's an "Enter" or "[Enter]" button visible
+            string enterLabel = console.GetVisibleButtonKeywordLabel("Enter", "[Enter]");
+            return !string.IsNullOrEmpty(enterLabel);
+        }
+
+        private bool TryActivateEnterAction()
+        {
+            if (console == null || console.IsInProcess) return false;
+            if (TryActivateExactButton("Enter", "[Enter]"))
+                return true;
+            if (console.IsWaitingEnterKey && !console.IsError)
+            {
+                PressEnterKey(false, "", true);
+                return true;
+            }
+            return false;
+        }
+
+        private void ExecuteCurrentSelectedButtonOnly()
+        {
+            if (console == null) return;
+            if (console.SelectingButton != null)
+            {
+                console.ClickSelectedButton(SKMouseButton.Left);
+            }
+        }
+
+        private void ExecuteVirtualSelectedButton(bool mesSkip)
+        {
+            if (console == null) return;
+
+            if (console.IsWaitingPrimitive)
+            {
+                console.ClickSelectedButton(SKMouseButton.Left);
+                return;
+            }
+
+            string str = console.SelectedString;
+            if (str != null)
+            {
+                PressEnterKey(mesSkip, str, true);
+                return;
+            }
+
+            if (console.IsWaitingEnterKey && !console.IsError)
+                PressEnterKey(mesSkip, "", true);
+        }
+
+        private bool ScrollBacklogToBottom()
+        {
+            try
+            {
+                var sb = ScrollBar;
+                if (sb == null) return false;
+                if (sb.Value >= sb.Maximum) return false;
+                sb.Value = sb.Maximum;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        #endregion
+
+        #region Runtime Display Scale
+
+        public void ApplyRuntimeDisplayScale(float fontScale, bool refreshSurface = true)
+        {
+            float clampedScale = Math.Max(0.5f, Math.Min(5.0f, fontScale));
+            PConfig.SetRuntimeFontScale(clampedScale);
+
+            // Sync new scale back into ConfigData so it persists
+            PConfigData.Instance.GetItem(ConfigCode.FontScale).SetValue(clampedScale);
+
+            PConfig.ApplyRuntimeDisplaySettings(PConfigData.Instance);
+
+            if (console != null)
+                console.ReflowDisplayLinesForCurrentScale();
+
+            if (refreshSurface)
+                Refresh();
+        }
 
         private void AdjustFontScale(float delta)
         {
-            var current = RConfig.FontScale;
-            var next = Math.Max(0.5f, Math.Min(5.0f, (float)Math.Round(current + delta, 1)));
+            var current = PConfig.FontScale;
+            var next = Math.Max(0.5f, Math.Min(5.0f, (float)Math.Round(current + delta, 2)));
             if (Math.Abs(next - current) < 0.01f) return;
-            PConfigData.Instance.GetItem(ConfigCode.FontScale).SetValue(next);
-            RConfig.SetConfig(RConfigData.Instance);
-            if (console != null)
-            {
-                console.RefreshStrings(true);
-                Refresh();
-            }
+
+            ApplyRuntimeDisplayScale(next);
         }
 
         #endregion

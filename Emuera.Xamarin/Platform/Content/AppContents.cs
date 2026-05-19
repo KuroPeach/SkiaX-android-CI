@@ -35,6 +35,7 @@ namespace MinorShift.Emuera.Content
 					RectX INTEGER, RectY INTEGER, RectW INTEGER, RectH INTEGER,
 					PosX INTEGER, PosY INTEGER,
 					Delay INTEGER,
+					DestW INTEGER, DestH INTEGER,
 					IsAnime INTEGER,
 					PRIMARY KEY (Name, FrameIndex)
 				)";
@@ -45,6 +46,9 @@ namespace MinorShift.Emuera.Content
 		static readonly ConcurrentDictionary<string, ASprite> imageDictionary = new ConcurrentDictionary<string, ASprite>(Config.StrComper);
 		static readonly Dictionary<int, GraphicsImage> gList;
 		static readonly SqliteConnection metaDb;
+
+		public static HashSet<ConstImage> tempLoadedConstImages = [];
+		public static HashSet<GraphicsImage> tempLoadedGraphicsImages = [];
 
 		static public GraphicsImage GetGraphics(int i)
 		{
@@ -61,8 +65,22 @@ namespace MinorShift.Emuera.Content
 				return null;
 			name = name.ToUpper(CultureInfo.InvariantCulture);
 			if (imageDictionary.TryGetValue(name, out ASprite sprite))
+			{
+				if (sprite is SpriteAnimated sa)
+					AnimSpriteCache.Touch(sa.FilePath);
 				return sprite;
+			}
 			return LoadSpriteFromMeta(name);
+		}
+
+		private class MetaRow
+		{
+			public string FilePath;
+			public Rectangle Rect;
+			public Point Pos;
+			public int Delay;
+			public Size DestSize;
+			public bool IsAnimeHeader;
 		}
 
 		static private ASprite LoadSpriteFromMeta(string name)
@@ -70,93 +88,82 @@ namespace MinorShift.Emuera.Content
 			using var cmd = metaDb.CreateCommand();
 			cmd.CommandText = "SELECT * FROM SpriteMeta WHERE Name = @name ORDER BY FrameIndex ASC";
 			cmd.Parameters.AddWithValue("@name", name);
-			using var reader = cmd.ExecuteReader();
 
-			var rows = new List<(string FilePath, Rectangle Rect, Point Pos, int Delay, bool IsAnimeHeader)>();
-			bool isAnimeHeader = false;
+			using var reader = cmd.ExecuteReader();
+			List<MetaRow> rows = new List<MetaRow>();
 			while (reader.Read())
 			{
-				int isAnimeVal = reader.GetInt32(reader.GetOrdinal("IsAnime"));
-				if (reader.GetInt32(reader.GetOrdinal("FrameIndex")) == 0 && isAnimeVal == 1)
+				rows.Add(new MetaRow
 				{
-					isAnimeHeader = true;
-					continue;
-				}
-				string fp = reader.GetString(reader.GetOrdinal("FilePath"));
-				int rx = reader.GetInt32(reader.GetOrdinal("RectX"));
-				int ry = reader.GetInt32(reader.GetOrdinal("RectY"));
-				int rw = reader.GetInt32(reader.GetOrdinal("RectW"));
-				int rh = reader.GetInt32(reader.GetOrdinal("RectH"));
-				int px = reader.GetInt32(reader.GetOrdinal("PosX"));
-				int py = reader.GetInt32(reader.GetOrdinal("PosY"));
-				int delay = reader.GetInt32(reader.GetOrdinal("Delay"));
-				rows.Add((fp, new Rectangle(rx, ry, rw, rh), new Point(px, py), delay, false));
+					FilePath = reader.GetString(2),
+					Rect = new Rectangle(reader.GetInt32(3), reader.GetInt32(4), reader.GetInt32(5), reader.GetInt32(6)),
+					Pos = new Point(reader.GetInt32(7), reader.GetInt32(8)),
+					Delay = reader.GetInt32(9),
+					DestSize = new Size(reader.GetInt32(10), reader.GetInt32(11)),
+					IsAnimeHeader = reader.GetInt32(12) == 1
+				});
 			}
+			reader.Close();
 
 			if (rows.Count == 0)
 				return null;
 
 			ASprite newSprite = null;
 
-			if (isAnimeHeader)
+			if (rows[0].IsAnimeHeader)
 			{
-				SpriteAnime anime = null;
-				foreach (var r in rows)
+				Size destSize = rows[0].DestSize;
+				SpriteAnime anime = new SpriteAnime(name, destSize);
+
+				Dictionary<string, ConstImage> sharedConstImages = new();
+
+				for (int i = 1; i < rows.Count; i++)
 				{
-					if (!resourceDic.TryGetValue(r.FilePath, out var aContentFile))
+					var r = rows[i];
+					if (!File.Exists(r.FilePath)) continue;
+
+					if (!sharedConstImages.TryGetValue(r.FilePath, out ConstImage img))
 					{
-						ConstImage img = new ConstImage(r.FilePath);
+						img = new ConstImage($"{name}_F{i}");
 						img.CreateFrom(r.FilePath, false);
-						if (!img.IsCreated)
-							return null;
-						resourceDic[r.FilePath] = img;
-						aContentFile = img;
+						sharedConstImages[r.FilePath] = img;
 					}
-					if (!(aContentFile is ConstImage parentImage) || !parentImage.IsCreated)
-						return null;
-					Rectangle fRect = r.Rect;
-					if (fRect.Width <= 0 || fRect.Height <= 0)
-						fRect = new Rectangle(0, 0, parentImage.Bitmap.Width, parentImage.Bitmap.Height);
-					if (anime == null)
-					{
-						anime = new SpriteAnime(name, new Size(fRect.Width, fRect.Height));
-					}
-					anime.AddFrame(parentImage, fRect, r.Pos, r.Delay);
+
+					Rectangle fRect = r.Rect.Width == 0 ? new Rectangle(0, 0, img.Width, img.Height) : r.Rect;
+					anime.AddFrame(img, fRect, r.Pos, r.Delay);
 				}
 				newSprite = anime;
 			}
 			else
 			{
 				var r = rows[0];
-				if (!resourceDic.TryGetValue(r.FilePath, out var aContentFile))
+				if (!File.Exists(r.FilePath)) return null;
+
+				// 检查是否为原生动画文件（GIF/WebP 等）
+				if (AnimatedImageHelper.GetAnimInfo(r.FilePath, out int w, out int h, out int fCount, out int[] delays))
 				{
-					ConstImage img = new ConstImage(r.FilePath);
-					img.CreateFrom(r.FilePath, false);
-					if (!img.IsCreated)
-						return null;
-					resourceDic[r.FilePath] = img;
-					aContentFile = img;
+					Size destSize = (r.DestSize.Width > 0 && r.DestSize.Height > 0) ? r.DestSize : r.Rect.Size;
+					if (destSize.IsEmpty) destSize = new Size(w, h);
+
+					newSprite = new SpriteAnimated(name, r.FilePath, r.Rect, destSize, w, h, fCount, delays);
 				}
-				if (!(aContentFile is ConstImage parentImage) || !parentImage.IsCreated)
-					return null;
-				Rectangle rect = r.Rect;
-				if (rect.Width <= 0 || rect.Height <= 0)
-					rect = new Rectangle(0, 0, parentImage.Bitmap.Width, parentImage.Bitmap.Height);
-				newSprite = new SpriteF(name, parentImage, rect, r.Pos);
+				else
+				{
+					ConstImage img = new ConstImage(name + "_BASE");
+					img.CreateFrom(r.FilePath, false);
+
+					Rectangle fRect = r.Rect.Width == 0 ? new Rectangle(0, 0, img.Width, img.Height) : r.Rect;
+					Size destSize = (r.DestSize.Width > 0 && r.DestSize.Height > 0) ? r.DestSize : fRect.Size;
+					newSprite = new SpriteF(name, img, fRect, r.Pos, destSize);
+				}
 			}
 
 			if (newSprite != null)
+			{
 				imageDictionary[name] = newSprite;
-			return newSprite;
-		}
+			}
 
-		static public void SpriteDispose(string name)
-		{
-			if (name == null)
-				return;
-			name = name.ToUpper(CultureInfo.InvariantCulture);
-			if (imageDictionary.TryRemove(name, out var aSprite))
-				aSprite.Dispose();
+			return newSprite;
 		}
 
 		static public void CreateSpriteG(string imgName, GraphicsImage parent, Rectangle rect)
@@ -186,21 +193,25 @@ namespace MinorShift.Emuera.Content
 				return true;
 			if (!FileUtils.Exists(ref filepath))
 				return false;
-			try
+
+			ASprite newSprite = null;
+			if (AnimatedImageHelper.GetAnimInfo(filepath, out int w, out int h, out int fCount, out int[] delays))
 			{
-				var bmp = SKBitmap.Decode(filepath);
-				if (bmp == null)
-					return false;
+				newSprite = new SpriteAnimated(name, filepath, Rectangle.Empty, new Size(w, h), w, h, fCount, delays);
+			}
+			else
+			{
 				ConstImage img = new ConstImage(name + "_DYN");
-				img.CreateFrom(bmp, false);
-				ASprite newSprite = new SpriteF(name, img, new Rectangle(0, 0, bmp.Width, bmp.Height), Point.Empty);
+				img.CreateFrom(filepath, false);
+				newSprite = new SpriteF(name, img, new Rectangle(0, 0, img.Width, img.Height), Point.Empty, new Size(img.Width, img.Height));
+			}
+
+			if (newSprite != null)
+			{
 				imageDictionary[name] = newSprite;
 				return true;
 			}
-			catch
-			{
-				return false;
-			}
+			return false;
 		}
 
 		static public bool GetSprite_OnlyCheckExists(string name)
@@ -217,12 +228,24 @@ namespace MinorShift.Emuera.Content
 			return reader.Read();
 		}
 
+		static public void SpriteDispose(string name)
+		{
+			if (name == null)
+				return;
+			name = name.ToUpper(CultureInfo.InvariantCulture);
+			if (imageDictionary.TryRemove(name, out var aSprite))
+				aSprite.Dispose();
+		}
+
 		static public long SpriteDisposeAll(bool delCsvImage)
 		{
 			int sprites = imageDictionary.Count;
 			foreach (var s in imageDictionary.Values)
 				s.Dispose();
 			imageDictionary.Clear();
+
+			SharedBitmapCache.Clear();
+
 			return sprites;
 		}
 
@@ -252,8 +275,8 @@ namespace MinorShift.Emuera.Content
 				using var insertCmd = metaDb.CreateCommand();
 				insertCmd.Transaction = trans;
 				insertCmd.CommandText = @"
-					INSERT OR REPLACE INTO SpriteMeta (Name, FrameIndex, FilePath, RectX, RectY, RectW, RectH, PosX, PosY, Delay, IsAnime)
-					VALUES (@Name, @FrameIndex, @FilePath, @RectX, @RectY, @RectW, @RectH, @PosX, @PosY, @Delay, @IsAnime)";
+					INSERT OR REPLACE INTO SpriteMeta (Name, FrameIndex, FilePath, RectX, RectY, RectW, RectH, PosX, PosY, Delay, DestW, DestH, IsAnime)
+					VALUES (@Name, @FrameIndex, @FilePath, @RectX, @RectY, @RectW, @RectH, @PosX, @PosY, @Delay, @DestW, @DestH, @IsAnime)";
 
 				var pName = insertCmd.Parameters.Add("@Name", SqliteType.Text);
 				var pFrameIndex = insertCmd.Parameters.Add("@FrameIndex", SqliteType.Integer);
@@ -265,6 +288,8 @@ namespace MinorShift.Emuera.Content
 				var pPosX = insertCmd.Parameters.Add("@PosX", SqliteType.Integer);
 				var pPosY = insertCmd.Parameters.Add("@PosY", SqliteType.Integer);
 				var pDelay = insertCmd.Parameters.Add("@Delay", SqliteType.Integer);
+				var pDestW = insertCmd.Parameters.Add("@DestW", SqliteType.Integer);
+				var pDestH = insertCmd.Parameters.Add("@DestH", SqliteType.Integer);
 				var pIsAnime = insertCmd.Parameters.Add("@IsAnime", SqliteType.Integer);
 
 				int spriteCount = 0;
@@ -274,7 +299,7 @@ namespace MinorShift.Emuera.Content
 					SpriteAnime currentAnime = null;
 					string directory = Path.GetDirectoryName(filepath) + Path.DirectorySeparatorChar;
 					string filename = Path.GetFileName(filepath);
-					string[] lines = File.ReadAllLines(filepath, Config.Encode);
+					string[] lines = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(filepath));
 					int lineNo = 0;
 					int frameIndex = 0;
 
@@ -315,6 +340,8 @@ namespace MinorShift.Emuera.Content
 							pPosX.Value = 0;
 							pPosY.Value = 0;
 							pDelay.Value = 0;
+							pDestW.Value = sizeValue[0];
+							pDestH.Value = sizeValue[1];
 							pIsAnime.Value = 1;
 							insertCmd.ExecuteNonQuery();
 							spriteCount++;
@@ -336,6 +363,8 @@ namespace MinorShift.Emuera.Content
 						Rectangle rect = new Rectangle();
 						Point pos = new Point();
 						int delay = 1000;
+						int destW = 0;
+						int destH = 0;
 						bool isAnimeFrame = currentAnime != null && currentAnime.Name == name;
 
 						if (tokens.Length >= 6)
@@ -356,6 +385,11 @@ namespace MinorShift.Emuera.Content
 								if (tokens.Length >= 9)
 									int.TryParse(tokens[8], out delay);
 							}
+							if (tokens.Length >= 11)
+							{
+								int.TryParse(tokens[9], out destW);
+								int.TryParse(tokens[10], out destH);
+							}
 						}
 
 						pName.Value = name;
@@ -368,7 +402,9 @@ namespace MinorShift.Emuera.Content
 						pPosX.Value = pos.X;
 						pPosY.Value = pos.Y;
 						pDelay.Value = delay;
-						pIsAnime.Value = isAnimeFrame ? 0 : 0;
+						pDestW.Value = destW;
+						pDestH.Value = destH;
+						pIsAnime.Value = 0;
 						insertCmd.ExecuteNonQuery();
 						spriteCount++;
 
@@ -393,10 +429,14 @@ namespace MinorShift.Emuera.Content
 			foreach (var img in resourceDic.Values)
 				img.Dispose();
 			resourceDic.Clear();
+			foreach (var s in imageDictionary.Values)
+				s.Dispose();
 			imageDictionary.Clear();
 			foreach (var graph in gList.Values)
 				graph.GDispose();
 			gList.Clear();
+
+			SharedBitmapCache.Clear();
 		}
 
 		static public void UnloadGraphicList()
@@ -404,14 +444,38 @@ namespace MinorShift.Emuera.Content
 			foreach (var graph in gList.Values)
 				graph.GDispose();
 			gList.Clear();
+
+			List<string> keysToRemove = [];
+			foreach (var kvp in imageDictionary)
+			{
+				if (kvp.Value is SpriteG)
+					keysToRemove.Add(kvp.Key);
+			}
+			foreach (var key in keysToRemove)
+			{
+				if (imageDictionary.TryRemove(key, out ASprite sprite))
+					sprite.Dispose();
+			}
 		}
 
 		static public void UnloadTempLoadedConstImageNames()
 		{
+			lock (tempLoadedConstImages)
+			{
+				foreach (ConstImage img in tempLoadedConstImages)
+					img.Dispose();
+				tempLoadedConstImages.Clear();
+			}
 		}
 
 		static public void UnloadTempLoadedGraphicsImageNames()
 		{
+			lock (tempLoadedGraphicsImages)
+			{
+				foreach (GraphicsImage img in tempLoadedGraphicsImages)
+					img.GDispose();
+				tempLoadedGraphicsImages.Clear();
+			}
 		}
 	}
 }

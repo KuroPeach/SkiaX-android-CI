@@ -1,5 +1,223 @@
 # Emuera.Xamarin 变更记录
 
+## [0.31.0] - 2026-05-20
+
+### Phase 9I：图片 LazyLoading + LRU 系统移植
+
+从 LazyLoading 内核移植图片延迟加载和 LRU 缓存系统到 Xamarin 项目，解决内存占用过高和动图支持缺失问题。
+
+#### 新增组件
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| SharedBitmapCache | [ConstImage.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/Platform/Content/ConstImage.cs) | 静态位图 LRU 缓存（max 200），替代原来每次直接解码 |
+| IFileBacked | [ConstImage.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/Platform/Content/ConstImage.cs) | 可驱逐接口，支持动画帧的内存回收 |
+| AnimatedImageHelper | [AnimatedImageHelper.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/Platform/Content/AnimatedImageHelper.cs) | GIF/WebP 多帧解码 |
+| SpriteAnimated | [CroppedImage.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/Platform/Content/CroppedImage.cs) | 原生动画 Sprite，支持 Evict/Reload 生命周期 |
+| AnimSpriteCache | [CroppedImage.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/Platform/Content/CroppedImage.cs) | 动画 LRU 缓存（max 6），超出自动淘汰最久未用的动画 |
+
+#### 修改组件
+
+| 组件 | 修改内容 |
+|------|---------|
+| ConstImage | CreateFrom 仅读尺寸（SKCodec.Info），EnsureBitmapLoaded 按需解码；Dispose 不释放 Bitmap（由 SharedBitmapCache 统一管理） |
+| ASpriteSingle.Bitmap | 添加延迟加载：BaseImage.Bitmap 为 null 时调用 EnsureBitmapLoaded |
+| SpriteAnime.GraphicsDraw | 添加延迟加载：BaseImage.Bitmap 为 null 时从 SharedBitmapCache 获取 |
+| AppContents | SpriteMeta 表添加 DestW/DestH 列；LoadSpriteFromMeta 支持 SpriteAnimated 创建；GetSprite 触发 AnimSpriteCache.Touch；SpriteDisposeAll 清理 SharedBitmapCache |
+
+#### SkiaSharp 2.88.x 兼容性
+
+- `SKCodecFrameInfo.FrameRect` 在 2.88.x 中不可用，退化为清除整个画布（影响有限，大多数 GIF 使用 Keep/RestoreToPrevious 处置方法）
+- `Stopwatch.GetElapsedTime()` 在 net8.0 中可用，无需适配
+
+#### 编译验证
+
+- `dotnet build Emuera.Xamarin.Core.csproj` → 0 错误，0 警告
+
+#### 知识库更新
+
+- [graphics-rendering.md](file:///d:/emuera/shared-trae/knowledge/xemuera/graphics-rendering.md)：新增 Xamarin LazyLoading + LRU 移植详情章节
+- [lazyloading-features.md](file:///d:/emuera/shared-trae/knowledge/erabasic/lazyloading-features.md)：标记 SpriteAnimated 已移植
+
+## [0.30.0] - 2026-05-19
+
+### Phase 9G：XEmuera 风格 UI 控件 + 三轮 Bug 修复
+
+#### 新增：XEmuera 风格工具栏
+
+| 控件 | 说明 |
+|------|------|
+| ✏ edit_button | 切换式（Opacity 0.5/1），显示/隐藏 Entry 输入栏 |
+| 🎮 gamepad_button | 切换虚拟手柄显示 |
+| ⊞ gallery_view_button | 切换 QuickButton 快捷按钮面板 |
+| ⇕ scroll_vertical_button | 切换旋转90° Slider 滚动条 |
+| A+/A- | 字体缩放 |
+| ☰ menu_show_button | 收起/展开工具栏按钮组 |
+
+按钮样式：半透明黑底 `FromRgba(0,0,0,160)` + 白字 + 34×34 + CornerRadius=3，任何主题下可见。
+
+#### Bug 修复
+
+| # | BUG | 根因 | 修复 | 文件 |
+|---|-----|------|------|------|
+| 1 | **Return(0) NRE 导致无法进入游戏** | `functionList.Count==0` 时 Return 直接 return，`runScriptProc` 循环继续 `ShiftNextLine()` 访问 null | Return 设 `currentLine=null`；ShiftNextLine 加 null 保护；runScriptProc 加 null 退出检查 | Process.State.cs, Process.ScriptProc.cs |
+| 2 | **滚动后点击触发错误按钮** | `MoveMouse` 中 `ScrollBar.Value != Maximum` 时 `goto end` 跳过按钮搜索，保留旧 `selectingButton` | 注释掉该检查（与 XEmuera 一致），让 `bottomLineNo` 基于 `ScrollBar.Value` 正确搜索 | EmueraConsole.cs |
+| 3 | **工具栏按钮不可见** | 按钮用 `invertMainColor`（BackColor）作背景色，黑底主题下与画布同色 | 改为半透明黑底 + 白字 | AndroidMainWindow.cs |
+
+#### 滚动条 Slider 双向同步
+
+- `vScrollBar`（Xamarin Slider）与引擎 `ScrollBar`（Stub）双向同步
+- `SyncVScrollBar()` 在 `RefreshStrings()` 和 `ScrollBar.Value` 赋值后调用
+- 拖拽期间禁止反向同步（`IsDragScrollBar` 标志）
+
+#### BADAPPLE 无法退出
+
+用户确认是模拟器渲染速度过慢导致 AWAIT 1 几乎无检测窗口，非引擎 Bug。将禁用 demo。
+
+## [0.29.0] - 2026-05-19
+
+### Phase 9F-ADB 续：ADB 测试第二轮反馈修复
+
+| # | BUG | 根因 | 修复 | 文件 |
+|---|-----|------|------|------|
+| 1 | **ProcessState.Return NRE** | `functionList` 为空时 `functionList[^1]` 抛出 ArgumentOutOfRangeException | 添加 `functionList.Count == 0` 空检查 | Process.State.cs |
+| 2 | **HTML div 文字被图片盖住** | 之前的修复在错误的文件中（`Emuera/Runtime/Utils/EvilMask/ConsoleDivPart.cs` 被 `<Compile Remove>` 排除）；实际编译使用 `Emuera.Xamarin/Platform/Stubs/EvilMaskUtils.cs` 中的 `ConsoleDivPart`，该版本没有 `ShapeHeightOffset` 处理 | 在 `EvilMaskUtils.cs` 的 `ConsoleDivPart.DrawTo` 中，绘制子元素前临时设置 `ShapeHeightOffset = 0`，绘制后恢复 | EvilMaskUtils.cs |
+| 3 | **Emuera 版 ConsoleDivPart 编译错误** | 之前在 `Emuera/Runtime/Utils/EvilMask/ConsoleDivPart.cs` 中添加了 `using XEmuera;`，但该文件在 `Emuera.csproj` 中编译，没有 XEmuera 命名空间 | 移除 `using XEmuera;` 和 `ShapeHeightOffset` 修改，恢复原始状态 | ConsoleDivPart.cs (Emuera) |
+
+### 缩放差异调查
+
+| 项目 | AdaptiveFont 默认值 | FontSize=14 时实际渲染 |
+|------|---------------------|----------------------|
+| **XEmuera** | `true` | 32px（被 AdaptiveFontSize=32 覆盖） |
+| **LazyLoading** | `false` | 14px（保持用户设置） |
+
+**结论**：缩放差异是配置差异，不是引擎 bug。XEmuera 默认启用 AdaptiveFont，将 FontSize 覆盖为 AdaptiveFontSize（32）。用户可在 emuera.config 中设置 `ADAPTIVEFONT:YES` + `ADAPTIVEFONTSIZE:28` 来匹配 XEmuera 行为。
+
+### 关键发现：双 ConsoleDivPart 文件架构
+
+| 文件 | 命名空间 | 编译项目 | 实际使用 |
+|------|---------|---------|---------|
+| `Emuera/Runtime/Utils/EvilMask/ConsoleDivPart.cs` | `MinorShift.Emuera.Runtime.Utils.EvilMask` | Emuera.csproj（桌面版） | ❌ 被 Core 项目 `<Compile Remove>` 排除 |
+| `Emuera.Xamarin/Platform/Stubs/EvilMaskUtils.cs` 内嵌类 | `MinorShift.Emuera.Runtime.Utils.EvilMask` | Emuera.Xamarin.Core.csproj | ✅ Android 端实际使用 |
+
+**教训**：修改文件前必须确认该文件是否被目标项目编译。`<Compile Remove>` 排除的文件修改不会生效。
+
+## [0.28.0] - 2026-05-19
+
+### Phase 9F-ADB：ADB 测试反馈修复 — 6 个 BUG 全部修复
+
+| # | BUG | 根因 | 修复 | 文件 |
+|---|-----|------|------|------|
+| 1 | **BadApple 无法触摸关闭** | Android OnTouch 未映射 WinInput 键状态，GETKEYTRIGGERED 永远返回 0 | OnTouch Pressed/Released 添加 SetKeyPressed(1,13)/SetKeyReleased | AndroidMainWindow.cs |
+| 2 | **LOADTEXT 返回空** | GetValidPath 返回裸相对路径 + 硬编码反斜杠，Android 上 CWD≠ExeDir | GetValidPath 跨平台分隔符 + LOADTEXT/SAVETEXT/ENUMFILES/EXISTFILE 拼接 ExeDir | EvilMaskUtils.cs + Creator.Method.cs |
+| 3 | **读档看不到存档** | UseSaveFolder 默认 false，SavDir 指向游戏根目录而非 sav/ | 默认值改为 true | ConfigData.cs |
+| 4 | **软键盘看不到输入栏** | textEntry.IsVisible 与 entryLayout.IsVisible 不同步 | 统一由 entryLayout 控制可见性 | AndroidMainWindow.cs |
+| 5 | **BadApple 跳过后崩溃** | endNormal() 抛 CodeEE 异常，SYSTEM_TITLE 结束后无容错 | 改为 state.Begin(BeginType.TITLE) 回到标题 | Process.SystemProc.cs |
+| 6 | **移动端无多语言** | Core 项目未嵌入 emuera-zhs.xml/emuera-eng.xml + EmueraLang 默认空 | 添加嵌入式资源 + 默认"简体中文" | Core.csproj + ConfigData.cs |
+
+### 补丁修复
+
+| # | 修复 | 文件 | 说明 |
+|---|------|------|------|
+| 7 | **entryLayout 编译错误** | AndroidMainWindow.cs | 局部变量→类字段，update_lastinput/clear_richText 可访问 |
+| 8 | **emuera.log 保存到工作目录** | AndroidHost.cs + AndroidApp.cs + Process.SystemProc.cs | OnSleep 时自动保存日志 + endNormal 时保存日志 |
+
+## [0.27.0] - 2026-05-19
+
+### Phase 9F-P0/P1：Android 兼容性补全 — P0 修复 + P1-A/B 实施
+
+#### P0 修复（已完成）
+
+| # | 修复项 | 文件 | 说明 |
+|---|--------|------|------|
+| 1 | **AdaptiveFont 默认值 false** | ConfigData.cs L184 | `true` → `false`，FontSize 不再被 AdaptiveFontSize=32 覆盖 |
+| 2 | **TOFULL/TOHALF 跨平台替代** | Creator.Method.cs + ExpressionMediator.cs | `#if WINDOWS` 用 StrConv，`#else` 用 Unicode 映射（数字/字母/空格全角半角 + 片假名/平假名转换） |
+| 3 | **CALLPLUGIN null guard** | Instraction.Child.cs L1321 | `arg.CallFunc == null` 时设置 RESULT=0 并返回，防止 NRE |
+
+#### P1 修复（已完成）
+
+| # | 修复项 | 文件 | 说明 |
+|---|--------|------|------|
+| 4 | **emuera.config 外部存储复制** | AndroidHost.cs | 游戏目录无 emuera.config 时，从 Context.FilesDir 复制 |
+| 5 | **IsActive 验证** | — | xamarin 版 IsActive 已正确（Created→IsEnabled→true），WinInput 已跨平台（内部数组），无需修改 |
+
+#### 编译验证
+
+- Core 项目（net8.0 + net8.0-windows）：0 错误，103 警告（均为既有）
+- Desktop 项目（net8.0-windows）：0 错误
+
+## [0.26.0] - 2026-05-19
+
+### Phase 9F 续：审查回馈研讨 — AdaptiveFont 根因 + UI 控件差异 + 智能按钮映射
+
+#### 知识库更新
+
+1. **maui-android-compat.md 新增 §16-17**
+   - §16：AdaptiveFont 覆盖用户 FontSize 根因分析（默认 true→FontSize=32 覆盖用户设置 14）
+   - §17：UI 控件差异完整报告（缺失虚拟控制器 + 智能按钮映射 + 运行时缩放 + 3 个 Style）
+
+2. **_index.md 更新**
+   - maui-android-compat.md 核心洞见补充 AdaptiveFont 根因和 UI 控件差异
+
+3. **反模式新增 2 条**
+   - "AdaptiveFont 不影响字体大小" → 实际覆盖 FontSize
+   - "XEmuera 和当前项目显示应该一样" → 缺少 3 个关键方法 + 虚拟控制器 + 缩放按钮
+
+#### 审查回馈分析
+
+| # | 问题 | 根因 | 修复方案 | 优先级 |
+|---|------|------|---------|--------|
+| 1 | Clipboard 空实现 | LazyLoading 内核无 SETCLIPBOARD/GETCLIPBOARD 指令类，排除的是 ClipboardProcessor | 保持空实现即可 | ✅ 已确认 |
+| 2 | 字体/图片偏大 | AdaptiveFont=true（默认）→ FontSize 被 AdaptiveFontSize=32 覆盖 | 修改默认值为 false | P0 |
+| 3 | 缺失虚拟控制器 | XEmuera 有完整虚拟控制器面板 + 缩放按钮 + 智能按钮映射 | 移植 XEmuera 实现 | P1 |
+| 4 | 缺失智能按钮映射 | XEmuera 能扫描 INPUT 按钮关键词映射为虚拟控件 | 移植关键词匹配系统 | P1 |
+| 5 | 缺失运行时缩放 | XEmuera 有 ApplyRuntimeDisplayScale + ReflowDisplayLines | 移植运行时缩放方法 | P1 |
+
+#### TODO 重新整理
+
+- 切片编号统一为 9F-P0-A/B/C → 9F-P1-A/B/C/D/E，按执行顺序排列
+- 新增 9F-P0-A（AdaptiveFont 默认值修复，一行代码，影响面最大，最先做）
+- 新增 9F-P1-D（虚拟控制器 XAML + Style + 事件处理器）
+- 新增 9F-P1-E（智能按钮映射，INPUT→虚拟控件关键词匹配）
+- 远期任务补充 7D-P1（外部字体加载增强）
+
+## [0.25.0] - 2026-05-19
+
+### Phase 9F：Android 兼容性补全 — 系统性自拷问与知识库更新
+
+#### 知识库更新
+
+1. **maui-android-compat.md 新增 §11-15**
+   - §11：Sound.WMP → NAudio 迁移后 SoundStub 空实现架构（虚方法继承体系）
+   - §12：PluginSystem 空实现（IPluginMethod 接口 + PluginManager 空操作）
+   - §13：Clipboard 空实现（PlatformInterop 委托模式跨平台适配）
+   - §14：配置系统覆盖机制（emuera.config 三层加载验证）
+   - §15：显示效果差异（FontScale + AdaptiveFontSize + ScreenDensity 三重缩放根因分析）
+
+2. **xemuera 知识库兼容性标注**
+   - io-cross-platform.md：添加 LazyLoading Xamarin 适配标注（已实施/待修复 IO 问题清单）
+   - ui-integration.md：添加 LazyLoading Xamarin 适配标注（软键盘输入管线 + 待修复 UI 问题）
+
+3. **反模式新增 6 条**（SoundStub/PluginSystem/Clipboard/配置覆盖/字体偏大相关误解）
+
+#### 自拷问发现
+
+| # | 发现 | 优先级 | 风险 |
+|---|------|--------|------|
+| 1 | SoundStub 虚方法签名与 NAudio Sound 类匹配，编译兼容性已验证 | — | 低 |
+| 2 | CALLPLUGIN_Instruction 缺少 null guard，GetMethod 返回 null 时可能 NRE | P0 | 中 |
+| 3 | Clipboard.cs 排除后 SETCLIPBOARD/GETCLIPBOARD 指令可能缺失 | P1 | 中 |
+| 4 | 软键盘"无法输入"需 ADB 日志确认根因（3 种可能） | P1 | 中 |
+| 5 | BadApple 结束触发需 InputState 平台抽象（切片 2D 移动端实现） | P1 | 低 |
+| 6 | emuera.config 外部存储路径不可达（MuMu 共享文件夹不在加载路径） | P1 | 中 |
+| 7 | 字体偏大可能是 FontScale/AdaptiveFontSize 配置问题，非分辨率 Bug | P2 | 低 |
+
+#### TODO 新增切片 9F
+
+- 9F-P0：TOFULL/TOHALF 跨平台替代 + CALLPLUGIN null guard
+- 9F-P1：软键盘输入检测 + BadApple 触发 + emuera.config 外部存储复制
+- 9F-P2：FontScale/AdaptiveFontSize 显示差异调整
+
 ## [0.24.0] - 2026-05-18
 
 ### Phase 9E：渲染范围修复 + DebugLog 路径修复 + Config 完整同步 + ADB 测试流程建立

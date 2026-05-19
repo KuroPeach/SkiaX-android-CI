@@ -8,6 +8,7 @@ using System.Drawing;
 using System.IO;
 using System.Text;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 
 namespace MinorShift.Emuera.Runtime.Config;
@@ -21,7 +22,11 @@ internal static class Config
 	internal static Dictionary<ConfigCode, string> nameDic;
 	public static string GetConfigName(ConfigCode code)
 	{
-		return nameDic[code];
+		if (nameDic == null)
+			return code.ToString();
+		if (!nameDic.TryGetValue(code, out string name))
+			return code.ToString();
+		return name;
 	}
 
 	public static void SetConfig(ConfigData instance)
@@ -347,7 +352,7 @@ internal static class Config
 		// bool existGlobal = File.Exists(Program.ExeDir + "global.sav");
 		// string[] savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
 		bool existGlobal = File.Exists(Program.ExeDir + "global.sav");
-		string[] savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
+		string[] savFiles = GetFilesCaseInsensitive(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
 		#endregion
 		if (!existGlobal && savFiles.Length == 0)
 			return;
@@ -369,7 +374,7 @@ internal static class Config
 			//savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
 			if (File.Exists(Program.ExeDir + "global.sav"))
 				File.Move(Program.ExeDir + "global.sav", SavDir + "global.sav");
-			savFiles = Directory.GetFiles(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
+			savFiles = GetFilesCaseInsensitive(Program.ExeDir, "save*.sav", SearchOption.TopDirectoryOnly);
 			#endregion
 			foreach (string oldpath in savFiles)
 				File.Move(oldpath, SavDir + Path.GetFileName(oldpath));
@@ -403,8 +408,8 @@ internal static class Config
 		SearchOption option = SearchOption.TopDirectoryOnly;
 		if (SearchSubdirectory)
 			option = SearchOption.AllDirectories;
-		string[] erbFiles = Directory.GetFiles(Program.ErbDir, "*.ERB", option);
-		string[] csvFiles = Directory.GetFiles(Program.CsvDir, "*.CSV", option);
+		string[] erbFiles = GetFilesCaseInsensitive(Program.ErbDir, "*.ERB", option);
+		string[] csvFiles = GetFilesCaseInsensitive(Program.CsvDir, "*.CSV", option);
 		long[] writetimes = new long[erbFiles.Length + csvFiles.Length];
 		for (int i = 0; i < erbFiles.Length; i++)
 			if (Path.GetExtension(erbFiles[i]).Equals(".ERB", StringComparison.OrdinalIgnoreCase))
@@ -423,6 +428,42 @@ internal static class Config
 		return key;
 	}
 
+
+	private static string WildcardToRegex(string pattern)
+	{
+		var parts = pattern.Split('*');
+		var regex = new StringBuilder("^");
+		for (int i = 0; i < parts.Length; i++)
+		{
+			if (i > 0)
+				regex.Append(".*");
+			regex.Append(Regex.Escape(parts[i]).Replace("\\?", "."));
+		}
+		regex.Append("$");
+		return regex.ToString();
+	}
+
+	internal static string[] GetFilesCaseInsensitive(string dir, string pattern, SearchOption searchOption)
+	{
+		if (!Directory.Exists(dir))
+			return [];
+		var regex = new Regex(WildcardToRegex(pattern), RegexOptions.IgnoreCase);
+		IEnumerable<string> files = searchOption == SearchOption.AllDirectories
+			? Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+			: Directory.EnumerateFiles(dir);
+		return files.Where(f => regex.IsMatch(Path.GetFileName(f))).ToArray();
+	}
+
+	internal static string[] GetDirectoriesCaseInsensitive(string dir, string pattern, SearchOption searchOption)
+	{
+		if (!Directory.Exists(dir))
+			return [];
+		var regex = new Regex(WildcardToRegex(pattern), RegexOptions.IgnoreCase);
+		IEnumerable<string> dirs = searchOption == SearchOption.AllDirectories
+			? Directory.EnumerateDirectories(dir, "*", SearchOption.AllDirectories)
+			: Directory.EnumerateDirectories(dir);
+		return dirs.Where(d => regex.IsMatch(Path.GetFileName(d))).ToArray();
+	}
 
 	public static List<KeyValuePair<string, string>> GetFiles(string rootdir, string pattern)
 	{
@@ -452,7 +493,7 @@ internal static class Config
 				RelativePath += Path.DirectorySeparatorChar;
 		}
 		//filepathsは完全パスである
-		string[] filepaths = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly);
+		string[] filepaths = GetFilesCaseInsensitive(dir, pattern, SearchOption.TopDirectoryOnly);
 		if (sort)
 			Array.Sort(filepaths);
 		for (int i = 0; i < filepaths.Length; i++)
@@ -484,7 +525,7 @@ internal static class Config
 	/// <summary>
 	/// 関数名・属性名的な名前の比較フラグ
 	/// </summary>
-	public static StringComparison StringComparison { get; private set; }
+	public static StringComparison StringComparison { get; internal set; }
 
 	/// <summary>
 	/// ファイル名的な名前の比較フラグ
@@ -588,10 +629,10 @@ internal static class Config
 
 	public static int Language { get; internal set; }
 
-	public static string SavDir { get; private set; }
-	public static string ForceSavDir { get; private set; }
+	public static string SavDir { get; internal set; }
+	public static string ForceSavDir { get; internal set; }
 
-	public static bool NeedReduceArgumentOnLoad { get; private set; }
+	public static bool NeedReduceArgumentOnLoad { get; internal set; }
 
 	public static bool AllowLongInputByMouse { get; internal set; }
 
@@ -680,7 +721,7 @@ internal static class Config
 	public static bool CheckDuplicateIdentifier { get; private set; }
 	#endregion
 	#region EE_行連結の改行コード置換
-	public static string ReplaceContinuationBR { get; private set; }
+	public static string ReplaceContinuationBR { get; internal set; }
 	#endregion
 	#region EM_私家版_LoadText＆SaveText機能拡張
 	public static List<string> ValidExtension { get; internal set; }

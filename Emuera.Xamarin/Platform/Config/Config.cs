@@ -24,7 +24,11 @@ namespace MinorShift.Emuera
 		private static Dictionary<ConfigCode, string> nameDic = null;
 		public static string GetConfigName(ConfigCode code)
 		{
-			return nameDic[code];
+			if (nameDic == null)
+				return code.ToString();
+			if (!nameDic.TryGetValue(code, out string name))
+				return code.ToString();
+			return name;
 		}
 
 		public static void SetConfig(ConfigData instance)
@@ -209,13 +213,13 @@ namespace MinorShift.Emuera
 			switch (lang)
 			{
 				case UseLanguage.JAPANESE:
-					Language = 0x0411; LangManager.setEncode(932); break;
+					Language = 0x0411; LangManager.setEncode(932); Encode = EncodingHandler.GetEncoding(932); break;
 				case UseLanguage.KOREAN:
-					Language = 0x0412; LangManager.setEncode(949);  break;
+					Language = 0x0412; LangManager.setEncode(949); Encode = EncodingHandler.GetEncoding(949); break;
 				case UseLanguage.CHINESE_HANS:
-					Language = 0x0804; LangManager.setEncode(936); break;
+					Language = 0x0804; LangManager.setEncode(936); Encode = EncodingHandler.GetEncoding(936); break;
 				case UseLanguage.CHINESE_HANT:
-					Language = 0x0404; LangManager.setEncode(950); break;
+					Language = 0x0404; LangManager.setEncode(950); Encode = EncodingHandler.GetEncoding(950); break;
 			}
 
 			if (FontSize < 8)
@@ -252,12 +256,13 @@ namespace MinorShift.Emuera
 			//ForceSavDir = Program.ExeDir + "sav\\";
 			ForceSavDir = Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
 			if (UseSaveFolder)
-				//SavDir = Program.ExeDir + "sav\\";
-			SavDir = Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
+				SavDir = Program.ExeDir + "sav" + Path.DirectorySeparatorChar;
 			else
 				SavDir = Program.ExeDir;
 			if (UseSaveFolder && !Directory.Exists(SavDir))
 				createSavDirAndMoveFiles();
+
+			SyncToRuntimeConfig();
 		}
 		#region EM_私家版_Emuera多言語化改造
 		public static void UpdateLangSetting(ConfigData instance) 
@@ -266,6 +271,42 @@ namespace MinorShift.Emuera
 			EmueraLang = instance.GetConfigValue<string>(ConfigCode.EmueraLang);
 		}
 		#endregion
+
+		public static void SetRuntimeFontScale(float fontScale)
+		{
+			FontScale = fontScale;
+		}
+
+		public static void ApplyRuntimeDisplaySettings(ConfigData instance)
+		{
+			AdaptiveFont = instance.GetConfigValue<bool>(ConfigCode.AdaptiveFont);
+			AdaptiveFontSize = instance.GetConfigValue<int>(ConfigCode.AdaptiveFontSize);
+			FontScale = instance.GetConfigValue<float>(ConfigCode.FontScale);
+			FontSize = instance.GetConfigValue<int>(ConfigCode.FontSize);
+			LineHeight = instance.GetConfigValue<int>(ConfigCode.LineHeight);
+
+			if (AdaptiveFont)
+			{
+				LineHeight = LineHeight * AdaptiveFontSize / FontSize;
+				FontSize = AdaptiveFontSize;
+			}
+
+			if (FontScale != 1f)
+			{
+				FontSize = (int)(FontSize * FontScale);
+				LineHeight = (int)(LineHeight * FontScale);
+			}
+
+			if (FontSize < 8)
+				FontSize = 8;
+			if (LineHeight < FontSize)
+				LineHeight = FontSize;
+
+			ClearFont();
+			DrawTextUtils.Reset(); // 清除 FontCache 中按旧 TextSize 缓存的 Advance 值
+			RefreshDisplayConfig();
+			SyncToRuntimeConfig();
+		}
 
 		public static void RefreshDisplayConfig()
 		{
@@ -301,6 +342,8 @@ namespace MinorShift.Emuera
 			Runtime.Config.Config.TextDrawingMode = TextDrawingMode;
 			Runtime.Config.Config.CompatiErrorLine = CompatiErrorLine;
 			Runtime.Config.Config.IgnoreCase = IgnoreCase;
+			Runtime.Config.Config.StringComparison = SCVariable;
+			Runtime.Config.Config.StrComper = ICVariable ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 			Runtime.Config.Config.UseRenameFile = UseRenameFile;
 			Runtime.Config.Config.UseReplaceFile = UseReplaceFile;
 			Runtime.Config.Config.UseMouse = UseMouse;
@@ -364,6 +407,16 @@ namespace MinorShift.Emuera
 			Runtime.Config.Config.RikaiUseSeparateBoxes = RikaiUseSeparateBoxes;
 			Runtime.Config.Config.Language = Language;
 			Runtime.Config.Config.UseLazyLoading = UseLazyLoading;
+
+			Runtime.Config.Config.SavDir = SavDir;
+			Runtime.Config.Config.ForceSavDir = ForceSavDir;
+			Runtime.Config.Config.Encode = Encode;
+			Runtime.Config.Config.SaveEncode = SaveEncode;
+			Runtime.Config.Config.ImageQuality = ImageQuality;
+			Runtime.Config.Config.FontHinting = FontHinting;
+			Runtime.Config.Config.FontEdging = FontEdging;
+			Runtime.Config.Config.ReplaceContinuationBR = ReplaceContinuationBR;
+			Runtime.Config.Config.NeedReduceArgumentOnLoad = NeedReduceArgumentOnLoad;
 		}
 
 		static readonly Dictionary<string, Dictionary<FontStyle, Font>> fontDic = new Dictionary<string, Dictionary<FontStyle, Font>>();

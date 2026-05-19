@@ -2262,18 +2262,19 @@ internal sealed class VariableEvaluator : IDisposable
 	private static void setDefaultStain(CharacterData chara)
 	{
 		var array = chara.DataIntegerArray[(int)(VariableCode.STAIN & VariableCode.__LOWERCASE__)];
+		var stainDefault = Config.Config.StainDefault ?? new List<long>(new long[] { 0, 0, 2, 1, 8 });
 		//STAINの配列要素数 < _REPLACE.CSVのSTAIN初期値の指定数の時エラーになるのを対処
-		if (array.Length >= Config.Config.StainDefault.Count)
+		if (array.Length >= stainDefault.Count)
 		{
-			for (int i = 0; i < Config.Config.StainDefault.Count; i++)
-				array[i] = Config.Config.StainDefault[i];
-			for (int i = Config.Config.StainDefault.Count; i < array.Length; i++)
+			for (int i = 0; i < stainDefault.Count; i++)
+				array[i] = stainDefault[i];
+			for (int i = stainDefault.Count; i < array.Length; i++)
 				array[i] = 0;
 		}
 		else
 		{
 			for (int i = 0; i < array.Length; i++)
-				array[i] = Config.Config.StainDefault[i];
+				array[i] = stainDefault[i];
 		}
 	}
 
@@ -2407,7 +2408,7 @@ internal sealed class VariableEvaluator : IDisposable
 		string searchPattern = "var_" + pattern + ".dat";
 		if (charadat)
 			searchPattern = "chara_" + pattern + ".dat";
-		string[] pathes = Directory.GetFiles(Program.DatDir, searchPattern, SearchOption.TopDirectoryOnly);
+		string[] pathes = Config.Config.GetFilesCaseInsensitive(Program.DatDir, searchPattern, SearchOption.TopDirectoryOnly);
 		foreach (string path in pathes)
 		{
 			if (!Path.GetExtension(path).Equals(".dat", StringComparison.OrdinalIgnoreCase))
@@ -3018,8 +3019,17 @@ internal sealed class VariableEvaluator : IDisposable
 			}
 			return true;
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
+			try
+			{
+				var logPath = MinorShift.Emuera.Program.ExeDir + "savedata_error.log";
+				System.IO.File.AppendAllText(logPath,
+					$"[{System.DateTime.Now:HH:mm:ss}] [SAVEDATA] {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}\n" +
+					(ex.InnerException != null ? $"Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}\n" : "") +
+					"\n");
+			}
+			catch { }
 			return false;
 		}
 		finally

@@ -192,7 +192,7 @@ static partial class Program
 		//フォントファイルを読み込む
 		if (Directory.Exists(FontDir))
 		{
-			foreach (string fontFile in Directory.GetFiles(FontDir, "*.ttf", SearchOption.AllDirectories))
+			foreach (string fontFile in Config.Config.GetFilesCaseInsensitive(FontDir, "*.ttf", SearchOption.AllDirectories))
 			{
 				GlobalStatic.Pfc.AddFontFile(fontFile);
 				try
@@ -204,7 +204,7 @@ static partial class Program
 				catch { }
 			}
 
-			foreach (string fontFile in Directory.GetFiles(FontDir, "*.otf", SearchOption.AllDirectories))
+			foreach (string fontFile in Config.Config.GetFilesCaseInsensitive(FontDir, "*.otf", SearchOption.AllDirectories))
 			{
 				GlobalStatic.Pfc.AddFontFile(fontFile);
 				try
@@ -216,7 +216,7 @@ static partial class Program
 				catch { }
 			}
 
-			foreach (string fontFile in Directory.GetFiles(FontDir, "*.ttc", SearchOption.AllDirectories))
+			foreach (string fontFile in Config.Config.GetFilesCaseInsensitive(FontDir, "*.ttc", SearchOption.AllDirectories))
 			{
 				GlobalStatic.Pfc.AddFontFile(fontFile);
 				try

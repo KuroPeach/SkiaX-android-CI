@@ -26,6 +26,13 @@ internal sealed partial class Process
 			if (Config.InfiniteLoopAlertTime > 0 && (state.lineCount % 10000 == 0))
 				checkInfiniteLoop();
 			LogicalLine line = state.CurrentLine;
+			if (line == null)
+			{
+				// functionList 已空（Return 弹出了最后一个函数），脚本结束
+				if (!console.IsRunning || state.ScriptEnd)
+					return;
+				continue;
+			}
 			//これがNULLになる様な処理は現状ないはず
 			//if (line == null)
 			//	throw new ExeEE("Emuera.exeは次に実行する行を見失いました");

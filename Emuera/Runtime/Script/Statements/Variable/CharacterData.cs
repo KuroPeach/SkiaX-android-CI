@@ -617,10 +617,12 @@ internal sealed class CharacterData : IDisposable
 						writer.WriteWithKey(code.ToString(), dataInteger[CodeInt]);
 						break;
 					case VariableDimension.Array1D:
-						writer.WriteWithKey(code.ToString(), dataIntegerArray[CodeInt].ToArray(dataIntegerArray[CodeInt].Length));
+						if (dataIntegerArray[CodeInt] != null)
+							writer.WriteWithKey(code.ToString(), dataIntegerArray[CodeInt].ToArray(dataIntegerArray[CodeInt].Length));
 						break;
 					case VariableDimension.Array2D:
-						writer.WriteWithKey(code.ToString(), dataIntegerArray2D[CodeInt]);
+						if (dataIntegerArray2D[CodeInt] != null)
+							writer.WriteWithKey(code.ToString(), dataIntegerArray2D[CodeInt]);
 						break;
 				}
 			}
@@ -632,10 +634,12 @@ internal sealed class CharacterData : IDisposable
 						writer.WriteWithKey(code.ToString(), dataString[CodeInt]);
 						break;
 					case VariableDimension.Array1D:
-						writer.WriteWithKey(code.ToString(), dataStringArray[CodeInt].ToArray(dataStringArray[CodeInt].Length));
+						if (dataStringArray[CodeInt] != null)
+							writer.WriteWithKey(code.ToString(), dataStringArray[CodeInt].ToArray(dataStringArray[CodeInt].Length));
 						break;
 					case VariableDimension.Array2D:
-						writer.WriteWithKey(code.ToString(), dataStringArray2D[CodeInt]);
+						if (dataStringArray2D[CodeInt] != null)
+							writer.WriteWithKey(code.ToString(), dataStringArray2D[CodeInt]);
 						break;
 				}
 			}
@@ -647,10 +651,12 @@ internal sealed class CharacterData : IDisposable
 						writer.WriteWithKey(code.ToString(), dataFloat[CodeInt]);
 						break;
 					case VariableDimension.Array1D:
-						writer.WriteWithKey(code.ToString(), dataFloatArray[CodeInt].ToArray(dataFloatArray[CodeInt].Length));
+						if (dataFloatArray[CodeInt] != null)
+							writer.WriteWithKey(code.ToString(), dataFloatArray[CodeInt].ToArray(dataFloatArray[CodeInt].Length));
 						break;
 					case VariableDimension.Array2D:
-						writer.WriteWithKey(code.ToString(), dataFloatArray2D[CodeInt]);
+						if (dataFloatArray2D[CodeInt] != null)
+							writer.WriteWithKey(code.ToString(), dataFloatArray2D[CodeInt]);
 						break;
 				}
 			}

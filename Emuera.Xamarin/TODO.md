@@ -1,6 +1,6 @@
 # Emuera.Xamarin 任务计划
 
-> **最后更新**：2026-05-18
+> **最后更新**：2026-05-20
 > **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/CHANGELOG.md)
 
 ## 当前状态
@@ -36,6 +36,9 @@
 | Phase 9B | 悬浮工具栏（☰ 菜单 + ⌨ 编辑 + A+/A- 缩放）+ 输入条修复（发送按钮 + FillAndExpand）+ 沉浸式全屏 | 0.21 |
 | Phase 9C | AOT 崩溃修复 + Lang 初始化顺序 + 诊断日志 + 真机验证（eratw-chs 进入脚本预加载阶段） | 0.22 |
 | Phase 9D | SQL 懒加载 + Config 双类同步 + GetConfigItem 大小写修复 + 工具栏/滚动/渲染修复 + eratw-chs 完整启动 | 0.23 |
+| Phase 9G | Return NRE + AWAIT 帧同步 + 字体缩放渲染 + HTML 滚动 + 虚拟控制器 + 收起工具栏 | 0.29 |
+| Phase 9H | XEmuera 风格工具栏 + QuickButton 面板 + Slider 滚动条 + Return(0) NRE 修复 + MoveMouse 滚动修复 + 按钮可见性修复 | 0.30 |
+| Phase 9I | 图片 LazyLoading + LRU 系统移植（SharedBitmapCache/AnimSpriteCache/SpriteAnimated/AnimatedImageHelper/ConstImage延迟加载/AppContents SQLite元数据） | 0.31 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -73,13 +76,64 @@ Emuera.Xamarin.sln
 → ✅ 9E-ADB：ADB 测试流程建立（设备连接、APK 安装、日志拉取与分析）
 ─── 引擎完整启动 ───
 → 🔴 9E-SCRIPT：分析完整 emuera_android.log（1.26MB，引擎页面运行时拉取），分类所有加载错误
-→   - 已知：ConsoleButtonString.CalcWidth → AConsoleDisplayNode.SetWidth → StringMeasure 空引用
-→   - 其他错误：待分析完整日志
-→ 🔴 9E-FIX：修复所有加载错误后，才能进行 UI 交互验证
+→ ✅ 9E-FIX-1：GetConfigName null guard（Runtime + Xamarin Platform 两处）
+→ ✅ 9E-FIX-2：SyncToRuntimeConfig 补充第二次同步调用 + 缺失属性（SavDir/ForceSavDir/Encode/SaveEncode/ImageQuality/FontHinting/FontEdging/ReplaceContinuationBR/NeedReduceArgumentOnLoad）
+→ ✅ 9E-FIX-3：CalcWidth null 元素防御检查
+→ ✅ 9E-FIX-4：重建 APK + ADB 测试验证（引擎完整启动，进入 @SYSTEM_TITLE）
+→   - 已知：ConsoleButtonString.CalcWidth → AConsoleDisplayNode.SetWidth → StringMeasure 空引用（已添加 null guard）✅
+→   - 已知：317× GetConfigName NRE（根因：CompatiFuncArg* 未同步 + nameDic null，已修复）✅
+→   - 已知：SAVEGLOBAL 错误（根因：SavDir 未同步，已修复）✅
+→   - 已验证：SQL_CONNECT 相对路径解析修复 ✅
+→   - 已验证：CompatiFuncArgAutoConvert=YES 配置修复 ✅
+→   - 已验证：引擎进入 @SYSTEM_TITLE 函数，标题界面显示 ✅
+→ 🔴 9E-NEXT：修复 Android 特有错误（GETTEXTBOX user32.dll / .webp 图片缺失）
 → ⚠️ 9E-COMPATI：CompatiErrorLine 仅在调试模式启用（当前强制 true，需改为条件启用）
-→ ⏏️ 未完整运行的加载页面：emuera_android.log 已就绪待分析
-→ ⏭️ 7C-P2 动态缩放（高难度）
-→ ⏭️ 7E 本地化 / 7F 日志查看器（P2）
+─── 9F：Android 兼容性补全（按执行顺序） ───
+→ ✅ 9F-P0-A：AdaptiveFont 默认值修复（字体偏大根因，一行代码修复，影响面最大）
+→ ✅ 9F-P0-B：TOFULL/TOHALF 跨平台替代（Microsoft.VisualBasic 不可用）
+→ ✅ 9F-P0-C：CALLPLUGIN null guard（PluginSystem 空实现安全检查）
+→ ✅ 9F-P1-A：emuera.config 外部存储复制机制（MuMu 共享文件夹→内部存储，解决配置不生效）
+→ ✅ 9F-P1-B：IsActive 已验证正常（Created→IsEnabled→true，WinInput 已跨平台，无需修改）
+→ ✅ 9F-P1-C：移植运行时缩放（ApplyRuntimeDisplayScale + ReflowDisplayLinesForCurrentScale）
+→ ✅ 9F-P1-D：移植虚拟控制器 XAML + Style + 事件处理器
+→ ✅ 9F-P1-E：移植智能按钮映射（INPUT→虚拟控件，关键词匹配确认/返回/AVG/数字键盘）
+→ 🟡 9F-P2：FontScale/AdaptiveFontSize 显示差异系统性调整（P1-C 完成后验证）
+─── 9G：v0.30 ADB 验证反馈修复（按优先级） ───
+→ ✅ 9G-P0：ProcessState.Return NRE + SQL 嵌套事务修复（ReturnF空检查 + Import方法嵌套事务保护）
+→ ✅ 9G-P1：BADAPPLE AWAIT 16 帧同步失效（AWAIT不带参数时添加Thread.Sleep(1)让出UI线程）
+→ ✅ 9G-P2：运行时字体缩放渲染错误修复（ApplyRuntimeDisplaySettings中DrawTextUtils.Reset()清除旧Advance缓存）
+→ ✅ 9G-P3：HTML 交互控件在向上滚动时失效（MouseReleased bug，已修复）
+→ ✅ 9G-P4：虚拟控制器默认可见（默认true + IsVisible=true + SetConsole时Refresh）
+→ ✅ 9G-P5：移植收起工具栏按钮 + 滚动按钮（▲收起/▼展开 + ↑↓半页滚动）
+─── 9H：XEmuera 风格 UI 控件 + Bug 修复 ───
+→ ✅ 9H-P1：XEmuera 风格工具栏（edit/gamepad/gallery/scroll_vertical/zoom/menu_show 按钮，半透明黑底白字 34×34）
+→ ✅ 9H-P2：画廊视图 QuickButton 面板（⊞ 切换 + RefreshQuickButtonGroup）
+→ ✅ 9H-P3：旋转90° Slider 滚动条（双向同步 ScrollBar + SyncVScrollBar）
+→ ✅ 9H-P4：Return(0) NRE 修复（functionList空时设currentLine=null + ShiftNextLine null保护 + runScriptProc null退出）
+→ ✅ 9H-P5：滚动后点击错误按钮修复（注释掉 MoveMouse 中 ScrollBar.Value!=Maximum 检查）
+→ ✅ 9H-P6：工具栏按钮不可见修复（invertMainColor→半透明黑底白字）
+→ 🟡 9H-P7：BADAPPLE 无法退出（用户确认模拟器渲染慢导致，将禁用 demo）
+─── 9I：图片 LazyLoading + LRU 系统移植 ───
+→ ✅ 9I-P1：SharedBitmapCache 静态位图 LRU 缓存（max 200）
+→ ✅ 9I-P2：IFileBacked 可驱逐接口 + ConstImage 延迟加载
+→ ✅ 9I-P3：AnimatedImageHelper GIF/WebP 多帧解码
+→ ✅ 9I-P4：SpriteAnimated 原生动画 Sprite（Evict/Reload 生命周期）
+→ ✅ 9I-P5：AnimSpriteCache 动画 LRU 缓存（max 6）
+→ ✅ 9I-P6：AppContents SQLite 元数据（DestW/DestH 列 + SpriteAnimated 创建）
+→ ✅ 9I-P7：SkiaSharp 2.88.x 兼容性修复（FrameRect 缺失退化处理）
+→ ✅ 9I-P8：编译验证（0 错误 0 警告）
+─── 下一步 ───
+→ 🔴 9J-P1：APK 构建验证 + 真机测试 LazyLoading/LRU 系统
+→ 🔴 9J-P2：动图渲染验证（GIF/WebP 在 Android 上是否正确播放）
+→ 🔴 9J-P3：内存占用对比测试（移植前后 SharedBitmapCache 效果）
+→ 🔴 9E-NEXT：修复 Android 特有错误（GETTEXTBOX user32.dll / .webp 图片缺失）
+→ 🟡 9E-COMPATI：CompatiErrorLine 仅在调试模式启用
+─── 远期 ───
+→ ⏭️ 7C-P2 动态缩放（高难度，依赖 9F-P1-C；唯一真正需要大量移植的远期任务）
+→ ~~7D-P1 外部字体加载增强~~ ✅ v0.11 已完成（font/fonts 扫描 + FontFactory.fontAliases + RegisterKnownAliases）
+→ ~~7G 游戏列表~~ ✅ 8D-4 已完成（AndroidGameListPage + AndroidMainMenuPage + FlyoutPage）
+→ ⏭️ 7E 本地化（90% 完成：LanguageModel/LanguagePage/Lang.cs 已移植；缺 Android 菜单入口 + LoadLanguageFile() stub）
+→ ⏭️ 7F 日志查看器（80% 完成：TxtFilePage/SelectableLabel 已移植；缺 AndroidLogPage + 菜单入口）
 → ⏭️ 真机测试
 ```
 
@@ -850,3 +904,206 @@ Emuera.Xamarin.sln
 
 **前置条件**：Phase 4A-Xamarin 完成
 **与 4A-X6 的关系**：7G 是 4A-X6 的细化，合并执行
+
+***
+
+## 切片 9F：Android 兼容性补全（自拷问产出）
+
+> **来源**：2026-05-19 系统性自拷问（grill session）
+> **知识库**：[maui-android-compat.md §11-17](file:///d:/emuera/shared-trae/knowledge/erabasic/maui-android-compat.md)
+> **前置条件**：9E ✅（引擎完整启动）
+
+### 切片 9F-P0-A：AdaptiveFont 默认值修复（字体偏大根因）
+
+> **根因**：`AdaptiveFont=true`（默认值）导致 `FontSize` 被 `AdaptiveFontSize`（默认 32）覆盖，用户设置 `FONT SIZE:14` 实际生效为 32
+> **修复方案**：修改 ConfigData.cs 中 AdaptiveFont 默认值为 false
+> **参考**：[maui-android-compat.md §16](file:///d:/emuera/shared-trae/knowledge/erabasic/maui-android-compat.md)
+> **优先级理由**：一行代码修复，影响面最大（字体/图片/界面尺寸全部偏大），应最先做
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P0-A1 | 修改 AdaptiveFont 默认值为 false | ConfigData.cs 中 `AdaptiveFont` 默认从 `true` 改为 `false` | ✅ |
+| 9F-P0-A2 | ADB 验证 | 确认 FontSize 生效为 14 而非 32，字体/界面尺寸与 XEmuera 对齐 | ⏭️ |
+
+### 切片 9F-P0-B：TOFULL/TOHALF 跨平台替代
+
+> **根因**：Microsoft.VisualBasic 在 Android 不可用，TOFULL/TOHALF 调用 StrConv 抛出 MissingMethodException
+> **修复方案**：跨平台全角/半角转换，不依赖 Microsoft.VisualBasic
+> **参考**：[maui-android-compat.md §7](file:///d:/emuera/shared-trae/knowledge/erabasic/maui-android-compat.md)
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P0-1 | 实现 `ToFullWidth(string)` | 数字→全角数字，A-Z→全角大写，a-z→全角小写 | ✅ |
+| 9F-P0-2 | 实现 `ToHalfWidth(string)` | 全角数字→半角，全角字母→半角 | ✅ |
+| 9F-P0-3 | 条件编译切换 | `#if WINDOWS` 用 StrConv，`#else` 用跨平台实现 | ✅ |
+| 9F-P0-4 | 编译+ADB 验证 | eratw-chs 中 TOFULL/TOHALF 调用不再崩溃 | ⏭️ |
+
+### 切片 9F-P0-C：CALLPLUGIN null guard
+
+> **根因**：PluginManager.GetMethod(name) 返回 null，CALLPLUGIN_Instruction 可能 NullReferenceException
+> **修复方案**：在 CALLPLUGIN_Instruction 中添加 null 检查，null 时跳过并设置 RESULT=0
+> **风险**：eratw-chs 不使用 CALLPLUGIN，风险极低
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P0-5 | CALLPLUGIN null guard | `if (method == null) { result = 0; return; }` | ✅ |
+| 9F-P0-6 | 编译验证 | — | ✅ |
+
+### 切片 9F-P1-B：IsActive + InputState 平台抽象 + BadApple 触发（✅ 已验证无需修改）
+
+> **验证结果**：xamarin 版 IsActive 已正确（Created→IsEnabled→true），WinInput 已跨平台（内部数组，不依赖 user32.dll）
+> **结论**：GETKEYTRIGGERED/BadApple 的前置条件已满足，无需额外修改
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P1-1 | ~~实现 InputState 平台抽象~~ | xamarin WinInput 已跨平台，无需额外抽象 | ✅ 无需修改 |
+| 9F-P1-2 | ~~修复 IsActive 返回 true~~ | xamarin 版 IsActive 已返回 true（Created→IsEnabled→true） | ✅ 无需修改 |
+| 9F-P1-3 | BadApple 结束触发 | 基于 InputState 检测任意按键→退出演示 | ⏭️ |
+| 9F-P1-4 | ADB 验证 | BadApple 演示可通过键盘输入退出 | ⏭️ |
+
+### 切片 9F-P1-A：emuera.config 外部存储复制
+
+> **根因**：Android 端 emuera.config 仅从 Context.FilesDir 加载，MuMu 共享文件夹中的配置文件不在加载路径
+> **修复方案**：AndroidHost 初始化时检查外部存储是否有 emuera.config，如有则复制到内部存储
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P1-5 | 实现外部存储配置复制 | AndroidHost.InitEmuera() 中检查并复制 | ✅ |
+| 9F-P1-6 | 验证配置覆盖 | 确认外部存储的 emuera.config 能正确覆盖默认配置 | ⏭️ |
+
+### 切片 9F-P2：FontScale/AdaptiveFontSize 显示差异调整
+
+> **根因**：FontScale 叠加 + AdaptiveFontSize + ScreenDensity 三重缩放导致字体偏大
+> **修复方案**：系统性调整缩放参数
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P2-1 | 调整 FontScale 默认值 | 确保默认为 1.0，不叠加放大 | ⏭️ |
+| 9F-P2-2 | 审查 AdaptiveFontSize 逻辑 | 确认是否在 Android 端过度放大 | ⏭️ |
+| 9F-P2-3 | ADB 真机验证 | 对比 XEmuera 和 LazyLoading 的字体大小 | ⏭️ |
+
+### 切片 9F-P1-C：移植运行时缩放 + 虚拟控制器
+
+> **根因**：当前项目缺失 XEmuera 的运行时缩放和虚拟控制器功能
+> **参考**：[maui-android-compat.md §17](file:///d:/emuera/shared-trae/knowledge/erabasic/maui-android-compat.md)
+> **XEmuera 参考**：XEmuera/Emuera/Forms/MainWindow.xaml + MainWindow.xaml.cs
+
+#### 9F-P1-RT：运行时缩放
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P1-RT1 | 移植 `Config.SetRuntimeFontScale()` | 运行时修改 FontScale 并重新计算 FontSize/LineHeight | ✅ |
+| 9F-P1-RT2 | 移植 `Config.ApplyRuntimeDisplaySettings()` | 重新读取 AdaptiveFont/AdaptiveFontSize/FontScale 并应用 | ✅ |
+| 9F-P1-RT3 | 移植 `MainWindow.ApplyRuntimeDisplayScale()` | 运行时动态调整 FontScale + 重算 ScaledWindowX + Reflow | ✅ |
+| 9F-P1-RT4 | 移植 `EmueraConsole.ReflowDisplayLinesForCurrentScale()` | 缩放后重新排版所有显示行 | ✅ |
+| 9F-P1-RT5 | 移植 `MainWindow.ToLogicalTouchPoint()` | 运行时缩放后触摸坐标转换（预留，当前 no-op） | ✅ |
+| 9F-P1-RT6 | 编译+ADB 验证 | A+/A- 缩放功能正常 | ⏭️ ADB 验证 |
+
+#### 9F-P1-VC：虚拟控制器
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P1-VC1 | 移植 MainWindow.xaml 虚拟控制器 XAML | virtualControllerLayout Grid + 方向键 + 数字键盘 + AVG 按钮 + 确认/返回 | ✅ C# 代码构建 |
+| 9F-P1-VC2 | 移植 Style（VirtualControlButtonStyle/VirtualRoundButtonStyle/ToolActionButtonStyle） | 3 个缺失的按钮样式 | ✅ C# 样式 |
+| 9F-P1-VC3 | 移植 virtual_controller_button + zoom_in/zoom_out 按钮 | 工具栏中的 3 个缺失按钮 | ✅ 🎮 按钮 + A+/A- |
+| 9F-P1-VC4 | 移植虚拟控制器事件处理器（×20+） | 方向键/数字键盘/AVG/确认返回/缩放 | ✅ |
+| 9F-P1-VC5 | 移植 `RefreshVirtualControllerState()` | 根据输入状态更新虚拟控制器按钮可见性 | ✅ |
+| 9F-P1-VC6 | 编译+ADB 验证 | 虚拟控制器功能正常 | ⏭️ ADB 验证 |
+
+#### 9F-P1-SM：智能按钮映射（INPUT→虚拟控件）
+
+> **核心差异化功能**：XEmuera 能扫描当前屏幕上的 INPUT 按钮，按关键词匹配映射为右下角的虚拟确认/返回/AVG 按钮，使触控操作更便捷
+> **当前项目**：仅有 QuickButton（静态显示 INPUT 选项），无智能关键词匹配和虚拟控件映射
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9F-P1-SM1 | 移植 `EmueraConsole.NormalizeVirtualButtonText()` | 标准化按钮文本（全角→半角等） | ✅ |
+| 9F-P1-SM2 | 移植 `EmueraConsole.CollectVisibleSelectionCandidates()` | 收集当前屏幕上所有可选按钮候选 | ✅ |
+| 9F-P1-SM3 | 移植 `EmueraConsole.FindVisibleButtonByKeywords()` | 按关键词模糊匹配可见按钮 | ✅ |
+| 9F-P1-SM4 | 移植 `EmueraConsole.FindVisibleButtonByLabels()` | 按标签精确匹配可见按钮 | ✅ |
+| 9F-P1-SM5 | 移植 `EmueraConsole.GetVisibleButtonKeywordLabel()` | 获取含关键词的按钮文本 | ✅ |
+| 9F-P1-SM6 | 移植 `EmueraConsole.HasRecentDisplayLineKeyword()` | 在最近 N 行中搜索关键词（检测数字键盘模式） | ✅ |
+| 9F-P1-SM7 | 移植 `EmueraConsole.TrySelectVisibleButtonByKeywords/Labels()` | 选中匹配的按钮 | ✅ |
+| 9F-P1-SM8 | 移植 `MainWindow.TryActivateKeywordButton()` | 虚拟按钮点击→激活匹配的 INPUT 按钮 | ✅ |
+| 9F-P1-SM9 | 集成到 RefreshVirtualControllerState | 确认/返回/AVG/数字键盘的智能映射 | ✅ |
+| 9F-P1-SM10 | 编译+ADB 验证 | INPUT 按钮能正确映射到虚拟控件 | ⏭️ ADB 验证 |
+
+---
+
+## Phase 9G：v0.30 ADB 验证反馈修复
+
+> **来源**：v0.30 ADB 真机测试用户反馈的 6 个问题
+> **知识库**：[maui-android-compat.md §18-§23](file:///d:/emuera/shared-trae/knowledge/erabasic/maui-android-compat.md)
+> **优先级**：P0（阻塞游戏）> P1（影响可玩性）> P2（功能缺失）
+
+### 切片 9G-P0：ProcessState.Return NRE + SQL 嵌套事务 ✅
+
+> **问题**：无法进入正常游戏，函数结尾发生错误
+> **根因**：`ProcessState.ReturnF` 在 `functionList.Count=0` 时崩溃 + SQL 嵌套事务
+> **修复**：ReturnF 添加 `functionList.Count == 0` 空检查 + 3个Import方法添加嵌套事务保护（try BeginTransaction / catch InvalidOperationException）
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9G-P0-1 | 确认 ProcessState.Return 修复已包含 | Return 已有空检查，ReturnF 缺少 → 已添加 | ✅ |
+| 9G-P0-2 | 修复 SQL 嵌套事务 | ImportMapXml/ImportDtXml/ImportXmlCustom 添加 ownsTransaction 保护 | ✅ |
+| 9G-P0-3 | 完整分析 emuera.log 错误链 | Return NRE 是主要阻塞原因 | ✅ |
+| 9G-P0-4 | 重建 APK + ADB 验证 | 能正常进入游戏 | ⏭️ |
+
+### 切片 9G-P1：BADAPPLE AWAIT 16 帧同步失效 ✅
+
+> **问题**：循环和动画以最快速度进行，音画不同步，无法关闭
+> **根因**：`AWAIT` 不带参数时 `Thread.Sleep` 不执行，ERB 循环以最快速度运行，UI 线程无时间处理重绘
+> **修复**：AWAIT 不带参数时添加 `Thread.Sleep(1)` 让出 UI 线程时间片
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9G-P1-1 | 修复 AWAIT 不带参数时无等待 | `else Thread.Sleep(1)` 让出时间片 | ✅ |
+| 9G-P1-2 | 编译验证 | Android 项目编译通过 | ✅ |
+| 9G-P1-3 | ADB 验证 BADAPPLE 播放 | 确认帧同步和退出 | ⏭️ |
+
+### 切片 9G-P2：运行时字体缩放渲染错误 ✅
+
+> **问题**：A+ 放大文字重叠，A- 缩小出现随机大空隙
+> **根因**：`DrawTextUtils.FontCache.ValidChar` 缓存了按旧 TextSize 计算的 Advance 值，缩放后未清除
+> **修复**：`ApplyRuntimeDisplaySettings` 中调用 `DrawTextUtils.Reset()` 清除旧缓存
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9G-P2-1 | 对比 XEmuera `ApplyRuntimeDisplayScale()` | 找出差异：缺少 DrawTextUtils.Reset() | ✅ |
+| 9G-P2-2 | 修复 FontCache 缓存失效 | ApplyRuntimeDisplaySettings 中添加 DrawTextUtils.Reset() | ✅ |
+| 9G-P2-3 | 编译验证 | Android 项目编译通过 | ✅ |
+| 9G-P2-4 | ADB 验证 A+/A- 缩放 | 文字不重叠不空隙 | ⏭️ |
+
+### 切片 9G-P3：HTML 交互控件在向上滚动时失效（✅ 已修复）
+
+> **问题**：向上滚动触发历史模式，按钮变灰不可选，屏幕外按钮无法选中
+> **根因**：Android 端 `MouseReleased` bug——`MoveMouse` 在 `isBackLog` 时跳过，导致 `SelectedString` 为 null
+> **用户确认**：桌面端在历史模式下按钮仍然可用，这是 Android 端自身问题
+> **修复**：滚回底部后重新 `MoveMouse` 更新 `selectingButton`，然后重新获取 `str`
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9G-P3-1 | 修复 MouseReleased isBacklog 逻辑 | 滚回底部后重新 MoveMouse + 获取 SelectedString | ✅ |
+| 9G-P3-2 | 编译验证 | Android 项目编译通过 | ✅ |
+| 9G-P3-3 | ADB 验证 | 屏幕外按钮可通过滚动后点击选中 | ⏭️ |
+
+### 切片 9G-P4：虚拟控制器默认可见 ✅
+
+> **问题**：用户反馈"没有看见控件按钮"，实际是默认隐藏
+> **修复**：`virtualControllerVisible` 默认 `true` + `IsVisible = true` + `SetConsole` 时调用 `RefreshVirtualControllerState`
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9G-P4-1 | 修改默认值 + IsVisible + SetConsole 刷新 | AndroidMainWindow.cs | ✅ |
+| 9G-P4-2 | ADB 验证 | 虚拟控制器默认可见 | ⏭️ |
+
+### 切片 9G-P5：移植收起工具栏按钮 + 滚动按钮 ✅
+
+> **问题**：缺少 XEmuera 的收起工具栏按钮和滑块移动窗口按钮
+> **修复**：添加 ▲收起/▼展开工具栏 + ↑↓半页滚动按钮
+
+| # | 操作 | 说明 | 状态 |
+|---|------|------|------|
+| 9G-P5-1 | 移植收起/展开工具栏按钮 | ▲隐藏 → ▼恢复 | ✅ |
+| 9G-P5-2 | 移植滚动按钮 | ↑↓半页滚动（DisplayUtils.PicBoxHeight / LineHeight / 2） | ✅ |
+| 9G-P5-3 | ADB 验证 | 两个按钮功能正常 | ⏭️ |

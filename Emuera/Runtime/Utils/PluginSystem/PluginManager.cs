@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameProc;
+using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -275,7 +275,7 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 				return;
 				//Directory.CreateDirectory("Plugins");
 			}
-			string[] plugins = Directory.GetFiles("Plugins", "*.dll");
+			string[] plugins = Config.Config.GetFilesCaseInsensitive("Plugins", "*.dll", SearchOption.TopDirectoryOnly);
 			bool pluginsAware = File.Exists("pluginsAware.txt");
 			ClearMethods();
 			foreach (var pluginPath in plugins)

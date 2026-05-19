@@ -1328,7 +1328,7 @@ internal sealed class ConstantData
 		SaveMaps.Clear();
 		StaticMaps.Clear();
 		StaticXmls.Clear();
-		foreach (var path in Directory.GetFiles(csvPath, "VarExt*.csv", SearchOption.AllDirectories))
+		foreach (var path in Config.Config.GetFilesCaseInsensitive(csvPath, "VarExt*.csv", SearchOption.AllDirectories))
 		{
 			using var eReader = new EraStreamReader(false);
 			if (!eReader.OpenOnCache(path))

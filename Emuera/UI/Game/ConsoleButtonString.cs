@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
@@ -228,6 +228,8 @@ internal sealed class ConsoleButtonString
 			Width = 0;
 			foreach (AConsoleDisplayNode css in strArray)
 			{
+				if (css == null)
+					continue;
 				if (css.Width <= 0)
 					css.SetWidth(sm, subpixel);
 				Width += css.Width;

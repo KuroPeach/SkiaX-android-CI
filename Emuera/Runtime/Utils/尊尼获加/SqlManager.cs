@@ -67,11 +67,20 @@ namespace MinorShift.Emuera.GameData.Function
 		// 1. 连接数据库 (支持 :memory: 内存数据库)
 		public static bool Connect(string dbName, string connectionString)
 		{
-			if (_connections.ContainsKey(dbName)) return true; // 已连接
+			if (_connections.ContainsKey(dbName)) return true;
 			
 			try
 			{
-				var conn = new SqliteConnection(connectionString);
+				var connStr = new SqliteConnectionStringBuilder(connectionString);
+				if (!string.IsNullOrEmpty(connStr.DataSource)
+					&& !connStr.DataSource.Equals(":memory:", StringComparison.OrdinalIgnoreCase)
+					&& !Path.IsPathRooted(connStr.DataSource))
+				{
+					string basePath = Program.ExeDir;
+					connStr.DataSource = Path.Combine(basePath, connStr.DataSource.Replace('/', Path.DirectorySeparatorChar));
+					System.Diagnostics.Debug.WriteLine($"[SqlManager] Resolved path: {connStr.DataSource} (ExeDir={basePath})");
+				}
+				var conn = new SqliteConnection(connStr.ConnectionString);
 				conn.Open();
 				_connections[dbName] = conn;
 				return true;
@@ -296,7 +305,18 @@ namespace MinorShift.Emuera.GameData.Function
                 XmlDocument doc = new XmlDocument();
                 doc.Load(fullPath);
 
-                using var trans = conn.BeginTransaction();
+                // 嵌套事务保护：如果连接已有活动事务则复用，否则新建
+                SqliteTransaction trans = null;
+                bool ownsTransaction = false;
+                try
+                {
+                    trans = conn.BeginTransaction();
+                    ownsTransaction = true;
+                }
+                catch (InvalidOperationException)
+                {
+                    // 已有活动事务，不创建新事务
+                }
                 
                 using (var cmd = conn.CreateCommand())
                 {
@@ -329,7 +349,11 @@ namespace MinorShift.Emuera.GameData.Function
                         }
                     }
                 }
-                trans.Commit();
+                if (ownsTransaction && trans != null)
+                {
+                    trans.Commit();
+                    trans.Dispose();
+                }
                 return 1;
             }
             catch (Exception ex)
@@ -356,7 +380,18 @@ namespace MinorShift.Emuera.GameData.Function
                 DataTable schemaDt = new DataTable(tableName);
                 schemaDt.ReadXmlSchema(fullSchema);
 
-                using var trans = conn.BeginTransaction();
+                // 嵌套事务保护
+                SqliteTransaction trans = null;
+                bool ownsTransaction = false;
+                try
+                {
+                    trans = conn.BeginTransaction();
+                    ownsTransaction = true;
+                }
+                catch (InvalidOperationException)
+                {
+                    // 已有活动事务，不创建新事务
+                }
 
                 List<string> columns = new List<string>();
                 foreach (DataColumn col in schemaDt.Columns)
@@ -410,7 +445,11 @@ namespace MinorShift.Emuera.GameData.Function
                         }
                     }
                 }
-                trans.Commit();
+                if (ownsTransaction && trans != null)
+                {
+                    trans.Commit();
+                    trans.Dispose();
+                }
                 return 1;
             }
             catch (Exception ex)
@@ -528,7 +567,18 @@ namespace MinorShift.Emuera.GameData.Function
                     .Select(s => s.Split('='))
                     .ToDictionary(a => a[0].Trim(), a => a[1].Trim());
 
-                using var trans = conn.BeginTransaction();
+                // 嵌套事务保护
+                SqliteTransaction trans = null;
+                bool ownsTransaction = false;
+                try
+                {
+                    trans = conn.BeginTransaction();
+                    ownsTransaction = true;
+                }
+                catch (InvalidOperationException)
+                {
+                    // 已有活动事务，不创建新事务
+                }
 
                 // 1. 动态建表 (全部设为 TEXT)
                 string colDef = string.Join(", ", mapping.Keys.Select(k => $"{k} TEXT"));
@@ -593,7 +643,11 @@ namespace MinorShift.Emuera.GameData.Function
                         }
                     }
                 }
-                trans.Commit();
+                if (ownsTransaction && trans != null)
+                {
+                    trans.Commit();
+                    trans.Dispose();
+                }
                 return 1;
             }
             catch (Exception ex)

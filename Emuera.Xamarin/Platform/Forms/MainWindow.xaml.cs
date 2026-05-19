@@ -204,6 +204,11 @@ namespace MinorShift.Emuera
 			{
 				Close();
 			}
+			else if (console != null && (console.IsInProcess || console.IsWaitingEnterKey))
+			{
+				WinInput.SetKeyPressed(27);
+				Task.Delay(100).ContinueWith(_ => WinInput.SetKeyReleased(27));
+			}
 			else if (!IsInitializing(true))
 			{
 				MessageBox.ShowOnMainThread(StringsText.QuitGameConfirm, null, result =>
@@ -291,6 +296,12 @@ namespace MinorShift.Emuera
 					if (Config.LongPressSkip)
 						LongPressTimer.Enabled = true;
 
+					if (console != null && console.IsInProcess)
+					{
+						WinInput.SetKeyPressed(1);
+						WinInput.SetKeyPressed(13);
+					}
+
 					PicBoxMinX = mainLayout.Width - mainPicBox.Width;
 					PicBoxMaxX = 0;
 
@@ -333,6 +344,19 @@ namespace MinorShift.Emuera
 
 					if (Config.LongPressSkip)
 						LongPressTimer.Enabled = false;
+
+					if (console != null && console.IsInProcess)
+					{
+						if (IsLongPressed)
+							WinInput.SetKeyPressed(2);
+						WinInput.SetKeyReleased(1);
+						WinInput.SetKeyReleased(2);
+
+						Task.Delay(300).ContinueWith(_ =>
+						{
+							WinInput.SetKeyReleased(13);
+						});
+					}
 
 					MouseReleased(e);
 					LeaveMouse();

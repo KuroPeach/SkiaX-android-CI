@@ -780,30 +780,51 @@ namespace MinorShift.Emuera.GameView
 			}
 
 			var buttons = HtmlManager.Html2ButtonList(str, stringMeasure, this);
-			int blankWidth = cellWidthPx;
-			if (alignRight && buttons.Length > 0)
+			if (buttons.Length == 0)
+				return;
+
+			// Calculate content width with explicit CalcWidth
+			int contentWidth = 0;
+			foreach (var btn in buttons)
 			{
-				int contentWidth = 0;
-				foreach (var btn in buttons)
-					if (btn != null) contentWidth += btn.Width > 0 ? btn.Width : 0;
-				blankWidth = cellWidthPx - contentWidth;
-				if (blankWidth > 0)
-					printBuffer.Append(new string(' ', 1), Style, true);
+				if (btn != null)
+				{
+					btn.CalcWidth(stringMeasure, 0);
+					contentWidth += btn.Width > 0 ? btn.Width : 0;
+				}
 			}
+
+			int padPx = cellWidthPx - contentWidth;
+
+			// RC (right-align): prepend pixel-precise space
+			if (alignRight && padPx > 0)
+			{
+				var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+				var spacePart = new ConsoleSpacePart(spaceRect);
+				spacePart.SetWidth(stringMeasure, 0);
+				var spaceBtn = new ConsoleButtonString(this, new AConsoleDisplayNode[] { spacePart });
+				spaceBtn.CalcWidth(stringMeasure, 0);
+				printBuffer.AppendButton(spaceBtn);
+			}
+
+			// Append content buttons
 			foreach (var btn in buttons)
 			{
 				if (btn != null)
 					printBuffer.AppendButton(btn);
 			}
-			if (!alignRight && blankWidth > 0)
+
+			// LC (left-align): append pixel-precise space
+			if (!alignRight && padPx > 0)
 			{
-				int contentWidth = 0;
-				foreach (var btn in buttons)
-					if (btn != null) contentWidth += btn.Width > 0 ? btn.Width : 0;
-				int remaining = cellWidthPx - contentWidth;
-				if (remaining > 0)
-					printBuffer.Append(new string(' ', 1), Style, true);
+				var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+				var spacePart = new ConsoleSpacePart(spaceRect);
+				spacePart.SetWidth(stringMeasure, 0);
+				var spaceBtn = new ConsoleButtonString(this, new AConsoleDisplayNode[] { spacePart });
+				spaceBtn.CalcWidth(stringMeasure, 0);
+				printBuffer.AppendButton(spaceBtn);
 			}
+
 			RefreshStrings(false);
 		}
 
@@ -880,7 +901,66 @@ namespace MinorShift.Emuera.GameView
 			RefreshStrings(false);
 		}
 
+		#region Runtime Scale Reflow
+
+		public void ReflowDisplayLinesForCurrentScale()
+		{
+			bool lockTaken = false;
+			displayLineListSpinLock.Enter(ref lockTaken);
+			int scrollFromBottom = 0;
+			try
+			{
+				scrollFromBottom = (int)(window.ScrollBar.Maximum - window.ScrollBar.Value);
+				if (displayLineList.Count == 0)
+					return;
+
+				List<ConsoleDisplayLine[]> groups = new List<ConsoleDisplayLine[]>();
+				List<ConsoleDisplayLine> currentGroup = new List<ConsoleDisplayLine>();
+				for (int i = 0; i < displayLineList.Count; i++)
+				{
+					ConsoleDisplayLine line = displayLineList[i];
+					if (line.IsLogicalLine && currentGroup.Count > 0)
+					{
+						groups.Add(currentGroup.ToArray());
+						currentGroup.Clear();
+					}
+					currentGroup.Add(line);
+				}
+				if (currentGroup.Count > 0)
+					groups.Add(currentGroup.ToArray());
+
+				displayLineList.Clear();
+				logicalLineCount = 0;
+				lineNo = 0;
+				lastDrawnLineNo = -1;
+				ConsoleEscapedParts.Clear();
+
+				foreach (ConsoleDisplayLine[] group in groups)
+				{
+					string html = HtmlManager.DisplayLine2Html(group, true);
+					ConsoleDisplayLine[] reflown = HtmlManager.Html2DisplayLine(html, stringMeasure, this);
+					addRangeDisplayLine(reflown);
+				}
+			}
+			finally
+			{
+				if (lockTaken)
+					displayLineListSpinLock.Exit();
+			}
+
+			window.Invoke(() =>
+			{
+				verticalScrollBarUpdateAsync();
+				int restoredValue = Math.Max((int)window.ScrollBar.Minimum, (int)window.ScrollBar.Maximum - scrollFromBottom);
+				window.ScrollBar.Value = restoredValue;
+			});
+			RefreshQuickButton();
+			RefreshStrings(true);
+		}
+
 		#endregion
-		
+
+		#endregion
+
 	}
 }

@@ -4,6 +4,7 @@ using MinorShift.Emuera.Runtime.Utils;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Text;
 using XEmuera;
@@ -59,6 +60,12 @@ namespace MinorShift.Emuera.Content
 			SrcRectangle = rect;
 			BaseImage = img;
 		}
+		public ASpriteSingle(string name, AbstractImage img, Rectangle rect, Size destSize)
+			: base(name, destSize)
+		{
+			SrcRectangle = rect;
+			BaseImage = img;
+		}
 		public AbstractImage BaseImage;
 
 		/// <summary>
@@ -70,7 +77,12 @@ namespace MinorShift.Emuera.Content
 			get
 			{
 				if (BaseImage != null && BaseImage.IsCreated)
+				{
+					// 延迟加载：确保 ConstImage 的 Bitmap 已从 SharedBitmapCache 获取
+					if (BaseImage.Bitmap == null && BaseImage is ConstImage ci)
+						ci.EnsureBitmapLoaded();
 					return BaseImage.Bitmap;
+				}
 				return null;
 			}
 		}
@@ -108,8 +120,10 @@ namespace MinorShift.Emuera.Content
 		{
 			if (!DestBasePosition.IsEmpty)
 			{
-				destRect.X = destRect.X + DestBasePosition.X * destRect.Width / SrcRectangle.Width;
-				destRect.Y = destRect.Y + DestBasePosition.Y * destRect.Height / SrcRectangle.Height;
+				destRect.X = destRect.X + DestBasePosition.X * destRect.Width / DestBaseSize.Width;
+				destRect.Y = destRect.Y + DestBasePosition.Y * destRect.Height / DestBaseSize.Height;
+				destRect.Width = destRect.Width * SrcRectangle.Width / DestBaseSize.Width;
+				destRect.Height = destRect.Height * SrcRectangle.Height / DestBaseSize.Height;
 			}
 			//g.DrawImage(Bitmap, destRect, SrcRectangle, GraphicsUnit.Pixel);
 
@@ -120,8 +134,10 @@ namespace MinorShift.Emuera.Content
 		{
 			if (!DestBasePosition.IsEmpty)
 			{
-				destRect.X = destRect.X + DestBasePosition.X * destRect.Width / SrcRectangle.Width;
-				destRect.Y = destRect.Y + DestBasePosition.Y * destRect.Height / SrcRectangle.Height;
+				destRect.X = destRect.X + DestBasePosition.X * destRect.Width / DestBaseSize.Width;
+				destRect.Y = destRect.Y + DestBasePosition.Y * destRect.Height / DestBaseSize.Height;
+				destRect.Width = destRect.Width * SrcRectangle.Width / DestBaseSize.Width;
+				destRect.Height = destRect.Height * SrcRectangle.Height / DestBaseSize.Height;
 			}
 			////g.DrawImage(Bitmap, destRect, SrcRectangle, GraphicsUnit.Pixel, attr);←このパターンがない
 			//g.DrawImage(Bitmap, destRect, SrcRectangle.X, SrcRectangle.Y, SrcRectangle.Width, SrcRectangle.Height, GraphicsUnit.Pixel, attr);
@@ -136,16 +152,19 @@ namespace MinorShift.Emuera.Content
 	/// </summary>
 	internal sealed class SpriteG : ASpriteSingle
 	{
+		public readonly int SourceGID;
+
 		public SpriteG(string name, GraphicsImage gra, Rectangle rect)
 			: base(name, gra, rect)
 		{
+			SourceGID = gra.ID;
 		}
-
-		public SpriteG(string name, GraphicsImage parent, Rectangle rect, Point pos, Size destSize)
-			: this(name, parent, rect)
+		public SpriteG(string name, GraphicsImage gra, Rectangle rect, Point pos, Size destSize)
+			: base(name, gra, rect, destSize)
 		{
+			DestBasePosition = pos;
+			SourceGID = gra.ID;
 		}
-
 	}
 
 	/// <summary>
@@ -155,6 +174,11 @@ namespace MinorShift.Emuera.Content
 	{
 		public SpriteF(string name, ConstImage image, Rectangle rect, Point pos)
 			: base(name, image, rect)
+		{
+			this.DestBasePosition = pos;
+		}
+		public SpriteF(string name, ConstImage image, Rectangle rect, Point pos, Size destSize)
+			: base(name, image, rect, destSize)
 		{
 			this.DestBasePosition = pos;
 		}
@@ -244,15 +268,15 @@ namespace MinorShift.Emuera.Content
 			//一度もフレーム取得したことがない場合は現在時間を記録して最初のフレームを返す。
 			if (StartTime < 0)
 			{
-				StartTime = MinorShift._Library.WinmmTimer.CurrentFrameTime;
+				StartTime = WinmmTimer.CurrentFrameTime;
 				lastFrame = 0;
 				return FrameList[0];
 			}
 			//時間経過なしに複数回呼ばれた場合はさっき返したフレームをもう一度返す。
-			if (MinorShift._Library.WinmmTimer.CurrentFrameTime == lastFrameTime && lastFrame >= 0)
+			if (WinmmTimer.CurrentFrameTime == lastFrameTime && lastFrame >= 0)
 				return FrameList[lastFrame];
 			//StartTimeからの経過時間をtotaltimeで剰余計算
-			Int64 time = (MinorShift._Library.WinmmTimer.CurrentFrameTime - StartTime) % totaltime;
+			Int64 time = (WinmmTimer.CurrentFrameTime - StartTime) % totaltime;
 			//winmmtimerは一周して0になることがあり得るのでその場合の対策。C#の剰余の結果の符号は左辺値の符号に等しい。
 			if (time < 0)
 				time += totaltime;
@@ -311,7 +335,11 @@ namespace MinorShift.Emuera.Content
 			Rectangle destRect = new Rectangle(offset, frame.SrcRectangle.Size);
 			//g.DrawImage(frame.BaseImage.Bitmap, destRect, frame.SrcRectangle, GraphicsUnit.Pixel);
 
-			DrawBitmapUtils.DrawBitmap(g, frame.BaseImage.Bitmap, frame.SrcRectangle, destRect);
+			var bmp = frame.BaseImage.Bitmap;
+			if (bmp == null && frame.BaseImage is ConstImage ci)
+				bmp = SharedBitmapCache.Get(ci.FilePath);
+			if (bmp == null) return;
+			DrawBitmapUtils.DrawBitmap(g, bmp, frame.SrcRectangle, destRect);
 			return;
 		}
 
@@ -326,7 +354,11 @@ namespace MinorShift.Emuera.Content
 			destRect.Height = frame.SrcRectangle.Height * destRect.Height / DestBaseSize.Height;
 			//g.DrawImage(frame.BaseImage.Bitmap, destRect, frame.SrcRectangle, GraphicsUnit.Pixel);
 
-			DrawBitmapUtils.DrawBitmap(g, frame.BaseImage.Bitmap, frame.SrcRectangle, destRect);
+			var bmp = frame.BaseImage.Bitmap;
+			if (bmp == null && frame.BaseImage is ConstImage ci)
+				bmp = SharedBitmapCache.Get(ci.FilePath);
+			if (bmp == null) return;
+			DrawBitmapUtils.DrawBitmap(g, bmp, frame.SrcRectangle, destRect);
 		}
 
 		public override void GraphicsDraw(SKCanvas g, Rectangle destRect, SKColorFilter attr)
@@ -341,8 +373,218 @@ namespace MinorShift.Emuera.Content
 			////g.DrawImage(frame.BaseImage.Bitmap, destRect, SrcRectangle, GraphicsUnit.Pixel, attr);←このパターンがない
 			//g.DrawImage(frame.BaseImage.Bitmap, destRect, frame.SrcRectangle.X, frame.SrcRectangle.Y, frame.SrcRectangle.Width, frame.SrcRectangle.Height, GraphicsUnit.Pixel, attr);
 
-			DrawBitmapUtils.DrawBitmap(g, frame.BaseImage.Bitmap, frame.SrcRectangle, destRect, attr);
+			var bmp = frame.BaseImage.Bitmap;
+			if (bmp == null && frame.BaseImage is ConstImage ci)
+				bmp = SharedBitmapCache.Get(ci.FilePath);
+			if (bmp == null) return;
+			DrawBitmapUtils.DrawBitmap(g, bmp, frame.SrcRectangle, destRect, attr);
 		}
 
+	}
+
+	/// <summary>
+	/// 原生动画 Sprite，基于 IFileBacked 接口支持 Evict/Reload
+	/// 使用 AnimatedImageHelper 解码多帧图片，AnimSpriteCache 管理 LRU 淘汰
+	/// </summary>
+	internal sealed class SpriteAnimated : ASprite, IFileBacked
+	{
+		private readonly string filepath;
+		private readonly int frameCount;
+		private readonly int totalDuration;
+		private readonly int[] frameTimestamps;
+
+		private SKBitmap[] frames;
+		private bool isEvicted;
+		private long startTime;
+		private readonly Rectangle srcRect;
+
+		public SpriteAnimated(string name, string filepath, Rectangle srcRect, Size destSize, int width, int height, int count, int[] delays)
+			: base(name, destSize)
+		{
+			this.filepath = filepath;
+			this.srcRect = srcRect.IsEmpty ? new Rectangle(0, 0, width, height) : srcRect;
+			this.frameCount = count;
+
+			this.frameTimestamps = new int[count];
+			int cumulative = 0;
+			for (int i = 0; i < count; i++)
+			{
+				cumulative += delays[i];
+				this.frameTimestamps[i] = cumulative;
+			}
+			this.totalDuration = cumulative;
+
+			this.frames = Array.Empty<SKBitmap>();
+			this.isEvicted = true;
+			this.startTime = Stopwatch.GetTimestamp();
+
+			if (frameCount > 1)
+			{
+				AnimSpriteCache.RegisterSprite(this);
+				AnimSpriteCache.Add(filepath, this);
+			}
+		}
+
+		private void EnsureLoaded()
+		{
+			if (frameCount <= 0) return;
+			if (!isEvicted && frames.Length > 0) return;
+
+			var decoded = AnimatedImageHelper.Decode(filepath);
+			if (decoded != null)
+			{
+				frames = new SKBitmap[decoded.Count];
+				for (int i = 0; i < decoded.Count; i++)
+					frames[i] = decoded[i].Bitmap;
+			}
+			isEvicted = false;
+		}
+
+		public string FilePath => filepath;
+		public bool IsEvicted => isEvicted;
+		public int FrameCount => frameCount;
+		public override bool IsCreated => frameCount > 0;
+
+		public SKBitmap GetFrame(int index)
+		{
+			EnsureLoaded();
+			if (frameCount > 1) AnimSpriteCache.Touch(filepath);
+			if (index < 0 || index >= frameCount || frames == null || frames.Length == 0) return null;
+			return frames[index];
+		}
+
+		public int GetCurrentFrameIndex()
+		{
+			if (totalDuration <= 0 || frameCount <= 0) return 0;
+			if (startTime == 0) startTime = Stopwatch.GetTimestamp();
+
+			long elapsed = (long)Stopwatch.GetElapsedTime(startTime).TotalMilliseconds % totalDuration;
+			for (int i = 0; i < frameTimestamps.Length; i++)
+			{
+				if (elapsed < frameTimestamps[i]) return i;
+			}
+			return frameCount - 1;
+		}
+
+		public void Evict()
+		{
+			if (frames == null) return;
+			foreach (var frame in frames) frame?.Dispose();
+			frames = Array.Empty<SKBitmap>();
+			isEvicted = true;
+		}
+
+		public void Reload()
+		{
+			if (!isEvicted) return;
+			startTime = Stopwatch.GetTimestamp();
+			EnsureLoaded();
+			if (frameCount > 1) AnimSpriteCache.Touch(filepath);
+		}
+
+		public override void Dispose()
+		{
+			Evict();
+			if (frameCount > 1) AnimSpriteCache.Evict(filepath);
+		}
+
+		public override void GraphicsDraw(SKCanvas g, Rectangle destRect)
+		{
+			if (isEvicted || frames.Length == 0) EnsureLoaded();
+			var frame = GetFrame(GetCurrentFrameIndex());
+			if (frame != null)
+			{
+				DrawBitmapUtils.DrawBitmap(g, frame, srcRect, destRect);
+			}
+		}
+
+		public override void GraphicsDraw(SKCanvas g, Point offset) { throw new NotSupportedException(); }
+		public override void GraphicsDraw(SKCanvas g, Rectangle destRect, SKColorFilter attr)
+		{
+			if (isEvicted || frames.Length == 0) EnsureLoaded();
+			var frame = GetFrame(GetCurrentFrameIndex());
+			if (frame != null)
+			{
+				DrawBitmapUtils.DrawBitmap(g, frame, srcRect, destRect, attr);
+			}
+		}
+		public override SKColor SpriteGetColor(int x, int y) { throw new NotSupportedException(); }
+	}
+
+	/// <summary>
+	/// 动画 Sprite 的 LRU 缓存管理器
+	/// 最多同时保持 MaxAnimations 个动画的帧数据在内存中
+	/// 超出时自动 Evict 最久未使用的动画
+	/// </summary>
+	internal sealed class AnimSpriteCache
+	{
+		private static readonly LinkedList<string> lruOrder = new();
+		private static readonly Dictionary<string, LinkedListNode<string>> lruNodes = new();
+		private static readonly Dictionary<string, WeakReference<IFileBacked>> spriteRefs = new();
+		private static readonly object lockObj = new();
+		private const int MaxAnimations = 6;
+
+		public static void Add(string filepath, IFileBacked sprite)
+		{
+			lock (lockObj)
+			{
+				if (lruNodes.TryGetValue(filepath, out var node))
+				{
+					lruOrder.Remove(node);
+					lruNodes[filepath] = lruOrder.AddLast(filepath);
+					spriteRefs[filepath] = new WeakReference<IFileBacked>(sprite);
+					return;
+				}
+				while (lruOrder.Count >= MaxAnimations)
+				{
+					var oldest = lruOrder.First;
+					if (oldest != null)
+					{
+						lruOrder.RemoveFirst();
+						var oldFilepath = oldest.Value;
+						lruNodes.Remove(oldFilepath);
+						if (spriteRefs.TryGetValue(oldFilepath, out var weakRef) && weakRef.TryGetTarget(out var oldSprite))
+							oldSprite.Evict();
+						spriteRefs.Remove(oldFilepath);
+					}
+				}
+				lruNodes[filepath] = lruOrder.AddLast(filepath);
+				spriteRefs[filepath] = new WeakReference<IFileBacked>(sprite);
+			}
+		}
+
+		public static void RegisterSprite(IFileBacked sprite)
+		{
+			if (sprite == null) return;
+			lock (lockObj)
+			{
+				var filepath = sprite.FilePath;
+				if (lruNodes.ContainsKey(filepath))
+					spriteRefs[filepath] = new WeakReference<IFileBacked>(sprite);
+			}
+		}
+
+		public static void Touch(string filepath)
+		{
+			lock (lockObj)
+			{
+				if (!lruNodes.TryGetValue(filepath, out var node)) return;
+				lruOrder.Remove(node);
+				lruNodes[filepath] = lruOrder.AddLast(filepath);
+			}
+		}
+
+		public static void Evict(string filepath)
+		{
+			lock (lockObj)
+			{
+				if (!lruNodes.TryGetValue(filepath, out var node)) return;
+				lruOrder.Remove(node);
+				lruNodes.Remove(filepath);
+				if (spriteRefs.TryGetValue(filepath, out var weakRef) && weakRef.TryGetTarget(out var sprite))
+					sprite.Evict();
+				spriteRefs.Remove(filepath);
+			}
+		}
 	}
 }

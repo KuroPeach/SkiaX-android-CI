@@ -81,6 +81,7 @@ namespace XEmuera.Droid
 
         protected override void OnSleep()
         {
+            host?.SaveLog();
         }
 
         protected override void OnResume()

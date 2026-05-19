@@ -74,7 +74,6 @@
   <!-- 内核 Runtime/ 排除项 -->
   <ItemGroup>
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
-    <Compile Remove="..\Emuera\Runtime\Utils\WinmmTimer.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\PluginSystem\**" />
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Shape.cs" />
     <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
@@ -169,6 +168,13 @@
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>StringsText.ja-JP.Designer.cs</LastGenOutput>
       <LogicalName>XEmuera.Resources.StringsText.ja-JP.resources</LogicalName>
+    </EmbeddedResource>
+
+    <EmbeddedResource Include="..\Emuera\Properties\lang\emuera-zhs.xml">
+      <LogicalName>MinorShift.Emuera.Properties.lang.emuera-zhs.xml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\Emuera\Properties\lang\emuera-eng.xml">
+      <LogicalName>MinorShift.Emuera.Properties.lang.emuera-eng.xml</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

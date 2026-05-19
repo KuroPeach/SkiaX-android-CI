@@ -384,7 +384,7 @@ internal sealed partial class Process(EmueraConsole view)
 			}
 			catch (Exception ec)
 			{
-				try { System.IO.File.AppendAllText(Program.ExeDir + "doscript_debug.log", $"[DoScript-catch] Exception: {ec.GetType().Name}: {ec.Message}\n"); } catch { }
+				try { System.IO.File.AppendAllText(Program.ExeDir + "doscript_debug.log", $"[DoScript-catch] Exception: {ec.GetType().Name}: {ec.Message}\n{ec.StackTrace}\n\n"); } catch { }
 				debugLogFirstWrite = true;
 				DebugLogEnabled = true;
 				LogicalLine currentLine = state.ErrorLine;
@@ -611,6 +611,15 @@ internal sealed partial class Process(EmueraConsole view)
 	private void handleExceptionInSystemProc(Exception exc, LogicalLine current, bool playSound)
 	{
 		console.ThrowError(playSound);
+		try
+		{
+			var logPath = MinorShift.Emuera.Program.ExeDir + "system_error.log";
+			System.IO.File.AppendAllText(logPath,
+				$"[{System.DateTime.Now:HH:mm:ss}] [SystemProc] {exc.GetType().Name}: {exc.Message}\n{exc.StackTrace}\n" +
+				(exc.InnerException != null ? $"Inner: {exc.InnerException.GetType().Name}: {exc.InnerException.Message}\n{exc.InnerException.StackTrace}\n" : "") +
+				"\n");
+		}
+		catch { }
 		if (exc is CodeEE)
 		{
 			console.PrintError(string.Format(trerror.FuncEndError.Text, AssemblyData.EmueraVersionText));

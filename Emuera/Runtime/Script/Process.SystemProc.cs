@@ -1107,7 +1107,8 @@ internal sealed partial class Process
 
 	void endNormal()
 	{
-		throw new CodeEE(trerror.UnexpectedScriptEnd.Text);
+		try { console?.OutputSystemLog(Program.ExeDir + "emuera.log"); } catch { }
+		state.Begin(BeginType.TITLE);
 	}
 
 	void endReloaderb()

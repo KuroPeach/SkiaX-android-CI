@@ -263,7 +263,7 @@ static class AppContents
 				SpriteDisposeAll(true);
 			}
 
-			var csvFiles = Directory.EnumerateFiles(Program.ContentDir, "*.csv", SearchOption.AllDirectories);
+			var csvFiles = Config.Config.GetFilesCaseInsensitive(Program.ContentDir, "*.csv", SearchOption.AllDirectories);
 			using var trans = metaDb.BeginTransaction();
 			using var insertCmd = metaDb.CreateCommand();
 			insertCmd.Transaction = trans;

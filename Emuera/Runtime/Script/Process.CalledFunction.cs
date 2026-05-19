@@ -150,6 +150,8 @@ internal sealed class CalledFunction
 		called.counter = -1;
 		called.group = 0;
 		called.ShiftNext();
+		if (called.CurrentLabel == null)
+			return null;
 		called.TopLabel = called.CurrentLabel;
 		called.returnAddress = retAddress;
 		called.IsEvent = true;

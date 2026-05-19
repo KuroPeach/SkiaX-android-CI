@@ -104,7 +104,7 @@ namespace MinorShift.Emuera
 			configArray.Add(new ConfigItem(ConfigCode.WarnNormalFunctionOverloading, ConfigsText.WarnNormalFunctionOverloading, "Duplicated functions warning", false));
 			configArray.Add(new ConfigItem(ConfigCode.CompatiErrorLine, ConfigsText.CompatiErrorLine, "Execute error lines", true));
 			configArray.Add(new ConfigItem(ConfigCode.CompatiCALLNAME, ConfigsText.CompatiCALLNAME, "Use NAME if CALLNAME is empty", false));
-			configArray.Add(new ConfigItem(ConfigCode.UseSaveFolder, ConfigsText.UseSaveFolder, "Use sav folder", false));
+			configArray.Add(new ConfigItem(ConfigCode.UseSaveFolder, ConfigsText.UseSaveFolder, "Use sav folder", true));
 			configArray.Add(new ConfigItem(ConfigCode.CompatiRAND, ConfigsText.CompatiRAND, "Imitate behavior for RAND", false));
 			configArray.Add(new ConfigItem(ConfigCode.CompatiDRAWLINE, ConfigsText.CompatiDRAWLINE, "Always start DRAWLINE in a new line", false));
 			configArray.Add(new ConfigItem(ConfigCode.CompatiFunctionNoignoreCase, ConfigsText.CompatiFunctionNoignoreCase, "Do not ignore case for functions and attributes", false));
@@ -142,7 +142,7 @@ namespace MinorShift.Emuera
 			#endregion
 			#region EM_私家版_Emuera多言語化改造
 			configArray.Add(new ConfigItem(ConfigCode.EnglishConfigOutput, ConfigsText.EnglishConfigOutput, "Output English items in the config file", false));
-			configArray.Add(new ConfigItem(ConfigCode.EmueraLang, "Emueraの表示言語", "Emuera interface language", string.Empty));
+			configArray.Add(new ConfigItem(ConfigCode.EmueraLang, "Emueraの表示言語", "Emuera interface language", "简体中文"));
 			#endregion
 			#region EM_私家版_Icon指定機能
 			configArray.Add(new ConfigItem(ConfigCode.EmueraIcon, "Emueraのアイコンのパス", "Path to a custom window icon", string.Empty));
@@ -182,7 +182,7 @@ namespace MinorShift.Emuera
 			configArray.Add(new ConfigItem(ConfigCode.QuickButtonSpacing, ConfigsText.QuickButtonSpacing, "", 3));
 
 			configArray.Add(new ConfigItem(ConfigCode.AdaptiveFont, ConfigsText.AdaptiveFont, "", true));
-			configArray.Add(new ConfigItem(ConfigCode.AdaptiveFontSize, ConfigsText.AdaptiveFontSize, "", 32));
+			configArray.Add(new ConfigItem(ConfigCode.AdaptiveFontSize, ConfigsText.AdaptiveFontSize, "", 24));
 			configArray.Add(new ConfigItem(ConfigCode.FontScale, ConfigsText.FontScale, "", 1f));
 			configArray.Add(new ConfigItem(ConfigCode.TextAntialias, ConfigsText.TextAntialias, "", true));
 			configArray.Add(new ConfigItem(ConfigCode.ShapeAntialias, ConfigsText.ShapeAntialias, "", true));

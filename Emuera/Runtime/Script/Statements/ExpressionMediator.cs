@@ -1,4 +1,6 @@
+#if WINDOWS
 using Microsoft.VisualBasic;
+#endif
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.GameView;
@@ -67,6 +69,7 @@ internal sealed class ExpressionMediator
 	{
 		if (!(forceHiragana | forceKatakana | halftoFull))
 			return str;
+#if WINDOWS
 		if (forceKatakana)
 			return Strings.StrConv(str, VbStrConv.Katakana, 0x0411);
 		else if (forceHiragana)
@@ -76,7 +79,63 @@ internal sealed class ExpressionMediator
 			else
 				return Strings.StrConv(str, VbStrConv.Hiragana, 0x0411);
 		}
+#else
+		if (forceKatakana)
+			return ConvertKatakana(str);
+		else if (forceHiragana)
+		{
+			if (halftoFull)
+				return ToFullWidth(ConvertHiragana(str));
+			else
+				return ConvertHiragana(str);
+		}
+#endif
 		return str;
+	}
+
+	static string ConvertHiragana(string str)
+	{
+		var sb = new StringBuilder(str.Length);
+		foreach (char c in str)
+		{
+			if (c >= 'ァ' && c <= 'ン')
+				sb.Append((char)(c - 0x0060));
+			else
+				sb.Append(c);
+		}
+		return sb.ToString();
+	}
+
+	static string ConvertKatakana(string str)
+	{
+		var sb = new StringBuilder(str.Length);
+		foreach (char c in str)
+		{
+			if (c >= 'ぁ' && c <= 'ん')
+				sb.Append((char)(c + 0x0060));
+			else
+				sb.Append(c);
+		}
+		return sb.ToString();
+	}
+
+	static string ToFullWidth(string str)
+	{
+		var sb = new StringBuilder(str.Length);
+		foreach (char c in str)
+		{
+			if (c >= '0' && c <= '9')
+				sb.Append((char)(c + 0xFEE0));
+			else if (c >= 'A' && c <= 'Z')
+				sb.Append((char)(c + 0xFEE0));
+			else if (c >= 'a' && c <= 'z')
+				sb.Append((char)(c - 0x20 + 0xFEE0));
+			else if (c == ' ')
+				sb.Append('\u3000');
+			else
+				sb.Append(c);
+		}
+		return sb.ToString();
 	}
 
 	public static string CheckEscape(string str)
