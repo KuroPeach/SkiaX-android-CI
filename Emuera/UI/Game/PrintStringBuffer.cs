@@ -303,7 +303,8 @@ internal sealed class PrintStringBuffer
 	/// <returns></returns>
 	public ConsoleDisplayLine[] PrintHtml(string str, StringMeasure stringMeasure)
 	{
-		throw new NotImplementedException();
+		// 废弃存根：HTMLPRINT 通过 EmueraConsole.PrintHtml → HtmlManager 工作，不经过此方法
+		return Array.Empty<ConsoleDisplayLine>();
 	}
 
 	#region Flush用privateメソッド

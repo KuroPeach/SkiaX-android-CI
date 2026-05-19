@@ -1140,6 +1140,11 @@ namespace MinorShift.Emuera.GameView
 				PrintError("エディタを開くことができませんでした");
 				forceUpdateGeneration();
 			}
+			catch (System.Exception)
+			{
+				PrintError("エディタを開くことができませんでした");
+				forceUpdateGeneration();
+			}
 			return;
 		}
 

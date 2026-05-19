@@ -41,9 +41,8 @@ namespace MinorShift.Emuera.Content
 		/// Graphicsの基礎となるBitmapを作成する。エラーチェックは呼び出し元でのみ行う
 		/// </summary>
 		public void GCreate(int x, int y, bool useGDI)
-		{
-			if (useGDI)
-				throw new NotImplementedException();
+	{
+		// useGDI 在 Android 上不支持，静默忽略并使用 Skia 路径
 			this.GDispose();
 			//Bitmap = new Bitmap(x, y, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 			Bitmap = new SKBitmap(x, y);
@@ -53,9 +52,8 @@ namespace MinorShift.Emuera.Content
 		}
 
 		internal void GCreateFromF(SKBitmap bmp, bool useGDI)
-		{
-			if (useGDI)
-				throw new NotImplementedException();
+	{
+		// useGDI 在 Android 上不支持，静默忽略并使用 Skia 路径
 			this.GDispose();
 			//Bitmap = new Bitmap(bmp.Width, bmp.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 			Bitmap = new SKBitmap(bmp.Width, bmp.Height);

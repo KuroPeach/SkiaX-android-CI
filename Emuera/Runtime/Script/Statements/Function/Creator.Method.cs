@@ -9370,10 +9370,14 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			using (System.Diagnostics.Process memory = System.Diagnostics.Process.GetCurrentProcess())
+			try
 			{
-				return memory.WorkingSet64;
+				using (System.Diagnostics.Process memory = System.Diagnostics.Process.GetCurrentProcess())
+				{
+					return memory.WorkingSet64;
+				}
 			}
+			catch { return 0L; }
 		}
 	}
 	#endregion
@@ -9388,15 +9392,19 @@ internal static partial class FunctionMethodCreator
 		}
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			using (System.Diagnostics.Process destmemory = System.Diagnostics.Process.GetCurrentProcess())
+			try
 			{
-				long destmemorysize = destmemory.WorkingSet64;
-				GC.Collect();
-				using (System.Diagnostics.Process memory = System.Diagnostics.Process.GetCurrentProcess())
+				using (System.Diagnostics.Process destmemory = System.Diagnostics.Process.GetCurrentProcess())
 				{
-					return destmemorysize - memory.WorkingSet64;
+					long destmemorysize = destmemory.WorkingSet64;
+					GC.Collect();
+					using (System.Diagnostics.Process memory = System.Diagnostics.Process.GetCurrentProcess())
+					{
+						return destmemorysize - memory.WorkingSet64;
+					}
 				}
 			}
+			catch { return 0L; }
 		}
 	}
 	#endregion

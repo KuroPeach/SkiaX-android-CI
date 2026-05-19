@@ -3002,11 +3002,15 @@ internal sealed partial class FunctionIdentifier
 					if (result)
 						{
 							exm.VEvaluator.RESULT = 2;
-							System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+							try
 							{
-								UseShellExecute = true,
-								FileName = link,
-							});
+								System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+								{
+									UseShellExecute = true,
+									FileName = link,
+								});
+							}
+							catch { }
 							//System.Diagnostics.Process.Start(link);
 							st.Close();
 							wc.Dispose();
