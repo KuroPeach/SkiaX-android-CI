@@ -1,5 +1,41 @@
 # Emuera.Xamarin 变更记录
 
+## [0.34.0] - 2026-05-20
+
+### Phase 9L/9M：运行时崩溃保护 + 动态缩放完善 + 字体加载修复
+
+#### Bug 修复
+
+| 修复 | 文件 | 说明 |
+|------|------|------|
+| PrintHtml 存根 | PrintStringBuffer.cs × 2 | 废弃存根返回空数组替代 NotImplementedException |
+| EmueraConsole 异常 | EmueraConsole.cs | catch(Win32Exception) 追加 catch(Exception) 覆盖 Android |
+| Process.Start 崩溃 | Instraction.Child.cs | UseShellExecute try-catch 保护 Android |
+| GETMEMORY/CLEARMEMORY | Creator.Method.cs | WorkingSet64 try-catch 保护返回 0 |
+| GraphicsImage useGDI | GraphicsImage.cs | 静默忽略替代 NotImplementedException |
+| 方向变化 reflow | AndroidMainWindow.cs | OnPaintSurface 检测尺寸变化>10px 触发 ApplyRuntimeDisplayScale |
+| 触摸坐标转换 | AndroidMainWindow.cs | ToLogicalTouchPoint 物理像素→逻辑坐标（除以 ScreenDensity） |
+| FontModel 字体扫描 | FontModel.cs | LoadFontsFolder 从只扫 fonts/ 改为 font/ + fonts/，支持 .ttf/.otf/.ttc |
+| FontModel 别名注册 | FontModel.cs | AddFontModel 自动注册文件名→族名映射，RegisterFontAlias 新增 |
+
+#### 功能完善
+
+| 功能 | 说明 |
+|------|------|
+| 7C-P2 动态缩放 | 完整实现：FontScale + 方向变化 reflow + 触摸坐标转换 + A+/A- 按钮 |
+| 7E 本地化 UI | AndroidLanguagePage + 菜单入口（日/中/英三语切换） |
+| 7F 日志查看器 | AndroidLogPage + 菜单入口（读取 emuera.log + 刷新 + 复制） |
+
+#### 跨平台编译保护（#if WINDOWS）
+
+| 文件 | 保护内容 |
+|------|---------|
+| WinmmTimer.cs | DllImport(winmm.dll) |
+| GraphicsImage.cs | GDrawStringGDIFallback |
+| ImgUtils.cs | LoadImage() + 新增 LoadImageSK() |
+| EmueraConsole.cs | ToolTip_Draw ToBitmap() |
+| ConsoleStyledString.cs | DrawTo/DrawToBitmap GDI 路径 + CreateSkBitmapFromGdiBitmap |
+
 ## [0.33.0] - 2026-05-20
 
 ### Phase 9K：跨平台编译保护 + GSAVE/ShowQuestion 修复

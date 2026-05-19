@@ -135,20 +135,25 @@ Emuera.Xamarin.sln
 → ✅ 9K-P2：ShowQuestion Android AlertDialog（ManualResetEvent 同步）
 → ✅ 9K-P3：跨平台编译保护（WinmmTimer/GraphicsImage/ImgUtils/EmueraConsole #if WINDOWS）
 → ✅ 9K-P4：APK 构建验证（170.7MB，0 错误）
+→ ✅ 9K-P6：ConsoleStyledString GDI 路径 #if WINDOWS 保护
+→ ✅ 9L：运行时崩溃保护（PrintHtml/catch/Process.Start/WorkingSet64/useGDI）
+→ ✅ 9M-P1：7C-P2 动态缩放完善（方向变化reflow + 触摸坐标转换）
+→ ✅ 9M-P2：FontModel 字体扫描修复（font/+fonts/ + .ttc + 别名注册）
 ─── 遗留问题 ───
 → 🟡 AndroidSound 变速（setSpeed/getSpeed/SetPreservePitch 为 stub，需 ExoPlayer）
-→ ✅ PrintHtml NotImplementedException → 废弃存根，HTMLPRINT 走 EmueraConsole.PrintHtml
-→ ✅ ConsoleStyledString GDI 路径 → #if WINDOWS 保护
-→ ✅ Process.Start UseShellExecute → try-catch 保护
-→ ✅ WorkingSet64 → try-catch 保护
-→ ✅ GraphicsImage useGDI → 静默忽略
 ─── 远期 ───
 → ✅ 7C-P2 动态缩放（FontScale + 方向变化reflow + 触摸坐标转换 + A+/A- 按钮）
-→ ~~7D-P1 外部字体加载增强~~ ✅ v0.11 已完成（font/fonts 扫描 + FontFactory.fontAliases + RegisterKnownAliases）
-→ ~~7G 游戏列表~~ ✅ 8D-4 已完成（AndroidGameListPage + AndroidMainMenuPage + FlyoutPage）
-→ ⏭️ 7E 本地化（90% 完成：LanguageModel/LanguagePage/Lang.cs 已移植；✅ AndroidLanguagePage + 菜单入口已完成）
-→ ⏭️ 7F 日志查看器（80% 完成：TxtFilePage/SelectableLabel 已移植；✅ AndroidLogPage + 菜单入口已完成）
+→ ✅ 7D-P1 外部字体加载增强（font/fonts 扫描 + FontFactory.fontAliases + RegisterKnownAliases + FontModel font/ 扫描）
+→ ✅ 7E 本地化（AndroidLanguagePage + 菜单入口）
+→ ✅ 7F 日志查看器（AndroidLogPage + 菜单入口）
 → ⏭️ 真机测试
+─── Phase 10 规划：真机验证 + 生产就绪 ───
+→ 10A-P1：ADB 真机安装测试（验证 LazyLoading/LRU/字体/缩放/对话框）
+→ 10A-P2：动图渲染验证（GIF/WebP 在 Android 上是否正确播放）
+→ 10A-P3：内存占用对比测试
+→ 10B-P1：AndroidSound 变速实现（ExoPlayer 替代 MediaPlayer）
+→ 10B-P2：APK 体积优化（AOT/Linker/资源压缩）
+→ 10B-P3：Release 配置构建 + 签名
 ```
 
 #### 🔴 P0：APK 可运行（当前焦点）
