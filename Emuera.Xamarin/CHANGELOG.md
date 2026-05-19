@@ -1,5 +1,25 @@
 # Emuera.Xamarin 变更记录
 
+## [0.33.0] - 2026-05-20
+
+### Phase 9K：跨平台编译保护 + GSAVE/ShowQuestion 修复
+
+#### Bug 修复
+
+| 修复 | 文件 | 说明 |
+|------|------|------|
+| GSAVE Android 实现 | [Creator.Method.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera/Runtime/Script/Statements/Function/Creator.Method.cs) | `#else` 分支用 `SKBitmap.Encode(Png)` 替代 `return 0` |
+| ShowQuestion 对话框 | [AndroidHost.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera.Xamarin.Android/AndroidHost.cs) | ManualResetEvent 同步等待 + AlertDialog Yes/No |
+| WinmmTimer 编译保护 | [WinmmTimer.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera/Runtime/Utils/WinmmTimer.cs) | DllImport(winmm.dll) 用 `#if WINDOWS` 保护 |
+| GraphicsImage GDI 保护 | [GraphicsImage.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera/UI/Game/image/GraphicsImage.cs) | GDrawStringGDIFallback 用 `#if WINDOWS` 保护 |
+| ImgUtils 编译保护 | [ImgUtils.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera/UI/Game/image/ImgUtils.cs) | LoadImage() 用 `#if WINDOWS` 保护，添加 LoadImageSK() |
+| EmueraConsole 编译保护 | [EmueraConsole.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera/UI/Game/EmueraConsole.cs) | ToolTip_Draw ToBitmap() 用 `#if WINDOWS` 保护 |
+
+#### 验证
+
+- APK 构建成功（170.7MB，0 错误）
+- ADB 不可用，真机测试待后续执行
+
 ## [0.32.0] - 2026-05-20
 
 ### Phase 9J：Android 兼容性修复 + UI 功能补全

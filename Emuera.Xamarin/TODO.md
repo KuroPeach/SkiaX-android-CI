@@ -125,11 +125,20 @@ Emuera.Xamarin.sln
 → ✅ 9I-P7：SkiaSharp 2.88.x 兼容性修复（FrameRect 缺失退化处理）
 → ✅ 9I-P8：编译验证（0 错误 0 警告）
 ─── 下一步 ───
-→ 🔴 9J-P1：APK 构建验证 + 真机测试 LazyLoading/LRU 系统
+→ 🟡 9J-P1：APK 构建验证 ✅ 构建成功（170.7MB），真机测试待 ADB
 → 🔴 9J-P2：动图渲染验证（GIF/WebP 在 Android 上是否正确播放）
 → 🔴 9J-P3：内存占用对比测试（移植前后 SharedBitmapCache 效果）
-→ 🔴 9E-NEXT：修复 Android 特有错误（GETTEXTBOX user32.dll / .webp 图片缺失）
-→ 🟡 9E-COMPATI：CompatiErrorLine 仅在调试模式启用
+→ ✅ 9E-NEXT：修复 GETTEXTBOX — ChangeTextBox 同步 TextBox.Text
+→ ✅ 9E-NEXT：修复 .webp 图片缺失 — PlatformInterop 图片解码回退 + Android BitmapFactory
+→ ✅ 9E-COMPATI：CompatiErrorLine 仅在调试模式启用
+→ ✅ 9K-P1：GSAVE 指令 Android 实现（SKBitmap.Encode PNG）
+→ ✅ 9K-P2：ShowQuestion Android AlertDialog（ManualResetEvent 同步）
+→ ✅ 9K-P3：跨平台编译保护（WinmmTimer/GraphicsImage/ImgUtils/EmueraConsole #if WINDOWS）
+→ ✅ 9K-P4：APK 构建验证（170.7MB，0 错误）
+─── 遗留问题 ───
+→ 🟡 PrintHtml NotImplementedException（HTML 标记打印未实现，需 SkiaSharp 渲染管线）
+→ 🟡 AndroidSound 变速（setSpeed/getSpeed/SetPreservePitch 为 stub，需 ExoPlayer）
+→ 🟡 ConsoleStyledString GDI 路径未保护（DrawTo/DrawToBitmap 中 System.Drawing 调用）
 ─── 远期 ───
 → ⏭️ 7C-P2 动态缩放（高难度，依赖 9F-P1-C；唯一真正需要大量移植的远期任务）
 → ~~7D-P1 外部字体加载增强~~ ✅ v0.11 已完成（font/fonts 扫描 + FontFactory.fontAliases + RegisterKnownAliases）

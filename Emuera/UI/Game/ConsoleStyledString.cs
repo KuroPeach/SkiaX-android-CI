@@ -352,6 +352,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		#endregion
 	}
 
+#if WINDOWS
 	private static SKBitmap CreateSkBitmapFromGdiBitmap(System.Drawing.Bitmap gdiBitmap)
 	{
 		var width = gdiBitmap.Width;
@@ -392,6 +393,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 
 		return skBitmap;
 	}
+#endif
 
 	public override void DrawTo(SKCanvas graph, SKPoint origin, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 	{
@@ -442,6 +444,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 	Point = point;
 
 	#region EM_私家版_GDI渲染扩展
+#if WINDOWS
 	bool useGdiRender = (RenderMode == TextDrawingMode.TEXTRENDERER || RenderMode == null) && IsRasterFont && GdiFont != null;
 	if (useGdiRender)
 	{
@@ -492,6 +495,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		}
 		return;
 	}
+#endif
 	#endregion
 
 	if (backcolor.HasValue)
@@ -554,6 +558,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 			color = Config.LogColor;
 
 		#region EM_私家版_GDI渲染扩展
+#if WINDOWS
 		bool useGdiRenderBitmap = (RenderMode == TextDrawingMode.TEXTRENDERER || RenderMode == null) && IsRasterFont && GdiFont != null;
 		if (useGdiRenderBitmap)
 		{
@@ -594,6 +599,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 			}
 			return;
 		}
+#endif
 		#endregion
 
 		#region EM_私家版_描画拡張
