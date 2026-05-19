@@ -1,4 +1,4 @@
-﻿using SkiaSharp;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -138,28 +138,46 @@ namespace XEmuera.Models
 
 		private static void LoadFontsFolder()
 		{
-			string path = GameFolderModel.Instance.Path + Path.DirectorySeparatorChar + "fonts";
-			if (!Directory.Exists(path))
+			var basePath = GameFolderModel.Instance.Path;
+			var fontDirs = new List<string>();
+
+			// 扫描 font/ 和 fonts/ 目录（与 Program.LoadFontFiles 保持一致）
+			var dir1 = basePath + Path.DirectorySeparatorChar + "font" + Path.DirectorySeparatorChar;
+			if (Directory.Exists(dir1))
+				fontDirs.Add(dir1);
+			var dir2 = basePath + Path.DirectorySeparatorChar + "fonts" + Path.DirectorySeparatorChar;
+			if (Directory.Exists(dir2))
+				fontDirs.Add(dir2);
+
+			if (fontDirs.Count == 0)
 				return;
 
-			var list = FileUtils.GetFiles(path, "*.ttf", SearchOption.AllDirectories);
-			if (list.Length == 0)
-				return;
-
-			foreach (var fontFile in list)
+			foreach (var fontDir in fontDirs)
 			{
-				string fileName = Path.GetFileNameWithoutExtension(fontFile);
-				if (AllModels.ContainsKey(fileName))
-					continue;
+				foreach (string ext in new[] { "*.ttf", "*.otf", "*.ttc" })
+				{
+					foreach (var fontFile in FileUtils.GetFiles(fontDir, ext, SearchOption.AllDirectories))
+					{
+						string fileName = Path.GetFileNameWithoutExtension(fontFile);
+						if (AllModels.ContainsKey(fileName))
+							continue;
 
-				var typeface = SKTypeface.FromFile(fontFile);
-				if (typeface == null)
-					continue;
+						var typeface = SKTypeface.FromFile(fontFile);
+						if (typeface == null)
+							continue;
 
-				if (AllModels.ContainsKey(typeface.FamilyName))
-					typeface.Dispose();
-				else
-					AddFontModel(typeface, fileName);
+						if (AllModels.ContainsKey(typeface.FamilyName))
+						{
+							// 同族字体已存在，注册别名后释放
+							RegisterFontAlias(fileName, typeface.FamilyName);
+							typeface.Dispose();
+						}
+						else
+						{
+							AddFontModel(typeface, fileName);
+						}
+					}
+				}
 			}
 		}
 
@@ -195,6 +213,24 @@ namespace XEmuera.Models
 
 			FontNameMapping.GetByValue(fontModel.Name, out var otherName, fileName);
 			fontModel.OtherName = otherName;
+
+			// 注册文件名作为别名（如 "msgothic" → "MS Gothic"）
+			if (!string.Equals(fileName, fontModel.Name, StringComparison.OrdinalIgnoreCase))
+			{
+				FontNameMapping.Add(fileName, fontModel.Name);
+			}
+		}
+
+		/// <summary>
+		/// 注册字体别名（文件名→族名），用于同族字体重复加载时
+		/// </summary>
+		private static void RegisterFontAlias(string alias, string familyName)
+		{
+			if (!string.Equals(alias, familyName, StringComparison.OrdinalIgnoreCase))
+			{
+				if (!FontNameMapping.GetByKey(alias, out _))
+					FontNameMapping.Add(alias, familyName);
+			}
 		}
 
 		public static bool HasFont(string fontName)
