@@ -143,7 +143,7 @@ Emuera.Xamarin.sln
 → ✅ WorkingSet64 → try-catch 保护
 → ✅ GraphicsImage useGDI → 静默忽略
 ─── 远期 ───
-→ ⏭️ 7C-P2 动态缩放（高难度，依赖 9F-P1-C；唯一真正需要大量移植的远期任务）
+→ ✅ 7C-P2 动态缩放（FontScale + 方向变化reflow + 触摸坐标转换 + A+/A- 按钮）
 → ~~7D-P1 外部字体加载增强~~ ✅ v0.11 已完成（font/fonts 扫描 + FontFactory.fontAliases + RegisterKnownAliases）
 → ~~7G 游戏列表~~ ✅ 8D-4 已完成（AndroidGameListPage + AndroidMainMenuPage + FlyoutPage）
 → ⏭️ 7E 本地化（90% 完成：LanguageModel/LanguagePage/Lang.cs 已移植；✅ AndroidLanguagePage + 菜单入口已完成）
