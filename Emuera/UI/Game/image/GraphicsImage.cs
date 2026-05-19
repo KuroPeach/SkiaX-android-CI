@@ -145,8 +145,13 @@ internal sealed class GraphicsImage : AbstractImage
 
 		if (Config.TextDrawingMode == TextDrawingMode.GRAPHICS || Config.TextDrawingMode == TextDrawingMode.TEXTRENDERER)
 		{
+#if WINDOWS
 			GDrawStringGDIFallback(text, x, y);
 			return;
+#else
+			GDrawStringSkia(text, x, y);
+			return;
+#endif
 		}
 
 		try
@@ -155,6 +160,7 @@ internal sealed class GraphicsImage : AbstractImage
 		}
 		catch
 		{
+#if WINDOWS
 			try
 			{
 				GDrawStringGDIFallback(text, x, y);
@@ -162,6 +168,7 @@ internal sealed class GraphicsImage : AbstractImage
 			catch
 			{
 			}
+#endif
 		}
 	}
 

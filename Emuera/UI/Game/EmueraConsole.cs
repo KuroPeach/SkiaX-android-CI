@@ -1981,15 +1981,17 @@ internal sealed partial class EmueraConsole : IDisposable
 			if (g.IsCreated)
 			{
 				SKBitmap img = g.SKBitmap;
+#if WINDOWS
 				try
 				{
-					e.Graphics.DrawImage(img.ToBitmap(), 0, 0);
+					e.Graphics.DrawImage(SkiaSharp.Views.Desktop.Extensions.ToBitmap(img), 0, 0);
 					return;
 				}
 				catch (Exception)
 				{
 					// Fall through to default tooltip handling if conversion fails
 				}
+#endif
 			}
 
 		}
