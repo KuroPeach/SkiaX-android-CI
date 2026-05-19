@@ -1,5 +1,43 @@
 # Emuera.Xamarin 变更记录
 
+## [0.32.0] - 2026-05-20
+
+### Phase 9J：Android 兼容性修复 + UI 功能补全
+
+#### Bug 修复
+
+| 修复 | 文件 | 说明 |
+|------|------|------|
+| GETTEXTBOX 同步 | [AndroidMainWindow.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera.Xamarin.Android/AndroidMainWindow.cs) | ChangeTextBox 同步更新 TextBox.Text，GETTEXTBOX() 在 SETTEXTBOX 后立即可读 |
+| WebP 图片回退 | [PlatformInterop.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/Platform/Stubs/PlatformInterop.cs) + [AndroidHost.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera.Xamarin.Android/AndroidHost.cs) | SkiaSharp 解码失败时回退到 Android BitmapFactory（原生支持 WebP） |
+| CompatiErrorLine | [Config.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/Platform/Config/Config.cs) × 2 | 从硬编码 true 改为 `Program.DebugMode \|\| config值`，清理调试日志 |
+
+#### 新增组件
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| AndroidLanguagePage | [AndroidLanguagePage.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera.Xamarin.Android/AndroidLanguagePage.cs) | 语言选择页面（日本語/简体中文/English），修改后保存到 emuera.config |
+| AndroidLogPage | [AndroidLogPage.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera.Xamarin.Android/AndroidLogPage.cs) | 解释器日志查看器（读取 emuera.log + 刷新 + 复制到剪贴板） |
+| 图片解码回退委托 | [PlatformInterop.cs](file:///d:/emuera/emuera_lazyloading_selfmodified_version/emuera.xamarin/Platform/Stubs/PlatformInterop.cs) | DecodeBitmapFallback/GetBitmapInfoFallback/DecodeAnimatedFallback/GetAnimInfoFallback |
+
+#### 修改组件
+
+| 组件 | 修改内容 |
+|------|---------|
+| AndroidMainMenuPage | 添加 Language 和 View Log 菜单项 + 事件 |
+| AndroidApp | 订阅 LanguageRequested/ViewLogRequested 事件，导航到新页面 |
+| SharedBitmapCache | SKBitmap.Decode 失败时调用 PlatformInterop.DecodeBitmapFallback |
+| SharedBitmapCache.GetInfo | SKCodec.Create 失败时调用 PlatformInterop.GetBitmapInfoFallback |
+| AnimatedImageHelper | SKCodec.Create 失败时调用 PlatformInterop 回退委托 |
+| AndroidHost | 初始化 BitmapFactory 回退委托 + AndroidBitmapToSKBitmap 转换方法 |
+| Emuera.Xamarin.Android.csproj | 添加 AndroidLanguagePage.cs 和 AndroidLogPage.cs 编译项 |
+
+#### 关键决策
+
+- **GETTEXTBOX 不依赖 user32.dll**：HANDOFF/TODO 中"GETTEXTBOX user32.dll"为误报，GETTEXTBOX 仅读取 TextBox.Text 属性。真正问题是 ChangeTextBox 异步更新 textEntry.Text 但未同步 TextBox.Text
+- **WebP 回退策略**：不升级 SkiaSharp（2.88.8→3.x 可能破坏渲染管线），而是添加 Android BitmapFactory 回退。通过 PNG 中间格式转换确保像素格式正确
+- **CompatiErrorLine 条件启用**：DebugMode 下始终 true（容忍错误继续运行），Release 模式下尊重用户配置
+
 ## [0.31.0] - 2026-05-20
 
 ### Phase 9I：图片 LazyLoading + LRU 系统移植

@@ -24,6 +24,8 @@ namespace XEmuera.Droid
             menuPage.RebootRequested += OnRebootRequested;
             menuPage.GotoTitleRequested += OnGotoTitleRequested;
             menuPage.SettingsRequested += OnSettingsRequested;
+            menuPage.LanguageRequested += OnLanguageRequested;
+            menuPage.ViewLogRequested += OnViewLogRequested;
 
             flyoutPage = new FlyoutPage
             {
@@ -73,6 +75,27 @@ namespace XEmuera.Droid
         private void OnSettingsRequested()
         {
             flyoutPage.Detail.Navigation.PushAsync(new AndroidConfigPage());
+        }
+
+        private void OnLanguageRequested()
+        {
+            var page = new AndroidLanguagePage();
+            page.LanguageChanged += () =>
+            {
+                // 语言变更后提示重启
+                Device.BeginInvokeOnMainThread(async () =>
+                {
+                    await flyoutPage.Detail.Navigation.PopAsync();
+                    await flyoutPage.Detail.DisplayAlert("Language Changed",
+                        "Please restart the app for the language change to take full effect.", "OK");
+                });
+            };
+            flyoutPage.Detail.Navigation.PushAsync(page);
+        }
+
+        private void OnViewLogRequested()
+        {
+            flyoutPage.Detail.Navigation.PushAsync(new AndroidLogPage());
         }
 
         protected override void OnStart()

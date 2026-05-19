@@ -87,7 +87,9 @@ Emuera.Xamarin.sln
 →   - 已验证：CompatiFuncArgAutoConvert=YES 配置修复 ✅
 →   - 已验证：引擎进入 @SYSTEM_TITLE 函数，标题界面显示 ✅
 → 🔴 9E-NEXT：修复 Android 特有错误（GETTEXTBOX user32.dll / .webp 图片缺失）
-→ ⚠️ 9E-COMPATI：CompatiErrorLine 仅在调试模式启用（当前强制 true，需改为条件启用）
+ → ✅ 9E-NEXT：修复 GETTEXTBOX — ChangeTextBox 同步 TextBox.Text（GETTEXTBOX 不依赖 user32.dll，真正问题是 ChangeTextBox 未同步）
+ → ✅ 9E-NEXT：修复 .webp 图片缺失 — PlatformInterop 图片解码回退 + Android BitmapFactory 实现
+ ✅ 9E-COMPATI：CompatiErrorLine 仅在调试模式启用（改为 Program.DebugMode || config值，清理调试日志）
 ─── 9F：Android 兼容性补全（按执行顺序） ───
 → ✅ 9F-P0-A：AdaptiveFont 默认值修复（字体偏大根因，一行代码修复，影响面最大）
 → ✅ 9F-P0-B：TOFULL/TOHALF 跨平台替代（Microsoft.VisualBasic 不可用）
@@ -132,8 +134,8 @@ Emuera.Xamarin.sln
 → ⏭️ 7C-P2 动态缩放（高难度，依赖 9F-P1-C；唯一真正需要大量移植的远期任务）
 → ~~7D-P1 外部字体加载增强~~ ✅ v0.11 已完成（font/fonts 扫描 + FontFactory.fontAliases + RegisterKnownAliases）
 → ~~7G 游戏列表~~ ✅ 8D-4 已完成（AndroidGameListPage + AndroidMainMenuPage + FlyoutPage）
-→ ⏭️ 7E 本地化（90% 完成：LanguageModel/LanguagePage/Lang.cs 已移植；缺 Android 菜单入口 + LoadLanguageFile() stub）
-→ ⏭️ 7F 日志查看器（80% 完成：TxtFilePage/SelectableLabel 已移植；缺 AndroidLogPage + 菜单入口）
+→ ⏭️ 7E 本地化（90% 完成：LanguageModel/LanguagePage/Lang.cs 已移植；✅ AndroidLanguagePage + 菜单入口已完成）
+→ ⏭️ 7F 日志查看器（80% 完成：TxtFilePage/SelectableLabel 已移植；✅ AndroidLogPage + 菜单入口已完成）
 → ⏭️ 真机测试
 ```
 

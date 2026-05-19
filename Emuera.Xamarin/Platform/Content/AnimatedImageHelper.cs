@@ -14,7 +14,20 @@ namespace MinorShift.Emuera.Content
             if (!File.Exists(filepath)) return false;
 
             using var codec = SKCodec.Create(filepath);
-            if (codec == null) return false;
+            if (codec == null)
+            {
+                // SkiaSharp 无法识别格式时，尝试平台回退
+                var fallbackInfo = PlatformInterop.GetAnimInfoFallback(filepath);
+                if (fallbackInfo != null)
+                {
+                    width = fallbackInfo.Value.Width;
+                    height = fallbackInfo.Value.Height;
+                    frameCount = fallbackInfo.Value.FrameCount;
+                    delays = fallbackInfo.Value.Delays;
+                    return frameCount > 1;
+                }
+                return false;
+            }
 
             width = codec.Info.Width;
             height = codec.Info.Height;
@@ -39,7 +52,11 @@ namespace MinorShift.Emuera.Content
 
             using var codec = SKCodec.Create(filepath);
             if (codec == null || codec.FrameCount <= 1)
-                return null;
+            {
+                // SkiaSharp 无法解码动画时，尝试平台回退
+                var fallbackFrames = PlatformInterop.DecodeAnimatedFallback(filepath);
+                return fallbackFrames;
+            }
 
             var frames = new List<(SKBitmap, int)>();
             var info = new SKImageInfo(codec.Info.Width, codec.Info.Height);

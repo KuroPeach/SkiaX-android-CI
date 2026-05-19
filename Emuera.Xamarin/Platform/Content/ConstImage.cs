@@ -41,6 +41,9 @@ namespace MinorShift.Emuera.Content
 				try
 				{
 					bmp = SKBitmap.Decode(filepath);
+					// SkiaSharp 解码失败时（如 Android 上某些 WebP），尝试平台回退
+					if (bmp == null)
+						bmp = PlatformInterop.DecodeBitmapFallback(filepath);
 					if (bmp == null) return null;
 
 					if (cache.Count >= MaxCache)
@@ -87,6 +90,20 @@ namespace MinorShift.Emuera.Content
 				}
 			}
 			catch { }
+
+			// SkiaSharp 无法识别格式时（如 Android 上某些 WebP），尝试平台回退
+			try
+			{
+				var info = PlatformInterop.GetBitmapInfoFallback(filepath);
+				if (info != null)
+				{
+					width = info.Value.Width;
+					height = info.Value.Height;
+					return true;
+				}
+			}
+			catch { }
+
 			return false;
 		}
 

@@ -12,6 +12,8 @@ namespace XEmuera.Droid
         public event Action RebootRequested;
         public event Action GotoTitleRequested;
         public event Action SettingsRequested;
+        public event Action LanguageRequested;
+        public event Action ViewLogRequested;
 
         public AndroidMainMenuPage()
         {
@@ -53,6 +55,12 @@ namespace XEmuera.Droid
             }
 
             menuItems.Add(new MainMenuItem { Title = "Settings", Action = "Settings" });
+            menuItems.Add(new MainMenuItem { Title = "Language", Action = "Language" });
+
+            if (isInGame)
+            {
+                menuItems.Add(new MainMenuItem { Title = "View Log", Action = "ViewLog" });
+            }
         }
 
         private void OnItemSelected(object sender, SelectedItemChangedEventArgs e)
@@ -65,6 +73,8 @@ namespace XEmuera.Droid
                 case "Reboot": RebootRequested?.Invoke(); break;
                 case "GotoTitle": GotoTitleRequested?.Invoke(); break;
                 case "Settings": SettingsRequested?.Invoke(); break;
+                case "Language": LanguageRequested?.Invoke(); break;
+                case "ViewLog": ViewLogRequested?.Invoke(); break;
             }
         }
 

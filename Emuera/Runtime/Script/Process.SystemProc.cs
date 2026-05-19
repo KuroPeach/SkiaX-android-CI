@@ -170,7 +170,6 @@ internal sealed partial class Process
 	//CheckState()から呼ばれる関数群。ScriptEndに達したときの処理。
 	void beginTitle()
 	{
-		try { System.IO.File.AppendAllText(Program.ExeDir + "compati_debug.log", $"[beginTitle] CompatiErrorLine={Config.CompatiErrorLine} noError={noError}\n"); } catch { }
 		if (isCTrain)
 			if (ClearCommands())
 				return;
@@ -205,15 +204,12 @@ internal sealed partial class Process
 			console.ThrowTitleError(true);
 			return;
 		}
-		try { System.IO.File.AppendAllText(Program.ExeDir + "compati_debug.log", $"[beginTitle] calling SYSTEM_TITLE...\n"); } catch { }
 		if (callFunction("SYSTEM_TITLE", false, false))
 		{//独自定義
-			try { System.IO.File.AppendAllText(Program.ExeDir + "compati_debug.log", $"[beginTitle] SYSTEM_TITLE found and called\n"); } catch { }
 			state.SystemState = SystemStateCode.Normal;
 			return;
 		}
 		//標準のタイトル画面
-		try { System.IO.File.AppendAllText(Program.ExeDir + "compati_debug.log", $"[beginTitle] using standard title screen\n"); } catch { }
 		console.PrintBar();
 		console.NewLine();
 		console.Alignment = DisplayLineAlignment.CENTER;

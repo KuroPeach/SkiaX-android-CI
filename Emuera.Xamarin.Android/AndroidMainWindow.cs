@@ -700,9 +700,12 @@ namespace XEmuera.Droid
 
         public override void ChangeTextBox(string str)
         {
+            // 同步更新 TextBox.Text，使 GETTEXTBOX() 立即可读
+            if (TextBox != null)
+                TextBox.Text = str ?? "";
             activity?.RunOnUiThread(() =>
             {
-                try { textEntry.Text = str; } catch { }
+                try { textEntry.Text = str ?? ""; } catch { }
             });
         }
 

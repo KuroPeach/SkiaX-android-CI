@@ -146,7 +146,7 @@ namespace MinorShift.Emuera
 			EditorType = instance.GetConfigValue<TextEditorType>(ConfigCode.EditorType);
 			EditorArg = instance.GetConfigValue<string>(ConfigCode.EditorArgument);
 
-			CompatiErrorLine = true;
+			CompatiErrorLine = Program.DebugMode || instance.GetConfigValue<bool>(ConfigCode.CompatiErrorLine);
 			CompatiCALLNAME = instance.GetConfigValue<bool>(ConfigCode.CompatiCALLNAME);
 			UseSaveFolder = instance.GetConfigValue<bool>(ConfigCode.UseSaveFolder);
 			CompatiRAND = instance.GetConfigValue<bool>(ConfigCode.CompatiRAND);

@@ -60,6 +60,8 @@
     <Compile Include="AndroidGameListPage.cs" />
     <Compile Include="AndroidMainMenuPage.cs" />
     <Compile Include="AndroidConfigPage.cs" />
+    <Compile Include="AndroidLanguagePage.cs" />
+    <Compile Include="AndroidLogPage.cs" />
   </ItemGroup>
 
   <ItemGroup>

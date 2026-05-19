@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Android.App;
 using Android.Content;
+using Android.Graphics;
 using Android.OS;
 using Android.Widget;
 using MinorShift.Emuera;
@@ -192,7 +196,7 @@ namespace XEmuera.Droid
                 }
             };
 
-            PlatformInterop.GetMousePosition = () => Point.Empty;
+            PlatformInterop.GetMousePosition = () => XEmuera.Drawing.Point.Empty;
 
             PlatformInterop.SetClipboardText = (text) =>
             {
@@ -226,6 +230,60 @@ namespace XEmuera.Droid
                 var bounds = new SKRect();
                 paint.MeasureText(text, ref bounds);
                 return (bounds.Width, bounds.Height);
+            };
+
+            // 图片解码回退：Android BitmapFactory 原生支持 WebP（API 14+）
+            PlatformInterop.DecodeBitmapFallback = (filepath) =>
+            {
+                try
+                {
+                    var options = new BitmapFactory.Options { InJustDecodeBounds = false };
+                    var androidBmp = BitmapFactory.DecodeFile(filepath, options);
+                    if (androidBmp == null) return null;
+
+                    var skBmp = AndroidBitmapToSKBitmap(androidBmp);
+                    androidBmp.Recycle();
+                    androidBmp.Dispose();
+                    return skBmp;
+                }
+                catch { return null; }
+            };
+
+            PlatformInterop.GetBitmapInfoFallback = (filepath) =>
+            {
+                try
+                {
+                    var options = new BitmapFactory.Options { InJustDecodeBounds = true };
+                    BitmapFactory.DecodeFile(filepath, options);
+                    if (options.OutWidth > 0 && options.OutHeight > 0)
+                        return (options.OutWidth, options.OutHeight);
+                }
+                catch { }
+                return null;
+            };
+
+            PlatformInterop.GetAnimInfoFallback = (filepath) =>
+            {
+                try
+                {
+                    // Android BitmapFactory 不支持动画帧信息，仅返回静态尺寸
+                    var options = new BitmapFactory.Options { InJustDecodeBounds = true };
+                    BitmapFactory.DecodeFile(filepath, options);
+                    if (options.OutWidth > 0 && options.OutHeight > 0)
+                    {
+                        // 无法获取帧数，返回 null 表示不支持动画
+                        return null;
+                    }
+                }
+                catch { }
+                return null;
+            };
+
+            PlatformInterop.DecodeAnimatedFallback = (filepath) =>
+            {
+                // Android BitmapFactory 不支持动画帧解码
+                // 静态 WebP 会由 DecodeBitmapFallback 处理
+                return null;
             };
         }
 
@@ -281,6 +339,18 @@ namespace XEmuera.Droid
             {
                 Android.Util.Log.Warn("EmueraHost", $"Failed to save log: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 将 Android.Graphics.Bitmap 转换为 SkiaSharp SKBitmap
+        /// 通过 PNG 中间格式确保像素格式正确
+        /// </summary>
+        private static SKBitmap AndroidBitmapToSKBitmap(Bitmap androidBmp)
+        {
+            using var ms = new MemoryStream();
+            androidBmp.Compress(Bitmap.CompressFormat.Png, 100, ms);
+            ms.Position = 0;
+            return SKBitmap.Decode(ms);
         }
     }
 }
