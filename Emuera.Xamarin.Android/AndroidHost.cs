@@ -25,6 +25,7 @@ namespace XEmuera.Droid
         private bool engineInitialized;
 
         internal MainWindow MainWindow => mainWindow;
+        internal EmueraConsole Console => console;
 
         public void InitEmuera()
         {

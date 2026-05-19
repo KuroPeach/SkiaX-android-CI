@@ -14,6 +14,7 @@ namespace XEmuera.Droid
         public event Action SettingsRequested;
         public event Action LanguageRequested;
         public event Action ViewLogRequested;
+        public event Action SaveLogRequested;
 
         public AndroidMainMenuPage()
         {
@@ -60,6 +61,7 @@ namespace XEmuera.Droid
             if (isInGame)
             {
                 menuItems.Add(new MainMenuItem { Title = "View Log", Action = "ViewLog" });
+                menuItems.Add(new MainMenuItem { Title = "Save Log", Action = "SaveLog" });
             }
         }
 
@@ -75,6 +77,7 @@ namespace XEmuera.Droid
                 case "Settings": SettingsRequested?.Invoke(); break;
                 case "Language": LanguageRequested?.Invoke(); break;
                 case "ViewLog": ViewLogRequested?.Invoke(); break;
+                case "SaveLog": SaveLogRequested?.Invoke(); break;
             }
         }
 

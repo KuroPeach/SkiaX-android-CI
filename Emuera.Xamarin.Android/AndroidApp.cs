@@ -26,6 +26,7 @@ namespace XEmuera.Droid
             menuPage.SettingsRequested += OnSettingsRequested;
             menuPage.LanguageRequested += OnLanguageRequested;
             menuPage.ViewLogRequested += OnViewLogRequested;
+            menuPage.SaveLogRequested += OnSaveLogRequested;
 
             flyoutPage = new FlyoutPage
             {
@@ -96,6 +97,45 @@ namespace XEmuera.Droid
         private void OnViewLogRequested()
         {
             flyoutPage.Detail.Navigation.PushAsync(new AndroidLogPage());
+        }
+
+        private void OnSaveLogRequested()
+        {
+            try
+            {
+                var console = host?.Console;
+                if (console == null) return;
+
+                // 生成带时间戳的文件名（与桌面端一致：yyyyMMdd-HHmmss.log）
+                var time = DateTime.Now;
+                var fname = time.ToString("yyyyMMdd-HHmmss") + ".log";
+                var fullPath = MinorShift.Emuera.Program.ExeDir + fname;
+
+                if (console.OutputSystemLog(fullPath))
+                {
+                    Device.BeginInvokeOnMainThread(async () =>
+                    {
+                        await flyoutPage.Detail.DisplayAlert("Log Saved",
+                            $"Log saved to:\n{fname}", "OK");
+                    });
+                }
+                else
+                {
+                    Device.BeginInvokeOnMainThread(async () =>
+                    {
+                        await flyoutPage.Detail.DisplayAlert("Save Failed",
+                            "Failed to save log file.", "OK");
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Device.BeginInvokeOnMainThread(async () =>
+                {
+                    await flyoutPage.Detail.DisplayAlert("Error",
+                        $"Failed to save log:\n{ex.Message}", "OK");
+                });
+            }
         }
 
         protected override void OnStart()
