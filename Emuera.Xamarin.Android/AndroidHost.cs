@@ -148,6 +148,12 @@ namespace XEmuera.Droid
         {
             PlatformInterop.DoEvents = () => { };
 
+            // 诊断日志：Android 端输出到 logcat（用 Info 级别，Debug 级别可能被系统过滤）
+            PlatformInterop.DebugLog = (msg) =>
+            {
+                Android.Util.Log.Info("EmueraRender", msg);
+            };
+
             PlatformInterop.ShowMessage = (msg) =>
             {
                 var activity = MainActivity.Instance;

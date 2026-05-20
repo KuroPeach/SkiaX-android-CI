@@ -421,14 +421,16 @@ namespace XEmuera.Droid
             {
                 _paintSurfaceLogCount++;
                 var matrix = e.Surface.Canvas.TotalMatrix;
-                var logMsg = $"[Emuera] OnPaintSurface #{_paintSurfaceLogCount}: " +
+                var logMsg = $"[OnPaintSurface] #{_paintSurfaceLogCount}: " +
                     $"e.Info.Width={e.Info.Width} e.Info.Height={e.Info.Height} " +
                     $"density={density} logicalW={logicalW} logicalH={logicalH} " +
                     $"Canvas.TotalMatrix=ScaleX={matrix.ScaleX:F2} ScaleY={matrix.ScaleY:F2} " +
                     $"TransX={matrix.TransX:F2} TransY={matrix.TransY:F2} " +
-                    $"canvasView.Width={canvasView?.Width ?? 0} canvasView.Height={canvasView?.Height ?? 0}";
-                System.Diagnostics.Debug.WriteLine(logMsg);
-                try { System.IO.File.AppendAllText(EmueraConsole._debugLogPath, logMsg + "\n"); } catch { }
+                    $"canvasView.Width={canvasView?.Width ?? 0} canvasView.Height={canvasView?.Height ?? 0} " +
+                    $"PicBoxWidth={DisplayUtils.PicBoxWidth} PicBoxHeight={DisplayUtils.PicBoxHeight}";
+                PlatformInterop.DebugLog(logMsg);
+                // 直接调用确保输出
+                Android.Util.Log.Info("EmueraPaint", $"OnPaintSurface #{_paintSurfaceLogCount}: Info={e.Info.Width}x{e.Info.Height} density={density} logical={logicalW}x{logicalH} PicBox={DisplayUtils.PicBoxWidth}x{DisplayUtils.PicBoxHeight}");
             }
 
             MainPicBox.Width = logicalW;
@@ -461,12 +463,8 @@ namespace XEmuera.Droid
         {
             if (console == null) return;
 
-            // e.Location 是物理像素（SkiaSharp raw pixel coordinates），
-            // EmueraConsole 内部用逻辑像素，需要除以 density
-            float density = (float)DisplayUtils.ScreenDensity;
-            var mouseLocation = new Point(
-                density > 0 ? (int)(e.Location.X / density) : (int)e.Location.X,
-                density > 0 ? (int)(e.Location.Y / density) : (int)e.Location.Y);
+            // e.Location 是物理像素，EmueraConsole 内部也用物理像素坐标
+            var mouseLocation = new Point((int)e.Location.X, (int)e.Location.Y);
 
             if (console.MoveMouse(mouseLocation))
                 RefreshStrings(true);
@@ -497,8 +495,8 @@ namespace XEmuera.Droid
                 case SKTouchAction.Moved:
                     IsMouseMoveAction = true;
 
-                    // moveY 需要转为逻辑像素（EmueraConsole 内部用逻辑像素）
-                    int moveY = density > 0 ? (int)((e.Location.Y - PrevPoint.Y) / density) : (int)(e.Location.Y - PrevPoint.Y);
+                    // 物理像素坐标差值，直接用于滚动计算
+                    int moveY = (int)(e.Location.Y - PrevPoint.Y);
 
                     if (RConfig.LineHeight > 0)
                     {

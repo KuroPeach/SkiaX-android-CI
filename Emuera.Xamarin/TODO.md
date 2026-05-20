@@ -156,9 +156,10 @@ Emuera.Xamarin.sln
 → 🔴 HTML div 触屏定位：QOL_USERCOM.ERB @COM_OPTION 弹窗位置错误（div 坐标基于鼠标位置，Android 无鼠标）
   - 方案：将 @COM_OPTION 用到的鼠标位置侦测在安卓端重新实现为触屏位置侦测，以此确定 div 位置
   - 参考：XEmuera HtmlManager.DivState + MainWindow 鼠标事件
-→ 🔴 文本渲染错位（Phase 9Q 回归）：所有文本向下偏移约一个行高，HTML 控件全部错位，最后一行超出窗口底部
-  - 根因假设：ClientHeight（物理像素）与 LineHeight（逻辑像素）混用，导致行数计算偏多
-  - 诊断日志已添加：OnPaint 记录坐标系参数 + 每行 Y 坐标 + HTML button 坐标
+→ 🔴 文本渲染错位（Phase 9Q 回归 → Phase 9T 修复中）：所有文本向下偏移约一个行高，HTML 控件全部错位，最后一行超出窗口底部
+  - Phase 9T 修改：移除 graph.Scale(density)，ClientWidth/ClientHeight 改为物理像素，触摸坐标用物理像素
+  - 诊断日志系统：PlatformInterop.DebugLog → Android.Util.Log.Debug("EmueraRender") → logcat
+  - 待 ADB 测试验证
   - 知识条目：[coordinate-system.md](file:///d:/emuera/shared-trae/knowledge/xemuera/coordinate-system.md)
 → ✅ SimHei 字体嵌入（Phase 9R）：AddFontFromResource("SimHei") + 默认启用 + "黑体"别名映射
 ─── 远期 ───

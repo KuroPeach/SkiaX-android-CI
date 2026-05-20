@@ -1,5 +1,32 @@
 # Emuera.Xamarin 变更记录
 
+## [0.41.0] - 2026-05-21
+
+### Phase 9T：移除 graph.Scale(density) + 物理像素统一 + 诊断日志
+
+#### 修改内容
+
+1. **移除 `graph.Scale(density)`**：与 XEmuera 对齐，在物理像素 Canvas 上直接绘制
+2. **`ClientWidth/ClientHeight` 改为物理像素**：`DisplayUtils.PicBoxWidth/PicBoxHeight`
+3. **`Config.WindowX/WindowY` 改为物理像素**
+4. **触摸坐标直接用物理像素**：不除以 density
+5. **滚动 delta 直接用物理像素差值**
+6. **`bakedBackground` 绘制用物理像素尺寸**
+7. **诊断日志系统**：
+   - 新增 `PlatformInterop.DebugLog` 委托（`PlatformInterop.cs`）
+   - Android 端实现：`Android.Util.Log.Debug("EmueraRender", msg)`（`AndroidHost.cs`）
+   - 桌面端默认：`System.Diagnostics.Debug.WriteLine(msg)`
+   - `OnPaintSurface` 输出 Canvas 属性（物理尺寸、density、TotalMatrix）
+   - `OnPaint` 输出行号计算、pointY、可见行数
+   - 行渲染输出每行 Y 坐标
+   - HTML 按钮输出 PointX/Width/Top/Bottom/absTop/absBottom
+
+#### 待验证
+
+- 字体大小是否正常（物理像素 Canvas 上 Paint.TextSize=24 → 24 物理像素）
+- 最后一行是否可见
+- 渲染位置与按键位置是否对齐
+
 ## [0.40.0] - 2026-05-21
 
 ### Phase 9S：恢复 graph.Scale(density) + 逻辑像素坐标系

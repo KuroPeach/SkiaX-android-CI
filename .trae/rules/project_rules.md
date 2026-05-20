@@ -34,6 +34,41 @@
 | **handoff** | 结束会话 |
 | **caveman** | 节省 token |
 
+## Xamarin Android ADB 测试规则
+
+> **进行 Xamarin Android 开发和修复时，自动连接 ADB 进行测试。**
+
+### 激活条件
+
+- 修改了 `Emuera.Xamarin/` 或 `Emuera.Xamarin.Android/` 下的代码
+- 用户要求构建 APK / 真机测试
+- 需要查看渲染诊断日志
+
+### 测试流程
+
+1. **构建 APK**：`dotnet publish "D:\emuera\emuera_lazyloading_selfmodified_version\Emuera.Xamarin.Android\Emuera.Xamarin.Android.csproj" -f net8.0-android -c Debug 2>&1`
+2. **连接模拟器**：`& $adb connect 127.0.0.1:16384`（MuMu）或 `127.0.0.1:5555`（华为）
+3. **安装 APK**：`& $adb -s $device install -r "APK路径" 2>&1`
+4. **清除 logcat + 启动**：`& $adb -s $device logcat -c` + `am start`
+5. **导航到引擎**：等待 8 秒 → `input tap 540 300`（点击第一个游戏）
+6. **等待加载**：eratw-chs 约 23 秒
+7. **拉取诊断日志**：`& $adb -s $device logcat -d | Select-String "EmueraRender"`
+
+### 诊断日志查看
+
+```powershell
+# 渲染诊断（坐标系 + 行坐标 + 按钮坐标）
+& $adb -s $device logcat -d | Select-String "EmueraRender"
+
+# 引擎初始化
+& $adb -s $device logcat -d | Select-String "EmueraHost"
+```
+
+### 知识库
+
+- [adb-testing.md](file:///d:/emuera/shared-trae/knowledge/xemuera/adb-testing.md) — 完整 ADB 测试流程
+- [coordinate-system.md](file:///d:/emuera/shared-trae/knowledge/xemuera/coordinate-system.md) — 坐标系与渲染管线
+
 ## ERB 脚本编写规则
 
 编写 ERB/ERH 脚本前必须查阅：[syntax-quickref.md](file:///d:/emuera/shared-trae/knowledge/erabasic/syntax-quickref.md)

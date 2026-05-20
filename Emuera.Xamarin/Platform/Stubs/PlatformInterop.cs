@@ -47,5 +47,10 @@ namespace MinorShift.Emuera
 		/// 返回 null 表示该平台无回退能力
 		/// </summary>
 		public static Func<string, (int Width, int Height, int FrameCount, int[] Delays)?> GetAnimInfoFallback { get; set; } = _ => null;
+
+		/// <summary>
+		/// 诊断日志输出：Android 端用 Android.Util.Log.Debug，桌面端用 Debug.WriteLine
+		/// </summary>
+		public static Action<string> DebugLog { get; set; } = msg => System.Diagnostics.Debug.WriteLine(msg);
 	}
 }
