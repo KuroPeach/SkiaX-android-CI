@@ -321,8 +321,6 @@ namespace MinorShift.Emuera
 			DrawingParam_ShapePositionShift = 0;
 			DrawableWidth = WindowX - DrawingParam_ShapePositionShift;
 
-			DisplayUtils.ShapeHeightOffset = -(LineHeight - 6);
-
 			Runtime.Config.Config.WindowX = WindowX;
 			Runtime.Config.Config.WindowY = WindowY;
 			Runtime.Config.Config.DrawableWidth = DrawableWidth;

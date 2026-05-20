@@ -182,8 +182,6 @@ namespace XEmuera
 
 		public static double ScreenDensity { get; set; } = 1.0;
 
-		public static int ShapeHeightOffset { get; set; }
-
 		public static int MainLayoutWidth
 		{
 			get

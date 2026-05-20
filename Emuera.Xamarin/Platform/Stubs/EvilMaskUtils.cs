@@ -470,14 +470,11 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 					 rect.Width - padding[Direction.Left] - padding[Direction.Right], rect.Height - padding[Direction.Top] - padding[Direction.Bottom]);
 			graph.ClipRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom));
 			point.Y = rect.Y;
-			int savedOffset = DisplayUtils.ShapeHeightOffset;
-			DisplayUtils.ShapeHeightOffset = 0;
 			foreach (var child in children)
 			{
 				child.DrawTo(graph, (int)point.Y, isBackLog, true, mode);
 				point.Y += Config.Config.LineHeight;
 			}
-			DisplayUtils.ShapeHeightOffset = savedOffset;
 			graph.Restore();
 		}
 

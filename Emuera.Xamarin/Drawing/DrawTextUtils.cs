@@ -169,6 +169,9 @@ namespace XEmuera.Drawing
 			float Strikeout = drawStrikeout ? (Paint.FontMetrics.StrikeoutPosition ?? 0) : 0;
 			float Underline = drawUnderline ? (Paint.FontMetrics.UnderlinePosition ?? 0) : 0;
 
+			// y 是行顶部坐标，SkiaSharp DrawText 要求基线坐标，需要减去 Ascent
+			float baselineY = y - Paint.FontMetrics.Ascent;
+
 			TextUnit unit;
 			for (int i = 0; i < TextUnits.Length; i++)
 			{
@@ -179,11 +182,11 @@ namespace XEmuera.Drawing
 				Paint.Typeface = unit.FontModel.Typeface;
 
 				if (drawStrikeout)
-					canvas.DrawLine(x, y + Strikeout, x + unit.Advance, y + Strikeout, Paint);
+					canvas.DrawLine(x, baselineY + Strikeout, x + unit.Advance, baselineY + Strikeout, Paint);
 				if (drawUnderline)
-					canvas.DrawLine(x, y + Underline, x + unit.Advance, y + Underline, Paint);
+					canvas.DrawLine(x, baselineY + Underline, x + unit.Advance, baselineY + Underline, Paint);
 
-				canvas.DrawText(unit.Text, x, y, Paint);
+				canvas.DrawText(unit.Text, x, baselineY, Paint);
 
 				x += unit.Advance;
 			}

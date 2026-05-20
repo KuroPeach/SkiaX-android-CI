@@ -181,7 +181,6 @@ namespace MinorShift.Emuera.GameView
 			rect.X = (int)(subPixel + originalRectF.X);
 			rect.Width = Width - rect.X;
 			rect.X += Config.DrawingParam_ShapePositionShift;
-			rect.Y += DisplayUtils.ShapeHeightOffset;
 			visible = (rect.X >= 0 && rect.Width > 0);// && rect.Y >= 0 && (rect.Y + rect.Height) <= Config.FontSize);
 		}
 	}

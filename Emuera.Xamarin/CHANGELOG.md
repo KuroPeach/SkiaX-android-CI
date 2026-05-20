@@ -1,5 +1,32 @@
 # Emuera.Xamarin 变更记录
 
+## [0.44.0] - 2026-05-21
+
+### 修复 HTML img/space 内联元素与文字行偏移
+
+> **一句话根因**：`DrawTextUtils.DrawText` 把 `y` 参数（行顶部坐标）直接当作基线坐标传给 SkiaSharp `DrawText`，
+> 导致文字渲染位置偏下约一个 Ascent。为补偿此偏移，之前引入了 `ShapeHeightOffset = -(LineHeight - 6)` 的硬编码 hack，
+> 使 img/shape 元素也偏移同样量来"对齐"。但这个 hack 不精确，且与内核原版不一致。
+>
+> **正确修复**：在 `DrawTextUtils.DrawText` 中将 `y` 从行顶部转为基线坐标（`y - Paint.FontMetrics.Ascent`），
+> 与内核原版 `point.Offset(0, -Font.Metrics.Ascent)` 一致，然后移除 `ShapeHeightOffset`。
+
+#### 修复内容
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| `baselineY = y - Paint.FontMetrics.Ascent` | DrawTextUtils.cs | 将 y 从行顶部坐标转为基线坐标，与内核原版一致 |
+| 移除 `+ DisplayUtils.ShapeHeightOffset` | ConsoleImagePart.cs DrawTo | img 元素直接用行顶部坐标，无需偏移 |
+| 移除 `rect.Y += DisplayUtils.ShapeHeightOffset` | ConsoleShapePart.cs SetWidth | shape 元素直接用行顶部坐标，无需偏移 |
+| 移除 ShapeHeightOffset 保存/恢复 | EvilMaskUtils.cs ConsoleDivPart.DrawTo | div 子元素不再需要特殊偏移处理 |
+| 移除 `ShapeHeightOffset = -(LineHeight - 6)` | Config.cs | 不再需要此 hack |
+| 移除 `ShapeHeightOffset` 属性 | Utils.cs | 不再需要 |
+
+#### 内核原版参考
+
+内核 `ConsoleStyledString.DrawTo` 在调用 `graph.DrawText` 前做 `point.Offset(0, -Font.Metrics.Ascent)` 将行顶部转为基线。
+Xamarin 版 `DrawTextUtils.DrawText` 缺少此转换，导致文字偏下，进而需要 `ShapeHeightOffset` 补偿 img/shape。
+
 ## [0.43.0] - 2026-05-21
 
 ### 修复 pointY 语义错误：首行截断 + 按钮错位根因修复

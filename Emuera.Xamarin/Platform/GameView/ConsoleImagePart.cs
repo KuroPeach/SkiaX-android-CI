@@ -177,7 +177,7 @@ namespace MinorShift.Emuera.GameView
 				Rectangle rect = destRect;
 				//PointX微調整
 				rect.X = destRect.X + PointX + Config.DrawingParam_ShapePositionShift;
-				rect.Y = destRect.Y + (int)point.Y + DisplayUtils.ShapeHeightOffset;
+				rect.Y = destRect.Y + (int)point.Y;
 				img.GraphicsDraw(graph, rect);
 			}
 			else
