@@ -1466,6 +1466,9 @@ namespace MinorShift.Emuera.GameView
 			int bottomLineNo = (int)window.ScrollBar.Value - 1;
 			if (displayLineList.Count - 1 < bottomLineNo)
 				bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
+			// pointY 是最后一行的底部（与 MoveMouse 一致），
+			// 渲染时 pointY 作为行的顶部传入 DrawTo，因此需要减去 LineHeight 使底部对齐
+			pointY -= Config.LineHeight;
 			int topLineNo = bottomLineNo - (pointY / Config.LineHeight + 1);
 			if (topLineNo < 0)
 				topLineNo = 0;
