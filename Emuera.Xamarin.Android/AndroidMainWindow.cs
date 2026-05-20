@@ -440,9 +440,7 @@ namespace XEmuera.Droid
         {
             if (console == null) return;
 
-            // 将物理像素坐标转换为逻辑坐标
-            var touchPoint = ToLogicalTouchPoint(e.Location);
-            var mouseLocation = new Point((int)touchPoint.X, (int)touchPoint.Y);
+            var mouseLocation = new Point((int)e.Location.X, (int)e.Location.Y);
 
             if (console.MoveMouse(mouseLocation))
                 RefreshStrings(true);
@@ -1209,17 +1207,6 @@ namespace XEmuera.Droid
         #endregion
 
         #region Runtime Display Scale
-
-        /// <summary>
-        /// 将触摸坐标转换为 MoveMouse 使用的坐标空间。
-        /// ClientWidth/ClientHeight 通过 GetRealLength() 乘以了 ScreenDensity，
-        /// 所以 MoveMouse 期望物理像素坐标，直接使用 e.Location 即可。
-        /// </summary>
-        private SKPoint ToLogicalTouchPoint(SKPoint location)
-        {
-            // 触摸坐标已经是物理像素，与 ClientWidth/ClientHeight（物理像素）一致
-            return location;
-        }
 
         public void ApplyRuntimeDisplayScale(float fontScale, bool refreshSurface = true)
         {

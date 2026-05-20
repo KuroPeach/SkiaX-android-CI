@@ -175,6 +175,9 @@ namespace XEmuera
 
 	public static class DisplayUtils
 	{
+		// HeightOffset 保持常量 4（与 XEmuera 一致）。
+		// FontSize/LineHeight 已乘以 ScreenDensity 统一为物理像素，
+		// HeightOffset 也应在物理像素坐标系中，4 物理像素的偏移量足够。
 		public const int HeightOffset = 4;
 
 		public static double ScreenDensity { get; set; } = 1.0;

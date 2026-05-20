@@ -195,9 +195,9 @@ internal static class FontFactory
 
 		string[] safeFallbackFonts;
 		if (isSerif)
-			safeFallbackFonts = ["MS Mincho", "MS PMincho", "SimSun", "NSimSun", "FangSong", "MingLiU", "PMingLiU", "MS Gothic", "SimHei"];
+			safeFallbackFonts = ["MS Mincho", "MS PMincho", "SimSun", "NSimSun", "FangSong", "MingLiU", "PMingLiU", "Microsoft YaHei", "MS Gothic", "SimHei"];
 		else
-			safeFallbackFonts = ["MS Gothic", "MS PGothic", "MS UI Gothic", "SimHei", "Microsoft YaHei", "Meiryo", "Yu Gothic", "SimSun"];
+			safeFallbackFonts = ["Microsoft YaHei", "MS Gothic", "MS PGothic", "MS UI Gothic", "SimHei", "Meiryo", "Yu Gothic", "SimSun"];
 
 		foreach (var fontName in safeFallbackFonts)
 		{

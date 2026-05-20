@@ -41,6 +41,9 @@
 | Phase 9I | 图片 LazyLoading + LRU 系统移植（SharedBitmapCache/AnimSpriteCache/SpriteAnimated/AnimatedImageHelper/ConstImage延迟加载/AppContents SQLite元数据） | 0.31 |
 | Phase 9J-9M | Android 兼容性修复 + 跨平台编译保护 + 运行时崩溃保护 + 动态缩放 + 字体扫描 | 0.32-0.34 |
 | Phase 9N | 真机测试反馈修复 + UI 完善（文字全黑/Language崩溃/中文化/SVG图标/英文翻译/APK标识） | 0.35 |
+| Phase 9O | 真机测试反馈修复 Round 2（缺字方框/最后一行越界/HTML div错位/缩放过大） | 0.36 |
+| Phase 9P | 坐标系统一修复（恢复 FontSize/LineHeight *= ScreenDensity + PrepareGlyphs glyphCount + HeightOffset 常量化） | 0.37 |
+| Phase 9Q | 回归基准版本坐标系，修复缩放/按钮错位/缺字三大回归（移除 FontSize*=density + 移除 TryFallback* + 恢复 e.Location） | 0.38 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -150,6 +153,9 @@ Emuera.Xamarin.sln
 → ✅ 9N-P7：应用标识（应用名 Emuera skiaX + 版本 0.35.0 + icon.ico mipmap）
 ─── 遗留问题 ───
 → 🟡 AndroidSound 变速（setSpeed/getSpeed/SetPreservePitch 为 stub，需 ExoPlayer）
+→ 🔴 HTML div 触屏定位：QOL_USERCOM.ERB @COM_OPTION 弹窗位置错误（div 坐标基于鼠标位置，Android 无鼠标）
+  - 方案：将 @COM_OPTION 用到的鼠标位置侦测在安卓端重新实现为触屏位置侦测，以此确定 div 位置
+  - 参考：XEmuera HtmlManager.DivState + MainWindow 鼠标事件
 ─── 远期 ───
 → ✅ 7C-P2 动态缩放（FontScale + 方向变化reflow + 触摸坐标转换 + A+/A- 按钮）
 → ✅ 7D-P1 外部字体加载增强（font/fonts 扫描 + FontFactory.fontAliases + RegisterKnownAliases + FontModel font/ 扫描）
@@ -1135,3 +1141,80 @@ Emuera.Xamarin.sln
 | 9G-P5-1 | 移植收起/展开工具栏按钮 | ▲隐藏 → ▼恢复 | ✅ |
 | 9G-P5-2 | 移植滚动按钮 | ↑↓半页滚动（DisplayUtils.PicBoxHeight / LineHeight / 2） | ✅ |
 | 9G-P5-3 | ADB 验证 | 两个按钮功能正常 | ⏭️ |
+
+---
+
+## Phase 9O：真机测试反馈修复 Round 2（v0.36）
+
+> **来源**：v0.35 ADB 真机测试用户反馈的 4 个问题
+> **测试环境**：MuMu 模拟器 / eratw-chs 中文魔改版
+> **优先级**：P0（阻塞可玩性）> P1（影响体验）
+
+### 🔴 9O-P0-1：Skia 缺字方框（简体汉字渲染为 □）
+
+> **问题**：引入外部字体加载后，简体汉字出现大量 □ 方框
+> **根因推测**：FontModel.RegisterMissingChineseFontFallbacks() 将中文别名映射到内嵌 Microsoft YaHei，但 Skia 字体回退链（FontFactory）在找不到字形时仍回退到 MS Gothic（日文字体，不含简体汉字）
+> **用户证据**：缺失的全部是简体汉字，繁体/日文正常
+> **相关代码**：FontModel.cs L222 RegisterMissingChineseFontFallbacks() / FontFactory.cs 字体回退链 / DrawTextUtils.cs 字形查找
+> **修复方向**：
+> 1. 检查 FontFactory 回退链是否优先使用 Microsoft YaHei 而非 MS Gothic
+> 2. 检查 DrawTextUtils 中 SKPaint 的 Typeface 是否包含中文字形
+> 3. 检查 eratw-chs 的 emuera.config 字体配置（FontName 是否为中文别名）
+> 4. 确保内嵌 Microsoft YaHei 的 SKTypeface 被正确注册到 AllModels
+
+### 🔴 9O-P0-2：最后一行文字渲染在窗口外 + 按钮点击错位
+
+> **问题**：ASK_YN 对话框（是/否）的最后一行文字看不见，但按钮逻辑位置正常。点击"是"的位置实际选中"否"，点击"否"的位置无反应
+> **根因推测**：Config.cs 中 FontSize/LineHeight 乘以 ScreenDensity 后，OnPaint 的 pointY 计算与 MoveMouse 的坐标系不一致
+> **用户证据**：`隨時操作存檔.ERB` L292 `CALL ASK_YN` → 确认/返回按钮错位
+> **相关代码**：
+> - Config.cs L123/L322：FontSize *= ScreenDensity, LineHeight *= ScreenDensity
+> - EmueraConsole.cs L1430：pointY = ClientHeight - DisplayUtils.HeightOffset（ClientHeight 是物理像素）
+> - EmueraConsole.cs L1938：MoveMouse 中 relPointY = pointY - (ClientHeight - DisplayUtils.HeightOffset)
+> - DisplayUtils.cs L178：HeightOffset = 4（常量，未乘 density）
+> **修复方向**：
+> 1. 检查 OnPaint 和 MoveMouse 的坐标系是否统一（物理像素 vs 逻辑像素）
+> 2. HeightOffset 是否需要乘以 ScreenDensity
+> 3. 检查 pointY / relPointY 的计算是否在 density 缩放后仍然正确
+> 4. 检查最后一行是否被 canvas 裁剪或 pointY 初始值超出 ClientHeight
+
+### 🟡 9O-P1-3：HTML div 弹窗位置错位
+
+> **问题**：`QOL_USERCOM.ERB` L124 `@COM_OPTION(COM_ID)` 生成的 HTML div 弹窗位置错误，未出现在点击位置周围
+> **根因推测**：Android 端无鼠标悬停位置，HTML div 的绝对定位依赖点击坐标，但触摸事件未正确传递点击位置给 div 渲染逻辑
+> **用户证据**：图3 显示 div 出现在错误位置（偏左上或固定位置）
+> **相关代码**：
+> - QOL_USERCOM.ERB L124 `@COM_OPTION` → HTML_PRINTC 生成按钮 → HTML div 弹窗
+> - EvilMaskUtils.cs / ConsoleDivPart.cs：div 的 x/y 定位逻辑
+> - AndroidMainWindow.cs：触摸坐标转发
+> **修复方向（先不修复，仅记录）**：
+> 1. 检查 ConsoleDivPart / HTML 岛屿的坐标系是否与触摸坐标一致
+> 2. 检查 div 的 `display="absolute"` 定位是否依赖鼠标位置（Android 无鼠标）
+> 3. 方案 A：在触摸事件中记录最后点击位置，作为 div 定位的锚点
+> 4. 方案 B：将 div 改为固定居中显示（类似模态对话框）
+> 5. 方案 C：ERB 脚本层修改，使用固定像素坐标而非相对鼠标位置
+
+### 🔴 9O-P0-4：缩放比例过大（文字和图片都太大）
+
+> **问题**：v0.35 文字和图片比 v0.34 及之前明显偏大，用户希望恢复到与 XEmuera 相似的缩放布局
+> **根因推测**：9N 修复"文字行向下偏移"时，在 Config.cs 中添加了 `FontSize/LineHeight *= ScreenDensity`，导致双重缩放（FontScale + ScreenDensity）
+> **用户证据**："缩放比例太大，原来的就很好，现在图片和文字都太大了。是最近的修改导致的"
+> **相关代码**：
+> - Config.cs L123/L322：FontSize *= density, LineHeight *= density（9N 新增）
+> - MainWindow.xaml.cs L124：ScaledWindowX = originalWindowX * FontScale * FontSize / originalFontSize / ScreenDensity
+> - DisplayUtils.GetRealLength()：已将物理尺寸乘以 ScreenDensity
+> **修复方向**：
+> 1. 移除 Config.cs 中 FontSize/LineHeight 的 ScreenDensity 乘法（或改为条件编译仅 Android）
+> 2. 检查 ClientWidth/ClientHeight 是否已经是物理像素（PicBoxWidth/Height 通过 GetRealLength 已乘 density）
+> 3. 如果 FontSize 不乘 density，需确保 OnPaint 的坐标系与 MoveMouse 一致
+> 4. 对比 XEmuera 的缩放逻辑：XEmuera 的 FontSize 是否乘 ScreenDensity
+> 5. 恢复后验证：文字大小与 XEmuera 接近，不模糊也不过小
+
+### 验证清单
+
+| # | 验证项 | 说明 |
+|---|--------|------|
+| 1 | 缺字修复验证 | eratw-chs 标题界面和存档界面无 □ 方框 |
+| 2 | 按钮错位修复验证 | ASK_YN 是/否按钮点击位置与显示位置一致 |
+| 3 | 缩放恢复验证 | 文字/图片大小与 XEmuera 接近，不偏大 |
+| 4 | 整体可玩性验证 | 能正常进行游戏操作（存档/读档/移动/对话） |

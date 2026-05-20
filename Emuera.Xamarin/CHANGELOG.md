@@ -1,5 +1,98 @@
 # Emuera.Xamarin 变更记录
 
+## [0.38.0] - 2026-05-20
+
+### Phase 9Q：回归基准版本坐标系，修复缩放/按钮错位/缺字三大回归
+
+#### 根因分析
+
+以基准版本 `53a2bd0c`（一切正常）为参照，对比之后引入的变更：
+
+9N/9P 的 `FontSize/LineHeight *= ScreenDensity` 修复方向错误。基准版本的坐标系设计：
+- `MainPicBox.Width/Height` = 逻辑像素（Canvas 尺寸 / density）
+- `ClientWidth/ClientHeight` = `GetRealLength(MainPicBox.Width)` = 物理像素
+- `FontSize/LineHeight` = 逻辑像素（**不乘** density）——与 XEmuera 一致
+- 触摸坐标 = 物理像素（直接用 `e.Location`）
+- Canvas 绘制时 `Paint.TextSize` = 逻辑像素值，Skia 自动处理缩放
+
+9N 添加 `FontSize/LineHeight *= ScreenDensity` 后：
+1. **字体2倍大**：`Paint.TextSize` 变成物理像素值，在物理像素 Canvas 上绘制导致字体过大
+2. **行数减半**：`ClientHeight / LineHeight` 行数计算变少
+3. **按钮位置错位**：`MoveMouse` 中步长 `Config.LineHeight` 变大
+
+9N 添加的 `TryFallbackToEmbeddedFont`/`TryFallbackToSystemFont` 在基准版本和 XEmuera 中均不存在，`EnabledFontCaches` 已包含 MS Gothic 和 Microsoft YaHei，正常遍历即可覆盖回退需求。
+
+#### Bug 修复（回退到基准版本坐标系）
+
+| 修复 | 文件 | 说明 |
+|------|------|------|
+| 字体2倍大 | Config.cs | 移除 `FontSize/LineHeight *= ScreenDensity`（SetConfig + ApplyRuntimeDisplaySettings 两处） |
+| 字体2倍大 | Config.cs | 移除 `QuickButtonFontSize *= ScreenDensity` |
+| 按钮错位 | AndroidMainWindow.cs | 移除 `ToLogicalTouchPoint`，恢复直接用 `e.Location`（与基准版本一致） |
+| 缺字 | DrawTextUtils.cs | 移除 `TryFallbackToEmbeddedFont`/`TryFallbackToSystemFont`（基准版本和 XEmuera 均无此方法，EnabledFontCaches 正常遍历即可） |
+
+#### 保留的改进（不回退）
+
+| 改进 | 文件 | 说明 |
+|------|------|------|
+| glyphCount 安全检查 | DrawTextUtils.cs | `PrepareGlyphs` 中 `Math.Min(CharList.Length, Math.Min(glyphs.Length, glyphWidths.Length))` |
+| FontModel 扩展扫描 | FontModel.cs | font/+fonts/ + .ttf/.otf/.ttc + 别名注册 + RegisterChineseFontAliases |
+| AddFontFromResource 回退 | FontModel.cs | 嵌入字体加载失败时回退到 SKTypeface.Default |
+| 方向变化 reflow | AndroidMainWindow.cs | OnPaintSurface 检测尺寸变化触发 ApplyRuntimeDisplayScale |
+
+#### 待验证
+
+| 项 | 说明 |
+|----|------|
+| 缺字 | 回退到基准版本的 EnabledFontCaches 遍历机制后，中文字符回退是否正常需真机验证 |
+| 缩放比例 | 移除 density 乘法后字体大小应恢复基准版本状态 |
+| 按钮位置 | 触摸坐标恢复为物理像素，与 ClientWidth/ClientHeight 一致 |
+
+## [0.37.0] - 2026-05-20
+
+### Phase 9P：坐标系统一修复（接替 kimi2.6 分析）
+
+#### 根因分析
+
+kimi2.6 的 9O 修复为何无效：
+- **缺字**：回退链重排无效，因为 `EnabledFontCaches` 默认已包含 `[MS Gothic, Microsoft YaHei]`，搜索顺序正确；真正问题在 `PrepareGlyphs` 缺少 `glyphCount` 数组越界保护
+- **最后一行越界+按钮错位**：9O 移除 `FontSize/LineHeight *= ScreenDensity` 导致坐标系不一致——`ClientHeight` 是物理像素，`FontSize/LineHeight` 是逻辑像素，`OnPaint` 行数计算和 `MoveMouse` 按钮定位都出错
+
+#### Bug 修复
+
+| 修复 | 文件 | 说明 |
+|------|------|------|
+| 最后一行越界+按钮错位 | Config.cs | 恢复 `FontSize/LineHeight *= ScreenDensity`，统一为物理像素坐标系（9O 错误移除导致回归） |
+| HeightOffset 偏移 | Utils.cs | 改回常量 `4`（与 XEmuera 一致），9O 的 `4 * ScreenDensity` 在物理像素坐标系下偏移过大 |
+| 缺字数组越界 | DrawTextUtils.cs | `PrepareGlyphs` 添加 `glyphCount = Math.Min(...)` 安全检查（与 XEmuera 一致） |
+| 运行时缩放同步 | Config.cs | `ApplyRuntimeDisplaySettings` 同样添加 density 乘法，保持与 `SetConfig` 一致 |
+
+#### 待验证
+
+| 项 | 说明 |
+|----|------|
+| 缺字 | `glyphCount` 修复了数组越界，但 Android 上 `SKFontManager.Default.MatchCharacter` 是否能正确匹配中文字符仍需真机验证 |
+| 缩放比例 | 恢复 density 乘法后需确认不会再次出现"缩放过大"（9N 的"过大"可能是其他地方的双重缩放已修复） |
+| HTML div 错位 | QOL_USERCOM.ERB @COM_OPTION 弹窗位置错误，需在安卓端重新实现触屏位置侦测（已记录 TODO） |
+
+## [0.36.0] - 2026-05-20
+
+### Phase 9O：真机测试反馈修复 Round 2
+
+#### Bug 修复
+
+| 修复 | 文件 | 说明 |
+|------|------|------|
+| 缺字方框 | FontFactory.cs + DrawTextUtils.cs | 回退链优先检查 Microsoft YaHei（含简体汉字），再检查 MS Gothic；FontFactory safeFallbackFonts 将 Microsoft YaHei 提前到 MS Gothic 之前 |
+| 最后一行越界+按钮错位 | Config.cs + EmueraConsole.cs + DisplayUtils.cs | 移除 FontSize/LineHeight 的 ScreenDensity 乘法（双重缩放根因）；HeightOffset 改为动态计算（乘 ScreenDensity）；统一 OnPaint 和 MoveMouse 坐标系 |
+| 缩放过大 | Config.cs | 回滚 9N 的 FontSize/LineHeight *= ScreenDensity，恢复与 XEmuera 相似的缩放比例 |
+
+#### 待验证
+
+| 项 | 说明 |
+|----|------|
+| HTML div 错位 | QOL_USERCOM.ERB COM_OPTION 弹窗位置错误，需进一步分析（暂不修复） |
+
 ## [0.35.0] - 2026-05-20
 
 ### Phase 9N：真机测试反馈修复 + UI 完善

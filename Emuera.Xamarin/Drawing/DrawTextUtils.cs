@@ -136,19 +136,6 @@ namespace XEmuera.Drawing
 					break;
 			}
 
-			// 回退链：内嵌 MS Gothic → 内嵌 Microsoft YaHei → 系统字体
-			if (CharRemain > 0)
-			{
-				TryFallbackToEmbeddedFont(FontModel.Default, ref x, y, font, color, canvas);       // MS Gothic
-				TryFallbackToEmbeddedFont(FontModel.Final, ref x, y, font, color, canvas);          // Microsoft YaHei
-			}
-
-			// 最终回退：使用系统字体（SKFontManager.Default.MatchCharacter）
-			if (CharRemain > 0)
-			{
-				TryFallbackToSystemFont(ref x, y, font, color, canvas);
-			}
-
 			//没有任何字可以绘制的大失败情况
 			if (CharRemain == CharList.Length)
 				return;
@@ -234,8 +221,9 @@ namespace XEmuera.Drawing
 				Paint.Typeface = FontModel.Typeface;
 				var glyphs = Paint.GetGlyphs(CharList);
 				var glyphWidths = Paint.GetGlyphWidths(CharList);
+				int glyphCount = Math.Min(CharList.Length, Math.Min(glyphs.Length, glyphWidths.Length));
 
-				for (int i = 0; i < glyphs.Length; i++)
+				for (int i = 0; i < glyphCount; i++)
 				{
 					Char = CharList[i];
 					if (Char == char.MinValue)
@@ -282,102 +270,6 @@ namespace XEmuera.Drawing
 			public FontModel FontModel;
 		}
 
-		/// <summary>
-		/// 尝试用内嵌字体回退缺字字符。
-		/// 回退链：请求字体 → EnabledFontCaches → 内嵌 MS Gothic → 内嵌 Microsoft YaHei → 系统字体
-		/// </summary>
-		private static void TryFallbackToEmbeddedFont(FontModel embeddedFont, ref float x, float y, Font font, Color color, SKCanvas canvas)
-		{
-			if (embeddedFont == null || CharRemain <= 0)
-				return;
-
-			// 跳过已经在 EnabledFontCaches 中搜索过的字体
-			if (EnabledFontCaches.Any(c => c.FontModel == embeddedFont))
-				return;
-
-			Paint.Typeface = embeddedFont.Typeface;
-			var glyphs = Paint.GetGlyphs(CharList);
-			var glyphWidths = Paint.GetGlyphWidths(CharList);
-
-			for (int i = 0; i < CharList.Length; i++)
-			{
-				if (CharList[i] == char.MinValue || TextUnits[i] != null)
-					continue;
-
-				if (glyphs[i] != 0)
-				{
-					TextUnits[i] = new TextUnit
-					{
-						Text = CharList[i].ToString(),
-						Advance = glyphWidths[i],
-						FontModel = embeddedFont,
-					};
-					CharList[i] = char.MinValue;
-					CharRemain--;
-				}
-			}
-		}
-
-		/// <summary>
-		/// 最终回退：使用 SKFontManager.Default.MatchCharacter 查找系统字体。
-		/// 对每个缺字字符单独匹配系统字体。
-		/// </summary>
-		private static void TryFallbackToSystemFont(ref float x, float y, Font font, Color color, SKCanvas canvas)
-		{
-			if (CharRemain <= 0)
-				return;
-
-			// 收集缺字字符并按匹配的 typeface 分组
-			var fallbackGroups = new Dictionary<SKTypeface, List<int>>();
-
-			for (int i = 0; i < CharList.Length; i++)
-			{
-				if (CharList[i] == char.MinValue || TextUnits[i] != null)
-					continue;
-
-				char c = CharList[i];
-				var matchTypeface = SKFontManager.Default.MatchCharacter(c);
-				if (matchTypeface != null)
-				{
-					if (!fallbackGroups.TryGetValue(matchTypeface, out var indices))
-					{
-						indices = new List<int>();
-						fallbackGroups[matchTypeface] = indices;
-					}
-					indices.Add(i);
-				}
-			}
-
-			// 对每个匹配的 typeface 检查字形并分配
-			foreach (var kvp in fallbackGroups)
-			{
-				var typeface = kvp.Key;
-				var indices = kvp.Value;
-
-				Paint.Typeface = typeface;
-				var remainingChars = indices.Select(idx => CharList[idx]).ToArray();
-				var glyphs = Paint.GetGlyphs(remainingChars);
-				var glyphWidths = Paint.GetGlyphWidths(remainingChars);
-
-				for (int j = 0; j < indices.Count; j++)
-				{
-					int i = indices[j];
-					if (glyphs[j] != 0)
-					{
-						// 创建临时 FontModel 包装系统字体
-						var sysFontModel = new FontModel(typeface);
-						TextUnits[i] = new TextUnit
-						{
-							Text = CharList[i].ToString(),
-							Advance = glyphWidths[j],
-							FontModel = sysFontModel,
-						};
-						CharList[i] = char.MinValue;
-						CharRemain--;
-					}
-				}
-			}
-		}
 	}
 
 	[Flags]
