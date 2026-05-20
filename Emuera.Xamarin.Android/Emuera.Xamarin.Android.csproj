@@ -76,11 +76,16 @@
     <AndroidResource Include="Resources\values\strings.xml" />
     <AndroidResource Include="Resources\mipmap-anydpi-v26\icon.xml" />
     <AndroidResource Include="Resources\mipmap-anydpi-v26\icon_round.xml" />
-    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-hdpi\icon.png" />
-    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-mdpi\icon.png" />
-    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-xhdpi\icon.png" />
-    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-xxhdpi\icon.png" />
-    <AndroidResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" Link="Resources\mipmap-xxxhdpi\icon.png" />
+    <AndroidResource Include="Resources\mipmap-mdpi\icon.png" />
+    <AndroidResource Include="Resources\mipmap-hdpi\icon.png" />
+    <AndroidResource Include="Resources\mipmap-xhdpi\icon.png" />
+    <AndroidResource Include="Resources\mipmap-xxhdpi\icon.png" />
+    <AndroidResource Include="Resources\mipmap-xxxhdpi\icon.png" />
+    <AndroidResource Include="Resources\drawable-mdpi\icon_foreground.png" />
+    <AndroidResource Include="Resources\drawable-hdpi\icon_foreground.png" />
+    <AndroidResource Include="Resources\drawable-xhdpi\icon_foreground.png" />
+    <AndroidResource Include="Resources\drawable-xxhdpi\icon_foreground.png" />
+    <AndroidResource Include="Resources\drawable-xxxhdpi\icon_foreground.png" />
   </ItemGroup>
 
   <ItemGroup>

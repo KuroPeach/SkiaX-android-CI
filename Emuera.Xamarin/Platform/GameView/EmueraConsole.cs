@@ -1468,7 +1468,9 @@ namespace MinorShift.Emuera.GameView
 				graph.Clear(DisplayUtils.ToSKColor(this.bgColor));
 				ValidateBackground(ClientWidth, ClientHeight);
 				if (bakedBackground != null)
-					graph.DrawBitmap(bakedBackground, 0, 0);
+				{
+					graph.DrawBitmap(bakedBackground, new SKRect(0, 0, ClientWidth, ClientHeight));
+				}
 				_imageLayerManager.DrawTo(graph, ClientWidth, ClientHeight, window.ScrollBar.Value * Config.LineHeight);
 				//1823 cbg追加
 				#region EM_私家版_描画拡張

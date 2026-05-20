@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -256,5 +256,35 @@
   </data>
   <data name="FontAndShape" xml:space="preserve">
     <value>文字与图像</value>
+  </data>
+  <data name="ViewLog" xml:space="preserve">
+    <value>查看日志</value>
+  </data>
+  <data name="SaveLog" xml:space="preserve">
+    <value>保存日志</value>
+  </data>
+  <data name="LogSaved" xml:space="preserve">
+    <value>日志已保存</value>
+  </data>
+  <data name="SaveFailed" xml:space="preserve">
+    <value>保存失败</value>
+  </data>
+  <data name="ScanningGames" xml:space="preserve">
+    <value>正在扫描游戏…</value>
+  </data>
+  <data name="StoragePermissionRequired" xml:space="preserve">
+    <value>需要存储权限才能扫描游戏</value>
+  </data>
+  <data name="NoGamesFound" xml:space="preserve">
+    <value>未找到游戏</value>
+  </data>
+  <data name="LanguageChanged" xml:space="preserve">
+    <value>语言已更改</value>
+  </data>
+  <data name="NeedRestartToApply" xml:space="preserve">
+    <value>请重启应用以使语言更改生效。</value>
+  </data>
+  <data name="SaveAndClose" xml:space="preserve">
+    <value>保存并关闭</value>
   </data>
 </root>

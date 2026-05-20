@@ -47,6 +47,7 @@ namespace XEmuera.Droid
             Android.Util.Log.Debug("EmueraHost", $"PathProvider set: ExeDir={GlobalStatic.PathProvider.ExeDir}");
 
             CopyExternalConfigIfNeeded(context, gamePath);
+            ApplyLanguagePreference(gamePath);
 
             DisplayUtils.ScreenDensity = context.Resources.DisplayMetrics.Density;
 
@@ -325,6 +326,57 @@ namespace XEmuera.Droid
             if (context == null) return;
             mainWindow = new AndroidMainWindow(context);
             GameUtils.MainPicBox = new EraPictureBox();
+        }
+
+        private void ApplyLanguagePreference(string gamePath)
+        {
+            // 如果用户在游戏列表页面选择了语言（Preferences 保存），写入 emuera.config
+            var savedLang = GameUtils.GetPreferences("emuera_lang", null);
+            if (string.IsNullOrEmpty(savedLang)) return;
+
+            var sep = System.IO.Path.DirectorySeparatorChar;
+            var configPath = gamePath.TrimEnd(sep) + sep + "emuera.config";
+
+            try
+            {
+                string[] lines;
+                if (System.IO.File.Exists(configPath))
+                    lines = System.IO.File.ReadAllLines(configPath);
+                else
+                    lines = new string[0];
+
+                bool found = false;
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    if (lines[i].TrimStart().StartsWith("Emueraの表示言語:") ||
+                        lines[i].TrimStart().StartsWith("Emuera interface language:"))
+                    {
+                        var colonIdx = lines[i].IndexOf(':');
+                        if (colonIdx >= 0)
+                            lines[i] = lines[i].Substring(0, colonIdx + 1) + savedLang;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    var newLines = new string[lines.Length + 1];
+                    lines.CopyTo(newLines, 0);
+                    newLines[lines.Length] = "Emueraの表示言語:" + savedLang;
+                    lines = newLines;
+                }
+
+                System.IO.File.WriteAllLines(configPath, lines);
+                Android.Util.Log.Info("EmueraHost", $"Applied language preference '{savedLang}' to config");
+
+                // 清除 Preferences，避免重复写入
+                GameUtils.SetPreferences("emuera_lang", null);
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("EmueraHost", $"Failed to apply language preference: {ex.Message}");
+            }
         }
 
         private void CopyExternalConfigIfNeeded(Context context, string gamePath)

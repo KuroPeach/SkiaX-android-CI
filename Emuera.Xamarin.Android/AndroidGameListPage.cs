@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MinorShift.Emuera;
+using XEmuera.Resources;
 using Xamarin.Forms;
 
 namespace XEmuera.Droid
@@ -16,7 +17,7 @@ namespace XEmuera.Droid
 
         public AndroidGameListPage()
         {
-            Title = "Emuera";
+            Title = StringsText.GameList;
 
             statusLabel = new Label
             {
@@ -84,12 +85,12 @@ namespace XEmuera.Droid
         {
             if (MainActivity.HasStoragePermission)
             {
-                statusLabel.Text = "Scanning for games...";
+                statusLabel.Text = StringsText.ScanningGames;
                 RefreshList();
             }
             else
             {
-                statusLabel.Text = "Storage permission required. Grant permission and pull to refresh.";
+                statusLabel.Text = StringsText.StoragePermissionRequired;
                 (MainActivity.Instance as MainActivity)?.RequestStoragePermission();
             }
         }
@@ -102,7 +103,7 @@ namespace XEmuera.Droid
             }
             else
             {
-                statusLabel.Text = "Storage permission not granted.";
+                statusLabel.Text = StringsText.StoragePermissionRequired;
                 (MainActivity.Instance as MainActivity)?.RequestStoragePermission();
             }
             listView.EndRefresh();
@@ -121,7 +122,7 @@ namespace XEmuera.Droid
         {
             AndroidGameItemModel.LoadAll();
             if (AndroidGameItemModel.AllModels.Count == 0)
-                statusLabel.Text = "No games found. Place game files in /storage/emulated/0/emuera/";
+                statusLabel.Text = StringsText.NoGamesFound;
             else
                 statusLabel.Text = $"Found {AndroidGameItemModel.AllModels.Count} game(s)";
         }

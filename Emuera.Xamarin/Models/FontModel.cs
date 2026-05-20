@@ -89,6 +89,9 @@ namespace XEmuera.Models
 
 			LoadFontsFolder();
 
+			// 为缺失的中文字体注册回退别名（映射到内嵌的 Microsoft YaHei）
+			RegisterMissingChineseFontFallbacks();
+
 			EnabledList = new FontGroup
 			{
 				Name = StringsText.FontReplaceByOrder,
@@ -175,8 +178,69 @@ namespace XEmuera.Models
 						else
 						{
 							AddFontModel(typeface, fileName);
+							// 为常见中文字体注册中文别名
+							RegisterChineseFontAliases(fileName, typeface.FamilyName);
 						}
 					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// 为常见中文字体文件名注册中文别名映射。
+		/// 例如 simhei.ttf → "黑体"→"SimHei", simsun.ttf → "宋体"→"SimSun"
+		/// </summary>
+		private static void RegisterChineseFontAliases(string fileName, string familyName)
+		{
+			var lowerFileName = fileName.ToLowerInvariant();
+			var aliasMap = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+			{
+				{ "simhei", new[] { "黑体" } },
+				{ "simsun", new[] { "宋体" } },
+				{ "simfang", new[] { "仿宋" } },
+				{ "simkai", new[] { "楷体" } },
+				{ "msyh", new[] { "微软雅黑" } },
+			};
+
+			foreach (var kvp in aliasMap)
+			{
+				if (lowerFileName.StartsWith(kvp.Key))
+				{
+					foreach (var alias in kvp.Value)
+					{
+						if (!FontNameMapping.GetByKey(alias, out _))
+							FontNameMapping.Add(alias, familyName);
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// 为缺失的中文字体注册回退别名。
+		/// 当外部字体文件（如 simhei.ttf）不存在时，将中文别名（如"黑体"）映射到内嵌的 Microsoft YaHei。
+		/// </summary>
+		private static void RegisterMissingChineseFontFallbacks()
+		{
+			// 中文字体别名 → 对应的外部字体文件前缀
+			var chineseFontFallbacks = new (string alias, string filePrefix)[]
+			{
+				("黑体", "simhei"),
+				("宋体", "simsun"),
+				("仿宋", "simfang"),
+				("楷体", "simkai"),
+			};
+
+			// 检查外部字体是否已加载（通过检查是否有对应的 FontModel）
+			foreach (var (alias, filePrefix) in chineseFontFallbacks)
+			{
+				// 如果别名已有映射，说明外部字体已加载，跳过
+				if (FontNameMapping.GetByKey(alias, out _))
+					continue;
+
+				// 别名未映射，说明外部字体不存在，回退到 Microsoft YaHei
+				if (AllModels.TryGetValue("Microsoft YaHei", out var yaheiModel))
+				{
+					FontNameMapping.Add(alias, yaheiModel.Name);
 				}
 			}
 		}
@@ -190,6 +254,8 @@ namespace XEmuera.Models
 			FontNameMapping.Add("ＭＳ 明朝", "MS Mincho");
 			FontNameMapping.Add("ＭＳ Ｐ明朝", "MS PMincho");
 			FontNameMapping.Add("微软雅黑", "Microsoft YaHei");
+			// 中文字体别名在 LoadFontsFolder → RegisterChineseFontAliases 中动态注册
+			// （因为需要知道外部字体的实际族名）
 		}
 
 		private static void AddFontFromResource(string fileName)
@@ -198,10 +264,19 @@ namespace XEmuera.Models
 				return;
 
 			string path = $"XEmuera.Resources.Fonts.{fileName}.ttf";
-			SKTypeface sKTypeface = SKTypeface.FromStream(GameUtils.GetManifestResourceStream(path));
+			SKTypeface sKTypeface = null;
 
+			try
+			{
+				var stream = GameUtils.GetManifestResourceStream(path);
+				if (stream != null)
+					sKTypeface = SKTypeface.FromStream(stream);
+			}
+			catch { }
+
+			// 嵌入资源字体加载失败时，使用系统默认字体作为回退
 			if (sKTypeface == null)
-				throw new ArgumentNullException("找不到字体文件。");
+				sKTypeface = SKTypeface.Default;
 
 			AddFontModel(sKTypeface, fileName);
 		}

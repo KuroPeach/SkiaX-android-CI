@@ -26,10 +26,10 @@ if %ERRORLEVEL% neq 0 (
 echo.
 echo [3/3] Locating output APK...
 set APK_DIR=Emuera.Xamarin.Android\bin\Release\net8.0-android
-if exist "%APK_DIR%\com.xemuera.app-Signed.apk" (
-    echo [OK] Signed APK: %APK_DIR%\com.xemuera.app-Signed.apk
-) else if exist "%APK_DIR%\com.xemuera.app.apk" (
-    echo [OK] APK: %APK_DIR%\com.xemuera.app.apk
+if exist "%APK_DIR%\Emuera.SkiaX-Signed.apk" (
+    echo [OK] Signed APK: %APK_DIR%\Emuera.SkiaX-Signed.apk
+) else if exist "%APK_DIR%\Emuera.SkiaX.apk" (
+    echo [OK] APK: %APK_DIR%\Emuera.SkiaX.apk
 ) else (
     echo [WARN] APK not found in %APK_DIR%
     dir /b "%APK_DIR%\*.apk" 2>nul

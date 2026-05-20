@@ -166,8 +166,8 @@ namespace XEmuera.Droid
 
             quickButtonScrollView = quickScroll;
 
-            // --- 工具栏按钮（对齐 XEmuera TintImageButton 风格） ---
-            // 辅助方法：创建工具栏按钮（半透明背景确保在任何主题下可见）
+            // --- 工具栏按钮（SVG 图标 + TintImageButton） ---
+            // 辅助方法：创建文本工具栏按钮
             Button MakeToolButton(string text, float fontSize = 10f)
             {
                 return new Button
@@ -184,8 +184,30 @@ namespace XEmuera.Droid
                 };
             }
 
-            // edit_button（切换式，与 XEmuera 一致）
-            var editButton = MakeToolButton("✏", 12f);
+            // 辅助方法：创建 SVG 图标工具栏按钮
+            XEmuera.Views.TintImageButton MakeSvgToolButton(string svgName, XEmuera.Drawing.Color tintColor)
+            {
+                var btn = new XEmuera.Views.TintImageButton
+                {
+                    Image = svgName,
+                    TintColor = tintColor,
+                    WidthRequest = 34,
+                    HeightRequest = 34,
+                    BackgroundColor = Xamarin.Forms.Color.FromRgba(0, 0, 0, 160),
+                    Padding = new Thickness(5),
+                    Margin = new Thickness(1, 0),
+                };
+                return btn;
+            }
+
+            var svgTintColor = XEmuera.Drawing.Color.White;
+
+            // menu_button（打开 flyout 侧边栏，使用 ☰ 字符）
+            var menuButton = MakeToolButton("☰", 12f);
+            menuButton.Clicked += (s, e) => { flyoutPage.IsPresented = true; };
+
+            // edit_button（切换式，SVG 图标）
+            var editButton = MakeSvgToolButton("edit.svg", svgTintColor);
             editButton.Clicked += (s, e) =>
             {
                 bool show = !entryLayout.IsVisible;
@@ -195,8 +217,8 @@ namespace XEmuera.Droid
                     textEntry.Focus();
             };
 
-            // gamepad_button（切换虚拟控制器）
-            var gamepadButton = MakeToolButton("🎮", 12f);
+            // gamepad_button（切换虚拟控制器，SVG 图标）
+            var gamepadButton = MakeSvgToolButton("gamepad.svg", svgTintColor);
             gamepadButton.Clicked += (s, e) =>
             {
                 virtualControllerVisible = !virtualControllerVisible;
@@ -206,8 +228,8 @@ namespace XEmuera.Droid
                     RefreshVirtualControllerState();
             };
 
-            // gallery_view_button（切换快捷按钮面板）
-            var galleryViewButton = MakeToolButton("⊞", 12f);
+            // gallery_view_button（切换快捷按钮面板，SVG 图标）
+            var galleryViewButton = MakeSvgToolButton("gallery_view.svg", svgTintColor);
             galleryViewButton.Clicked += (s, e) =>
             {
                 bool show = !quickScroll.IsVisible;
@@ -219,8 +241,8 @@ namespace XEmuera.Droid
                     console?.ClearQuickButton();
             };
 
-            // scroll_vertical_button（切换滚动条 Slider）
-            var scrollVerticalButton = MakeToolButton("⇕", 12f);
+            // scroll_vertical_button（切换滚动条 Slider，SVG 图标）
+            var scrollVerticalButton = MakeSvgToolButton("scroll_vertical.svg", svgTintColor);
             // 注意：scrollBarLayout 在后面创建，事件在创建后绑定
 
             // zoom buttons
@@ -230,8 +252,8 @@ namespace XEmuera.Droid
             var zoomOutButton = MakeToolButton("A-");
             zoomOutButton.Clicked += (s, e) => AdjustFontScale(-0.1f);
 
-            // menu_show_button（收起/展开工具栏，与 XEmuera 一致）
-            var menuShowButton = MakeToolButton("☰", 12f);
+            // menu_show_button（收起/展开工具栏，SVG 图标）
+            var menuShowButton = MakeSvgToolButton("menu_show.svg", svgTintColor);
             var toolbar = new StackLayout
             {
                 Orientation = StackOrientation.Horizontal,
@@ -263,8 +285,9 @@ namespace XEmuera.Droid
                 menuShowButton.Opacity = visible ? 1 : 0.5;
             };
 
-            // 组装工具栏（顺序与 XEmuera 一致：spacer, edit, scroll_vertical, gallery, gamepad, A-, A+, menu_show）
+            // 组装工具栏（顺序：spacer, ☰menu, edit, scroll_vertical, gallery, gamepad, A-, A+, menu_show）
             toolbar.Children.Add(spacer);
+            toolbar.Children.Add(menuButton);
             toolbar.Children.Add(editButton);
             toolbar.Children.Add(scrollVerticalButton);
             toolbar.Children.Add(galleryViewButton);
@@ -1188,16 +1211,14 @@ namespace XEmuera.Droid
         #region Runtime Display Scale
 
         /// <summary>
-        /// 将物理像素触摸坐标转换为逻辑坐标
-        /// 考虑屏幕密度差异
+        /// 将触摸坐标转换为 MoveMouse 使用的坐标空间。
+        /// ClientWidth/ClientHeight 通过 GetRealLength() 乘以了 ScreenDensity，
+        /// 所以 MoveMouse 期望物理像素坐标，直接使用 e.Location 即可。
         /// </summary>
         private SKPoint ToLogicalTouchPoint(SKPoint location)
         {
-            var density = DisplayUtils.ScreenDensity;
-            if (density <= 0 || Math.Abs(density - 1.0) < 0.01)
-                return location;
-
-            return new SKPoint((float)(location.X / density), (float)(location.Y / density));
+            // 触摸坐标已经是物理像素，与 ClientWidth/ClientHeight（物理像素）一致
+            return location;
         }
 
         public void ApplyRuntimeDisplayScale(float fontScale, bool refreshSurface = true)

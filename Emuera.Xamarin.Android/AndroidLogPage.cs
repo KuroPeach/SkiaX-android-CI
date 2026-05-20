@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using MinorShift.Emuera;
 using MinorShift.Emuera.Runtime.Utils;
+using XEmuera.Resources;
 using Xamarin.Forms;
 
 namespace XEmuera.Droid
@@ -14,7 +15,7 @@ namespace XEmuera.Droid
 
         public AndroidLogPage()
         {
-            Title = "Interpreter Log";
+            Title = StringsText.ViewLog;
 
             logLabel = new Label
             {

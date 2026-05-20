@@ -1,5 +1,41 @@
 # Emuera.Xamarin 变更记录
 
+## [0.35.0] - 2026-05-20
+
+### Phase 9N：真机测试反馈修复 + UI 完善
+
+#### Bug 修复
+
+| 修复 | 文件 | 说明 |
+|------|------|------|
+| 文字渲染全黑 | DrawTextUtils.cs | Paint==null 或 FontCaches 为空时 fallback 到 SKTypeface.Default 直接绘制，不再被 OnPaint try-catch 吞掉 |
+| FontModel 加载崩溃 | FontModel.cs | AddFontFromResource 嵌入字体失败时回退到 SKTypeface.Default，不再抛 ArgumentNullException |
+| Language 页面崩溃 | AndroidLanguagePage.cs | SaveConfig() 添加 try-catch，引擎未初始化时用 Preferences 保存语言选择 |
+| 语言偏好丢失 | AndroidHost.cs | 新增 ApplyLanguagePreference()，引擎初始化前将 Preferences 中的语言写入 emuera.config |
+| 文字行向下偏移 | Config.cs | FontSize/LineHeight/QuickButtonFontSize 乘以 ScreenDensity，与物理像素 ClientHeight 统一坐标系 |
+| 按钮点击位置偏移 | AndroidMainWindow.cs | ToLogicalTouchPoint 移除 density 除法，保持触摸坐标与 ClientWidth/ClientHeight 一致 |
+| 字体回退缺字 | FontModel.cs | 新增 RegisterMissingChineseFontFallbacks()，外部字体缺失时中文别名映射到内嵌 Microsoft YaHei |
+
+#### UI 完善
+
+| 功能 | 文件 | 说明 |
+|------|------|------|
+| 工具栏 SVG 图标 | AndroidMainWindow.cs | Unicode 字符（✏🎮⊞⇕☰）替换为 TintImageButton + SVG 矢量图标（edit.svg/gamepad.svg/gallery_view.svg/scroll_vertical.svg/menu_show.svg） |
+| 汉堡菜单按钮 | AndroidMainWindow.cs | 新增 ☰ 按钮打开 FlyoutPage 侧边菜单（原 ☰ 改为收起/展开工具栏） |
+| 菜单中文化 | AndroidMainMenuPage.cs + AndroidLanguagePage.cs + AndroidConfigPage.cs + AndroidApp.cs + AndroidGameListPage.cs + AndroidLogPage.cs | 硬编码英文字符串替换为 StringsText 本地化资源 |
+| 英文翻译 | StringsText.en.resx | 新增英文翻译资源文件（48 条） |
+| StringsText 扩展 | StringsText.resx + Designer.cs | 新增 ViewLog/SaveLog/LogSaved/SaveFailed/ScanningGames/StoragePermissionRequired/NoGamesFound/LanguageChanged/NeedRestartToApply/SaveAndClose 共 10 条 |
+| SVG 嵌入资源 | Emuera.Xamarin.Core.csproj | 添加 5 个 SVG 文件为 EmbeddedResource + Views/\*\* 编译引用 |
+| gamepad.svg | Resources/Images/ | 从 XEmuera 项目复制 |
+
+#### 应用标识
+
+| 项目 | 变更 |
+|------|------|
+| 应用名 | "Emuera" → "Emuera skiaX" |
+| 版本 | 0.1.0 → 0.35.0 (versionCode=35) |
+| APK 图标 | Emuera\icon.ico → 5 密度桶 mipmap PNG（48/72/96/144/192px） |
+
 ## [0.34.0] - 2026-05-20
 
 ### Phase 9L/9M：运行时崩溃保护 + 动态缩放完善 + 字体加载修复
@@ -690,7 +726,7 @@
 #### 8D-6：APK 打包验证 ✅
 
 - `dotnet publish -c Debug -f net8.0-android` 成功
-- 生成 `com.xemuera.app-Signed.apk`（~30.5 MB）
+- 生成 `Emuera.SkiaX-Signed.apk`（~30.5 MB）
 - 编译验证：0 错误，4 警告
 
 ### Slice 5B-D：Desktop 音频验证 ✅

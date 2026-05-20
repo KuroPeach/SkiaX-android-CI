@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MinorShift.Emuera;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
+using XEmuera.Resources;
 using Xamarin.Forms;
 
 namespace XEmuera.Droid
@@ -20,7 +21,7 @@ namespace XEmuera.Droid
 
         public AndroidLanguagePage()
         {
-            Title = "Language";
+            Title = StringsText.Language;
 
             var currentLang = MinorShift.Emuera.Config.EmueraLang ?? "简体中文";
 
@@ -71,7 +72,7 @@ namespace XEmuera.Droid
                 {
                     new Label
                     {
-                        Text = "Changing language requires restart to take full effect.",
+                        Text = StringsText.NeedRestartToApply,
                         FontSize = 12,
                         TextColor = Color.Gray,
                         Margin = new Thickness(20, 10, 20, 0),
@@ -92,13 +93,22 @@ namespace XEmuera.Droid
             if (newLang == currentLang) return;
 
             // 更新配置：通过 ConfigData 修改并保存
-            var configData = MinorShift.Emuera.ConfigData.Instance;
-            if (configData != null)
+            try
             {
-                var configItem = configData.GetConfigItem(ConfigCode.EmueraLang);
-                if (configItem != null)
-                    configItem.SetValue(newLang);
-                configData.SaveConfig();
+                var configData = MinorShift.Emuera.ConfigData.Instance;
+                if (configData != null)
+                {
+                    var configItem = configData.GetConfigItem(ConfigCode.EmueraLang);
+                    if (configItem != null)
+                        configItem.SetValue(newLang);
+                    configData.SaveConfig();
+                }
+            }
+            catch (Exception)
+            {
+                // 引擎未初始化时 configPath 为 null，SaveConfig 会失败
+                // 此时用 Preferences 保存语言选择，引擎初始化时会读取
+                GameUtils.SetPreferences("emuera_lang", newLang);
             }
 
             // 更新显示标记

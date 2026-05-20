@@ -11,7 +11,7 @@ using Android.Widget;
 namespace XEmuera.Droid
 {
     [Activity(
-        Label = "Emuera",
+        Label = "Emuera skiaX",
         Icon = "@mipmap/icon",
         Theme = "@style/MainTheme",
         MainLauncher = true,

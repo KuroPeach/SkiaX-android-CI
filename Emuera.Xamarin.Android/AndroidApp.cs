@@ -1,6 +1,7 @@
 using System;
 using MinorShift.Emuera;
 using MinorShift.Emuera.UI.Framework.Forms;
+using XEmuera.Resources;
 using Xamarin.Forms;
 
 namespace XEmuera.Droid
@@ -87,8 +88,8 @@ namespace XEmuera.Droid
                 Device.BeginInvokeOnMainThread(async () =>
                 {
                     await flyoutPage.Detail.Navigation.PopAsync();
-                    await flyoutPage.Detail.DisplayAlert("Language Changed",
-                        "Please restart the app for the language change to take full effect.", "OK");
+                    await flyoutPage.Detail.DisplayAlert(StringsText.LanguageChanged,
+                        StringsText.NeedRestartToApply, "OK");
                 });
             };
             flyoutPage.Detail.Navigation.PushAsync(page);
@@ -115,16 +116,16 @@ namespace XEmuera.Droid
                 {
                     Device.BeginInvokeOnMainThread(async () =>
                     {
-                        await flyoutPage.Detail.DisplayAlert("Log Saved",
-                            $"Log saved to:\n{fname}", "OK");
+                        await flyoutPage.Detail.DisplayAlert(StringsText.LogSaved,
+                        $"Log saved to:\n{fname}", "OK");
                     });
                 }
                 else
                 {
                     Device.BeginInvokeOnMainThread(async () =>
                     {
-                        await flyoutPage.Detail.DisplayAlert("Save Failed",
-                            "Failed to save log file.", "OK");
+                        await flyoutPage.Detail.DisplayAlert(StringsText.SaveFailed,
+                        "Failed to save log file.", "OK");
                     });
                 }
             }

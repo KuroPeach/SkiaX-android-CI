@@ -39,6 +39,8 @@
 | Phase 9G | Return NRE + AWAIT 帧同步 + 字体缩放渲染 + HTML 滚动 + 虚拟控制器 + 收起工具栏 | 0.29 |
 | Phase 9H | XEmuera 风格工具栏 + QuickButton 面板 + Slider 滚动条 + Return(0) NRE 修复 + MoveMouse 滚动修复 + 按钮可见性修复 | 0.30 |
 | Phase 9I | 图片 LazyLoading + LRU 系统移植（SharedBitmapCache/AnimSpriteCache/SpriteAnimated/AnimatedImageHelper/ConstImage延迟加载/AppContents SQLite元数据） | 0.31 |
+| Phase 9J-9M | Android 兼容性修复 + 跨平台编译保护 + 运行时崩溃保护 + 动态缩放 + 字体扫描 | 0.32-0.34 |
+| Phase 9N | 真机测试反馈修复 + UI 完善（文字全黑/Language崩溃/中文化/SVG图标/英文翻译/APK标识） | 0.35 |
 
 ### ⏭️ 待推进：APK 目标路径
 
@@ -125,7 +127,7 @@ Emuera.Xamarin.sln
 → ✅ 9I-P7：SkiaSharp 2.88.x 兼容性修复（FrameRect 缺失退化处理）
 → ✅ 9I-P8：编译验证（0 错误 0 警告）
 ─── 下一步 ───
-→ 🟡 9J-P1：APK 构建验证 ✅ 构建成功（170.7MB），真机测试待 ADB
+→ ✅ 9J-P1：APK 构建验证 ✅ 构建成功（170.7MB），真机测试待 ADB
 → 🔴 9J-P2：动图渲染验证（GIF/WebP 在 Android 上是否正确播放）
 → 🔴 9J-P3：内存占用对比测试（移植前后 SharedBitmapCache 效果）
 → ✅ 9E-NEXT：修复 GETTEXTBOX — ChangeTextBox 同步 TextBox.Text
@@ -139,6 +141,13 @@ Emuera.Xamarin.sln
 → ✅ 9L：运行时崩溃保护（PrintHtml/catch/Process.Start/WorkingSet64/useGDI）
 → ✅ 9M-P1：7C-P2 动态缩放完善（方向变化reflow + 触摸坐标转换）
 → ✅ 9M-P2：FontModel 字体扫描修复（font/+fonts/ + .ttc + 别名注册）
+→ ✅ 9N-P1：文字渲染全黑修复（DrawTextUtils fallback 绘制路径 + FontModel.Load 回退 SKTypeface.Default）
+→ ✅ 9N-P2：游戏列表页 Language 崩溃修复（SaveConfig try-catch + Preferences 回退 + ApplyLanguagePreference）
+→ ✅ 9N-P3：菜单栏中文化（Android 页面硬编码英文→StringsText 本地化字符串）
+→ ✅ 9N-P4：工具栏 SVG 图标（Unicode→TintImageButton + SVG 矢量图标）
+→ ✅ 9N-P5：汉堡菜单按钮分离（☰ 打开 FlyoutPage + menu_show.svg 收起工具栏）
+→ ✅ 9N-P6：英文翻译文件（StringsText.en.resx 48 条）
+→ ✅ 9N-P7：应用标识（应用名 Emuera skiaX + 版本 0.35.0 + icon.ico mipmap）
 ─── 遗留问题 ───
 → 🟡 AndroidSound 变速（setSpeed/getSpeed/SetPreservePitch 为 stub，需 ExoPlayer）
 ─── 远期 ───

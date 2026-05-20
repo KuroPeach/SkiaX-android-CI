@@ -83,6 +83,13 @@ namespace MinorShift.Emuera
 			QuickButtonFontSize = instance.GetConfigValue<int>(ConfigCode.QuickButtonFontSize);
 			QuickButtonSpacing = instance.GetConfigValue<int>(ConfigCode.QuickButtonSpacing);
 			QuickButtonPadding = 2;
+
+			// Android: SkiaSharp canvas 使用物理像素坐标系，
+			// 字体大小需要乘以 ScreenDensity
+			var initDensity = DisplayUtils.ScreenDensity;
+			if (initDensity > 1)
+				QuickButtonFontSize = (int)(QuickButtonFontSize * initDensity);
+
 			QuickButtonHeight = QuickButtonFontSize * 3 + QuickButtonPadding * 2;
 
 			AdaptiveFont = instance.GetConfigValue<bool>(ConfigCode.AdaptiveFont);
@@ -110,6 +117,15 @@ namespace MinorShift.Emuera
 			{
 				FontSize = (int)(FontSize * FontScale);
 				LineHeight = (int)(LineHeight * FontScale);
+			}
+
+			// Android: SkiaSharp canvas 使用物理像素坐标系，
+			// FontSize/LineHeight 需要乘以 ScreenDensity 才能与 ClientWidth/ClientHeight（物理像素）一致
+			var density = DisplayUtils.ScreenDensity;
+			if (density > 1)
+			{
+				FontSize = (int)(FontSize * density);
+				LineHeight = (int)(LineHeight * density);
 			}
 
 			FPS = instance.GetConfigValue<int>(ConfigCode.FPS);
@@ -301,6 +317,15 @@ namespace MinorShift.Emuera
 				FontSize = 8;
 			if (LineHeight < FontSize)
 				LineHeight = FontSize;
+
+			// Android: SkiaSharp canvas 使用物理像素坐标系，
+			// FontSize/LineHeight 需要乘以 ScreenDensity 才能与 ClientWidth/ClientHeight（物理像素）一致
+			var density = DisplayUtils.ScreenDensity;
+			if (density > 1)
+			{
+				FontSize = (int)(FontSize * density);
+				LineHeight = (int)(LineHeight * density);
+			}
 
 			ClearFont();
 			DrawTextUtils.Reset(); // 清除 FontCache 中按旧 TextSize 缓存的 Advance 值

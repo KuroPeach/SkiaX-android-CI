@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MinorShift.Emuera.Runtime.Config;
+using XEmuera.Resources;
 using Xamarin.Forms;
 
 namespace XEmuera.Droid
@@ -12,7 +13,7 @@ namespace XEmuera.Droid
 
         public AndroidConfigPage()
         {
-            Title = "Settings";
+            Title = StringsText.Settings;
 
             items = BuildConfigItems();
 
@@ -43,7 +44,7 @@ namespace XEmuera.Droid
 
             var saveButton = new Button
             {
-                Text = "Save & Close",
+                Text = StringsText.SaveAndClose,
                 BackgroundColor = Color.FromHex("#2196F3"),
                 TextColor = Color.White,
                 Margin = new Thickness(15, 10),

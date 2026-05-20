@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using MinorShift.Emuera;
+using XEmuera.Resources;
 using Xamarin.Forms;
 
 namespace XEmuera.Droid
@@ -18,7 +19,7 @@ namespace XEmuera.Droid
 
         public AndroidMainMenuPage()
         {
-            Title = "Menu";
+            Title = StringsText.Settings;
             IconImageSource = "menu.png";
             Padding = new Thickness(0, 40, 0, 0);
 
@@ -51,17 +52,17 @@ namespace XEmuera.Droid
 
             if (isInGame)
             {
-                menuItems.Add(new MainMenuItem { Title = "Reboot", Action = "Reboot" });
-                menuItems.Add(new MainMenuItem { Title = "Goto Title", Action = "GotoTitle" });
+                menuItems.Add(new MainMenuItem { Title = StringsText.Reboot, Action = "Reboot" });
+                menuItems.Add(new MainMenuItem { Title = StringsText.GotoTitle, Action = "GotoTitle" });
             }
 
-            menuItems.Add(new MainMenuItem { Title = "Settings", Action = "Settings" });
-            menuItems.Add(new MainMenuItem { Title = "Language", Action = "Language" });
+            menuItems.Add(new MainMenuItem { Title = StringsText.Settings, Action = "Settings" });
+            menuItems.Add(new MainMenuItem { Title = StringsText.Language, Action = "Language" });
 
             if (isInGame)
             {
-                menuItems.Add(new MainMenuItem { Title = "View Log", Action = "ViewLog" });
-                menuItems.Add(new MainMenuItem { Title = "Save Log", Action = "SaveLog" });
+                menuItems.Add(new MainMenuItem { Title = StringsText.ViewLog, Action = "ViewLog" });
+                menuItems.Add(new MainMenuItem { Title = StringsText.SaveLog, Action = "SaveLog" });
             }
         }
 

@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CSVFolderNotExists" xml:space="preserve">
+    <value>CSV folder not found</value>
+  </data>
+  <data name="ERBFolderNotExists" xml:space="preserve">
+    <value>ERB folder not found</value>
+  </data>
+  <data name="NoFolder" xml:space="preserve">
+    <value>No folder</value>
+  </data>
+  <data name="RebootConfirm" xml:space="preserve">
+    <value>Are you sure you want to reload?</value>
+  </data>
+  <data name="Reboot" xml:space="preserve">
+    <value>Reload</value>
+  </data>
+  <data name="GotoTitleConfirm" xml:space="preserve">
+    <value>Are you sure you want to return to title?</value>
+  </data>
+  <data name="GotoTitle" xml:space="preserve">
+    <value>Return to Title</value>
+  </data>
+  <data name="GameIsProcessing" xml:space="preserve">
+    <value>Please wait for loading to complete before restarting or quitting the game.</value>
+  </data>
+  <data name="QuitGameConfirm" xml:space="preserve">
+    <value>Are you sure you want to quit the game?</value>
+  </data>
+  <data name="PermissionsRequestFailed" xml:space="preserve">
+    <value>Permission request failed. Please restart the app or grant permissions manually.</value>
+  </data>
+  <data name="NeedManageFilesPermissions" xml:space="preserve">
+    <value>File management permission is required. You will be redirected to the permission settings.</value>
+  </data>
+  <data name="BackButtonToQuit" xml:space="preserve">
+    <value>Press back again to exit.</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="FontReplaceOrder" xml:space="preserve">
+    <value>Font Fallback Order</value>
+  </data>
+  <data name="Environment" xml:space="preserve">
+    <value>Environment</value>
+  </data>
+  <data name="View" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="Font" xml:space="preserve">
+    <value>Font</value>
+  </data>
+  <data name="Window" xml:space="preserve">
+    <value>Window</value>
+  </data>
+  <data name="System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="System2" xml:space="preserve">
+    <value>System 2</value>
+  </data>
+  <data name="Compati" xml:space="preserve">
+    <value>Compatibility</value>
+  </data>
+  <data name="Debug" xml:space="preserve">
+    <value>Debug</value>
+  </data>
+  <data name="QuickButton" xml:space="preserve">
+    <value>Quick Buttons</value>
+  </data>
+  <data name="ConfigValue" xml:space="preserve">
+    <value>Config Value</value>
+  </data>
+  <data name="EnterConfigValue" xml:space="preserve">
+    <value>Enter config value</value>
+  </data>
+  <data name="UseGameConfig" xml:space="preserve">
+    <value>Use Game Config</value>
+  </data>
+  <data name="OverwriteGameConfig" xml:space="preserve">
+    <value>Overwrite Game Config</value>
+  </data>
+  <data name="Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="GameList" xml:space="preserve">
+    <value>Game List</value>
+  </data>
+  <data name="FontReplaceByOrder" xml:space="preserve">
+    <value>Replace by Order</value>
+  </data>
+  <data name="FontOnlyCallInGame" xml:space="preserve">
+    <value>Only Call in Game</value>
+  </data>
+  <data name="ProjectWebSite" xml:space="preserve">
+    <value>Project Website</value>
+  </data>
+  <data name="Version" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="Document" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="CodeManifest" xml:space="preserve">
+    <value>Code Manifest</value>
+  </data>
+  <data name="OpenSourceCodeManifest" xml:space="preserve">
+    <value>Open Source Code Manifest</value>
+  </data>
+  <data name="SupportMe" xml:space="preserve">
+    <value>Support Author</value>
+  </data>
+  <data name="SoftwareUsageStatement" xml:space="preserve">
+    <value>Software Usage Statement</value>
+  </data>
+  <data name="SoftwareUsageStatementDetail" xml:space="preserve">
+    <value>This software is licensed under the MIT open source license and is free to use.
+The project website is the only official download source. Please ensure you obtain the software from the official source.
+The author is not responsible for any loss caused by the use of this software.</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="LanguageChangedNeedReboot" xml:space="preserve">
+    <value>Language has been set to {0}. Restart the app now?</value>
+  </data>
+  <data name="ConfigSettings" xml:space="preserve">
+    <value>Game Settings</value>
+  </data>
+  <data name="OtherConfigSettings" xml:space="preserve">
+    <value>Other Settings</value>
+  </data>
+  <data name="FontAndShape" xml:space="preserve">
+    <value>Font &amp; Shape</value>
+  </data>
+  <data name="ViewLog" xml:space="preserve">
+    <value>View Log</value>
+  </data>
+  <data name="SaveLog" xml:space="preserve">
+    <value>Save Log</value>
+  </data>
+  <data name="LogSaved" xml:space="preserve">
+    <value>Log Saved</value>
+  </data>
+  <data name="SaveFailed" xml:space="preserve">
+    <value>Save Failed</value>
+  </data>
+  <data name="ScanningGames" xml:space="preserve">
+    <value>Scanning for games…</value>
+  </data>
+  <data name="StoragePermissionRequired" xml:space="preserve">
+    <value>Storage permission required to scan games</value>
+  </data>
+  <data name="NoGamesFound" xml:space="preserve">
+    <value>No games found</value>
+  </data>
+  <data name="LanguageChanged" xml:space="preserve">
+    <value>Language Changed</value>
+  </data>
+  <data name="NeedRestartToApply" xml:space="preserve">
+    <value>Please restart the app for the language change to take effect.</value>
+  </data>
+  <data name="SaveAndClose" xml:space="preserve">
+    <value>Save &amp; Close</value>
+  </data>
+</root>
