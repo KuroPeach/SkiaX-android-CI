@@ -88,9 +88,6 @@ namespace XEmuera.Droid
 
                     Android.Util.Log.Debug("EmueraHost", "Creating EmueraConsole...");
                     mainWindow.UpdateStatus("Creating console...");
-                    var debugLogPath = Android.App.Application.Context.FilesDir.Path + "/render_debug.log";
-                    try { System.IO.File.Delete(debugLogPath); } catch { }
-                    EmueraConsole.SetDebugLogPath(debugLogPath);
                     console = new EmueraConsole(mainWindow);
                     Android.Util.Log.Debug("EmueraHost", "EmueraConsole created");
 

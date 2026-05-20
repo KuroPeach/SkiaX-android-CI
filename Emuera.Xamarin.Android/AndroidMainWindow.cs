@@ -407,14 +407,29 @@ namespace XEmuera.Droid
         private int lastLogicalW = 0;
         private int lastLogicalH = 0;
 
+        private int _paintSurfaceLogCount = 0;
+        private const int _paintSurfaceLogMax = 5;
+
         private void OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)
         {
             var density = DisplayUtils.ScreenDensity;
             int logicalW = density > 0 ? (int)(e.Info.Width / density) : e.Info.Width;
             int logicalH = density > 0 ? (int)(e.Info.Height / density) : e.Info.Height;
 
-            // 诊断日志：记录 Canvas 物理尺寸
-            System.Diagnostics.Debug.WriteLine($"[Emuera] OnPaintSurface: e.Info.Width={e.Info.Width} e.Info.Height={e.Info.Height} density={density} logicalW={logicalW} logicalH={logicalH}");
+            // 诊断日志：记录 Canvas 物理尺寸和 TotalMatrix（仅前几帧）
+            if (_paintSurfaceLogCount < _paintSurfaceLogMax)
+            {
+                _paintSurfaceLogCount++;
+                var matrix = e.Surface.Canvas.TotalMatrix;
+                var logMsg = $"[Emuera] OnPaintSurface #{_paintSurfaceLogCount}: " +
+                    $"e.Info.Width={e.Info.Width} e.Info.Height={e.Info.Height} " +
+                    $"density={density} logicalW={logicalW} logicalH={logicalH} " +
+                    $"Canvas.TotalMatrix=ScaleX={matrix.ScaleX:F2} ScaleY={matrix.ScaleY:F2} " +
+                    $"TransX={matrix.TransX:F2} TransY={matrix.TransY:F2} " +
+                    $"canvasView.Width={canvasView?.Width ?? 0} canvasView.Height={canvasView?.Height ?? 0}";
+                System.Diagnostics.Debug.WriteLine(logMsg);
+                try { System.IO.File.AppendAllText(EmueraConsole._debugLogPath, logMsg + "\n"); } catch { }
+            }
 
             MainPicBox.Width = logicalW;
             MainPicBox.Height = logicalH;

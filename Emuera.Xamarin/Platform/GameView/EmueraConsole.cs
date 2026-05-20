@@ -1403,7 +1403,7 @@ namespace MinorShift.Emuera.GameView
 		/// 全面Clear法のみにしたのでさっぱりした。ダブルバッファリングはOnPaintが勝手にやるはず
 		/// </summary>
 		/// <param name="graph"></param>
-		private static readonly string _debugLogPath = System.IO.Path.Combine(
+		public static readonly string _debugLogPath = System.IO.Path.Combine(
 			System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal),
 			"render_debug.log");
 		private static int _debugLogFrameCount = 0;
@@ -1430,10 +1430,13 @@ namespace MinorShift.Emuera.GameView
 			lastUpdate = WinmmTimer.CurrentFrameTime;//WinmmTimer.TickCount;
 
 			bool isBackLog = window.ScrollBar.Value != window.ScrollBar.Maximum;
-			// IgnorePixelScaling=false 时 Canvas 自动缩放为逻辑像素坐标系，
+			// IgnorePixelScaling=false 时 Canvas 是物理像素坐标系（TotalMatrix ScaleX=1.00），
+			// e.Info.Width/Height = 物理像素（如 1920x1080）。
+			// graph.Scale(density) 将 Canvas 转为逻辑像素坐标系，
+			// 之后所有绘制操作在逻辑像素空间进行。
 			// ClientWidth/ClientHeight = MainPicBox.Width/Height = 逻辑像素，
-			// Config.LineHeight/FontSize 也是逻辑像素，坐标系一致。
-			// entryLayout 已移到 canvasGrid 覆盖层，不再压缩 MainPicBox 高度。
+			// Config.LineHeight/FontSize = 逻辑像素，坐标系一致。
+			graph.Scale((float)DisplayUtils.ScreenDensity);
 			int pointY = ClientHeight - DisplayUtils.HeightOffset;
 
 			// === 诊断日志：记录坐标系关键参数 ===
@@ -1441,18 +1444,21 @@ namespace MinorShift.Emuera.GameView
 			if (shouldLog)
 			{
 				_debugLogFrameCount++;
+				var matrix = graph.TotalMatrix;
 				var sb = new System.Text.StringBuilder();
 				sb.AppendLine($"=== Frame {_debugLogFrameCount} ===");
+				sb.AppendLine($"  Canvas.TotalMatrix: ScaleX={matrix.ScaleX:F2} ScaleY={matrix.ScaleY:F2} TransX={matrix.TransX:F2} TransY={matrix.TransY:F2}");
 				sb.AppendLine($"  ScreenDensity={DisplayUtils.ScreenDensity}");
 				sb.AppendLine($"  MainPicBox.Width={GameUtils.MainPicBox?.Width ?? 0} Height={GameUtils.MainPicBox?.Height ?? 0}");
-				sb.AppendLine($"  ClientWidth={ClientWidth} ClientHeight={ClientHeight} (logical px)");
-				sb.AppendLine($"  Config.FontSize={Config.FontSize} Config.LineHeight={Config.LineHeight} (logical px)");
+				sb.AppendLine($"  ClientWidth={ClientWidth} ClientHeight={ClientHeight}");
+				sb.AppendLine($"  Config.FontSize={Config.FontSize} Config.LineHeight={Config.LineHeight}");
 				sb.AppendLine($"  Config.WindowX={Config.WindowX} Config.WindowY={Config.WindowY}");
 				sb.AppendLine($"  Config.DrawableWidth={Config.DrawableWidth}");
 				sb.AppendLine($"  HeightOffset={DisplayUtils.HeightOffset}");
+				sb.AppendLine($"  bakedBackground: {(bakedBackground != null ? $"{bakedBackground.Width}x{bakedBackground.Height}" : "null")}");
 				sb.AppendLine($"  ScrollBar.Value={window.ScrollBar.Value} Maximum={window.ScrollBar.Maximum}");
 				sb.AppendLine($"  displayLineList.Count={displayLineList.Count}");
-				sb.AppendLine($"  initial pointY={pointY} (logical px)");
+				sb.AppendLine($"  initial pointY={pointY}");
 				sb.AppendLine($"  pointY/LineHeight={pointY / (float)Config.LineHeight:F2} (visible lines)");
 
 				System.Diagnostics.Debug.WriteLine(sb.ToString());
@@ -1476,7 +1482,7 @@ namespace MinorShift.Emuera.GameView
 				sb2.AppendLine($"  adjusted pointY={pointY} (first line top Y)");
 				sb2.AppendLine($"  total visible lines={bottomLineNo - topLineNo + 1}");
 				sb2.AppendLine($"  last line bottom Y={pointY + (bottomLineNo - topLineNo) * Config.LineHeight + Config.LineHeight}");
-				sb2.AppendLine($"  ClientHeight={ClientHeight} (logical px)");
+				sb2.AppendLine($"  ClientHeight={ClientHeight}");
 				sb2.AppendLine($"  last line exceeds canvas? {pointY + (bottomLineNo - topLineNo + 1) * Config.LineHeight > ClientHeight}");
 
 				// 记录前3行的按钮坐标
@@ -1550,7 +1556,11 @@ namespace MinorShift.Emuera.GameView
 				graph.Clear(DisplayUtils.ToSKColor(this.bgColor));
 				ValidateBackground(ClientWidth, ClientHeight);
 				if (bakedBackground != null)
-					graph.DrawBitmap(bakedBackground, 0, 0);
+				{
+					// Canvas 已被 Scale(density)，bakedBackground 是逻辑像素尺寸，
+					// 需要指定目标矩形为逻辑像素大小，否则位图会被 Scale 放大
+					graph.DrawBitmap(bakedBackground, new SKRect(0, 0, ClientWidth, ClientHeight));
+				}
 				_imageLayerManager.DrawTo(graph, ClientWidth, ClientHeight, window.ScrollBar.Value * Config.LineHeight);
 				//1823 cbg追加
 				#region EM_私家版_描画拡張

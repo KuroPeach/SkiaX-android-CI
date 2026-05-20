@@ -1,5 +1,68 @@
 # Emuera.Xamarin 变更记录
 
+## [0.40.0] - 2026-05-21
+
+### Phase 9S：恢复 graph.Scale(density) + 逻辑像素坐标系
+
+#### 问题现象
+
+- 字体双倍大（FontSize=24 显示为 42px）
+- 最后一行在屏幕外
+- 渲染位置与按键逻辑位置差约一个行高
+
+#### 根因分析（本轮洞见）
+
+通过阅读 SkiaSharp 源码 `SKCanvasView.cs`（Android 平台），确认了 `IgnorePixelScaling` 的真实行为：
+
+```csharp
+// SkiaSharp 源码 OnDraw 方法
+if (IgnorePixelScaling)
+{
+    var skiaCanvas = surface.Canvas;
+    skiaCanvas.Scale(density);  // 只有 IgnorePixelScaling=true 时才 Scale！
+    skiaCanvas.Save();
+}
+```
+
+**`IgnorePixelScaling=false`（默认）时，SkiaSharp 不做任何自动缩放。Canvas 是纯物理像素坐标系。**
+
+之前的 9R 版本假设 `IgnorePixelScaling=false` 时 Canvas 已自动缩放为逻辑像素坐标系——这是错误的。
+9R 移除 `graph.Scale(density)` 后，在物理像素 Canvas（1920x1080）上用逻辑像素坐标（1097x617）绘制，
+导致画面只在屏幕左上角。
+
+#### 修改内容
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| 恢复 graph.Scale(density) | EmueraConsole.cs | 将物理像素 Canvas 转为逻辑像素坐标系 |
+| bakedBackground 绘制 | EmueraConsole.cs | `DrawBitmap(bitmap, SKRect(0,0,W,H))` 指定逻辑像素目标矩形，防止 Scale 放大位图 |
+
+#### 当前状态
+
+**字体双倍大 + 最后一行溢出 + 按键偏移**——与 9R(v3) 结果相同。
+`graph.Scale(density)` 将 Canvas 转为逻辑像素坐标系后，`Paint.TextSize=24` 在逻辑像素 Canvas 上
+应该是 24 逻辑像素，但实际显示为 42px（24 * 1.75）。原因待查。
+
+#### 修复方案循环记录
+
+| 版本 | 方案 | 结果 |
+|------|------|------|
+| 9R(v1) | graph.Scale(density) + baselineY 修改 | 字体双倍大 + 位置偏移 |
+| 9R(v2) | FontSize *= density（无 Scale） | 字体双倍大 + 最后一行溢出 + 按键偏移 |
+| 9R(v3) | graph.Scale(density) + 统一逻辑像素 | 字体双倍大 + 最后一行溢出 + 按键偏移 |
+| 9R(v4) | 移除 graph.Scale(density) | 画面只在屏幕左上角 |
+| **9S** | **恢复 graph.Scale(density) + bakedBackground 修复** | **字体双倍大 + 最后一行溢出 + 按键偏移** |
+
+**核心矛盾仍未解决**：`graph.Scale(density)` 后 Canvas 应该是逻辑像素坐标系，
+`Paint.TextSize=24` 应该渲染为 24 逻辑像素（= 42 物理像素），字体大小应该正确。
+但用户反馈字体"双倍大"——可能 `Paint.TextSize` 已经在别处被乘以 density？
+
+#### 诊断日志问题
+
+当前版本的 `render_debug.log` 文件未生成（`run-as Emuera.SkiaX ls files/` 无此文件）。
+可能原因：`AppendAllText` 抛异常被空 catch 吞掉，或 `OnPaint` 未被调用。
+需要改用 Android `Log.Debug()` 输出到 logcat。
+
 ## [0.39.0] - 2026-05-21
 
 ### Phase 9R：移除 graph.Scale(density)，entryLayout 改为覆盖层
