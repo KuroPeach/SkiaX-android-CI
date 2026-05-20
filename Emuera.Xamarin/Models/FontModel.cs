@@ -22,8 +22,8 @@ namespace XEmuera.Models
 		private const string separator = "_|_";
 
 		private const string DefaultFontName = "MS Gothic";
-
 		private const string FinalFontName = "Microsoft YaHei";
+		private const string SimHeiFontName = "SimHei";
 
 		public static readonly List<FontModel> UserList = new List<FontModel>();
 
@@ -84,6 +84,7 @@ namespace XEmuera.Models
 
 			AddFontFromResource(DefaultFontName);
 			AddFontFromResource(FinalFontName);
+			AddFontFromResource(SimHeiFontName);
 
 			Default = AllModels[DefaultFontName];
 
@@ -106,6 +107,7 @@ namespace XEmuera.Models
 			{
 				Default.Enabled = true;
 				AllModels[FinalFontName].Enabled = true;
+				AllModels[SimHeiFontName].Enabled = true;
 			}
 			else
 			{
@@ -254,6 +256,7 @@ namespace XEmuera.Models
 			FontNameMapping.Add("ＭＳ 明朝", "MS Mincho");
 			FontNameMapping.Add("ＭＳ Ｐ明朝", "MS PMincho");
 			FontNameMapping.Add("微软雅黑", "Microsoft YaHei");
+			FontNameMapping.Add("黑体", "SimHei");
 			// 中文字体别名在 LoadFontsFolder → RegisterChineseFontAliases 中动态注册
 			// （因为需要知道外部字体的实际族名）
 		}
@@ -284,6 +287,11 @@ namespace XEmuera.Models
 		private static void AddFontModel(SKTypeface sKTypeface, string fileName)
 		{
 			var fontModel = new FontModel(sKTypeface);
+			if (AllModels.ContainsKey(fontModel.Name))
+			{
+				// 同族字体已存在，跳过（避免重复键异常）
+				return;
+			}
 			AllModels.Add(fontModel.Name, fontModel);
 
 			FontNameMapping.GetByValue(fontModel.Name, out var otherName, fileName);

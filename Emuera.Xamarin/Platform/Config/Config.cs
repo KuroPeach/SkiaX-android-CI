@@ -311,8 +311,8 @@ namespace MinorShift.Emuera
 
 		public static void RefreshDisplayConfig()
 		{
-			WindowX = DisplayUtils.PicBoxWidth;
-			WindowY = DisplayUtils.PicBoxHeight;
+			WindowX = GameUtils.MainPicBox?.Width ?? DisplayUtils.PicBoxWidth;
+			WindowY = GameUtils.MainPicBox?.Height ?? DisplayUtils.PicBoxHeight;
 
 			WindowPosX = 0;
 			WindowPosY = 0;

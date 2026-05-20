@@ -1,5 +1,51 @@
 # Emuera.Xamarin 变更记录
 
+## [0.39.0] - 2026-05-21
+
+### Phase 9R：移除 graph.Scale(density)，entryLayout 改为覆盖层
+
+#### 问题现象
+
+- 字体双倍大（FontSize=24 显示为 42px）
+- 最后一行在屏幕外
+- 渲染位置与按键逻辑位置差约一个行高
+- 画面只在屏幕左上角（与之前某次提交结果相同）
+
+#### 根因分析
+
+1. `graph.Scale(density)` 在 `IgnorePixelScaling=false` 的 Canvas 上造成**双重缩放**：
+   - `IgnorePixelScaling=false` 时 SkiaSharp 已自动将 Canvas 缩放为逻辑像素坐标系
+   - `graph.Scale(density)` 再次乘以 density → 坐标和字体都放大 density 倍
+2. `entryLayout`（软键盘输入栏）放在 `mainLayout` Grid Row 1 (Auto)，
+   当 `update_lastinput()` 使其可见时会压缩 Row 0 (Star) 的 `canvasView`，
+   导致 `MainPicBox.Height` 减小 → `ClientHeight` 减小 → 行数减少
+
+#### XEmuera 对比
+
+| 方面 | XEmuera | 本项目（修复后） |
+|------|---------|-----------------|
+| 布局 | FlexLayout（entryGroup 不压缩 mainPicBox） | Grid 单行（entryLayout 覆盖层） |
+| Canvas 坐标系 | 逻辑像素（IgnorePixelScaling=false 自动缩放） | 逻辑像素（同） |
+| ClientWidth/Height | 物理像素（PicBoxWidth/PicBoxHeight） | 逻辑像素（MainPicBox.Width/Height） |
+| graph.Scale | 无 | 无 |
+| FontSize | 逻辑像素（不乘 density） | 逻辑像素（不乘 density） |
+
+#### 修改内容
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| 移除 graph.Scale(density) | EmueraConsole.cs | 消除双重缩放，恢复逻辑像素坐标系 |
+| entryLayout 改为覆盖层 | AndroidMainWindow.cs | 从 mainLayout Grid Row 1 移到 canvasGrid 内，不再压缩 canvasView |
+| WindowSoftInputMode | MainActivity.cs | 添加 `SoftInput.AdjustNothing`，防止软键盘弹出时压缩 Activity |
+| ClientWidth/ClientHeight | EmueraConsole.cs | 保持 `MainPicBox.Width/Height`（逻辑像素） |
+| WindowX/WindowY | Config.cs | 保持 `MainPicBox.Width/Height`（逻辑像素） |
+| 触摸坐标 | AndroidMainWindow.cs | 保持除以 density（逻辑像素坐标系） |
+| 诊断日志 | EmueraConsole.cs | 更新注释和单位标注 |
+
+#### 当前状态
+
+**画面只在屏幕左上角**——与之前某次提交结果相同。保留此提交记录用于逐步回退对比。
+
 ## [0.38.0] - 2026-05-20
 
 ### Phase 9Q：回归基准版本坐标系，修复缩放/按钮错位/缺字三大回归

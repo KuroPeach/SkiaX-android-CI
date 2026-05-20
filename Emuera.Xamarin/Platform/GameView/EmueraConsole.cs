@@ -59,9 +59,6 @@ namespace MinorShift.Emuera.GameView
 
 	internal sealed partial class EmueraConsole :IDisposable
 	{
-		private bool _debugLogOnce = true;
-		private static string _debugLogPath = "";
-		public static void SetDebugLogPath(string path) { _debugLogPath = path; }
 		public EmueraConsole(MainWindow parent)
 		{
 			window = parent;
@@ -219,8 +216,8 @@ namespace MinorShift.Emuera.GameView
 			cbgList.Sort();
 			return true;
 		}
-		public int ClientWidth { get { return DisplayUtils.PicBoxWidth; } }
-		public int ClientHeight { get { return DisplayUtils.PicBoxHeight; } }
+		public int ClientWidth { get { return GameUtils.MainPicBox?.Width ?? DisplayUtils.PicBoxWidth; } }
+		public int ClientHeight { get { return GameUtils.MainPicBox?.Height ?? DisplayUtils.PicBoxHeight; } }
 #endregion
 
 		const string ErrorButtonsText = "__openFileWithDebug__";
@@ -1406,6 +1403,12 @@ namespace MinorShift.Emuera.GameView
 		/// 全面Clear法のみにしたのでさっぱりした。ダブルバッファリングはOnPaintが勝手にやるはず
 		/// </summary>
 		/// <param name="graph"></param>
+		private static readonly string _debugLogPath = System.IO.Path.Combine(
+			System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal),
+			"render_debug.log");
+		private static int _debugLogFrameCount = 0;
+		private const int _debugLogMaxFrames = 5; // 只记录前5帧
+
 		public void OnPaint(SKCanvas graph)
 		{
 
@@ -1427,14 +1430,33 @@ namespace MinorShift.Emuera.GameView
 			lastUpdate = WinmmTimer.CurrentFrameTime;//WinmmTimer.TickCount;
 
 			bool isBackLog = window.ScrollBar.Value != window.ScrollBar.Maximum;
+			// IgnorePixelScaling=false 时 Canvas 自动缩放为逻辑像素坐标系，
+			// ClientWidth/ClientHeight = MainPicBox.Width/Height = 逻辑像素，
+			// Config.LineHeight/FontSize 也是逻辑像素，坐标系一致。
+			// entryLayout 已移到 canvasGrid 覆盖层，不再压缩 MainPicBox 高度。
 			int pointY = ClientHeight - DisplayUtils.HeightOffset;
 
-			if (displayLineList.Count > 0 || _debugLogOnce)
+			// === 诊断日志：记录坐标系关键参数 ===
+			bool shouldLog = _debugLogFrameCount < _debugLogMaxFrames && displayLineList.Count > 0;
+			if (shouldLog)
 			{
-				_debugLogOnce = false;
-				var msg = $"[Emuera] OnPaint: ClientWidth={ClientWidth} ClientHeight={ClientHeight} LineHeight={Config.LineHeight} FontSize={Config.FontSize} ScrollBar.Value={window.ScrollBar.Value} ScrollBar.Maximum={window.ScrollBar.Maximum} displayLineList.Count={displayLineList.Count} pointY={pointY} ScreenDensity={DisplayUtils.ScreenDensity}";
-				System.Diagnostics.Debug.WriteLine(msg);
-				try { System.IO.File.AppendAllText(_debugLogPath, msg + "\n"); } catch { }
+				_debugLogFrameCount++;
+				var sb = new System.Text.StringBuilder();
+				sb.AppendLine($"=== Frame {_debugLogFrameCount} ===");
+				sb.AppendLine($"  ScreenDensity={DisplayUtils.ScreenDensity}");
+				sb.AppendLine($"  MainPicBox.Width={GameUtils.MainPicBox?.Width ?? 0} Height={GameUtils.MainPicBox?.Height ?? 0}");
+				sb.AppendLine($"  ClientWidth={ClientWidth} ClientHeight={ClientHeight} (logical px)");
+				sb.AppendLine($"  Config.FontSize={Config.FontSize} Config.LineHeight={Config.LineHeight} (logical px)");
+				sb.AppendLine($"  Config.WindowX={Config.WindowX} Config.WindowY={Config.WindowY}");
+				sb.AppendLine($"  Config.DrawableWidth={Config.DrawableWidth}");
+				sb.AppendLine($"  HeightOffset={DisplayUtils.HeightOffset}");
+				sb.AppendLine($"  ScrollBar.Value={window.ScrollBar.Value} Maximum={window.ScrollBar.Maximum}");
+				sb.AppendLine($"  displayLineList.Count={displayLineList.Count}");
+				sb.AppendLine($"  initial pointY={pointY} (logical px)");
+				sb.AppendLine($"  pointY/LineHeight={pointY / (float)Config.LineHeight:F2} (visible lines)");
+
+				System.Diagnostics.Debug.WriteLine(sb.ToString());
+				try { System.IO.File.AppendAllText(_debugLogPath, sb.ToString()); } catch { }
 			}
 
 
@@ -1445,6 +1467,66 @@ namespace MinorShift.Emuera.GameView
 			if (topLineNo < 0)
 				topLineNo = 0;
 			pointY -= (bottomLineNo - topLineNo) * Config.LineHeight;
+
+			// === 诊断日志：记录行号计算结果 ===
+			if (shouldLog)
+			{
+				var sb2 = new System.Text.StringBuilder();
+				sb2.AppendLine($"  topLineNo={topLineNo} bottomLineNo={bottomLineNo}");
+				sb2.AppendLine($"  adjusted pointY={pointY} (first line top Y)");
+				sb2.AppendLine($"  total visible lines={bottomLineNo - topLineNo + 1}");
+				sb2.AppendLine($"  last line bottom Y={pointY + (bottomLineNo - topLineNo) * Config.LineHeight + Config.LineHeight}");
+				sb2.AppendLine($"  ClientHeight={ClientHeight} (logical px)");
+				sb2.AppendLine($"  last line exceeds canvas? {pointY + (bottomLineNo - topLineNo + 1) * Config.LineHeight > ClientHeight}");
+
+				// 记录前3行的按钮坐标
+				int logEnd = Math.Min(topLineNo + 2, bottomLineNo);
+				for (int li = topLineNo; li <= logEnd; li++)
+				{
+					var line = displayLineList[li];
+					int lineY = pointY + (li - topLineNo) * Config.LineHeight;
+					sb2.AppendLine($"  line[{li}] Y={lineY} buttons={line.Buttons?.Length ?? 0}");
+					if (line.Buttons != null)
+					{
+						foreach (var btn in line.Buttons)
+						{
+							if (btn.StrArray != null)
+							{
+								foreach (var part in btn.StrArray)
+								{
+									sb2.AppendLine($"    part: PointX={part.PointX} Width={part.Width} Top={part.Top} Bottom={part.Bottom} Type={part.GetType().Name}");
+								}
+							}
+						}
+					}
+				}
+				// 后3行
+				int logStart2 = Math.Max(bottomLineNo - 2, topLineNo);
+				if (logStart2 > logEnd)
+				{
+					for (int li = logStart2; li <= bottomLineNo; li++)
+					{
+						var line = displayLineList[li];
+						int lineY = pointY + (li - topLineNo) * Config.LineHeight;
+						sb2.AppendLine($"  line[{li}] Y={lineY} buttons={line.Buttons?.Length ?? 0}");
+					}
+				}
+
+				// HTML 元素坐标
+				sb2.AppendLine($"  _htmlElementList.Count={_htmlElementList.Count}");
+				int htmlY = 0;
+				int htmlIdx = 0;
+				foreach (var element in _htmlElementList)
+				{
+					if (htmlIdx < 3 || htmlIdx >= _htmlElementList.Count - 2)
+						sb2.AppendLine($"    html[{htmlIdx}] Y={htmlY}");
+					htmlY += Config.LineHeight;
+					htmlIdx++;
+				}
+
+				System.Diagnostics.Debug.WriteLine(sb2.ToString());
+				try { System.IO.File.AppendAllText(_debugLogPath, sb2.ToString()); } catch { }
+			}
 
 			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
 			//{
@@ -1468,9 +1550,7 @@ namespace MinorShift.Emuera.GameView
 				graph.Clear(DisplayUtils.ToSKColor(this.bgColor));
 				ValidateBackground(ClientWidth, ClientHeight);
 				if (bakedBackground != null)
-				{
-					graph.DrawBitmap(bakedBackground, new SKRect(0, 0, ClientWidth, ClientHeight));
-				}
+					graph.DrawBitmap(bakedBackground, 0, 0);
 				_imageLayerManager.DrawTo(graph, ClientWidth, ClientHeight, window.ScrollBar.Value * Config.LineHeight);
 				//1823 cbg追加
 				#region EM_私家版_描画拡張

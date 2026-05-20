@@ -151,6 +151,7 @@
     <EmbeddedResource Include="Resources\Docs\Emuera_readme.txt" />
     <EmbeddedResource Include="Resources\Fonts\MS Gothic.ttf" />
     <EmbeddedResource Include="Resources\Fonts\Microsoft YaHei.ttf" />
+    <EmbeddedResource Include="Resources\Fonts\SimHei.ttf" />
     <EmbeddedResource Include="Resources\Images\app_icon.png" />
     <!-- RESX 资源文件 -->
     <EmbeddedResource Include="Resources\ConfigsText.resx">

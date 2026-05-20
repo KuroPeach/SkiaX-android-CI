@@ -16,7 +16,8 @@ namespace XEmuera.Droid
         Theme = "@style/MainTheme",
         MainLauncher = true,
         ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize,
-        ScreenOrientation = ScreenOrientation.Sensor)]
+        ScreenOrientation = ScreenOrientation.Sensor,
+        WindowSoftInputMode = SoftInput.AdjustNothing)]
     public class MainActivity : global::Xamarin.Forms.Platform.Android.FormsAppCompatActivity
     {
         public static Activity Instance { get; private set; }

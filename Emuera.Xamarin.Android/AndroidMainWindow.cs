@@ -367,27 +367,29 @@ namespace XEmuera.Droid
 
             var canvasGrid = new Grid
             {
+                // entryLayout 放在 canvasGrid 中作为覆盖层，
+                // 不压缩 canvasView（与 XEmuera 的 FlexLayout 布局等效）
                 Children =
                 {
                     canvasView,
                     uiLayout,
                     statusLabel,
                     virtualControllerLayout,
+                    entryLayout,
                 },
             };
+
+            // entryLayout 定位在 canvasGrid 底部
+            Grid.SetRow(entryLayout, 0);
+            Xamarin.Forms.Grid.SetRow(entryLayout, 0);
+            entryLayout.VerticalOptions = LayoutOptions.End;
 
             mainLayout = new Grid
             {
                 BackgroundColor = Xamarin.Forms.Color.Black,
-                RowDefinitions =
-                {
-                    new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
-                    new RowDefinition { Height = GridLength.Auto },
-                },
                 Children =
                 {
-                    { canvasGrid, 0, 0 },
-                    { entryLayout, 0, 1 },
+                    canvasGrid,
                 },
             };
         }
@@ -410,6 +412,10 @@ namespace XEmuera.Droid
             var density = DisplayUtils.ScreenDensity;
             int logicalW = density > 0 ? (int)(e.Info.Width / density) : e.Info.Width;
             int logicalH = density > 0 ? (int)(e.Info.Height / density) : e.Info.Height;
+
+            // 诊断日志：记录 Canvas 物理尺寸
+            System.Diagnostics.Debug.WriteLine($"[Emuera] OnPaintSurface: e.Info.Width={e.Info.Width} e.Info.Height={e.Info.Height} density={density} logicalW={logicalW} logicalH={logicalH}");
+
             MainPicBox.Width = logicalW;
             MainPicBox.Height = logicalH;
             if (GameUtils.MainPicBox != null)
@@ -440,7 +446,12 @@ namespace XEmuera.Droid
         {
             if (console == null) return;
 
-            var mouseLocation = new Point((int)e.Location.X, (int)e.Location.Y);
+            // e.Location 是物理像素（SkiaSharp raw pixel coordinates），
+            // EmueraConsole 内部用逻辑像素，需要除以 density
+            float density = (float)DisplayUtils.ScreenDensity;
+            var mouseLocation = new Point(
+                density > 0 ? (int)(e.Location.X / density) : (int)e.Location.X,
+                density > 0 ? (int)(e.Location.Y / density) : (int)e.Location.Y);
 
             if (console.MoveMouse(mouseLocation))
                 RefreshStrings(true);
@@ -471,7 +482,8 @@ namespace XEmuera.Droid
                 case SKTouchAction.Moved:
                     IsMouseMoveAction = true;
 
-                    int moveY = (int)(e.Location.Y - PrevPoint.Y);
+                    // moveY 需要转为逻辑像素（EmueraConsole 内部用逻辑像素）
+                    int moveY = density > 0 ? (int)((e.Location.Y - PrevPoint.Y) / density) : (int)(e.Location.Y - PrevPoint.Y);
 
                     if (RConfig.LineHeight > 0)
                     {
