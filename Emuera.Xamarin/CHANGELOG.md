@@ -1,5 +1,25 @@
 # Emuera.Xamarin 变更记录
 
+## [0.46.0] - 2026-05-21
+
+### Release 发布准备：版本号更新 + 签名配置 + GitHub Release
+
+> **发布 v0.46.0**，包含 v0.45.0 的所有字体修复和 Android 备发布状态。
+
+#### 变更内容
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| 更新 AboutPage 引擎版本 | AboutPage.xaml.cs | `Detail = AssemblyData.EmueraVersionText`，动态显示 `"Emuera.NET SkiaSharp X.Y.Z"` |
+| 版本号升级 | AndroidManifest.xml | versionCode 35→46, versionName 0.35.0→0.46.0 |
+| 添加 Release 签名配置 | Emuera.Xamarin.Android.csproj | AndroidKeyStore + keystore 路径/别名/密码 |
+| 生成签名密钥库 | xemuera.keystore | JKS 格式，RSA 2048，有效期 10000 天 |
+| .gitignore 更新 | .gitignore | 添加 *.keystore 和 *.pfx 排除项 |
+
+#### 发布文件
+
+- APK 路径：`Emuera.Xamarin.Android/bin/Release/net8.0-android/Emuera.SkiaX-Signed.apk`（~77 MB）
+
 ## [0.45.0] - 2026-05-21
 
 ### 修复 DrawTextUtils 字形回退 + Mapping 双向字典陷阱 + 移除诊断日志

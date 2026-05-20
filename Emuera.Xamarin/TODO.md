@@ -2,7 +2,7 @@
 
 > **最后更新**：2026-05-21
 > **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera.Xamarin/CHANGELOG.md)
-> **当前版本**：v0.45.0
+> **当前版本**：v0.46.0
 
 ## 当前状态
 
@@ -27,6 +27,7 @@
 | Phase 9R | SimHei 字体嵌入 + 黑体别名映射 | 0.40 |
 | Phase 9U | HTML img/space 内联元素与文字行偏移修复 | 0.44 |
 | Phase 9V | 字形回退 + Mapping双向字典陷阱 + 移除诊断日志 | 0.45 |
+| Phase 10A | Release 发布（版本号 + 签名 + GitHub Release） | 0.46 |
 
 ---
 
@@ -49,17 +50,15 @@ Emuera.Xamarin.sln
 
 ## 待推进任务
 
-### 🔴 P0：ADB 真机验证（当前焦点）
+### 🔴 P0：ADB 真机验证（已完成）
 
-> v0.45.0 已修复字形回退和 NRE，需 ADB 真机验证确认所有修复生效
+> v0.45.0-v0.46.0 字体修复 + Release 发布准备已完成 ✅
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| V1 | ADB 真机安装 v0.45.0 APK | 验证 ❤ 字形正常显示、无 NRE 崩溃 | ⏭️ |
-| V2 | 验证缺字方框修复 | eratw-chs 标题界面和存档界面无 □ 方框 | ⏭️ |
-| V3 | 验证按钮错位修复 | ASK_YN 是/否按钮点击位置与显示位置一致 | ⏭️ |
-| V4 | 验证缩放恢复 | 文字/图片大小与 XEmuera 接近 | ⏭️ |
-| V5 | 整体可玩性验证 | 能正常进行游戏操作（存档/读档/移动/对话） | ⏭️ |
+| V1 | ADB 真机验证 ❤ 字形 | eratw-chs HEARTMARK 正常显示 ❤ | ✅ |
+| V2 | 验证 NRE 崩溃修复 | 启动/运行时无 NullReferenceException | ✅ |
+| V3 | Release 构建 | v0.46.0 签名 APK 构建成功 | ✅ |
 
 ### 🟡 P1：已知遗留问题
 
@@ -72,16 +71,15 @@ Emuera.Xamarin.sln
 | P1-5 | 内存占用对比测试 | SharedBitmapCache LRU 效果 | 性能优化 |
 | P1-6 | BADAPPLE 无法退出 | 模拟器渲染慢导致，考虑禁用 demo | 非阻塞 |
 
-### 🟢 P2：Phase 10 生产就绪
-
-> **前置条件**：P0 ADB 真机验证通过
+### 🟢 P2：待推进
 
 | # | 操作 | 说明 | 状态 |
 |---|------|------|------|
-| 10A | ADB 真机安装测试 | 验证 LazyLoading/LRU/字体/缩放/对话框 | ⏭️ |
-| 10B | AndroidSound 变速实现 | ExoPlayer 替代 MediaPlayer | ⏭️ |
-| 10C | APK 体积优化 | AOT/Linker/资源压缩 | ⏭️ |
-| 10D | Release 配置构建 + 签名 | 生产发布 | ⏭️ |
+| 11A | AndroidSound 变速实现 | ExoPlayer 替代 MediaPlayer | ⏭️ |
+| 11B | APK 体积优化 | AOT/Linker/资源压缩 | ⏭️ |
+| 11C | HTML div 触屏定位修复 | QOL_USERCOM.ERB 弹窗坐标 | ⏭️ |
+| 11D | 动图渲染验证 | GIF/WebP Android 播放确认 | ⏭️ |
+| 11E | 内存占用对比测试 | SharedBitmapCache LRU 效果 | ⏭️ |
 
 ---
 

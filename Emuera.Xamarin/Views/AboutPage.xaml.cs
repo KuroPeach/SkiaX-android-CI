@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -59,7 +59,7 @@ namespace XEmuera.Views
 					new AboutModel
 					{
 						Text = StringsText.Version,
-						Detail = "Emuera1824+v15 私家改造版",
+						Detail = AssemblyData.EmueraVersionText,
 						Url = "https://ux.getuploader.com/ninnohito/index"
 					},
 					new AboutModel
