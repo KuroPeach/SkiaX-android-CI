@@ -211,7 +211,10 @@ namespace XEmuera.Models
 					foreach (var alias in kvp.Value)
 					{
 						if (!FontNameMapping.GetByKey(alias, out _))
-							FontNameMapping.Add(alias, familyName);
+						{
+							try { FontNameMapping.Add(alias, familyName); }
+							catch (ArgumentException) { /* 双向字典冲突，跳过 */ }
+						}
 					}
 				}
 			}
@@ -242,7 +245,8 @@ namespace XEmuera.Models
 				// 别名未映射，说明外部字体不存在，回退到 Microsoft YaHei
 				if (AllModels.TryGetValue("Microsoft YaHei", out var yaheiModel))
 				{
-					FontNameMapping.Add(alias, yaheiModel.Name);
+					try { FontNameMapping.Add(alias, yaheiModel.Name); }
+					catch (ArgumentException) { /* 双向字典冲突，跳过 */ }
 				}
 			}
 		}
@@ -299,9 +303,11 @@ namespace XEmuera.Models
 			fontModel.OtherName = otherName;
 
 			// 注册文件名作为别名（如 "msgothic" → "MS Gothic"）
+			// ⚠ Mapping 是双向字典，key 和 value 都必须唯一，冲突时静默跳过
 			if (!string.Equals(fileName, fontModel.Name, StringComparison.OrdinalIgnoreCase))
 			{
-				FontNameMapping.Add(fileName, fontModel.Name);
+				try { FontNameMapping.Add(fileName, fontModel.Name); }
+				catch (ArgumentException) { /* key 或 value 已存在，跳过 */ }
 			}
 		}
 
@@ -313,7 +319,10 @@ namespace XEmuera.Models
 			if (!string.Equals(alias, familyName, StringComparison.OrdinalIgnoreCase))
 			{
 				if (!FontNameMapping.GetByKey(alias, out _))
-					FontNameMapping.Add(alias, familyName);
+				{
+					try { FontNameMapping.Add(alias, familyName); }
+					catch (ArgumentException) { /* 双向字典冲突，跳过 */ }
+				}
 			}
 		}
 

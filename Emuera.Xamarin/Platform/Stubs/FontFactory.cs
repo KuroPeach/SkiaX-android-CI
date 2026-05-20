@@ -118,6 +118,13 @@ internal static class FontFactory
 
 	private static SKTypeface CreateTypefaceWithFallback(string fontName)
 	{
+		// 西文字体别名：Android 上不存在，映射到内嵌字体（与 FontModel.ResolveFontName 保持一致）
+		if (string.Equals(fontName, "Times New Roman", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(fontName, "Arial", StringComparison.OrdinalIgnoreCase))
+			fontName = "Microsoft YaHei";
+		else if (string.Equals(fontName, "Courier New", StringComparison.OrdinalIgnoreCase))
+			fontName = "MS Gothic";
+
 		SKTypeface typeface = SKTypeface.FromFamilyName(fontName);
 		if (typeface != null)
 			return typeface;
