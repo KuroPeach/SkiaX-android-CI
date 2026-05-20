@@ -1,5 +1,42 @@
 # Emuera.Xamarin 变更记录
 
+## [0.42.0] - 2026-05-21 (baseline 55f0df9)
+
+### 基线状态：字体正确，但第一行溢出 + 按钮错位
+
+> **此提交为已知问题基线**，后续修复从此状态出发。如改错可 `git checkout 55f0df9` 回退。
+
+#### ADB 验证结果（MuMu, density=1.75）
+
+| 项目 | 值 | 状态 |
+|------|-----|------|
+| 字体大小 | FontSize=24 渲染正确 | ✅ 用户确认合适 |
+| 第一行渲染位置 | firstLineY=859（Canvas高1079） | ❌ 在屏幕外 |
+| 最后一行 | bottomY=1099 > ClientHeight=1079 | ❌ 溢出20px |
+| 按钮对齐 | 渲染Y vs 命中检测Y 差 ~24px | ❌ 错位一个行高 |
+
+#### 已回退的错误修改（9U）
+
+- `graph.Scale(density)`：导致字体放大1.75倍
+- `ClientWidth/ClientHeight` 改逻辑像素：同样导致字体变大
+- 触摸坐标 `/ density`：与回退的坐标系不匹配
+
+#### 根因分析
+
+**问题1（首行溢出）**: `PicBoxHeight = MainPicBox.Height * density = 1079`(物理)，但 `LineHeight = 24`(逻辑未乘density)。
+`pointY/LH = 1075/24 ≈ 44` 行可见空间估算错误 → firstLineY=859。
+
+**问题2（按钮错位）**: OnPaint 的 topLineNo 用 `(pointY/LH + 1)` 有 `+1`，
+MoveMouse 的 topLineNo 用 `(ClientH/LH)` 无 `+1`。两者差1导致所有按钮偏移24px。
+
+#### 诊断工具
+
+- logcat 过滤: `Select-String "EmueraRender"`
+- WaitInput 对齐诊断: 输出每行 renderY、按钮 absY、可见性
+- 坐标系参数: Canvas尺寸、密度、ClientW/H、FontSize/LineHeight
+
+---
+
 ## [0.41.0] - 2026-05-21
 
 ### Phase 9T：移除 graph.Scale(density) + 物理像素统一 + 诊断日志
