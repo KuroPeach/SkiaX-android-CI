@@ -2,12 +2,11 @@
 
 ## [0.45.0] - 2026-05-21
 
-### 修复 DrawTextUtils 字形回退：添加 MatchCharacter 系统级回退 + Times New Roman 别名
+### 修复 DrawTextUtils 字形回退 + Mapping 双向字典陷阱 + 移除诊断日志
 
 > **一句话根因**：`DrawTextUtils` 的逐字符回退仅限于 `EnabledFontCaches`（MS Gothic/Microsoft YaHei/SimHei），
 > 不使用 `SKFontManager.Default.MatchCharacter()` 做系统级回退。
 > 当所有启用字体都不含某字符字形时（如 ❤ U+2764），Final 字体渲染方框（tofu）。
-> 而 `FontFactory` 有完整的 MatchCharacter 回退，但 DrawTextUtils 不走 FontFactory 路径。
 
 #### 问题场景
 
@@ -21,10 +20,18 @@ MS Gothic 不含 ❤ 字形 → EnabledFontCaches 遍历后仍无字形 → Fina
 |------|------|------|
 | 添加 `SystemFallbackCache` | DrawTextUtils.cs | `Dictionary<char, FontModel>` 缓存 MatchCharacter 结果，避免每帧重复查询 |
 | 添加 MatchCharacter 回退 | DrawTextUtils.cs | 在 EnabledFontCaches 遍历后，对剩余字符调用 `SKFontManager.Default.MatchCharacter(c)` 查找系统字体 |
-| 添加 Times New Roman 别名 | FontModel.cs | `FontNameMapping.Add("Times New Roman", "Microsoft YaHei")`，直接映射到含特殊符号的字体 |
-| 添加 Arial 别名 | FontModel.cs | `FontNameMapping.Add("Arial", "Microsoft YaHei")` |
-| 添加 Courier New 别名 | FontModel.cs | `FontNameMapping.Add("Courier New", "MS Gothic")` |
+| 添加 `ResolveFontName` | FontModel.cs | 西文字体别名（Times New Roman/Arial→YaHei, Courier New→Gothic）改用方法映射，避免 Mapping 双向字典 value 重复 |
 | 修正 Final 字体顺序 | FontModel.cs | SimHei 先于 Microsoft YaHei 启用，使 Microsoft YaHei 成为 Final（字形覆盖最广） |
+| 移除诊断日志 | EmueraConsole.cs | 移除三处渲染诊断日志代码块及相关字段（_debugLogFrameCount 等） |
+
+#### Mapping 双向字典陷阱（v0.45.0 引入的回归，已修复）
+
+`XEmuera.Mapping<T1,T2>` 是双向字典，`Add(key, value)` 同时写 `KeyDictionary` 和 `ValueDictionary`。
+初始修复在 `InitFontMapping()` 中添加了 `FontNameMapping.Add("Times New Roman", "Microsoft YaHei")` 和
+`FontNameMapping.Add("Arial", "Microsoft YaHei")`，导致 `ValueDictionary["Microsoft YaHei"]` 重复 →
+`ArgumentException` → `FontModel.Load()` 失败 → 字体系统未初始化 → 引擎 NRE 崩溃。
+
+修复：西文字体别名从 `FontNameMapping` 移除，改用 `ResolveFontName()` 方法做一对一映射。
 
 #### 回退链（修复后）
 
