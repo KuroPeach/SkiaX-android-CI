@@ -106,8 +106,8 @@ namespace XEmuera.Models
 			if (string.IsNullOrEmpty(enabledFont))
 			{
 				Default.Enabled = true;
-				AllModels[FinalFontName].Enabled = true;
 				AllModels[SimHeiFontName].Enabled = true;
+				AllModels[FinalFontName].Enabled = true; // Final 必须最后启用 = EnabledList.Last() = 字形覆盖最广的字体
 			}
 			else
 			{
@@ -255,8 +255,9 @@ namespace XEmuera.Models
 			FontNameMapping.Add("ＭＳ Ｐゴシック", "MS PGothic");
 			FontNameMapping.Add("ＭＳ 明朝", "MS Mincho");
 			FontNameMapping.Add("ＭＳ Ｐ明朝", "MS PMincho");
-			FontNameMapping.Add("微软雅黑", "Microsoft YaHei");
-			FontNameMapping.Add("黑体", "SimHei");
+			// ⚠ Mapping 是双向字典，value 必须唯一！多对一映射不能放在这里。
+			// 西文字体别名（Times New Roman→YaHei, Arial→YaHei, Courier New→Gothic）
+			// 在 HasFont/GetFont 中通过 ResolveFontName 处理。
 			// 中文字体别名在 LoadFontsFolder → RegisterChineseFontAliases 中动态注册
 			// （因为需要知道外部字体的实际族名）
 		}
@@ -316,17 +317,32 @@ namespace XEmuera.Models
 			}
 		}
 
-		public static bool HasFont(string fontName)
+		/// <summary>
+		/// 将字体名解析为实际可用的族名。
+		/// 先查双向映射 FontNameMapping，再查西文字体别名（多对一，无法放入双向字典）。
+		/// </summary>
+		private static string ResolveFontName(string fontName)
 		{
 			if (FontNameMapping.GetByKey(fontName, out string newFontName))
 				fontName = newFontName;
+			// 西文字体别名：Android 上不存在，映射到内嵌字体（多对一，不能加入双向字典）
+			if (string.Equals(fontName, "Times New Roman", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(fontName, "Arial", StringComparison.OrdinalIgnoreCase))
+				fontName = "Microsoft YaHei";
+			else if (string.Equals(fontName, "Courier New", StringComparison.OrdinalIgnoreCase))
+				fontName = "MS Gothic";
+			return fontName;
+		}
+
+		public static bool HasFont(string fontName)
+		{
+			fontName = ResolveFontName(fontName);
 			return AllModels.ContainsKey(fontName);
 		}
 
 		public static FontModel GetFont(string fontName)
 		{
-			if (FontNameMapping.GetByKey(fontName, out string newFontName))
-				fontName = newFontName;
+			fontName = ResolveFontName(fontName);
 			if (AllModels.TryGetValue(fontName, out FontModel model))
 				return model;
 			return Default;

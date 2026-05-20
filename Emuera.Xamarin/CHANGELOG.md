@@ -1,5 +1,40 @@
 # Emuera.Xamarin 变更记录
 
+## [0.45.0] - 2026-05-21
+
+### 修复 DrawTextUtils 字形回退：添加 MatchCharacter 系统级回退 + Times New Roman 别名
+
+> **一句话根因**：`DrawTextUtils` 的逐字符回退仅限于 `EnabledFontCaches`（MS Gothic/Microsoft YaHei/SimHei），
+> 不使用 `SKFontManager.Default.MatchCharacter()` 做系统级回退。
+> 当所有启用字体都不含某字符字形时（如 ❤ U+2764），Final 字体渲染方框（tofu）。
+> 而 `FontFactory` 有完整的 MatchCharacter 回退，但 DrawTextUtils 不走 FontFactory 路径。
+
+#### 问题场景
+
+eratw-chs 的 `@HEARTMARK` 调用 `SETFONT "Times New Roman"` + `PRINTFORM %"❤" * ARG%`。
+Android 上 Times New Roman 不存在 → `GetFont()` 回退到 Default（MS Gothic）→
+MS Gothic 不含 ❤ 字形 → EnabledFontCaches 遍历后仍无字形 → Final 字体(SimHei)渲染方框。
+
+#### 修复内容
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| 添加 `SystemFallbackCache` | DrawTextUtils.cs | `Dictionary<char, FontModel>` 缓存 MatchCharacter 结果，避免每帧重复查询 |
+| 添加 MatchCharacter 回退 | DrawTextUtils.cs | 在 EnabledFontCaches 遍历后，对剩余字符调用 `SKFontManager.Default.MatchCharacter(c)` 查找系统字体 |
+| 添加 Times New Roman 别名 | FontModel.cs | `FontNameMapping.Add("Times New Roman", "Microsoft YaHei")`，直接映射到含特殊符号的字体 |
+| 添加 Arial 别名 | FontModel.cs | `FontNameMapping.Add("Arial", "Microsoft YaHei")` |
+| 添加 Courier New 别名 | FontModel.cs | `FontNameMapping.Add("Courier New", "MS Gothic")` |
+| 修正 Final 字体顺序 | FontModel.cs | SimHei 先于 Microsoft YaHei 启用，使 Microsoft YaHei 成为 Final（字形覆盖最广） |
+
+#### 回退链（修复后）
+
+```
+1. UserCache（当前 SETFONT 字体）→ CheckGlyphs + PrepareGlyphs
+2. EnabledFontCaches 遍历 → CheckGlyphs + PrepareGlyphs
+3. [新增] SKFontManager.Default.MatchCharacter → 系统字体回退
+4. 放弃（CharRemain == CharList.Length → return）
+```
+
 ## [0.44.0] - 2026-05-21
 
 ### 修复 HTML img/space 内联元素与文字行偏移

@@ -43,8 +43,16 @@
 - 修改了 `Emuera.Xamarin/` 或 `Emuera.Xamarin.Android/` 下的代码
 - 用户要求构建 APK / 真机测试
 - 需要查看渲染诊断日志
+- **Android 端运行时报错（NRE/Exception）需要拉取 logcat 堆栈**
+- **任何需要使用 `adb` 命令的场景**（adb 不在 PATH 中，必须先查阅知识库获取路径）
 
 ### 测试流程
+
+> **⚠ ADB 不在系统 PATH 中！每次使用前必须先定义路径变量：**
+> ```powershell
+> $adb = "D:\Program Files (x86)\Microsoft Visual Studio\Shared\Android\android-sdk\platform-tools\adb.exe"
+> ```
+> 完整流程见知识库 [adb-testing.md](file:///d:/emuera/shared-trae/knowledge/xemuera/adb-testing.md)，powershell-git 技能 §10 有命令速查。
 
 1. **构建 APK**：`dotnet publish "D:\emuera\emuera_lazyloading_selfmodified_version\Emuera.Xamarin.Android\Emuera.Xamarin.Android.csproj" -f net8.0-android -c Debug 2>&1`
 2. **连接模拟器**：`& $adb connect 127.0.0.1:16384`（MuMu）或 `127.0.0.1:5555`（华为）

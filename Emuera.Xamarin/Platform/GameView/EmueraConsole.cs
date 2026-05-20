@@ -587,7 +587,6 @@ namespace MinorShift.Emuera.GameView
 		public void WaitInput(InputRequest req)
 		{
 			state = ConsoleState.WaitInput;
-			_alignmentDiagLogged = false; // 每次 WaitInput 允许输出一次对齐诊断
 			inputReq = req;
 			if (req.Timelimit > 0)
 			{
@@ -1405,12 +1404,6 @@ namespace MinorShift.Emuera.GameView
 		/// 全面Clear法のみにしたのでさっぱりした。ダブルバッファリングはOnPaintが勝手にやるはず
 		/// </summary>
 		/// <param name="graph"></param>
-		public static readonly string _debugLogPath = System.IO.Path.Combine(
-			System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal),
-			"render_debug.log");
-		private static int _debugLogFrameCount = 0;
-		private const int _debugLogMaxFrames = 10; // 记录前10帧
-		private static bool _alignmentDiagLogged = false; // WaitInput 对齐诊断只输出一次
 
 		public void OnPaint(SKCanvas graph)
 		{
@@ -1437,32 +1430,6 @@ namespace MinorShift.Emuera.GameView
 			// FontSize/LineHeight 直接用作物理像素坐标。不做 graph.Scale。
 			int pointY = ClientHeight - DisplayUtils.HeightOffset;
 
-			// === 诊断日志：记录坐标系关键参数 ===
-			bool shouldLog = _debugLogFrameCount < _debugLogMaxFrames && displayLineList.Count > 0;
-			if (shouldLog)
-			{
-				_debugLogFrameCount++;
-				var matrix = graph.TotalMatrix;
-				var sb = new System.Text.StringBuilder();
-				sb.AppendLine($"=== Frame {_debugLogFrameCount} ===");
-				sb.AppendLine($"  Canvas.TotalMatrix: ScaleX={matrix.ScaleX:F2} ScaleY={matrix.ScaleY:F2} TransX={matrix.TransX:F2} TransY={matrix.TransY:F2}");
-				sb.AppendLine($"  ScreenDensity={DisplayUtils.ScreenDensity}");
-				sb.AppendLine($"  MainPicBox.Width={GameUtils.MainPicBox?.Width ?? 0} Height={GameUtils.MainPicBox?.Height ?? 0}");
-				sb.AppendLine($"  ClientWidth={ClientWidth} ClientHeight={ClientHeight} (logical pixels, scaled to physical by graph.Scale)");
-				sb.AppendLine($"  Config.FontSize={Config.FontSize} Config.LineHeight={Config.LineHeight}");
-				sb.AppendLine($"  Config.WindowX={Config.WindowX} Config.WindowY={Config.WindowY}");
-				sb.AppendLine($"  Config.DrawableWidth={Config.DrawableWidth}");
-				sb.AppendLine($"  HeightOffset={DisplayUtils.HeightOffset}");
-				sb.AppendLine($"  bakedBackground: {(bakedBackground != null ? $"{bakedBackground.Width}x{bakedBackground.Height}" : "null")}");
-				sb.AppendLine($"  ScrollBar.Value={window.ScrollBar.Value} Maximum={window.ScrollBar.Maximum}");
-				sb.AppendLine($"  displayLineList.Count={displayLineList.Count}");
-				sb.AppendLine($"  initial pointY={pointY}");
-				sb.AppendLine($"  pointY/LineHeight={pointY / (float)Config.LineHeight:F2} (visible lines)");
-
-				PlatformInterop.DebugLog(sb.ToString());
-			}
-
-
 			int bottomLineNo = (int)window.ScrollBar.Value - 1;
 			if (displayLineList.Count - 1 < bottomLineNo)
 				bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
@@ -1473,56 +1440,6 @@ namespace MinorShift.Emuera.GameView
 			if (topLineNo < 0)
 				topLineNo = 0;
 			pointY -= (bottomLineNo - topLineNo) * Config.LineHeight;
-
-			// === 诊断日志：记录行号计算结果 + 每行渲染Y坐标 + 按钮坐标 ===
-			if (shouldLog)
-			{
-				var sb2 = new System.Text.StringBuilder();
-				sb2.AppendLine($"  topLineNo={topLineNo} bottomLineNo={bottomLineNo}");
-				sb2.AppendLine($"  adjusted pointY={pointY} (first line top Y)");
-				sb2.AppendLine($"  total visible lines={bottomLineNo - topLineNo + 1}");
-				sb2.AppendLine($"  last line bottom Y={pointY + (bottomLineNo - topLineNo) * Config.LineHeight + Config.LineHeight}");
-				sb2.AppendLine($"  ClientHeight={ClientHeight}");
-				sb2.AppendLine($"  last line exceeds canvas? {pointY + (bottomLineNo - topLineNo + 1) * Config.LineHeight > ClientHeight}");
-
-				// 记录所有可见行的渲染Y坐标和按钮坐标
-				for (int li = topLineNo; li <= bottomLineNo; li++)
-				{
-					var line = displayLineList[li];
-					int lineY = pointY + (li - topLineNo) * Config.LineHeight;
-					int btnCount = line.Buttons?.Length ?? 0;
-					sb2.AppendLine($"  line[{li}] renderY={lineY} buttons={btnCount}");
-					if (line.Buttons != null)
-					{
-						foreach (var btn in line.Buttons)
-						{
-							sb2.AppendLine($"    btn: PointX={btn.PointX} Width={btn.Width} IsButton={btn.IsButton}");
-							if (btn.StrArray != null)
-							{
-								foreach (var part in btn.StrArray)
-								{
-									// 渲染位置 = lineY + part.Top/Bottom（相对于行顶的偏移）
-									int absTop = lineY + part.Top;
-									int absBottom = lineY + part.Bottom;
-									sb2.AppendLine($"      part: PointX={part.PointX} Width={part.Width} Top={part.Top} Bottom={part.Bottom} absTop={absTop} absBottom={absBottom} Type={part.GetType().Name}");
-								}
-							}
-						}
-					}
-				}
-
-				// HTML 元素坐标
-				sb2.AppendLine($"  _htmlElementList.Count={_htmlElementList.Count}");
-				int htmlIdx = 0;
-				foreach (var element in _htmlElementList)
-				{
-					if (htmlIdx < 5 || htmlIdx >= _htmlElementList.Count - 3)
-						sb2.AppendLine($"    html[{htmlIdx}] Type={element.GetType().Name}");
-					htmlIdx++;
-				}
-
-				PlatformInterop.DebugLog(sb2.ToString());
-			}
 
 			//if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
 			//{
@@ -1717,77 +1634,6 @@ namespace MinorShift.Emuera.GameView
 			{
 				need_settimer = false;
 				setTimer();
-			}
-
-			// === WaitInput 按钮对齐诊断 ===
-			// 只在 WaitInput 状态首次输出，对比渲染Y坐标和按钮命中检测Y坐标
-			if (state == ConsoleState.WaitInput && !_alignmentDiagLogged && displayLineList.Count > 0)
-			{
-				_alignmentDiagLogged = true;
-				var diag = new System.Text.StringBuilder();
-				diag.AppendLine("=== WaitInput Button Alignment Diagnostic ===");
-				diag.AppendLine($"  ClientWidth={ClientWidth} ClientHeight={ClientHeight} (logical pixels)");
-				diag.AppendLine($"  FontSize={Config.FontSize} LineHeight={Config.LineHeight}");
-				diag.AppendLine($"  ScreenDensity={DisplayUtils.ScreenDensity}");
-				diag.AppendLine($"  graph.Scale applied: ScaleX={graph.TotalMatrix.ScaleX:F2}");
-				diag.AppendLine($"  visible lines = {ClientHeight / Config.LineHeight}");
-				diag.AppendLine($"  HeightOffset={DisplayUtils.HeightOffset}");
-				diag.AppendLine("");
-
-				// OnPaint 渲染坐标计算（与 OnPaint 一致）
-				int paintPointY = ClientHeight - DisplayUtils.HeightOffset;
-				int paintBottomLineNo = (int)window.ScrollBar.Value - 1;
-				if (displayLineList.Count - 1 < paintBottomLineNo)
-					paintBottomLineNo = displayLineList.Count - 1;
-				int paintTopLineNo = paintBottomLineNo - (paintPointY / Config.LineHeight + 1);
-				if (paintTopLineNo < 0) paintTopLineNo = 0;
-				paintPointY -= (paintBottomLineNo - paintTopLineNo) * Config.LineHeight;
-
-				// MoveMouse 命中检测坐标计算（与 MoveMouse 一致）
-				int mmTopLineNo = paintBottomLineNo - (ClientHeight / Config.LineHeight);
-				if (mmTopLineNo < 0) mmTopLineNo = 0;
-				int mmBaseRelY = -(ClientHeight - DisplayUtils.HeightOffset);
-
-				diag.AppendLine($"  OnPaint: topLineNo={paintTopLineNo} bottomLineNo={paintBottomLineNo} firstLineY={paintPointY}");
-				diag.AppendLine($"  MoveMouse: topLineNo={mmTopLineNo} bottomLineNo={paintBottomLineNo}");
-				diag.AppendLine("");
-
-				// 逐行对比渲染Y和命中检测Y
-				for (int li = paintTopLineNo; li <= paintBottomLineNo && li < displayLineList.Count; li++)
-				{
-					var line = displayLineList[li];
-					int renderY = paintPointY + (li - paintTopLineNo) * Config.LineHeight;
-					// MoveMouse 中 relPointY 从 base 开始，每行 += LineHeight
-					int mmRelY = mmBaseRelY + (li - mmTopLineNo + 1) * Config.LineHeight;
-					int btnCount = line.Buttons?.Length ?? 0;
-
-					// 只输出有按钮的行
-					if (btnCount > 0)
-					{
-						diag.AppendLine($"  line[{li}] renderY={renderY} mmRelY={mmRelY} buttons={btnCount}");
-						foreach (var btn in line.Buttons)
-						{
-							if (btn.StrArray == null) continue;
-							foreach (var part in btn.StrArray)
-							{
-								// 渲染绝对Y = renderY + part.Top/Bottom
-								int renderAbsTop = renderY + part.Top;
-								int renderAbsBottom = renderY + part.Bottom;
-								// 命中检测Y范围 = mmRelY + part.Top ~ mmRelY + part.Bottom
-								int mmAbsTop = mmRelY + part.Top;
-								int mmAbsBottom = mmRelY + part.Bottom;
-								bool aligned = (renderAbsTop == mmAbsTop && renderAbsBottom == mmAbsBottom);
-								string text = part is ConsoleStyledString css ? css.Text : "";
-								if (text.Length > 20) text = text.Substring(0, 20) + "...";
-								diag.AppendLine($"    part: X={part.PointX} W={part.Width} T={part.Top} B={part.Bottom} " +
-									$"renderY=[{renderAbsTop},{renderAbsBottom}] mmY=[{mmAbsTop},{mmAbsBottom}] " +
-									$"aligned={aligned} text=\"{text}\"");
-							}
-						}
-					}
-				}
-
-				PlatformInterop.DebugLog(diag.ToString());
 			}
 			}
 			finally

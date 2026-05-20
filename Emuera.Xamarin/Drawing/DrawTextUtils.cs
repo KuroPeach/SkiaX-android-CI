@@ -16,6 +16,12 @@ namespace XEmuera.Drawing
 
 		private static readonly List<FontCache> EnabledFontCaches = new List<FontCache>();
 
+		/// <summary>
+		/// 系统字体回退缓存：字符 → FontModel（通过 MatchCharacter 匹配）
+		/// 当所有 EnabledFontCaches 都不含某字符字形时，使用系统字体回退
+		/// </summary>
+		private static readonly Dictionary<char, FontModel> SystemFallbackCache = new Dictionary<char, FontModel>();
+
 		private static SKPaint Paint;
 
 		private static char[] CharList;
@@ -134,6 +140,49 @@ namespace XEmuera.Drawing
 
 				if (CharRemain == 0)
 					break;
+			}
+
+			// 系统字体回退：当所有 EnabledFontCaches 都不含某字符字形时，使用 SKFontManager.MatchCharacter 查找系统字体
+			if (CharRemain > 0)
+			{
+				for (int i = 0; i < CharList.Length; i++)
+				{
+					if (CharList[i] == char.MinValue)
+						continue;
+
+					char c = CharList[i];
+
+					if (!SystemFallbackCache.TryGetValue(c, out FontModel fallbackModel))
+					{
+						var matchTypeface = SKFontManager.Default.MatchCharacter(c);
+						if (matchTypeface != null)
+						{
+							fallbackModel = new FontModel(matchTypeface);
+							SystemFallbackCache[c] = fallbackModel;
+						}
+						else
+						{
+							SystemFallbackCache[c] = null;
+						}
+					}
+
+					if (fallbackModel == null)
+						continue;
+
+					Paint.Typeface = fallbackModel.Typeface;
+					var widths = Paint.GetGlyphWidths(new[] { c });
+					if (widths.Length > 0 && widths[0] > 0)
+					{
+						TextUnits[i] = new TextUnit
+						{
+							Text = c.ToString(),
+							Advance = widths[0],
+							FontModel = fallbackModel,
+						};
+						CharList[i] = char.MinValue;
+						CharRemain--;
+					}
+				}
 			}
 
 			//没有任何字可以绘制的大失败情况
