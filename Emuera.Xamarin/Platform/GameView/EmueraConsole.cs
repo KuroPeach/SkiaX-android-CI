@@ -1935,43 +1935,89 @@ namespace MinorShift.Emuera.GameView
 			int relPointY = pointY - (ClientHeight - DisplayUtils.HeightOffset);
 
 			//下から上へ探索し発見次第打ち切り
-			for (int i = bottomLineNo; i >= topLineNo; i--)
+			#region EM_私家版_描画拡張 (MoveMouse hit test with escapedParts)
+			var escapedParts = EscapedParts;
+			if (ConsoleEscapedParts.Changed || !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
+				ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
+			var edepth = escapedParts.Keys.ToArray();
+			Array.Sort(edepth);
+			int eidx = 0;
+			bool zeroTested = false;
+			var bottomLineBase = ClientHeight - DisplayUtils.HeightOffset - Config.LineHeight;
+			while (eidx < edepth.Length)
 			{
-				relPointY += Config.LineHeight;
-				curLine = displayLineList[i];
-				
-				for (int b = 0; b < curLine.Buttons.Length; b++)
+				var depth = edepth[eidx];
+				if (!zeroTested && depth >= 0)
 				{
-					ConsoleButtonString button = curLine.Buttons[curLine.Buttons.Length - b - 1];
-					if(button == null || button.StrArray == null)
-						continue;
-					if ((button.PointX <= pointX) && (button.PointX + button.Width >= pointX))
+					depth = 0;
+					zeroTested = true;
+					// 普通のパーツのヒットテスト
+					for (int i = bottomLineNo; i >= topLineNo; i--)
 					{
-						//if (relPointY >= 0 && relPointY <= Config.FontSize)
-						//{
-						//	pointing = button;
-						//	if(pointing.IsButton)
-						//		goto breakfor;
-						//}
-						foreach(AConsoleDisplayNode part in button.StrArray)
+						relPointY += Config.LineHeight;
+						curLine = displayLineList[i];
+
+						for (int b = 0; b < curLine.Buttons.Length; b++)
 						{
-							if(part == null)
+							ConsoleButtonString button = curLine.Buttons[curLine.Buttons.Length - b - 1];
+							if (button == null || button.StrArray == null)
 								continue;
-							if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
-								&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
+							if ((button.PointX <= pointX) && (button.PointX + button.Width >= pointX))
 							{
-								pointing = button;
-								curLineY = window.MainPicBox.Height - Config.LineHeight * (bottomLineNo - i + 1);
-								if (pointing.IsButton)
+								foreach (AConsoleDisplayNode part in button.StrArray)
 								{
-									pointingStrings.Add(button);
-									goto breakfor;
+									if (part == null || part is ConsoleDivPart)
+										continue;
+									if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
+										&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
+									{
+										pointing = button;
+										curLineY = window.MainPicBox.Height - Config.LineHeight * (bottomLineNo - i + 1);
+										if (pointing.IsButton)
+										{
+											pointingStrings.Add(button);
+											goto breakfor;
+										}
+									}
 								}
 							}
 						}
 					}
 				}
+				if (eidx < edepth.Length && edepth[eidx] == depth)
+				{
+					// 行範囲を超えたパーツのヒットテスト
+					var correction = GetLineNo > Config.MaxLog ? GetLineNo - Config.MaxLog : 0;
+					if (depth != 0 || escapedParts.ContainsKey(depth))
+						foreach (var part in escapedParts[depth])
+						{
+							if (part is ConsoleDivPart div)
+							{
+								// Y轴剪枝
+								var lineY = bottomLineBase + (div.Parent.ParentLine.LineNo - bottomLineNo - correction) * Config.LineHeight;
+								if (pointY < lineY + div.Top - 200 || pointY > lineY + div.Bottom + 200)
+									continue;
+
+								var childPointing = div.TestChildHitbox(pointX, pointY, lineY);
+								if (childPointing != null)
+								{
+									pointing = childPointing;
+									if (pointing.IsButton)
+										goto breakfor;
+								}
+							}
+							else if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
+								&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
+							{
+								pointing = part.Parent;
+								if (pointing.IsButton)
+									goto breakfor;
+							}
+						}
+					eidx++;
+				}
 			}
+			#endregion
 
 
 			//int posy_bottom2up = window.MainPicBox.Height - pointY;

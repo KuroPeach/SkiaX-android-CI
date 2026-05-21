@@ -245,22 +245,16 @@ namespace XEmuera.Droid
             var scrollVerticalButton = MakeSvgToolButton("scroll_vertical.svg", svgTintColor);
             // 注意：scrollBarLayout 在后面创建，事件在创建后绑定
 
-            // lock_rotation_button（锁定屏幕旋转，SVG 图标）
-            var lockRotationButton = MakeSvgToolButton("lock_rotation.svg", svgTintColor);
-            lockRotationButton.Opacity = 0.5;
-            lockRotationButton.Clicked += (s, e) =>
+            // lock_rotation_button（锁定屏幕旋转，SVG 图标，Toggled 模式）
+            var lockRotationButton = MakeSvgToolButton("lock_rotation_open.svg", svgTintColor);
+            lockRotationButton.ToggledImage = "lock_rotation.svg";
+            lockRotationButton.Toggled += (s, e) =>
             {
-                bool locked = lockRotationButton.Opacity < 1;
-                if (locked)
-                {
-                    GameUtils.PlatformService.LockScreenOrientation();
-                    lockRotationButton.Opacity = 1;
-                }
+                if (e.Value)
+                    GameUtils.PlatformService?.LockScreenOrientation();
                 else
-                {
-                    GameUtils.PlatformService.UnlockScreenOrientation();
-                    lockRotationButton.Opacity = 0.5;
-                }
+                    GameUtils.PlatformService?.UnlockScreenOrientation();
+                SetButtonOpacity(lockRotationButton, e.Value);
             };
 
             // zoom buttons
@@ -286,9 +280,17 @@ namespace XEmuera.Droid
             // 占位符（将按钮推到右侧，与 XEmuera BoxView HorizontalOptions=StartAndExpand 一致）
             var spacer = new BoxView { InputTransparent = true, HorizontalOptions = LayoutOptions.StartAndExpand };
 
-            // 初始状态：gallery 和 scroll 默认隐藏
+            // 初始状态：gallery 和 scroll 默认关闭（Opacity 低），所有工具按钮默认不可见
             galleryViewButton.Opacity = 0.5;
             scrollVerticalButton.Opacity = 0.5;
+            lockRotationButton.Opacity = 0.5;
+            editButton.IsVisible = false;
+            scrollVerticalButton.IsVisible = false;
+            galleryViewButton.IsVisible = false;
+            gamepadButton.IsVisible = false;
+            lockRotationButton.IsVisible = false;
+            zoomOutButton.IsVisible = false;
+            zoomInButton.IsVisible = false;
 
             // 收起/展开逻辑（与 XEmuera ButtonVisibleGroup_Clicked 一致）
             menuShowButton.Clicked += (s, e) =>
@@ -304,14 +306,13 @@ namespace XEmuera.Droid
                 menuShowButton.Opacity = visible ? 1 : 0.5;
             };
 
-            // 组装工具栏（顺序：spacer, ☰menu, edit, scroll_vertical, gallery, gamepad, lock_rotation, A-, A+, menu_show）
+            // 组装工具栏（顺序与 XEmuera 一致：spacer, lock_rotation, edit, scroll_vertical, gallery, gamepad, A-, A+, menu_show）
             toolbar.Children.Add(spacer);
-            toolbar.Children.Add(menuButton);
+            toolbar.Children.Add(lockRotationButton);
             toolbar.Children.Add(editButton);
             toolbar.Children.Add(scrollVerticalButton);
             toolbar.Children.Add(galleryViewButton);
             toolbar.Children.Add(gamepadButton);
-            toolbar.Children.Add(lockRotationButton);
             toolbar.Children.Add(zoomOutButton);
             toolbar.Children.Add(zoomInButton);
             toolbar.Children.Add(menuShowButton);
@@ -485,6 +486,8 @@ namespace XEmuera.Droid
 
             // e.Location 是物理像素，EmueraConsole 内部也用物理像素坐标
             var mouseLocation = new Point((int)e.Location.X, (int)e.Location.Y);
+
+            PlatformInterop.SetLastMousePosition(mouseLocation);
 
             if (console.MoveMouse(mouseLocation))
                 RefreshStrings(true);
@@ -1277,6 +1280,11 @@ namespace XEmuera.Droid
             if (Math.Abs(next - current) < 0.01f) return;
 
             ApplyRuntimeDisplayScale(next);
+        }
+
+        private static void SetButtonOpacity(Xamarin.Forms.View button, bool visible)
+        {
+            button.Opacity = visible ? 1 : 0.5d;
         }
 
         #endregion

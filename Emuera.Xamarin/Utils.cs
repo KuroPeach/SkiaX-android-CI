@@ -38,6 +38,14 @@ namespace XEmuera
 
 		public static IPlatformService PlatformService { get; private set; }
 
+		/// <summary>
+		/// 仅初始化 PlatformService，供 Android 端使用（Android 端不调用 GameUtils.Load()）
+		/// </summary>
+		public static void InitPlatformService()
+		{
+			PlatformService = DependencyService.Get<IPlatformService>();
+		}
+
 		public static bool IsEmueraPage
 		{
 			get => _IsEmueraPage;

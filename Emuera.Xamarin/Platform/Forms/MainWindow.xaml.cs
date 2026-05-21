@@ -277,6 +277,7 @@ namespace MinorShift.Emuera
 		private void EraPictureBox_Touch(object sender, SKTouchEventArgs e)
 		{
 			MouseLocation = new System.Drawing.Point((int)e.Location.X, (int)e.Location.Y);
+			PlatformInterop.SetLastMousePosition(MouseLocation);
 
 			if (console.MoveMouse(MouseLocation))
 				RefreshStrings(true);

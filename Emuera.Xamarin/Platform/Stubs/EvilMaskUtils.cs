@@ -386,10 +386,28 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 		public ConsoleDisplayLine[] Children { get { return children; } }
 		public override bool CanDivide => false;
 
-		public ConsoleButtonString TestChildHitbox(int px, int py, int relPointY)
+		public ConsoleButtonString TestChildHitbox(int px, int py, int lineScreenY)
 		{
 			ConsoleButtonString pointing = null;
-			var rect = new Rectangle(PointX + xOffset, relPointY + PointY + yOffset, width, Height);
+			// 与 DrawTo 使用相同的 rect 计算逻辑
+			var rect = IsRelative
+				? new Rectangle(PointX + xOffset, lineScreenY + PointY, width + 2, Height)
+				: Display switch
+				{
+					DisplayMode.AbsoluteLeftTop => new Rectangle(xOffset, PointY, width + 2, Height),
+					DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height),
+					_ => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height)
+				};
+			if (margin != null)
+				rect = new Rectangle(rect.X + margin[Direction.Left], rect.Y + margin[Direction.Top],
+					 rect.Width - margin[Direction.Left] - margin[Direction.Right], rect.Height - margin[Direction.Top] - margin[Direction.Bottom]);
+			// 应用 border 和 padding 偏移，与 DrawTo 中传递给子元素的 content 区域一致
+			if (border != null)
+				rect = new Rectangle(rect.X + border[Direction.Left], rect.Y + border[Direction.Top],
+					 rect.Width - border[Direction.Left] - border[Direction.Right], rect.Height - border[Direction.Top] - border[Direction.Bottom]);
+			if (padding != null)
+				rect = new Rectangle(rect.X + padding[Direction.Left], rect.Y + padding[Direction.Top],
+					 rect.Width - padding[Direction.Left] - padding[Direction.Right], rect.Height - padding[Direction.Top] - padding[Direction.Bottom]);
 			if (!rect.Contains(px, py)) return null;
 			for (int i = 0; i < children.Length; i++)
 			{

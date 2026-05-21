@@ -2,7 +2,7 @@
 
 > **最后更新**：2026-05-21
 > **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera.Xamarin/CHANGELOG.md)
-> **当前版本**：v0.46.0
+> **当前版本**：v0.47.1
 
 ## 当前状态
 
@@ -28,6 +28,7 @@
 | Phase 9U | HTML img/space 内联元素与文字行偏移修复 | 0.44 |
 | Phase 9V | 字形回退 + Mapping双向字典陷阱 + 移除诊断日志 | 0.45 |
 | Phase 9W | 修复 GETCONFIG/FPS 移动端支持 + 画廊 QuickButton HTML 过滤 + 旋转锁定按钮 + SVG 资源补全 | 0.47 |
+| Phase 9X | 旋转锁定按钮正确移植（Toggled 模式 + PlatformService 初始化 + 按钮顺序对齐 XEmuera） | 0.47.1 |
 | Phase 10A | Release 发布（版本号 + 签名 + GitHub Release） | 0.46 |
 
 ---
@@ -78,7 +79,7 @@ Emuera.Xamarin.sln
 |---|------|------|------|
 | 11A | AndroidSound 变速实现 | ExoPlayer 替代 MediaPlayer | ⏭️ |
 | 11B | APK 体积优化 | AOT/Linker/资源压缩 | ⏭️ |
-| 11C | HTML div 触屏定位修复 | QOL_USERCOM.ERB 弹窗坐标 | ⏭️ |
+| 11C | HTML div 触屏定位修复 | QOL_USERCOM.ERB 弹窗坐标 + div 按钮碰撞检测 | ✅ Phase 9T |
 | 11D | 动图渲染验证 | GIF/WebP Android 播放确认 | ⏭️ |
 | 11E | 内存占用对比测试 | SharedBitmapCache LRU 效果 | ⏭️ |
 

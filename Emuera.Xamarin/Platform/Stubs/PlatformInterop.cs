@@ -24,6 +24,13 @@ namespace MinorShift.Emuera
 
 		public static Func<Point> GetMousePosition { get; set; } = () => Point.Empty;
 
+		static Point _lastMousePosition = Point.Empty;
+		/// <summary>
+		/// 移动端触屏坐标存储：在触屏事件中更新，供 GetMousePosition 委托读取
+		/// </summary>
+		public static void SetLastMousePosition(Point pos) { _lastMousePosition = pos; }
+		public static Point LastMousePosition => _lastMousePosition;
+
 		/// <summary>
 		/// 图片解码回退：当 SkiaSharp SKBitmap.Decode 返回 null 时调用
 		/// 返回 null 表示该平台无回退能力

@@ -224,7 +224,7 @@ namespace XEmuera.Droid
                 }
             };
 
-            PlatformInterop.GetMousePosition = () => XEmuera.Drawing.Point.Empty;
+            PlatformInterop.GetMousePosition = () => PlatformInterop.LastMousePosition;
 
             PlatformInterop.SetClipboardText = (text) =>
             {
@@ -327,6 +327,10 @@ namespace XEmuera.Droid
         {
             var context = MainActivity.Instance;
             if (context == null) return;
+
+            // 初始化 PlatformService（GameUtils.Load() 在 Android 端不被调用，需手动初始化）
+            GameUtils.InitPlatformService();
+
             mainWindow = new AndroidMainWindow(context);
             GameUtils.MainPicBox = new EraPictureBox();
         }

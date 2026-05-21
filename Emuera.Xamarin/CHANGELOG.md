@@ -1,5 +1,95 @@
 # Emuera.Xamarin 变更记录
 
+## [0.48.2] - 2026-05-21
+
+### 修复 v0.48.1 两个残留 Bug
+
+#### 问题
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | 旋转锁定按钮图标仍不可见 | `Emuera.Xamarin.Core.csproj` 缺少 `lock_rotation.svg` 和 `lock_rotation_open.svg` 的 EmbeddedResource 声明；Android 项目引用 Core 而非 Xamarin，运行时找不到 SVG 资源 | 在 Core.csproj 中添加两个 SVG 的 EmbeddedResource |
+| 2 | HTML div 内按钮仍无法点击 | MoveMouse 碰撞检测缺少 `escapedParts` 系统遍历。原版 LazyLoading 通过 `ConsoleEscapedParts` 按 depth 交错检测 div 碰撞，Xamarin 版 MoveMouse 完全没有此逻辑；v0.48.0 的行级 div 检测方式与原版架构不一致（原版在行级遍历中**跳过** div，在 escapedParts 遍历中检测 div） | 重写 MoveMouse 碰撞检测，完整移植原版 escapedParts 遍历逻辑：按 depth 排序 → depth=0 遍历行级按钮（跳过 div） → depth!=0 遍历 escapedParts（div 用 TestChildHitbox） |
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| Emuera.Xamarin.Core/Emuera.Xamarin.Core.csproj | 添加 `lock_rotation.svg` 和 `lock_rotation_open.svg` 的 EmbeddedResource |
+| AndroidMainWindow.cs | 旋转锁定按钮改用 `MakeSvgToolButton` + Toggled 模式（与上游 XEmuera 一致），移除手动 Clicked + Image 切换 |
+| EmueraConsole.cs | MoveMouse 碰撞检测重写：用 escapedParts 系统按 depth 交错检测（与原版一致），行级遍历跳过 ConsoleDivPart |
+
+## [0.48.1] - 2026-05-21
+
+### 修复 v0.48.0 三个回归 Bug
+
+#### 问题
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | 旋转锁定按钮图标不可见（黑色透明背景框） | Toggled 模式缺少 `IsToggle="True"` 属性，TintImageButton 内部状态机未正确加载默认图片 | 退回 Clicked 模式，手动切换 `Image` 属性文件名 |
+| 2 | MOUSEX()/MOUSEY() 在 Android 端始终返回 0 | `SetLastMousePosition` 仅在桌面端 `MainWindow.xaml.cs` 添加，**遗漏了 Android 端实际运行的 `AndroidMainWindow.cs`** | 在 `AndroidMainWindow.cs` 触屏事件中添加 `PlatformInterop.SetLastMousePosition(mouseLocation)` |
+| 3 | HTML div 内按钮碰撞检测 Y 轴错位 | `lineScreenY` 用 `MainPicBox.Height - LineHeight * (bottomLineNo - i + 1)` 计算（行底部语义），与 DrawTo 的行顶部语义不一致；`TestChildHitbox` 遗漏 border/padding 偏移 | `lineScreenY = point.Y - relPointY`（行顶部语义）；`TestChildHitbox` 添加 border/padding 偏移计算 |
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| AndroidMainWindow.cs | 旋转锁定按钮退回 Clicked 模式（移除 ToggledImage/IsToggled/Toggled 事件，改用 Clicked + 手动切换 Image） |
+| AndroidMainWindow.cs | 触屏事件添加 `PlatformInterop.SetLastMousePosition(mouseLocation)` |
+| EmueraConsole.cs | MoveMouse 中 `lineScreenY = point.Y - relPointY`（与 DrawTo point.Y 一致） |
+| EvilMaskUtils.cs | TestChildHitbox 添加 border/padding 偏移（与 DrawTo 中 content 区域一致） |
+
+## [0.48.0] - 2026-05-21
+
+### HTML div 触屏定位修复 + div 按钮碰撞检测
+
+#### 问题
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | COM_OPTION 函数 div 框出现在画面左上角 | `PlatformInterop.GetMousePosition` 在 Android 端返回 `Point.Empty`，MOUSEX()/MOUSEY() 始终为 0 | 添加 `_lastMousePosition` 存储，触屏事件更新，`GetMousePosition` 委托返回最后触屏坐标 |
+| 2 | HTML div 内按钮无法激活/点击 | `MoveMouse` 只遍历 `displayLineList` 行按钮，不检测 `ConsoleDivPart` 子按钮 | MoveMouse 中检测 `ConsoleDivPart` → 调用 `TestChildHitbox`；`TestChildHitbox` rect 计算与 `DrawTo` 一致 |
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| Platform/Stubs/PlatformInterop.cs | 添加 `_lastMousePosition` 静态字段 + `SetLastMousePosition()` 方法 + `LastMousePosition` 属性 |
+| Emuera.Xamarin.Android/AndroidHost.cs | `GetMousePosition` 委托从 `() => Point.Empty` 改为 `() => PlatformInterop.LastMousePosition` |
+| Platform/Forms/MainWindow.xaml.cs | 触屏事件中调用 `PlatformInterop.SetLastMousePosition(MouseLocation)` |
+| Platform/GameView/EmueraConsole.cs | MoveMouse 中 `ConsoleDivPart` 碰撞检测分支（调用 `TestChildHitbox`） |
+| Platform/Stubs/EvilMaskUtils.cs | `TestChildHitbox` 重写：rect 计算与 `DrawTo` 一致（IsRelative/AbsoluteLeftTop/AbsoluteLeftBottom + margin 偏移） |
+
+#### 各移植项目 div 按钮方案对比
+
+| 项目 | 方案 | MOUSEX/MOUSEY |
+|------|------|---------------|
+| LazyLoading（WinForms） | `escapedParts` 系统 + `TestChildHitbox` | `Control.MousePosition` |
+| Emuera.Xamarin（Skia） | MoveMouse 检测 ConsoleDivPart → TestChildHitbox | `PlatformInterop.SetLastMousePosition` |
+| gEmuera（Godot） | `BuildDivControl` Godot Control 节点树，原生触屏 | `GenericUtils.SetPointerPosition` |
+| XEmuera（上游原型） | MoveMouse 检测 ConsoleDivPart → TestChildHitbox | `_lastTouchPoint` 字段 |
+
+## [0.47.1] - 2026-05-21
+
+### 旋转锁定按钮正确移植：修复图标不可见 + 点击闪退
+
+#### 根因分析
+
+| 问题 | 根因 | 修复 |
+|------|------|------|
+| 点击闪退 | `GameUtils.PlatformService` 未初始化（Android 端不调用 `GameUtils.Load()`），NRE | 添加 `GameUtils.InitPlatformService()` 方法，在 `AndroidHost.InitMainWindow()` 中调用 |
+| 图标不可见 | 使用 `Clicked` + `Opacity` 模式而非 XEmuera 的 `Toggled` + `ToggledImage` 模式 | 改用 `TintImageButton` 的 `Toggled` 事件 + `IsToggled` + `ToggledImage` |
+| 按钮顺序不对 | lock_rotation 放在 gamepad 之后 | 移到 XEmuera 一致位置（spacer 后第一个） |
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| Utils.cs | 添加 `InitPlatformService()` 公共方法，供 Android 端初始化 `PlatformService` |
+| AndroidHost.cs | `InitMainWindow()` 中调用 `GameUtils.InitPlatformService()` |
+| AndroidMainWindow.cs | 旋转锁定按钮改用 `Toggled` 模式（`lock_rotation_open.svg`/`lock_rotation.svg`）；按钮顺序对齐 XEmuera；添加 `SetButtonOpacity` 辅助方法；初始状态所有工具按钮不可见 |
+
 ## [0.47.0] - 2026-05-21
 
 ### 修复 GETCONFIG/FPS 移动端支持 + 画廊 QuickButton HTML 过滤 + 旋转锁定按钮 + SVG 资源补全

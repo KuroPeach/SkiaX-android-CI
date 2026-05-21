@@ -155,6 +155,8 @@
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Images\gallery_view.svg" LinkBase="Resources\Images" />
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Images\scroll_vertical.svg" LinkBase="Resources\Images" />
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Images\menu_show.svg" LinkBase="Resources\Images" />
+    <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Images\lock_rotation.svg" LinkBase="Resources\Images" />
+    <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Images\lock_rotation_open.svg" LinkBase="Resources\Images" />
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\ConfigsText.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>ConfigsText.Designer.cs</LastGenOutput>
