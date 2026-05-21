@@ -147,6 +147,7 @@ namespace MinorShift.Emuera
 			#region EM_私家版_Icon指定機能
 			configArray.Add(new ConfigItem(ConfigCode.EmueraIcon, "Emueraのアイコンのパス", "Path to a custom window icon", string.Empty));
 			#endregion
+			configArray.Add(new ConfigItem(ConfigCode.UseLazyLoading, "UseLazyLoading", "UseLazyLoading", true));
 
 			debugArray.Add(new ConfigItem(ConfigCode.DebugShowWindow, ConfigsText.DebugShowWindow, "Show debug window on startup", true));
 			debugArray.Add(new ConfigItem(ConfigCode.DebugWindowTopMost, ConfigsText.DebugWindowTopMost, "Debug window always on top", true));

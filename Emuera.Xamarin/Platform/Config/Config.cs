@@ -135,6 +135,7 @@ namespace MinorShift.Emuera
 			DisplayReport = instance.GetConfigValue<bool>(ConfigCode.DisplayReport);
 			ReduceArgumentOnLoad = instance.GetConfigValue<ReduceArgumentOnLoadFlag>(ConfigCode.ReduceArgumentOnLoad);
 			IgnoreUncalledFunction = instance.GetConfigValue<bool>(ConfigCode.IgnoreUncalledFunction);
+			UseLazyLoading = instance.GetConfigValue<bool>(ConfigCode.UseLazyLoading);
 			FunctionNotFoundWarning = instance.GetConfigValue<DisplayWarningFlag>(ConfigCode.FunctionNotFoundWarning);
 			FunctionNotCalledWarning = instance.GetConfigValue<DisplayWarningFlag>(ConfigCode.FunctionNotCalledWarning);
 

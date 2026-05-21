@@ -1,5 +1,115 @@
 # Emuera.Xamarin 变更记录
 
+
+## [0.50.0] - 2026-05-21
+
+### 修复 Final 字体强行认领导致系统字体回退永远不执行（方块/tofu 问题）
+
+> **一句话根因**：`DrawTextUtils.PrepareGlyphs()` 中 Final 字体（如 Microsoft YaHei）对 `glyphs[i]==0` 的字符有特殊逻辑：只要 `glyphWidths[i]!=0` 就强行认领。这导致 `CharRemain==0`，v0.45.0 添加的 `SKFontManager.Default.MatchCharacter` 系统回退永远不会执行，缺失字符被渲染为方块。
+
+#### 问题场景
+
+eratw-chs 的 `@DRAW_MAP` 调用 `SETFONT "ＭＳ ゴシック"` 后输出简体汉字地图。MS Gothic 不含简体汉字 → EnabledFontCaches 中 SimHei/YaHei 本应能渲染，但 Final 字体（YaHei）在 `PrepareGlyphs` 中强行认领了这些字符（`glyphWidths!=0` 但 `glyphs==0`），渲染为方块。
+
+#### 根因分析
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | Final 字体强行认领不支持的字符 | `PrepareGlyphs()` 中 `if (glyphWidths[i] == 0 \|\| FontModel != FontModel.Final)` 条件，当 `FontModel==Final` 且 `glyphWidths[i]!=0` 时跳过 `InvalidChar`，直接认领 | 移除 Final 特殊逻辑，所有字体无字形一律 `InvalidChar` |
+| 2 | 系统回退永远不执行 | Final 强行认领后 `CharRemain==0`，`if (CharRemain > 0)` 分支不进入 | Bug 1 修复后自然解决 |
+| 3 | 极端情况文字消失 | 如果所有回退都失败，`CharRemain==CharList.Length` 直接 return，文字不渲染 | 添加终极保底：用 UserCache 画占位符 |
+
+#### 修复后回退链
+
+```
+1. UserCache（当前 SETFONT 字体）→ CheckGlyphs + PrepareGlyphs
+2. EnabledFontCaches 遍历 → CheckGlyphs + PrepareGlyphs（Final 不再特殊）
+3. SKFontManager.Default.MatchCharacter → Android 系统字体回退
+4. [新增] 终极保底：UserCache 画占位符（防排版错乱）
+```
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| DrawTextUtils.cs | `PrepareGlyphs()`：移除 Final 字体强行认领逻辑 |
+| DrawTextUtils.cs | 添加终极保底：系统回退后仍有未匹配字符时用 UserCache 画占位符 |
+
+## [0.49.1] - 2026-05-21
+
+### 修复 Android 实机 LazyLoading 不生效（UseLazyLoading 配置未读取）
+
+> **一句话根因**：Xamarin 版 `Config.SetConfig` 遗漏了 `UseLazyLoading` 的读取，导致该值始终保持默认 `false`。`SyncToRuntimeConfig` 将 `false` 覆盖到 Runtime Config，LazyLoading 从未被启用。
+
+#### 问题场景
+
+华为 Android 12 实机测试中，eratw-chs 游戏加载后未生成 `lazyloading.bin`/`lazyloadingfiles.bin`。`lazyloading.cfg` 存在，sav/log/.db 文件生成正常。同一游戏源码在 Windows 引擎和 MuMu 模拟器（m-emuera 版本）上可正常生成。
+
+#### 根因分析
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | `UseLazyLoading` 始终为 `false` | `Emuera.Xamarin/Platform/Config/Config.cs` 的 `SetConfig` 方法未读取 `ConfigCode.UseLazyLoading`，该属性默认值为 `false`（line 650）。而 Runtime Config 的默认值为 `true`（ConfigData.cs line 122），但被 Xamarin 的 `SyncToRuntimeConfig` 覆盖为 `false` | 在 `SetConfig` 中添加 `UseLazyLoading = instance.GetConfigValue<bool>(ConfigCode.UseLazyLoading)` |
+
+#### 调用链分析
+
+```
+Process.Initialize → ErbLoader.LoadErbDir(useLazyLoading: Config.UseLazyLoading)
+  → if (useLazyLoading) { LoadLazyLoadingTable(); SaveLazyLoadingList(); }
+  → useLazyLoading=false → 整个 LazyLoading 分支被跳过
+```
+
+#### 诊断日志
+
+在 `Process.LazyLoading.cs` 的 `LoadLazyLoadingTable` 和 `GetLazyFiles` 方法中添加 `Debug.WriteLine` 诊断日志，输出：
+- `UseLazyLoading` 值
+- cfg/bin 文件是否存在
+- `erbFiles` 数量
+- `LoadLazyLoadingFolders` 返回的路径列表
+- `GetLazyFiles` 匹配结果
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| Config.cs (Xamarin) | `SetConfig` 中添加 `UseLazyLoading = instance.GetConfigValue<bool>(ConfigCode.UseLazyLoading)` |
+| Process.LazyLoading.cs | `LoadLazyLoadingTable` 添加诊断日志；`GetLazyFiles` 添加诊断日志 |
+
+## [0.49.0] - 2026-05-21
+
+### 修复 Android 端 lazyloading.bin/lazyloadingfiles.bin 不生成
+
+#### 问题
+
+实机测试中（华为 Android 12），eratw-chs 游戏加载后未生成 `lazyloading.bin` 和 `lazyloadingfiles.bin`。已确认 `lazyloading.cfg` 存在，sav/log/.db 文件生成正常。同一游戏源码在 Windows 引擎上可正常生成这两个文件。
+
+#### 根因分析
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | `LoadLazyLoadingFolders` 路径分隔符替换在 Android 上无效 | `oldChar` 根据 `RuntimeInformation.IsOSPlatform(OSPlatform.Windows)` 选择：Windows 上 `oldChar='\\'`，Android 上 `oldChar='/'`。但 `lazyloading.cfg` 在 Windows 上创建使用 `\`，Android 上 `Replace('/', '/')` 无效果，导致 `StartsWith` 匹配失败，`GetLazyFiles` 返回空集，`SaveLazyLoadingList` 判定 `files.Count==0` 直接返回 `NoLazy` | 同时替换 `\` 和 `/` 为 `Path.DirectorySeparatorChar`，无论当前平台 |
+| 2 | `ErbPath` 使用硬编码 `"ERB/"` 前缀 | `ErbPath(name)` 返回 `"ERB/" + name`（相对路径），在 Windows 上当前工作目录恰为游戏目录可工作，但在 Android 上当前工作目录不是游戏目录，`File.Exists`/`File.GetLastWriteTime` 无法找到文件 | 改为 `Program.ErbDir + name`（完整路径），跨平台通用 |
+
+#### 图片 lazy loading（AppContents SQL 索引）
+
+Xamarin 版 `AppContents.LoadContents` 已正确处理路径分隔符（`arg2.Replace('\\', Path.DirectorySeparatorChar)`），SQL 索引构建和延迟加载无问题，无需修改。
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| Process.LazyLoading.cs | `LoadLazyLoadingFolders`：移除 `RuntimeInformation.IsOSPlatform` 判断，改为同时替换 `\` 和 `/`；移除 `using System.Runtime.InteropServices` |
+| Process.LazyLoading.cs | `ErbPath`：从 `string.Create(... "ERB/")` 改为 `Program.ErbDir + a` |
+
+### 修复 MoveMouse 碰撞检测回归 + div 按钮失效
+
+#### 问题
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | v0.48.2 修复导致所有触屏点击失效 | `escapedParts` 为空时 `edepth` 是空数组，`while` 循环不执行，depth=0 的普通按钮检测永远不运行。原版用 `int[] dummy = [0]` 兜底 | 改用 AI 审查方案：先检测 escapedParts，再检测普通文本流，两者独立，不存在空数组导致跳过的问题 |
+| 2 | HTML div 内按钮仍无法点击 | **根因**：`ConsoleButtonString.EscapedParts` 属性使用了独立自动属性 `{ get; private set; }`，但 `FilterEscaped()` 将结果赋给了 `escaped` 字段而非属性，导致 `EscapedParts` 始终为 null → div 永远不会被注册到 `ConsoleEscapedParts` → MoveMouse 碰撞检测中 escapedParts 字典为空 → div 按钮永远检测不到。原版用 `{ get { return escaped; } }` 正确返回字段 | 1. 修复 `EscapedParts` 属性为 `{ get { return escaped; } }`（与原版一致）；2. 重写 MoveMouse 碰撞检测：先检测 escapedParts（高 depth 优先，降序），lineScreenY 用 `topPointY + (baseLineNo - topLineNo) * LineHeight`（与 DrawTo 一致）；3. 修正 `topLineNo` 计算与渲染一致 |
+
 ## [0.48.2] - 2026-05-21
 
 ### 修复 v0.48.1 两个残留 Bug
