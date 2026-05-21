@@ -3014,7 +3014,6 @@ internal sealed partial class FunctionIdentifier
 								});
 							}
 							catch { }
-							st.Close();
 							return;
 						}
 						else
