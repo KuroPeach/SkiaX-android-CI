@@ -1926,96 +1926,110 @@ namespace MinorShift.Emuera.GameView
 			int bottomLineNo = (int)window.ScrollBar.Value - 1;
 			if (displayLineList.Count - 1 < bottomLineNo)
 				bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
-			//int topLineNo = bottomLineNo - (window.MainPicBox.Height/ Config.LineHeight);
-			int topLineNo = bottomLineNo - (ClientHeight/ Config.LineHeight);
+			int bottomLineBase = ClientHeight - DisplayUtils.HeightOffset - Config.LineHeight;
+			int topLineNo = bottomLineNo - (bottomLineBase / Config.LineHeight + 1);
 			if (topLineNo < 0)
 				topLineNo = 0;
 
-			//int relPointY = pointY - GameUtils.GetRealLength(window.MainPicBox.Height);
-			int relPointY = pointY - (ClientHeight - DisplayUtils.HeightOffset);
+			int topPointY = bottomLineBase - (bottomLineNo - topLineNo) * Config.LineHeight;
 
 			//下から上へ探索し発見次第打ち切り
 			#region EM_私家版_描画拡張 (MoveMouse hit test with escapedParts)
+			// --- 1. 先检测高亮图层（带有 depth 的 HTML 元素，如 ERA TW 的 COM_OPTION 弹窗） ---
 			var escapedParts = EscapedParts;
 			if (ConsoleEscapedParts.Changed || !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
 				ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
-			var edepth = escapedParts.Keys.ToArray();
-			Array.Sort(edepth);
-			int eidx = 0;
-			bool zeroTested = false;
-			var bottomLineBase = ClientHeight - DisplayUtils.HeightOffset - Config.LineHeight;
-			while (eidx < edepth.Length)
-			{
-				var depth = edepth[eidx];
-				if (!zeroTested && depth >= 0)
-				{
-					depth = 0;
-					zeroTested = true;
-					// 普通のパーツのヒットテスト
-					for (int i = bottomLineNo; i >= topLineNo; i--)
-					{
-						relPointY += Config.LineHeight;
-						curLine = displayLineList[i];
 
-						for (int b = 0; b < curLine.Buttons.Length; b++)
+			if (escapedParts != null && escapedParts.Keys.Count > 0)
+			{
+				var edepth = escapedParts.Keys.ToArray();
+				Array.Sort(edepth, (a, b) => -a.CompareTo(b)); // Highest depth first
+
+				var correction = GetLineNo > Config.MaxLog ? GetLineNo - Config.MaxLog : 0;
+
+				foreach (var depth in edepth)
+				{
+					foreach (var part in escapedParts[depth])
+					{
+						if (part is ConsoleDivPart div)
 						{
-							ConsoleButtonString button = curLine.Buttons[curLine.Buttons.Length - b - 1];
-							if (button == null || button.StrArray == null)
-								continue;
-							if ((button.PointX <= pointX) && (button.PointX + button.Width >= pointX))
+							var baseLineNo = div.Parent?.ParentLine?.LineNo ?? 0;
+							if (correction > 0) baseLineNo -= correction;
+							int lineScreenY = topPointY + (baseLineNo - topLineNo) * Config.LineHeight;
+
+							var childPointing = div.TestChildHitbox(pointX, pointY, lineScreenY);
+							if (childPointing != null)
 							{
-								foreach (AConsoleDisplayNode part in button.StrArray)
+								pointing = childPointing;
+								curLineY = lineScreenY;
+								if (pointing.IsButton)
 								{
-									if (part == null || part is ConsoleDivPart)
-										continue;
-									if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
-										&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
-									{
-										pointing = button;
-										curLineY = window.MainPicBox.Height - Config.LineHeight * (bottomLineNo - i + 1);
-										if (pointing.IsButton)
-										{
-											pointingStrings.Add(button);
-											goto breakfor;
-										}
-									}
+									pointingStrings.Add(childPointing);
+									goto breakfor;
+								}
+							}
+						}
+						else
+						{
+							var btn = part.Parent as ConsoleButtonString;
+							if (btn == null) continue;
+							var baseLineNo = btn.ParentLine.LineNo;
+							if (correction > 0) baseLineNo -= correction;
+							int lineScreenY = topPointY + (baseLineNo - topLineNo) * Config.LineHeight;
+
+							if (pointX >= part.PointX && pointX <= part.PointX + part.Width &&
+								pointY >= lineScreenY + part.Top && pointY <= lineScreenY + part.Bottom)
+							{
+								pointing = btn;
+								curLineY = lineScreenY;
+								if (pointing.IsButton)
+								{
+									pointingStrings.Add(btn);
+									goto breakfor;
 								}
 							}
 						}
 					}
 				}
-				if (eidx < edepth.Length && edepth[eidx] == depth)
-				{
-					// 行範囲を超えたパーツのヒットテスト
-					var correction = GetLineNo > Config.MaxLog ? GetLineNo - Config.MaxLog : 0;
-					if (depth != 0 || escapedParts.ContainsKey(depth))
-						foreach (var part in escapedParts[depth])
-						{
-							if (part is ConsoleDivPart div)
-							{
-								// Y轴剪枝
-								var lineY = bottomLineBase + (div.Parent.ParentLine.LineNo - bottomLineNo - correction) * Config.LineHeight;
-								if (pointY < lineY + div.Top - 200 || pointY > lineY + div.Bottom + 200)
-									continue;
+			}
 
-								var childPointing = div.TestChildHitbox(pointX, pointY, lineY);
-								if (childPointing != null)
+			// --- 2. 再检测普通文本流 ---
+			int currentLineY = topPointY + (bottomLineNo - topLineNo) * Config.LineHeight;
+			for (int i = bottomLineNo; i >= topLineNo; i--)
+			{
+				curLine = displayLineList[i];
+
+				for (int b = 0; b < curLine.Buttons.Length; b++)
+				{
+					ConsoleButtonString button = curLine.Buttons[curLine.Buttons.Length - b - 1];
+					if (button == null || button.StrArray == null)
+						continue;
+					if ((button.PointX <= pointX) && (button.PointX + button.Width >= pointX))
+					{
+						foreach (AConsoleDisplayNode part in button.StrArray)
+						{
+							if (part == null)
+								continue;
+							if (part is ConsoleDivPart divPart)
+							{
+								// div 元素已在 escapedParts 中检测，跳过
+								continue;
+							}
+							if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
+								&& (pointY >= currentLineY + part.Top) && (pointY <= currentLineY + part.Bottom))
+							{
+								pointing = button;
+								curLineY = currentLineY;
+								if (pointing.IsButton)
 								{
-									pointing = childPointing;
-									if (pointing.IsButton)
-										goto breakfor;
+									pointingStrings.Add(button);
+									goto breakfor;
 								}
 							}
-							else if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
-								&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
-							{
-								pointing = part.Parent;
-								if (pointing.IsButton)
-									goto breakfor;
-							}
 						}
-					eidx++;
+					}
 				}
+				currentLineY -= Config.LineHeight;
 			}
 			#endregion
 

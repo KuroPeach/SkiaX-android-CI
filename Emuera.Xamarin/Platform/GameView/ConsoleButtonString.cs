@@ -100,7 +100,7 @@ namespace MinorShift.Emuera.GameView
 		public string Title { get; set; }
 
 		bool escapeFilterApplied;
-		public AConsoleDisplayNode[] EscapedParts { get; private set; }
+		public AConsoleDisplayNode[] EscapedParts { get { return escaped; } }
 
 		public void FilterEscaped()
 		{
