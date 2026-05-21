@@ -1,6 +1,25 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.51.0] - 2026-05-21
+
+### UI 默认状态调整：工具栏展开 + 虚拟手柄关闭 + 画廊打开 + 画廊宽度限制
+
+#### 变更内容
+
+| # | 变更 | 修改 | 说明 |
+|---|------|------|------|
+| 1 | 悬浮工具栏默认展开 | AndroidMainWindow.cs | 工具栏按钮初始 `IsVisible=true`，`menuShowButton.Opacity=1` |
+| 2 | 虚拟手柄默认关闭 | AndroidMainWindow.cs | `virtualControllerVisible=false`，`virtualControllerLayout.IsVisible=false`，`gamepadButton.Opacity=0.5` |
+| 3 | 画廊视图默认打开 | AndroidMainWindow.cs | `quickScroll.IsVisible=true`，`galleryViewButton.Opacity=1` |
+| 4 | 画廊宽度限制为右半屏 | AndroidMainWindow.cs | `WidthRequest` 从 `canvasView.Width * 3 / 5` 改为 `canvasView.Width / 2`，画廊框架不超过屏幕右半部分 |
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| AndroidMainWindow.cs | 工具栏按钮初始状态改为展开；虚拟手柄初始关闭；画廊初始打开；画廊宽度限制为 1/2 屏宽 |
+
 ## [0.50.0] - 2026-05-21
 
 ### 修复 Final 字体强行认领导致系统字体回退永远不执行（方块/tofu 问题）
@@ -34,6 +53,28 @@ eratw-chs 的 `@DRAW_MAP` 调用 `SETFONT "ＭＳ ゴシック"` 后输出简体
 |------|------|
 | DrawTextUtils.cs | `PrepareGlyphs()`：移除 Final 字体强行认领逻辑 |
 | DrawTextUtils.cs | 添加终极保底：系统回退后仍有未匹配字符时用 UserCache 画占位符 |
+
+## [0.49.2] - 2026-05-21
+
+### 修复 v0.49.1 引入的 NRE 崩溃（UseLazyLoading 配置未注册）
+
+> **一句话根因**：v0.49.1 在 `Config.SetConfig` 中添加了 `UseLazyLoading = instance.GetConfigValue<bool>(ConfigCode.UseLazyLoading)`，但 Xamarin 版 `ConfigData.SetDefault()` 中**未注册** `ConfigCode.UseLazyLoading` 对应的配置项，导致 `GetConfigValue` 返回 `null`，触发 `NullReferenceException`。
+
+#### 问题场景
+
+应用启动时引擎加载失败，闪退。日志显示在配置初始化阶段发生 NRE。
+
+#### 根因分析
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | NRE 在 `GetConfigValue<bool>` 中 | `ConfigData.SetDefault()` 未注册 `ConfigCode.UseLazyLoading`，`GetConfigItem(code)` 返回 `null`，`(T)item.Value` 抛出 NRE | 在 `SetDefault()` 中添加 `configArray.Add(new ConfigItem(ConfigCode.UseLazyLoading, "UseLazyLoading", "UseLazyLoading", true))` |
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| ConfigData.cs (Xamarin) | `SetDefault()` 中添加 `UseLazyLoading` 配置项注册，默认值 `true` |
 
 ## [0.49.1] - 2026-05-21
 

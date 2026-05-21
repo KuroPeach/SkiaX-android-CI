@@ -2,7 +2,7 @@
 
 > **最后更新**：2026-05-21
 > **历史记录**：[CHANGELOG.md](file:///d:/emuera/emuera_lazyloading_selfmodified_version/Emuera.Xamarin/CHANGELOG.md)
-> **当前版本**：v0.49.0
+> **当前版本**：v0.51.0
 
 ## 当前状态
 
@@ -30,6 +30,7 @@
 | Phase 9W | 修复 GETCONFIG/FPS 移动端支持 + 画廊 QuickButton HTML 过滤 + 旋转锁定按钮 + SVG 资源补全 | 0.47 |
 | Phase 9X | 旋转锁定按钮正确移植（Toggled 模式 + PlatformService 初始化 + 按钮顺序对齐 XEmuera） | 0.47.1 |
 | Phase 9Y | 修复 Android 端 lazyloading.bin/lazyloadingfiles.bin 不生成（路径分隔符 + ErbPath 完整路径） | 0.49.0 |
+| Phase 9Z | 修复 Final 字体强行认领导致系统字体回退永远不执行（方块/tofu 问题） | 0.50.0 |
 | Phase 10A | Release 发布（版本号 + 签名 + GitHub Release） | 0.46 |
 
 ---

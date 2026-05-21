@@ -52,7 +52,7 @@ namespace XEmuera.Droid
         private Button virtualKeypadEnterActionButton;
         private Button virtualKeypadAcceptActionButton;
         private StackLayout virtualAvgButtonGroup;
-        private bool virtualControllerVisible = true;
+        private bool virtualControllerVisible = false;
         private bool IsDragScrollBar;
         private Slider vScrollBar;
 
@@ -161,7 +161,7 @@ namespace XEmuera.Droid
                 Orientation = ScrollOrientation.Horizontal,
                 Content = quickButtonLayout,
                 HeightRequest = 0,
-                IsVisible = false,
+                IsVisible = true,
             };
 
             quickButtonScrollView = quickScroll;
@@ -280,17 +280,19 @@ namespace XEmuera.Droid
             // 占位符（将按钮推到右侧，与 XEmuera BoxView HorizontalOptions=StartAndExpand 一致）
             var spacer = new BoxView { InputTransparent = true, HorizontalOptions = LayoutOptions.StartAndExpand };
 
-            // 初始状态：gallery 和 scroll 默认关闭（Opacity 低），所有工具按钮默认不可见
-            galleryViewButton.Opacity = 0.5;
+            // 初始状态：工具栏默认展开，画廊默认打开，虚拟手柄默认关闭
+            galleryViewButton.Opacity = 1;
             scrollVerticalButton.Opacity = 0.5;
             lockRotationButton.Opacity = 0.5;
-            editButton.IsVisible = false;
-            scrollVerticalButton.IsVisible = false;
-            galleryViewButton.IsVisible = false;
-            gamepadButton.IsVisible = false;
-            lockRotationButton.IsVisible = false;
-            zoomOutButton.IsVisible = false;
-            zoomInButton.IsVisible = false;
+            gamepadButton.Opacity = 0.5;
+            editButton.IsVisible = true;
+            scrollVerticalButton.IsVisible = true;
+            galleryViewButton.IsVisible = true;
+            gamepadButton.IsVisible = true;
+            lockRotationButton.IsVisible = true;
+            zoomOutButton.IsVisible = true;
+            zoomInButton.IsVisible = true;
+            menuShowButton.Opacity = 1;
 
             // 收起/展开逻辑（与 XEmuera ButtonVisibleGroup_Clicked 一致）
             menuShowButton.Clicked += (s, e) =>
@@ -670,7 +672,7 @@ namespace XEmuera.Droid
             {
                 try
                 {
-                    quickScroll.WidthRequest = Math.Min(quickButtonLayout.Width, canvasView.Width * 3 / 5);
+                    quickScroll.WidthRequest = Math.Min(quickButtonLayout.Width, canvasView.Width / 2);
                     quickScroll.HeightRequest = Math.Min(quickButtonLayout.Height, canvasView.Height - 48 - 30);
                     quickScroll.ScrollToAsync(0, quickButtonLayout.Height, false);
                 }
@@ -1014,7 +1016,7 @@ namespace XEmuera.Droid
                     new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
                 },
                 Padding = new Thickness(16, 56, 16, 16),
-                IsVisible = true,
+                IsVisible = false,
                 InputTransparent = true,
                 CascadeInputTransparent = false,
             };
