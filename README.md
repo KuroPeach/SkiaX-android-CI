@@ -21,6 +21,7 @@
 |  **图层渲染** | `SETIMAGELAYER` 独立图层系统、视口裁剪、动图离窗暂停、颜色矩阵 |
 |  **性能优化** | `SELECTCASE` 编译期跳转表（O(1) 查找）、SQL图片缓存、LRU管理 |
 |  **Bug 修复** | 懒加载 EXISTFUNCTION、.als 指针、SPRITECREATE、SpriteG 快照、字体泄漏等 20+ 项 |
+|  **Android 端** | SkiaX — 基于 Skia 内核的 Xamarin.Android 移植，详见 [Emuera.Xamarin/](Emuera.Xamarin/) |
 
 ---
 
@@ -51,11 +52,21 @@
 | **Lazyloading** | [CRER/emuera.em](https://gitlab.com/CRER/emuera.em) | 懒加载功能实现（lazyloading分支） |
 | **SkiaSharp** | [VVIIlet/emuera](https://gitlab.com/VVIIlet/emuera/-/commit/423fb6eb19f5f33af653a780e084bdd40b6efef1) | 渲染引擎替换 |
 | **SoundTouch** | [markheath/naudio](https://github.com/naudio/varispeed-sample) | 音频变速处理 |
+| **XEmuera** | [Future-R/XEmuera](https://github.com/Future-R/XEmuera) | SkiaX Android 框架移植来源 |
 
 **SkiaSharp 移植说明**：
 - 初始实现来自 VVII 的 "SkiaSharpへの置き換え" 提交
 - 本项目引用 ee+em 的 b2fd164 版本作为起点
 - 在 1.0.0 版本完成完整的 SkiaSharp 功能集成，并进行了大量重构优化
+
+**SkiaX (Android) 移植说明**：
+- SkiaX 是以 Skia 变体的逻辑为内核开发的 Android 端 Xamarin 引擎
+- 框架移植自 [Future-R/XEmuera](https://github.com/Future-R/XEmuera)，页面导航和触屏交互逻辑与 XEmuera 一致
+- 渲染实现因 Skia 内核架构差异而完全重写
+- 致谢 XEmuera 三代开发者：
+  - **Fegelein21** — XEmuera 初代创建者，奠定 Android 端框架基础
+  - **CKRainbow** — 适配 EM+EE 内核渲染逻辑
+  - **Future-R** — XEmuera 现维护者，持续适配 EM+EE 渲染更新
 
 ---
 

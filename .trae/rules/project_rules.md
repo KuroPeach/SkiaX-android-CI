@@ -24,7 +24,11 @@ alwaysApply: true
 | **knowledge-builder** | 发现新洞见 |
 | **xemuera** | Xamarin 移植（IO/字体/AWAIT/渲染） |
 
+## 子规则
+
+- [内核修改分类](kernel/modification-classification.md) — A/B/C 类分类与回流策略
+
 ## 会话结束规则
 
-1. 更新 Xamarin 移植文档（涉及移植时）：`Emuera.Xamarin/CHANGELOG.md` + `TODO.md`
+1. 更新 Xamarin 移植文档（涉及移植时）：`Emuera.Xamarin/CHANGELOG.md`
 2. 按 knowledge-builder 方法论同步知识库
