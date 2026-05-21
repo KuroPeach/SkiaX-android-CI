@@ -1,5 +1,25 @@
 # Emuera.Xamarin 变更记录
 
+## [0.47.0] - 2026-05-21
+
+### 修复 GETCONFIG/FPS 移动端支持 + 画廊 QuickButton HTML 过滤 + 旋转锁定按钮 + SVG 资源补全
+
+#### Bug 修复
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| 修复 GETCONFIG 移动端支持 | ConfigData.cs | `GetConfigValueInERB` 的 `default` 分支直接报错；改为用 `ConfigItem.ValueToString(item.Value)` 解析值 |
+| 添加 EngText 检查 | ConfigData.cs | `GetReplaceItem`/`GetDebugItem` 缺少 `EngText` 大小写不敏感匹配 |
+| 修复画廊 QuickButton 显示 | EmueraConsole.ex.cs | `RefreshQuickButtonAsync` 使用 `button.ToString()` 导致 `ConsoleShapePart.ToString()` 输出 HTML 标签；改为遍历 `StrArray` 跳过 shape/image 节点 |
+| 补全 SVG 资源 | Emuera.Xamarin.csproj | 添加 `lock_rotation.svg` 等缺失的 EmbeddedResource 条目 |
+
+#### 新增功能
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| 旋转锁定服务 | DroidPlatformService.cs | 实现 `IPlatformService` 接口，`LockScreenOrientation()`/`UnlockScreenOrientation()` 使用 `RequestedOrientation` |
+| 旋转锁定按钮 | AndroidMainWindow.cs | 工具栏添加 `lock_rotation.svg` 按钮，点击切换锁定/解锁屏幕方向 |
+
 ## [0.46.0] - 2026-05-21
 
 ### Release 发布准备：版本号更新 + 签名配置 + GitHub Release

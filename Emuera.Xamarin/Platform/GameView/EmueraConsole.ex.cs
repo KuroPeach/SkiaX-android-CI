@@ -101,10 +101,21 @@ namespace MinorShift.Emuera.GameView
 					bgcolor = Math.Abs(color.R - 0x7f) <= 0x10 && Math.Abs(color.G - 0x7f) <= 0x10 && Math.Abs(color.B - 0x7f) <= 0x10
 						? Config.BackColor : color;
 
+					// Build display text, skipping shape/image nodes that produce HTML tags
+					var sb = new StringBuilder();
+					foreach (var node in button.StrArray)
+					{
+						if (node is ConsoleShapePart || node is ConsoleImagePart)
+							continue;
+						if (node.Text != null)
+							sb.Append(node.Text);
+					}
+					var displayText = sb.ToString().Trim();
+
 					quickButton = new Button
 					{
 						BindingContext = button.Inputs,
-						Text = button.ToString().Trim(),
+						Text = displayText,
 						TextColor = color.ToFormsColor(),
 						BackgroundColor = Color.FromArgb(0xc0, Color.FromArgb(bgcolor.ToArgb() ^ 0xffffff)).ToFormsColor(),
 						FontSize = Config.QuickButtonFontSize,

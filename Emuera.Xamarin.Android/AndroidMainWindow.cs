@@ -245,6 +245,24 @@ namespace XEmuera.Droid
             var scrollVerticalButton = MakeSvgToolButton("scroll_vertical.svg", svgTintColor);
             // 注意：scrollBarLayout 在后面创建，事件在创建后绑定
 
+            // lock_rotation_button（锁定屏幕旋转，SVG 图标）
+            var lockRotationButton = MakeSvgToolButton("lock_rotation.svg", svgTintColor);
+            lockRotationButton.Opacity = 0.5;
+            lockRotationButton.Clicked += (s, e) =>
+            {
+                bool locked = lockRotationButton.Opacity < 1;
+                if (locked)
+                {
+                    GameUtils.PlatformService.LockScreenOrientation();
+                    lockRotationButton.Opacity = 1;
+                }
+                else
+                {
+                    GameUtils.PlatformService.UnlockScreenOrientation();
+                    lockRotationButton.Opacity = 0.5;
+                }
+            };
+
             // zoom buttons
             var zoomInButton = MakeToolButton("A+");
             zoomInButton.Clicked += (s, e) => AdjustFontScale(0.1f);
@@ -280,18 +298,20 @@ namespace XEmuera.Droid
                 gamepadButton.IsVisible = visible;
                 galleryViewButton.IsVisible = visible;
                 scrollVerticalButton.IsVisible = visible;
+                lockRotationButton.IsVisible = visible;
                 zoomOutButton.IsVisible = visible;
                 zoomInButton.IsVisible = visible;
                 menuShowButton.Opacity = visible ? 1 : 0.5;
             };
 
-            // 组装工具栏（顺序：spacer, ☰menu, edit, scroll_vertical, gallery, gamepad, A-, A+, menu_show）
+            // 组装工具栏（顺序：spacer, ☰menu, edit, scroll_vertical, gallery, gamepad, lock_rotation, A-, A+, menu_show）
             toolbar.Children.Add(spacer);
             toolbar.Children.Add(menuButton);
             toolbar.Children.Add(editButton);
             toolbar.Children.Add(scrollVerticalButton);
             toolbar.Children.Add(galleryViewButton);
             toolbar.Children.Add(gamepadButton);
+            toolbar.Children.Add(lockRotationButton);
             toolbar.Children.Add(zoomOutButton);
             toolbar.Children.Add(zoomInButton);
             toolbar.Children.Add(menuShowButton);

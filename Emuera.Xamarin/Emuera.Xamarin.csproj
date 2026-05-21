@@ -153,6 +153,15 @@
     <EmbeddedResource Include="Resources\Fonts\Microsoft YaHei.ttf" />
     <EmbeddedResource Include="Resources\Fonts\SimHei.ttf" />
     <EmbeddedResource Include="Resources\Images\app_icon.png" />
+    <EmbeddedResource Include="Resources\Images\chevron_right.svg" />
+    <EmbeddedResource Include="Resources\Images\edit.svg" />
+    <EmbeddedResource Include="Resources\Images\gallery_view.svg" />
+    <EmbeddedResource Include="Resources\Images\gamepad.svg" />
+    <EmbeddedResource Include="Resources\Images\lock_rotation.svg" />
+    <EmbeddedResource Include="Resources\Images\lock_rotation_open.svg" />
+    <EmbeddedResource Include="Resources\Images\menu_show.svg" />
+    <EmbeddedResource Include="Resources\Images\publish.svg" />
+    <EmbeddedResource Include="Resources\Images\scroll_vertical.svg" />
     <!-- RESX 资源文件 -->
     <EmbeddedResource Include="Resources\ConfigsText.resx">
       <Generator>ResXFileCodeGenerator</Generator>

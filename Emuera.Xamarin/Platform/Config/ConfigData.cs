@@ -309,7 +309,10 @@ namespace MinorShift.Emuera
 		{
 			#region EM_私家版_Emuera多言語化改造
 			key = key.ToUpper();
-			return replaceArray.FirstOrDefault(item => item.Name == key || item.Text == key);
+			return replaceArray.FirstOrDefault(item =>
+				(item.Name != null && item.Name.ToUpper() == key) ||
+				(item.Text != null && item.Text.ToUpper() == key) ||
+				(item.EngText != null && item.EngText.ToUpper() == key));
 			#endregion
 		}
 		
@@ -322,7 +325,10 @@ namespace MinorShift.Emuera
 		{
 			#region EM_私家版_Emuera多言語化改造
 			key = key.ToUpper();
-			return debugArray.FirstOrDefault(item => item.Name == key || item.Text == key);
+			return debugArray.FirstOrDefault(item =>
+				(item.Name != null && item.Name.ToUpper() == key) ||
+				(item.Text != null && item.Text.ToUpper() == key) ||
+				(item.EngText != null && item.EngText.ToUpper() == key));
 			#endregion
 		}
 
@@ -400,8 +406,31 @@ namespace MinorShift.Emuera
 					break;
 				default:
 				{
+					if (Enum.IsDefined(typeof(ConfigCode), item.Code))
+					{
+						string valStr = ConfigItem.ValueToString(item.Value);
+						switch (valStr)
+						{
+							case "YES":
+								term = new SingleLongTerm(1);
+								break;
+							case "NO":
+								term = new SingleLongTerm(0);
+								break;
+							default:
+								if (long.TryParse(valStr, out long i))
+									term = new SingleLongTerm(i);
+								else
+									term = new SingleStrTerm(valStr);
+								break;
+						}
+					}
+					else
+					{
 						errMes = string.Format(trerror.NotAllowGetConfigValue.Text, text);
-					return null;
+						return null;
+					}
+					break;
 				}
 			}
 			return term;

@@ -27,6 +27,7 @@
 | Phase 9R | SimHei 字体嵌入 + 黑体别名映射 | 0.40 |
 | Phase 9U | HTML img/space 内联元素与文字行偏移修复 | 0.44 |
 | Phase 9V | 字形回退 + Mapping双向字典陷阱 + 移除诊断日志 | 0.45 |
+| Phase 9W | 修复 GETCONFIG/FPS 移动端支持 + 画廊 QuickButton HTML 过滤 + 旋转锁定按钮 + SVG 资源补全 | 0.47 |
 | Phase 10A | Release 发布（版本号 + 签名 + GitHub Release） | 0.46 |
 
 ---
