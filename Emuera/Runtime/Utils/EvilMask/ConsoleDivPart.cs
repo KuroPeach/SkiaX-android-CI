@@ -43,7 +43,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 				AddColorParam4(sb, "bcolor", borderColors);
 			}
 		}
-		sb.Append(">");
+		sb.Append('>');
 		altHeadTag = sb.ToString();
 		Text = string.Empty;
 		xOffset = MixedNum.ToPixel(xPos, 0);

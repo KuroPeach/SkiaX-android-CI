@@ -1,3 +1,7 @@
+---
+alwaysApply: true
+---
+
 # Project Rules — LazyLoading
 
 ## 项目类型

@@ -376,7 +376,7 @@ internal static class HtmlManager
 						string attrValue = Escape(buttons[buttonCounter].Inputs);
 						b.Append("<button value='");
 						b.Append(attrValue);
-						b.Append("'");
+						b.Append('\'');
 					}
 					else
 					{
@@ -386,15 +386,15 @@ internal static class HtmlManager
 					{
 						b.Append(" title='");
 						b.Append(titleValue);
-						b.Append("'");
+						b.Append('\'');
 					}
 					if (buttons[buttonCounter].PointXisLocked)
 					{
 						b.Append(" pos='");
 						b.Append(buttons[buttonCounter].RelativePointX);
-						b.Append("'");
+						b.Append('\'');
 					}
-					b.Append(">");
+					b.Append('>');
 				}
 				AConsoleDisplayNode[] parts = buttons[buttonCounter].StrArray;
 				for (int cssCounter = 0; cssCounter < parts.Length; cssCounter++)
@@ -745,12 +745,12 @@ internal static class HtmlManager
 			int unicode;
 			switch (escWord)
 			{
-				case "nbsp": b.Append(" "); break;
-				case "amp": b.Append("&"); break;
-				case "gt": b.Append(">"); break;
-				case "lt": b.Append("<"); break;
-				case "quot": b.Append("\""); break;
-				case "apos": b.Append("\'"); break;
+				case "nbsp": b.Append(' '); break;
+				case "amp": b.Append('&'); break;
+				case "gt": b.Append('>'); break;
+				case "lt": b.Append('<'); break;
+				case "quot": b.Append('"'); break;
+				case "apos": b.Append('\''); break;
 				default:
 					{
 						int iBbase = 10;
@@ -825,7 +825,7 @@ internal static class HtmlManager
 	public static string GetColorToString(Color color)
 	{
 		StringBuilder b = new();
-		b.Append("#");
+		b.Append('#');
 		int colorValue = color.R * 0x10000 + color.G * 0x100 + color.B;
 		b.Append(colorValue.ToString("X6"));
 		return b.ToString();
@@ -847,33 +847,33 @@ internal static class HtmlManager
 			{
 				b.Append(" face='");
 				b.Append(Escape(css.StringStyle.Fontname));
-				b.Append("'");
+				b.Append('\'');
 			}
 			if (css.StringStyle.ColorChanged)
 			{
 				b.Append(" color='#");
 				int colorValue = css.StringStyle.Color.R * 0x10000 + css.StringStyle.Color.G * 0x100 + css.StringStyle.Color.B;
 				b.Append(colorValue.ToString("X6"));
-				b.Append("'");
+				b.Append('\'');
 			}
 			if (css.StringStyle.ButtonColor != Config.FocusColor)
 			{
 				b.Append(" bcolor='#");
 				int colorValue = css.StringStyle.ButtonColor.R * 0x10000 + css.StringStyle.ButtonColor.G * 0x100 + css.StringStyle.ButtonColor.B;
 				b.Append(colorValue.ToString("X6"));
-				b.Append("'");
+				b.Append('\'');
 			}
 			if (sizeChanged)
 			{
 				b.Append(" size='");
 				b.Append(css.FontSize.Value);
-				b.Append("'");
+				b.Append('\'');
 			}
 			if (renderChanged)
 			{
 				b.Append(" render='");
 				b.Append(css.RenderMode.Value == TextDrawingMode.TEXTRENDERER ? "gdi" : "skia");
-				b.Append("'");
+				b.Append('\'');
 			}
 			if (edgingChanged)
 			{
@@ -881,15 +881,15 @@ internal static class HtmlManager
 				string edgStr = css.FontEdging.Value == SkiaSharpFontEdging.Alias ? "alias" :
 							   (css.FontEdging.Value == SkiaSharpFontEdging.AntiAlias ? "antialias" : "subpixel");
 				b.Append(edgStr);
-				b.Append("'");
+				b.Append('\'');
 			}
 			if (hintingChanged)
 			{
 				b.Append(" hinting='");
 				b.Append(css.FontHinting.Value.ToString().ToLower());
-				b.Append("'");
+				b.Append('\'');
 			}
-			b.Append(">");
+			b.Append('>');
 		}
 		if (css.StringStyle.FontStyle != FontStyle.Regular)
 		{

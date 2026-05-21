@@ -35,13 +35,13 @@ internal sealed class CharacterData : IDisposable
 	{
 		dataInteger = new long[(int)VariableCode.__COUNT_CHARACTER_INTEGER__];
 		dataString = new string[(int)VariableCode.__COUNT_CHARACTER_STRING__];
-		dataFloat = new double[(int)VariableCode.__COUNT_CHARACTER_FLOAT__];
+		dataFloat = Array.Empty<double>();
 		dataIntegerArray = new SparseArray<long>[(int)VariableCode.__COUNT_CHARACTER_INTEGER_ARRAY__];
 		dataStringArray = new SparseArray<string>[(int)VariableCode.__COUNT_CHARACTER_STRING_ARRAY__];
-		dataFloatArray = new SparseArray<double>[(int)VariableCode.__COUNT_CHARACTER_FLOAT_ARRAY__];
+		dataFloatArray = Array.Empty<SparseArray<double>>();
 		dataIntegerArray2D = new long[(int)VariableCode.__COUNT_CHARACTER_INTEGER_ARRAY_2D__][,];
 		dataStringArray2D = [];
-		dataFloatArray2D = new double[(int)VariableCode.__COUNT_CHARACTER_FLOAT_ARRAY_2D__][,];
+		dataFloatArray2D = Array.Empty<double[,]>();
 		for (int i = 0; i < dataIntegerArray.Length; i++)
 		{
 			dataIntegerArray[i] = new SparseArray<long>();

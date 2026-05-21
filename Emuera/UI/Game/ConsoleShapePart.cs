@@ -41,7 +41,7 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 			sb.Append(HtmlManager.GetColorToString(bcolor));
 			sb.Append('\'');
 		}
-		sb.Append(">");
+		sb.Append('>');
 		ConsoleShapePart ret = null;
 		int lineHeight = Config.FontSize;
 		//float[] paramPixel = new float[param.Length];

@@ -511,7 +511,7 @@ namespace MinorShift.Emuera.Forms
 								}
 								if (doit)
 								{
-									console.ReloadPartialErb(filepath);
+									_ = console.ReloadPartialErb(filepath);
 									return true;
 								}
 							}

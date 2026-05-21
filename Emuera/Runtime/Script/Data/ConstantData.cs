@@ -763,14 +763,14 @@ internal sealed class ConstantData
 			{
 				if (!string.IsNullOrEmpty(nameArray[j]))
 				{
-					if (!preDict.ContainsKey(nameArray[j]))
+					if (!preDict.TryGetValue(nameArray[j], out var existing))
 					{
 						preDict[nameArray[j]] = new ErdDictInfo() { num = j, path = filepath };
 					}
 					else
 					{
 						throw new CodeEE(string.Format(trerror.DuplicateErdKey.Text,
-							varname, nameArray[j], preDict[nameArray[j]].path, filepath));
+							varname, nameArray[j], existing.path, filepath));
 					}
 				}
 			}
@@ -1140,9 +1140,8 @@ internal sealed class ConstantData
 					case VariableCode.VARS:
 					case VariableCode.CVAR:
 					case VariableCode.CVARS:
-						if (!erdNameToIntDics.ContainsKey(varname))
+						if (!erdNameToIntDics.TryGetValue(varname, out ret))
 							return ret;
-						ret = erdNameToIntDics[varname];
 						errPos = varname + ".csv";
 						allowIndex = 0;
 						if (code == VariableCode.CVAR || code == VariableCode.CVARS)
@@ -1156,10 +1155,8 @@ internal sealed class ConstantData
 							if ((code == VariableCode.VAR2D || code == VariableCode.VARS2D) && index == 0 || code == VariableCode.CVAR2D && index == 1)
 							{
 								string varnamed = varname + "@1";
-								if (!erdNameToIntDics.ContainsKey(varnamed))
+								if (!erdNameToIntDics.TryGetValue(varnamed, out ret))
 									return ret;
-
-								ret = erdNameToIntDics[varnamed];
 								errPos = varnamed + ".csv";
 								allowIndex = 0;
 								if (code == VariableCode.CVAR2D || code == VariableCode.CVARS2D)
@@ -1169,10 +1166,8 @@ internal sealed class ConstantData
 							else
 							{
 								string varnamed = varname + "@2";
-								if (!erdNameToIntDics.ContainsKey(varnamed))
+								if (!erdNameToIntDics.TryGetValue(varnamed, out ret))
 									return ret;
-
-								ret = erdNameToIntDics[varnamed];
 								errPos = varnamed + ".csv";
 								allowIndex = 1;
 								if (code == VariableCode.CVAR2D || code == VariableCode.CVARS2D)
@@ -1183,10 +1178,9 @@ internal sealed class ConstantData
 					case VariableCode.VAR3D:
 					case VariableCode.VARS3D:
 						string varname3d = varname + "@" + (index + 1);
-						if (!erdNameToIntDics.ContainsKey(varname3d))
+						if (!erdNameToIntDics.TryGetValue(varname3d, out ret))
 							return ret;
 
-						ret = erdNameToIntDics[varname3d];
 						errPos = varname3d + ".csv";
 						allowIndex = index;
 						break;

@@ -18,11 +18,15 @@ internal sealed class WinmmTimer
 #if WINDOWS
 	private WinmmTimer()
 	{
-		mm_BeginPeriod(1);
+		var result = mm_BeginPeriod(1);
+		if (result != 0)
+			System.Diagnostics.Debug.WriteLine($"WinmmTimer: timeBeginPeriod failed with result {result}");
 	}
 	~WinmmTimer()
 	{
-		mm_EndPeriod(1);
+		var result = mm_EndPeriod(1);
+		if (result != 0)
+			System.Diagnostics.Debug.WriteLine($"WinmmTimer: timeEndPeriod failed with result {result}");
 	}
 #endif
 

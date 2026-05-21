@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [3.9.0] — A类修复回流 + 编译警告修复
+
+### Fixed — 内核 Bug 修复（A类，从 feature/xamarin 回流）
+
+> 以下修复源自 Xamarin 移植过程中发现的跨平台 Bug，WinForms 版同样受益。
+
+- **Process.State.cs** — 4 项修复
+  - `ShiftNextLine` null guard：`currentLine==null` 时直接 return，防止空栈 NRE（A1）
+  - `ReturnF` 空栈 guard：`functionList.Count==0` 时安全退出（A2）
+  - `CurrentLabel` null 检查：DebugMode 追踪日志中 `called.CurrentLabel` 可能为 null，添加 guard（A3）
+  - BEFORE_ERROR/BEFORE_THROW 逻辑简化：合并两个 BEFORE_THROW 分支为单一条件判断，移除冗余 `GameProcProcess.DebugLog` 调用，逻辑等价（A4）
+
+- **Process.LazyLoading.cs** — 2 项修复
+  - `LoadLazyLoadingFolders`：同时替换 `\` 和 `/` 为 `Path.DirectorySeparatorChar`，不再依赖 `RuntimeInformation.IsOSPlatform`（A5）
+  - `ErbPath`：从 `string.Create("ERB/" + a)` 简化为 `Program.ErbDir + a`，使用已有的跨平台路径属性（A6）
+
+- **CharacterData.cs** — 数组 null 检查
+  - `SaveToStreamBinary`：1D/2D 数组 `dataIntegerArray`/`dataStringArray`/`dataFloatArray` 在 `ToArray()`/`WriteWithKey` 前检查 null，防止空角色数据保存崩溃（A7）
+
+- **VariableEvaluator.cs** — StainDefault null 兜底
+  - `setDefaultStain`：`Config.StainDefault ?? new List<long>(new long[] { 0, 0, 2, 1, 8 })`，防止配置缺失时 NRE（A8）
+
+- **Instraction.Child.cs** — 2 项修复
+  - CALLPLUGIN null guard：`arg.CallFunc == null` 时设置 RESULT=0 并 return，防止插件未加载时 NRE（A11）
+  - TIMES 溢出：`null` → `default(ScriptPosition)`，修复 `PrintWarning` 参数类型（A12）
+
+- **Creator.Method.cs** — GetCurrentProcess try-catch
+  - `GetMemoryUseMethod`/`ClearMemoryMethod`：`Process.GetCurrentProcess()` 包裹 try-catch，Android 上可能抛异常，返回 0L 降级（A16）
+
+- **Config.cs** — 属性可见性改 internal
+  - 17 个配置属性从 `private set` 改为 `internal set`，允许 Xamarin 项目覆盖配置值（A21）
+
+- **OperatorMethod.cs** — 溢出警告参数修正
+  - `null` → `default(ScriptPosition)`：4 处整数溢出警告的第二个参数从 null 改为 default(ScriptPosition)，修复 PrintWarning 参数类型
+
+### Fixed — 编译警告修复（1035→240，减少 77%）
+
+- **CA2200** — `Instraction.Child.cs`：`throw e` → `throw`，保留原始异常堆栈
+- **SYSLIB0014** — `Instraction.Child.cs`：`WebClient` → `HttpClient`，移除过时 API
+- **CS4014** — `MainWindow.cs`：未 await 的 `ReloadPartialErb` 调用添加 `_ =` 丢弃标记
+- **CA1069** — `VariableCode.cs`：枚举添加 `[Flags]` 属性和 `SuppressMessage`，`__COUNT_*__` 值重复是设计意图
+- **CA1806** — `WinmmTimer.cs`：检查 `timeBeginPeriod`/`timeEndPeriod` 返回值
+- **CA1825** — `VariableData.cs`/`CharacterData.cs`/`Creator.Method.cs`：零长度数组 `new T[0]` → `Array.Empty<T>()`
+- **CA1834** — 7 个文件：单字符 `Append("x")` → `Append('x')`，使用 char 重载
+- **CA1854** — 9 个文件：`ContainsKey` + 索引器 → `TryGetValue`，消除双重字典查找
+
+***
+
 ## [3.8.2-xamarin.1] — 2026-05-15
 
 ### Added
@@ -18,6 +66,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - 添加 IsExternalInit NuGet 包（解决 `init` 属性在 netstandard2.1 的问题）
   - 批量替换平台层命名空间（26 个文件）
   - 首次编译：129 个错误（主要分类：UI 层引用 ~80、netstandard2.1 不兼容 ~30、NuGet 缺失 ~10）
+
+***
 
 ## [3.8.2](https://gitgud.io/minus010001/emuera_lazyloading_selfmodified_version) — 2026-05-15
 

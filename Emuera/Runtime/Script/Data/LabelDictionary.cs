@@ -72,7 +72,7 @@ internal sealed class LabelDictionary
 			noneventLabelDic.Add(key, label);
 
 		List<FunctionLabelLine>[] eventLabels;
-		if (!eventLabelDic.ContainsKey(key))
+		if (!eventLabelDic.TryGetValue(key, out eventLabels))
 		{
 			eventLabels = new List<FunctionLabelLine>[4];
 			eventLabels[0] = new List<FunctionLabelLine>();
@@ -80,10 +80,6 @@ internal sealed class LabelDictionary
 			eventLabels[2] = new List<FunctionLabelLine>();
 			eventLabels[3] = new List<FunctionLabelLine>();
 			eventLabelDic.Add(key, eventLabels);
-		}
-		else
-		{
-			eventLabels = eventLabelDic[key];
 		}
 
 		if (label.IsOnly) // eventLabels[0] = onlylist;

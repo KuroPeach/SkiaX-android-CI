@@ -1,5 +1,7 @@
 namespace MinorShift.Emuera.Runtime.Script.Statements.Variable;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1069:Enums values should not be duplicated", Justification = "__COUNT_*__ members use lower 16 bits as category counts, orthogonal to upper flag bits by design")]
+[System.Flags]
 internal enum VariableCode
 {
 	__NULL__ = 0x00000000,

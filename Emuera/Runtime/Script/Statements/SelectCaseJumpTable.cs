@@ -71,9 +71,9 @@ internal sealed class SelectCaseJumpTable
 				if (selectType == EraType.Integer)
 				{
 					long val = leftTerm.GetIntValue(null);
-					if (table._intTable.ContainsKey(val))
+					if (table._intTable.TryGetValue(val, out var existingInt))
 					{
-						var prevPos = table._intTable[val].Position;
+						var prevPos = existingInt.Position;
 						string prevCaseId = prevPos.HasValue ? $"{prevPos.Value.Filename}:{prevPos.Value.LineNo}" : "?";
 						ParserMediator.Warn(string.Format(trerror.DuplicateCaseValue.Text, val, prevCaseId), caseLine, 1, false, false);
 						continue;
@@ -83,9 +83,9 @@ internal sealed class SelectCaseJumpTable
 				else if (selectType == EraType.String)
 				{
 					string val = leftTerm.GetStrValue(null);
-					if (table._strTable.ContainsKey(val))
+					if (table._strTable.TryGetValue(val, out var existingStr))
 					{
-						var prevPos = table._strTable[val].Position;
+						var prevPos = existingStr.Position;
 						string prevCaseId = prevPos.HasValue ? $"{prevPos.Value.Filename}:{prevPos.Value.LineNo}" : "?";
 						ParserMediator.Warn(string.Format(trerror.DuplicateCaseValue.Text, val, prevCaseId), caseLine, 1, false, false);
 						continue;

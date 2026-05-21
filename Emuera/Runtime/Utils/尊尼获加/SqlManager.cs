@@ -23,10 +23,10 @@ namespace MinorShift.Emuera.GameData.Function
 			if (!Directory.Exists(dir))
 				Directory.CreateDirectory(dir);
 
-			if (_connections.ContainsKey(name))
+			if (_connections.TryGetValue(name, out var existingConn))
 			{
-				_connections[name].Close();
-				_connections[name].Dispose();
+				existingConn.Close();
+				existingConn.Dispose();
 				_connections.Remove(name);
 			}
 
