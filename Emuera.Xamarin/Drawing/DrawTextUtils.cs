@@ -185,6 +185,26 @@ namespace XEmuera.Drawing
 				}
 			}
 
+			// 终极保底：如果经过所有内置字体和系统回退后仍有字符未匹配，
+			// 强制使用 UserCache 画一个带宽度的占位符，防止排版错乱或吞字
+			if (CharRemain > 0)
+			{
+				for (int i = 0; i < CharList.Length; i++)
+				{
+					if (CharList[i] == char.MinValue)
+						continue;
+
+					TextUnits[i] = new TextUnit
+					{
+						Text = CharList[i].ToString(),
+						Advance = font.Size,
+						FontModel = UserCache.FontModel,
+					};
+					CharList[i] = char.MinValue;
+					CharRemain--;
+				}
+			}
+
 			//没有任何字可以绘制的大失败情况
 			if (CharRemain == CharList.Length)
 				return;
@@ -281,11 +301,9 @@ namespace XEmuera.Drawing
 
 					if (glyphs[i] == 0)
 					{
-						if (glyphWidths[i] == 0 || FontModel != FontModel.Final)
-						{
-							InvalidChar.Add(Char);
-							continue;
-						}
+						// 不再让 Final 字体强行认领不支持的字符，留给后续 System Fallback 处理
+						InvalidChar.Add(Char);
+						continue;
 					}
 
 					Advance = glyphWidths[i];
