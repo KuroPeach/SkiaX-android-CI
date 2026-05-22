@@ -1,6 +1,28 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.52.1] - 2026-05-23
+
+### A 类内核修复（双端受益，已回流 develop-skiasharp）
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | `ENUMFILES` 返回绝对路径，`LOADTEXT` 拒绝绝对路径导致 `XML_GET` 解析失败 | `EnumFilesMethod` 返回 `Directory.GetFiles` 的绝对路径，`GetValidPath` 只接受相对路径 | 将绝对路径转为相对路径（相对 `Program.ExeDir`） |
+| 2 | `PRINTFORMC` 遇中文等非日文字符崩溃 | 硬编码 `Shift-JIS` 编码无 `ReplacementFallback`，无法编码的字符抛异常 | 用 `Config.Encode.CodePage` + `EncoderFallback.ReplacementFallback` 替换硬编码 |
+| 3 | `HTML_PRINT` 解析 `<div />` 自闭合标签报错 | `HtmlManager` 不支持 XML 自闭合语法，`/` 被当作运算符解析失败 | 在 `div` 属性解析循环中检测 `/>` 并创建空 div |
+
+### C 类修复（Xamarin 专属）
+
+| # | 问题 | 修复 |
+|---|------|------|
+| 4 | Xamarin `Config.Encode`/`SaveEncode` 默认 Shift-JIS 无 fallback | 添加 `EncoderReplacementFallback("?")` / `DecoderReplacementFallback("?")` |
+
+### 技术背景
+
+- 修复 #3 的 `<div />` 问题源于 `XML_GET` 序列化空 div 元素时按 XML 规范输出自闭合标签，但 HTML 解析器不支持此语法（同一引擎的输出和输入不兼容）
+- EmueraFL（erafl 作者 Kom1 的自研闭源引擎，基于 EMv18）已修复此问题
+- 上游 emuera.em（EMv17）和 EmueraDotNet 均存在此 bug
+
 ## [0.52.0] - 2026-05-23
 
 ### 修复华为 HarmonyOS 实机简体汉字方框 + 回退字体基线偏移
