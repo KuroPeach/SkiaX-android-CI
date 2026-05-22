@@ -328,8 +328,8 @@ namespace XEmuera.Droid
             var context = MainActivity.Instance;
             if (context == null) return;
 
-            // 初始化 PlatformService（GameUtils.Load() 在 Android 端不被调用，需手动初始化）
-            GameUtils.InitPlatformService();
+            // 初始化 PlatformService（DependencyService.Get 在启动阶段可能返回 null，直接传入实例）
+            GameUtils.InitPlatformService(new DroidPlatformService());
 
             mainWindow = new AndroidMainWindow(context);
             GameUtils.MainPicBox = new EraPictureBox();

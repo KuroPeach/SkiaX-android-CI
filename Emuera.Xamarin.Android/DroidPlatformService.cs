@@ -3,6 +3,8 @@ using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Runtime;
+using Android.Util;
+using Android.Views;
 using Xamarin.Essentials;
 using Xamarin.Forms;
 
@@ -11,6 +13,8 @@ namespace XEmuera.Droid
 {
     internal class DroidPlatformService : IPlatformService
     {
+        private const string Tag = "DroidPlatformService";
+
         public void CloseApplication()
         {
             MainActivity.Instance?.FinishAffinity();
@@ -32,27 +36,34 @@ namespace XEmuera.Droid
         public void LockScreenOrientation()
         {
             var activity = MainActivity.Instance;
-            if (activity == null) return;
-
-            ScreenOrientation orientation;
-            switch (DeviceDisplay.MainDisplayInfo.Rotation)
+            if (activity == null)
             {
-                case DisplayRotation.Rotation0:
+                Log.Debug(Tag, "LockScreenOrientation: activity is null, abort");
+                return;
+            }
+
+            // Use Android native API instead of Xamarin.Essentials for reliability
+            var rotation = activity.WindowManager.DefaultDisplay.Rotation;
+            ScreenOrientation orientation;
+            switch (rotation)
+            {
+                case SurfaceOrientation.Rotation0:
                     orientation = ScreenOrientation.Portrait;
                     break;
-                case DisplayRotation.Rotation90:
+                case SurfaceOrientation.Rotation90:
                     orientation = ScreenOrientation.Landscape;
                     break;
-                case DisplayRotation.Rotation180:
+                case SurfaceOrientation.Rotation180:
                     orientation = ScreenOrientation.ReversePortrait;
                     break;
-                case DisplayRotation.Rotation270:
+                case SurfaceOrientation.Rotation270:
                     orientation = ScreenOrientation.ReverseLandscape;
                     break;
                 default:
                     orientation = ScreenOrientation.Unspecified;
                     break;
             }
+            Log.Debug(Tag, $"LockScreenOrientation: rotation={rotation}, orientation={orientation}");
             activity.RequestedOrientation = orientation;
         }
 
@@ -81,7 +92,12 @@ namespace XEmuera.Droid
         public void UnlockScreenOrientation()
         {
             var activity = MainActivity.Instance;
-            if (activity == null) return;
+            if (activity == null)
+            {
+                Log.Debug(Tag, "UnlockScreenOrientation: activity is null, abort");
+                return;
+            }
+            Log.Debug(Tag, "UnlockScreenOrientation: setting Sensor");
             activity.RequestedOrientation = ScreenOrientation.Sensor;
         }
     }

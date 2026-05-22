@@ -1,6 +1,34 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.51.1] - 2026-05-22
+
+### 修复旋转锁定按钮回归 Bug + 屏幕旋转锁定不生效
+
+> **一句话根因**：`IsToggled` 未初始化 → 点击无效；`menuButton` 未添加到布局 → 汉堡按钮消失；`PlatformService` 为 null（DependencyService 过早调用 + `DroidPlatformService.cs` 未加入 csproj）→ 锁定旋转静默跳过。
+
+#### 问题场景
+
+旋转锁定按钮点击后图标不变、无法锁定屏幕旋转；汉堡按钮消失；修复图标后锁定旋转仍不生效（`PlatformService=False` 确认）。
+
+#### 根因分析
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | 旋转锁定图标不变 | `TintImageButton.IsToggled` 初始值为 `null`，`!null` = `null`，值无变化不触发 `Toggled` 事件 | 设置 `IsToggled = false`（与 XEmuera 上游一致） |
+| 2 | 汉堡按钮消失 | `menuButton` 创建后未添加到 `toolbar.Children`，仅定义未使用 | 将 `menuButton` 添加到工具栏布局（spacer 之后） |
+| 3 | 锁定旋转不生效 | `GameUtils.PlatformService` 为 null（ADB 日志确认 `PlatformService=False`）：`DependencyService.Get<IPlatformService>()` 在 `OnCreate` 阶段返回 null；`DroidPlatformService.cs` 未被 `Emuera.Xamarin.Android.csproj` 编译（`<EnableDefaultCompileItems>false</EnableDefaultCompileItems>` 模式，漏加 `<Compile Include>`） | `InitPlatformService()` 添加可选参数 `IPlatformService service = null`；`AndroidHost` 传入 `new DroidPlatformService()` 实例；`Emuera.Xamarin.Android.csproj` 添加 `<Compile Include="DroidPlatformService.cs" />` |
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| AndroidMainWindow.cs | `lockRotationButton.IsToggled = false`；`toolbar.Children.Add(menuButton)`；Toggled 事件添加诊断日志 |
+| DroidPlatformService.cs | `LockScreenOrientation` 改用 `activity.WindowManager.DefaultDisplay.Rotation`（Android 原生 API）；添加 `Log.Debug` 诊断日志 |
+| Utils.cs | `InitPlatformService()` 添加可选参数 `IPlatformService service = null`，`PlatformService = service ?? DependencyService.Get<IPlatformService>()` |
+| AndroidHost.cs | `GameUtils.InitPlatformService(new DroidPlatformService())` — 直接传入实例绕过 DependencyService |
+| Emuera.Xamarin.Android.csproj | 添加 `<Compile Include="DroidPlatformService.cs" />`（此前漏加，csproj 为 `<EnableDefaultCompileItems>false</EnableDefaultCompileItems>` 模式） |
+
 ## [0.51.0] - 2026-05-21
 
 ### UI 默认状态调整：工具栏展开 + 虚拟手柄关闭 + 画廊打开 + 画廊宽度限制

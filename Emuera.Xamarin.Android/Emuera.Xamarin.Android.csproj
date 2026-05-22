@@ -69,6 +69,7 @@
     <Compile Include="AndroidConfigPage.cs" />
     <Compile Include="AndroidLanguagePage.cs" />
     <Compile Include="AndroidLogPage.cs" />
+    <Compile Include="DroidPlatformService.cs" />
   </ItemGroup>
 
   <ItemGroup>

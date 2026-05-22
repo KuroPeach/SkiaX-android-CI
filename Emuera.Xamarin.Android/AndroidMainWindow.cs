@@ -248,8 +248,10 @@ namespace XEmuera.Droid
             // lock_rotation_button（锁定屏幕旋转，SVG 图标，Toggled 模式）
             var lockRotationButton = MakeSvgToolButton("lock_rotation_open.svg", svgTintColor);
             lockRotationButton.ToggledImage = "lock_rotation.svg";
+            lockRotationButton.IsToggled = false;
             lockRotationButton.Toggled += (s, e) =>
             {
+                System.Diagnostics.Debug.WriteLine($"[Emuera] LockRotation Toggled: Value={e.Value}, PlatformService={GameUtils.PlatformService != null}");
                 if (e.Value)
                     GameUtils.PlatformService?.LockScreenOrientation();
                 else
@@ -310,6 +312,7 @@ namespace XEmuera.Droid
 
             // 组装工具栏（顺序与 XEmuera 一致：spacer, lock_rotation, edit, scroll_vertical, gallery, gamepad, A-, A+, menu_show）
             toolbar.Children.Add(spacer);
+            toolbar.Children.Add(menuButton);
             toolbar.Children.Add(lockRotationButton);
             toolbar.Children.Add(editButton);
             toolbar.Children.Add(scrollVerticalButton);
