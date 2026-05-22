@@ -1191,8 +1191,16 @@ internal static class HtmlManager
 					int depth = 0;
 					int color = -1;
 					string attrValue;
+					bool isSelfClosing = false;
 					while (wc != null && !wc.EOL)
 					{
+						// Handle self-closing tag syntax <div ... />
+						if (wc.Current is OperatorWord slashOp && slashOp.Code == OperatorCode.Div)
+						{
+							isSelfClosing = true;
+							wc.ShiftNext();
+							continue;
+						}
 						word = wc.Current as IdentifierWord;
 						wc.ShiftNext();
 						OperatorWord op = wc.Current as OperatorWord;
@@ -1282,7 +1290,14 @@ internal static class HtmlManager
 						throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "width"));
 					if (height == null)
 						throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "height"));
-					state.CurrentDivTag = new HtmlDivTag(x, y, width, height, depth, color, box, isRelative, divDisplayMode);
+					var divTag = new HtmlDivTag(x, y, width, height, depth, color, box, isRelative, divDisplayMode);
+					if (isSelfClosing)
+					{
+						// Self-closing <div />: create an empty div immediately
+						divTag.Lines = [];
+						return new ConsoleDivPart(divTag.X, divTag.Y, divTag.Width, divTag.Height, divTag.Depth, divTag.Color, divTag.StyledBox, divTag.IsRelative, divTag.Display, divTag.Lines);
+					}
+					state.CurrentDivTag = divTag;
 					state.StartingSubDivision = true;
 					return null;
 				}

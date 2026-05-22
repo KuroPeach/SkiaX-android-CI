@@ -606,10 +606,15 @@ internal sealed partial class EmueraConsole : IDisposable
 		int length = 0;
 		int width;
 		if (str != null)
+		{
 			#region .NET 7化の弊害でPRINTC系の文字数カウントがおかしい不具合修正
-			//length = Config.Encode.GetByteCount(str);
-			length = Encoding.GetEncoding("Shift-JIS").GetByteCount(str);
-		#endregion
+			// Use Config.Encode with fallback to avoid crashing on unencodable chars
+			// (e.g. Chinese chars in Shift-JIS). Config.Encode respects
+			// DEFAULT ANSI ENCODING setting (GB2312 for Chinese, etc.)
+			var encode = Encoding.GetEncoding(Config.Encode.CodePage, EncoderFallback.ReplacementFallback, DecoderFallback.ReplacementFallback);
+			length = encode.GetByteCount(str);
+			#endregion
+		}
 		int printcLength = Config.PrintCLength;
 		var font = new SKFont(SKTypeface.FromFamilyName(Style.Fontname), Config.DefaultFont.Size); 
 		if (font == null)

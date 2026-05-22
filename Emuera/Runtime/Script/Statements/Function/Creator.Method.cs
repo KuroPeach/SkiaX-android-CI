@@ -290,6 +290,16 @@ internal static partial class FunctionMethodCreator
 			{
 				return -1;
 			}
+			// Convert absolute paths to relative paths (relative to ExeDir)
+			// so that LOADTEXT can accept them via GetValidPath
+			var exeDir = Program.ExeDir;
+			if (!exeDir.EndsWith(Path.DirectorySeparatorChar.ToString()))
+				exeDir += Path.DirectorySeparatorChar;
+			for (int i = 0; i < files.Length; i++)
+			{
+				if (files[i].StartsWith(exeDir, StringComparison.OrdinalIgnoreCase))
+					files[i] = files[i].Substring(exeDir.Length);
+			}
 			int ret;
 			if (arguments.Count == 4)
 			{
