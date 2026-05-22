@@ -6,7 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
-## [3.9.1] — A类修复回流（第二轮）+ 上游对齐
+## [4.0.0] — A类修复回流（第三轮）+ BINPUT 计数修复
+
+### Fixed — 内核 Bug 修复（A类，从 EmueraFL 闭源引擎回溯）
+
+> 以下修复源自 EmueraFL（Kom1 闭源引擎）commit 历史中的引擎 bug 描述，我们在源码中验证并修复。
+
+- **GraphicsImage.cs** — GSetFont Dispose 缓存共享 SKFont（A27）
+  - `FontFactory.GetFont` 返回缓存共享的 SKFont 对象，`GSetFont` 中 `font.Dispose()` 会使缓存中的引用失效
+  - 多次 GSETFONT 且参数组合有重复时（如先 Regular 再 Bold 再切回 Regular），缓存返回已被 Dispose 的 SKFont → 崩溃
+  - 修复：移除 `GSetFont` 中的 `font.Dispose()` 调用，FontFactory 统一管理 SKFont 生命周期
+  - 对应 EmueraFL commit `1ee5d509`
+
+- **GraphicsImage.cs** — 属性无 null 保护（A28）
+  - `Fontname`/`Fontsize`/`Fnt`/`Pen`/`Brush` 属性直接访问字段，无 null 检查
+  - GCREATE 后未 GSETFONT/GSETPEN/GSETBRUSH 就调用 GGETFONT/GGETPEN/GGETBRUSH 会 NRE
+  - 修复：`Fontname` 返回 `font?.Typeface?.FamilyName ?? ""`，`Fontsize` 返回 `font != null ? (int)font.Size : 0`
+  - 修复：新增 `PenColorArgb`/`PenWidth`/`BrushColorArgb` null-safe 属性，`GGETPEN`/`GGETPENWIDTH`/`GGETBRUSH` 改用这些属性，未设置时返回 0 而非 NRE
+  - `Fnt`/`Pen`/`Brush` 保持返回原始字段（null 语义由内部调用方处理）
+  - 对应 EmueraFL commit `4ce390b0`
+
+### Fixed — BINPUT 按钮计数修复
+
+- **Instraction.Child.cs** — BINPUT/BINPUTS/ONEBINPUT/ONEBINPUTS EscapedParts 计数早期退出
+  - EscapedParts 计数循环中，找到第一个 div 按钮后 `goto loopend` 跳出，其余 div 按钮未计入 count
+  - 修复：移除 `goto loopend`，遍历所有 div 的所有按钮，确保计数准确
+  - 影响：非功能 Bug（count>0 即进 WaitInput 流程，匹配阶段无此问题），仅计数值更精确
+
+### Changed — 版本号
+
+- Skia 变体版本号从 3.x 升级到 **4.0.0**（A类修复累积 + BINPUT 修复）
+- `InformationalVersion` 从 `Skia3` 更新为 `Skia4`
+
+## [3.9.1] — A类修复回流（第二轮）+ 上游对齐 + EmueraFL bug 修复
 
 ### Fixed — 内核 Bug 修复（A类，从 feature/xamarin 回流）
 
@@ -29,6 +61,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Utils.cs** — `GetValidPath` 文档注释同步
   - 同步上游 ee+em a4d3665 的注释：标注 `GetValidPath` 返回绝对路径，调用方需自行 `GetRelativePath`
 
+### Fixed — EmueraFL bug 修复（从闭源引擎 commit 提取）
+
+> 以下修复源自 EmueraFL（Kom1 闭源引擎）commit 历史中的引擎 bug 描述，我们在源码中验证并修复。
+
+- **Creator.Method.cs** — GSETFONT FontStyle 丢失（A26）
+  - `GSETFONT` 从 `Pfc.Families` 找到字体时，`new SKFont(SKTypeface.FromFamilyName(...), fontsize)` 未传入 `fs` 参数
+  - 导致 Bold/Italic/Underline/Strikeout 样式被忽略，始终为 Regular
+  - 修复：改为 `FontFactory.GetFont(ff.Name, fs, fontsize)` 统一处理
+  - 对应 EmueraFL commit `ae958303`
 
 ***
 

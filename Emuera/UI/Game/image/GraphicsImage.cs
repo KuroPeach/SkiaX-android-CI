@@ -675,8 +675,8 @@ internal sealed class GraphicsImage : AbstractImage
 	// public void GSetFont(Font r)
 	public void GSetFont(SKFont r, FontStyle fs)
 	{
-		if (font != null)
-			font.Dispose();
+		// FontFactory.GetFont returns cached shared SKFont; do not Dispose it here.
+		// FontFactory manages the lifecycle of all cached fonts.
 		font = r;
 		style = fs;
 	}
@@ -802,8 +802,8 @@ internal sealed class GraphicsImage : AbstractImage
 	public int Height { get { return size.Height; } }
 
 	#region EE_GDRAWTEXTに付随する様々な要素
-	public string Fontname { get { return font.Typeface.FamilyName; } }
-	public int Fontsize { get { return (int)font.Size; } }
+	public string Fontname { get { return font?.Typeface?.FamilyName ?? ""; } }
+	public int Fontsize { get { return font != null ? (int)font.Size : 0; } }
 
 	public int Fontstyle
 	{
@@ -825,6 +825,10 @@ internal sealed class GraphicsImage : AbstractImage
 	public SKFont Fnt { get { return font; } }
 	public Pen Pen { get { return pen; } }
 	public Brush Brush { get { return brush; } }
+	// Null-safe accessors for ERB-layer queries (GGETPEN/GGETPENWIDTH/GGETBRUSH)
+	public long PenColorArgb { get { return pen != null ? pen.Color.ToArgb() & 0xffffffffL : 0L; } }
+	public long PenWidth { get { return pen != null ? (long)pen.Width : 0L; } }
+	public long BrushColorArgb { get { return brush != null ? ((SolidBrush)brush).Color.ToArgb() & 0xffffffffL : 0L; } }
 	#endregion
 
 	#endregion

@@ -2413,7 +2413,6 @@ internal sealed partial class FunctionIdentifier
 									if (button.IsButton && button.IsInteger)
 									{
 										count++;
-										goto loopend;
 									}
 								}
 							}
@@ -2516,7 +2515,6 @@ internal sealed partial class FunctionIdentifier
 									if (button.IsButton)
 									{
 										count++;
-										goto loopend;
 									}
 								}
 							}
@@ -2610,7 +2608,6 @@ internal sealed partial class FunctionIdentifier
 									if (button.IsButton && button.IsInteger)
 									{
 										count++;
-										goto loopend;
 									}
 								}
 							}
@@ -2713,7 +2710,6 @@ internal sealed partial class FunctionIdentifier
 									if (button.IsButton)
 									{
 										count++;
-										goto loopend;
 									}
 								}
 							}

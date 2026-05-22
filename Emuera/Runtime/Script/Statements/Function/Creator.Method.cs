@@ -7007,12 +7007,11 @@ internal static partial class FunctionMethodCreator
 				case "GGETFONTSTYLE":
 					return g.Fontstyle;
 				case "GGETPEN":
-					return g.Pen.Color.ToArgb() & 0xffffffffL;
+					return g.PenColorArgb;
 				case "GGETPENWIDTH":
-					return (long)g.Pen.Width;
+					return g.PenWidth;
 				case "GGETBRUSH":
-					SolidBrush b = (SolidBrush)g.Brush;
-					return b.Color.ToArgb() & 0xffffffffL;
+					return g.BrushColorArgb;
 					#endregion
 			}
 			throw new ExeEE("GraphicsState:" + Name + ":異常な分岐");
@@ -7188,7 +7187,7 @@ internal static partial class FunctionMethodCreator
 					{
 						if (ff.Name == fontname)
 						{
-							styledFont = new SKFont(SKTypeface.FromFamilyName(ff.Name), fontsize);
+							styledFont = FontFactory.GetFont(ff.Name, fs, fontsize);
 							goto foundfont;
 						}
 					}
