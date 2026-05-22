@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [3.9.1] — A类修复回流（第二轮）+ 上游对齐
+
+### Fixed — 内核 Bug 修复（A类，从 feature/xamarin 回流）
+
+> 以下修复源自 erafl-CHS 在 Xamarin 端运行时发现的跨平台 Bug，WinForms 版同样受益。
+
+- **Creator.Method.cs** — ENUMFILES 路径修复（A23）
+  - `EnumFilesMethod` 返回绝对路径，`LOADTEXT` 的 `GetValidPath` 拒绝绝对路径导致 `XML_GET` 解析失败
+  - 使用 `Path.GetRelativePath(Program.ExeDir, files[i])` 将绝对路径转为相对路径
+  - 对齐上游 ee+em a4d3665 + 1c495b5（上游先用了 `Path.GetRelativePath(dir, ...)` 后修正为 `Program.ExeDir`）
+
+- **EmueraConsole.Print.cs** — PRINTFORMC 编码崩溃修复（A24）
+  - 硬编码 `Shift-JIS` 无法编码中文等非日文字符，且无 `ReplacementFallback` 导致崩溃
+  - 用 `Config.Encode.CodePage` + `EncoderFallback.ReplacementFallback` 替换，尊重 `DEFAULT ANSI ENCODING` 配置
+
+- **HtmlManager.cs** — HTML 自闭合 div 标签支持（A25）
+  - `<div ... />` 自闭合标签语法未被解析器支持，`/` 被当作 `OperatorCode.Div` 导致属性解析失败
+  - 在 div 属性解析循环中检测 `/>` 并创建空 `ConsoleDivPart`
+  - 根因：`XML_GET` 序列化空 div 元素按 XML 规范输出 `<div ... />`，但 HTML 解析器不支持（同一引擎的输出和输入不兼容）
+
+- **Utils.cs** — `GetValidPath` 文档注释同步
+  - 同步上游 ee+em a4d3665 的注释：标注 `GetValidPath` 返回绝对路径，调用方需自行 `GetRelativePath`
+
+
+***
+
 ## [3.9.0] — A类修复回流 + 编译警告修复
 
 ### Fixed — 内核 Bug 修复（A类，从 feature/xamarin 回流）

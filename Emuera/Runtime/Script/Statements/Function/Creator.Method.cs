@@ -292,13 +292,10 @@ internal static partial class FunctionMethodCreator
 			}
 			// Convert absolute paths to relative paths (relative to ExeDir)
 			// so that LOADTEXT can accept them via GetValidPath
-			var exeDir = Program.ExeDir;
-			if (!exeDir.EndsWith(Path.DirectorySeparatorChar.ToString()))
-				exeDir += Path.DirectorySeparatorChar;
+			// Aligned with upstream ee+em a4d3665 + 1c495b5
 			for (int i = 0; i < files.Length; i++)
 			{
-				if (files[i].StartsWith(exeDir, StringComparison.OrdinalIgnoreCase))
-					files[i] = files[i].Substring(exeDir.Length);
+				files[i] = Path.GetRelativePath(Program.ExeDir, files[i]);
 			}
 			int ret;
 			if (arguments.Count == 4)

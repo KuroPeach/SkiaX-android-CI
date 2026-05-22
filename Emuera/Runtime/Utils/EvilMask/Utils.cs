@@ -210,6 +210,9 @@ internal sealed class Utils
 		if (!stopwatch.IsRunning) stopwatch.Start();
 		return stopwatch_base + stopwatch.Elapsed.Ticks;
 	}
+	/// <summary>
+	/// ※重要※絶対パスで返すので返り値でEmueraの互換性を保つならGetRelativePathを通すこと！
+	/// </summary>
 	public static string GetValidPath(string path)
 	{
 		path = path.Replace('/', '\\').Replace("..\\", "");
