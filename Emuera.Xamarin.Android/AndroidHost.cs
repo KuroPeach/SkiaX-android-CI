@@ -59,11 +59,14 @@ namespace XEmuera.Droid
 
             try
             {
+                XEmuera.Drawing.FontDiag.Log("AndroidHost: before FontModel.Load()");
                 FontModel.Load();
+                XEmuera.Drawing.FontDiag.Log("AndroidHost: FontModel.Load() done");
                 Android.Util.Log.Debug("EmueraHost", "FontModel.Load() done");
             }
             catch (Exception ex)
             {
+                XEmuera.Drawing.FontDiag.Log($"AndroidHost: FontModel.Load() FAILED: {ex.Message}");
                 Android.Util.Log.Error("EmueraHost", $"FontModel.Load() failed: {ex}");
             }
 

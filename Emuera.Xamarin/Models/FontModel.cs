@@ -15,7 +15,7 @@ namespace XEmuera.Models
 	{
 		public event PropertyChangedEventHandler PropertyChanged;
 
-		private static bool Init;
+		internal static bool Init;
 
 		public const string PrefKeyEnabledFont = nameof(PrefKeyEnabledFont);
 
@@ -31,7 +31,7 @@ namespace XEmuera.Models
 
 		public static FontGroup DisabledList;
 
-		private static readonly Dictionary<string, FontModel> AllModels = new Dictionary<string, FontModel>();
+		internal static readonly Dictionary<string, FontModel> AllModels = new Dictionary<string, FontModel>();
 
 		public static FontModel Default { get; private set; }
 
@@ -80,18 +80,19 @@ namespace XEmuera.Models
 		{
 			Init = false;
 
-			InitFontMapping();
+			try { InitFontMapping(); } catch { }
 
 			AddFontFromResource(DefaultFontName);
 			AddFontFromResource(FinalFontName);
 			AddFontFromResource(SimHeiFontName);
 
-			Default = AllModels[DefaultFontName];
+			if (AllModels.TryGetValue(DefaultFontName, out var defaultModel))
+				Default = defaultModel;
 
-			LoadFontsFolder();
+			try { LoadFontsFolder(); } catch { }
 
 			// 为缺失的中文字体注册回退别名（映射到内嵌的 Microsoft YaHei）
-			RegisterMissingChineseFontFallbacks();
+			try { RegisterMissingChineseFontFallbacks(); } catch { }
 
 			EnabledList = new FontGroup
 			{
@@ -105,9 +106,9 @@ namespace XEmuera.Models
 			string enabledFont = GameUtils.GetPreferences(PrefKeyEnabledFont, null);
 			if (string.IsNullOrEmpty(enabledFont))
 			{
-				Default.Enabled = true;
-				AllModels[SimHeiFontName].Enabled = true;
-				AllModels[FinalFontName].Enabled = true; // Final 必须最后启用 = EnabledList.Last() = 字形覆盖最广的字体
+				if (Default != null) Default.Enabled = true;
+				if (AllModels.TryGetValue(SimHeiFontName, out var simhei)) simhei.Enabled = true;
+				if (AllModels.TryGetValue(FinalFontName, out var yahei)) yahei.Enabled = true;
 			}
 			else
 			{
@@ -116,6 +117,12 @@ namespace XEmuera.Models
 					if (AllModels.TryGetValue(item, out var fontModel))
 						fontModel.Enabled = true;
 				}
+			}
+
+			// 强制确保 Microsoft YaHei 始终启用（作为简体汉字回退字体）
+			if (AllModels.TryGetValue(FinalFontName, out var yaheiModel2) && !yaheiModel2.Enabled)
+			{
+				yaheiModel2.Enabled = true;
 			}
 
 			Save();

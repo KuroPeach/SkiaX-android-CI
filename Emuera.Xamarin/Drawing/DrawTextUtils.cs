@@ -3,13 +3,82 @@ using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using XEmuera.Models;
 
 namespace XEmuera.Drawing
 {
+	/// <summary>
+	/// 字体诊断日志：累积在内存中，导出 emuera.log 时追加到末尾
+	/// </summary>
+	internal static class FontDiag
+	{
+		private static readonly StringBuilder _buffer = new();
+		private static int _lineCount;
+		private const int MaxLines = 2000;
+
+		public static void Log(string message)
+		{
+			if (_lineCount >= MaxLines) return;
+			_lineCount++;
+			_buffer.AppendLine($"[{DateTime.Now:HH:mm:ss.fff}] {message}");
+		}
+
+		/// <summary>
+		/// 将诊断日志追加到 emuera.log 末尾，并清空缓冲
+		/// </summary>
+		public static void FlushTo(StreamWriter writer)
+		{
+			writer.WriteLine();
+			writer.WriteLine($"========== FontDiag T5 ==========");
+
+			// 直接在导出时探测字体信息，不依赖之前的 Log 调用
+			try
+			{
+				writer.WriteLine($"[Probe] FontModel.Init = {FontModel.Init}");
+				writer.WriteLine($"[Probe] FontModel.AllModels.Count = {FontModel.AllModels.Count}");
+				foreach (var kv in FontModel.AllModels)
+				{
+					var fm = kv.Value;
+					var tf = fm.Typeface;
+					// 添加 Ascent 信息用于诊断基线偏移
+					float ascent = 0;
+					if (tf != null)
+					{
+						using var probePaint = new SKPaint { Typeface = tf, TextSize = 18 };
+						ascent = probePaint.FontMetrics.Ascent;
+					}
+					writer.WriteLine($"[Probe] font={fm.Name} enabled={fm.Enabled} family={tf?.FamilyName} Ascent={ascent:F2} GetGlyph(劲)={tf?.GetGlyph('劲')} GetGlyph(组)={tf?.GetGlyph('组')} GetGlyph(姬)={tf?.GetGlyph('姬')}");
+				}
+
+				// 修复：如果 Microsoft YaHei 未启用，强制启用并重新加载
+				if (FontModel.AllModels.TryGetValue("Microsoft YaHei", out var yaheiModel) && !yaheiModel.Enabled)
+				{
+					writer.WriteLine("[Fix] Force-enabling Microsoft YaHei and reloading DrawTextUtils");
+					yaheiModel.Enabled = true;
+					FontModel.Save(); // 这会调用 DrawTextUtils.Load()
+				}
+			}
+			catch (Exception ex)
+			{
+				writer.WriteLine($"[Probe] ERROR: {ex}");
+			}
+
+			writer.WriteLine($"[Buffer] _lineCount={_lineCount} _buffer.Length={_buffer.Length}");
+			if (_lineCount > 0)
+			{
+				writer.Write(_buffer.ToString());
+			}
+			writer.WriteLine($"========== FontDiag End ({_lineCount} lines) ==========");
+			_buffer.Clear();
+			_lineCount = 0;
+		}
+	}
+
 	public static class DrawTextUtils
 	{
 		private static readonly ObservableCollection<FontCache> FontCaches = new ObservableCollection<FontCache>();
@@ -67,6 +136,14 @@ namespace XEmuera.Drawing
 				if (fontModel.Enabled)
 					EnabledFontCaches.Add(fontCache);
 			}
+
+			// [DIAG] 记录可用字体列表
+			//FontDiag.Log($"Load: {EnabledFontCaches.Count} enabled fonts:");
+			//foreach (var fc in EnabledFontCaches)
+			//{
+			//	var tf = fc.FontModel.Typeface;
+			//	FontDiag.Log($"  {fc.FontModel.Name} family={tf?.FamilyName} GetGlyph(劲)={tf?.GetGlyph('劲')} GetGlyph(组)={tf?.GetGlyph('组')} GetGlyph(姬)={tf?.GetGlyph('姬')}");
+			//}
 		}
 
 		public static void Reset()
@@ -145,6 +222,10 @@ namespace XEmuera.Drawing
 			// 系统字体回退：当所有 EnabledFontCaches 都不含某字符字形时，使用 SKFontManager.MatchCharacter 查找系统字体
 			if (CharRemain > 0)
 			{
+				// [DIAG] 记录进入系统回退阶段的剩余字符和当前字体信息
+				//var remainChars = new string(CharList.Where(c => c != char.MinValue).ToArray());
+				//FontDiag.Log($"SystemFallback: text=\"{text}\" fontName={font.FontModel?.Name} familyName={font.FontModel?.Typeface?.FamilyName} CharRemain={CharRemain} chars=\"{remainChars}\"");
+
 				for (int i = 0; i < CharList.Length; i++)
 				{
 					if (CharList[i] == char.MinValue)
@@ -157,11 +238,15 @@ namespace XEmuera.Drawing
 						var matchTypeface = SKFontManager.Default.MatchCharacter(c);
 						if (matchTypeface != null)
 						{
+							// [DIAG] MatchCharacter 返回的字体信息
+							//FontDiag.Log($"MatchCharacter: char='{c}' (U+{((int)c):X4}) → family={matchTypeface.FamilyName} GetGlyph={matchTypeface.GetGlyph(c)}");
 							fallbackModel = new FontModel(matchTypeface);
 							SystemFallbackCache[c] = fallbackModel;
 						}
 						else
 						{
+							// [DIAG] MatchCharacter 返回 null
+							//FontDiag.Log($"MatchCharacter: char='{c}' (U+{((int)c):X4}) → null (no system font)");
 							SystemFallbackCache[c] = null;
 						}
 					}
@@ -189,6 +274,10 @@ namespace XEmuera.Drawing
 			// 强制使用 UserCache 画一个带宽度的占位符，防止排版错乱或吞字
 			if (CharRemain > 0)
 			{
+				// [DIAG] 终极保底：记录用哪个字体画什么字符
+				//var remainChars = new string(CharList.Where(c => c != char.MinValue).ToArray());
+				//FontDiag.Log($"UltimateFallback: CharRemain={CharRemain} chars=\"{remainChars}\" font={UserCache.FontModel.Name} family={UserCache.FontModel.Typeface?.FamilyName}");
+
 				for (int i = 0; i < CharList.Length; i++)
 				{
 					if (CharList[i] == char.MinValue)
@@ -239,6 +328,7 @@ namespace XEmuera.Drawing
 			float Underline = drawUnderline ? (Paint.FontMetrics.UnderlinePosition ?? 0) : 0;
 
 			// y 是行顶部坐标，SkiaSharp DrawText 要求基线坐标，需要减去 Ascent
+			// 所有字符共享主字体的基线，避免不同字体 Ascent 差异导致基线偏移
 			float baselineY = y - Paint.FontMetrics.Ascent;
 
 			TextUnit unit;
@@ -301,10 +391,32 @@ namespace XEmuera.Drawing
 
 					if (glyphs[i] == 0)
 					{
-						// 不再让 Final 字体强行认领不支持的字符，留给后续 System Fallback 处理
 						InvalidChar.Add(Char);
+						// [DIAG] 只记录非 ASCII 字符的缺失（ASCII 缺失太常见，噪音太大）
+						//if (Char > 0x7F)
+						//	FontDiag.Log($"PrepareGlyphs: font={FontModel.Name} char='{Char}' (U+{((int)Char):X4}) → glyphs[i]=0 (missing)");
 						continue;
 					}
+
+					// Android 上 SKPaint.GetGlyphs 可能因字体替换机制对 .notdef 字形返回非零 glyph ID，
+					// 导致 MS Gothic 错误认领其不支持的简体汉字（如贝、厅）。
+					// 使用 Typeface.GetGlyph 直接查询 cmap 表做二次验证。
+					if (Char > 0x7F && FontModel.Typeface.GetGlyph(Char) == 0)
+					{
+						InvalidChar.Add(Char);
+						// [DIAG] SKPaint.GetGlyphs 误报：glyphs[i]!=0 但 Typeface.GetGlyph==0
+						//FontDiag.Log($"PrepareGlyphs: font={FontModel.Name} char='{Char}' (U+{((int)Char):X4}) → glyphs[i]={glyphs[i]} but GetGlyph=0 (false positive!)");
+						continue;
+					}
+
+					// [DIAG] 记录简体汉字被字体认领的情况（排查 GetGlyph 返回非零但渲染方框的问题）
+					// 简体汉字范围 U+4E00-U+9FFF，MS Gothic 不太可能完整覆盖
+					//if (Char >= 0x4E00 && Char <= 0x9FFF)
+					//{
+					//	ushort glyphId = FontModel.Typeface.GetGlyph(Char);
+					//	float width = glyphWidths.Length > i ? glyphWidths[i] : -1;
+					//	FontDiag.Log($"PrepareGlyphs: font={FontModel.Name} char='{Char}' (U+{((int)Char):X4}) → glyphId={glyphId} width={width:F1} accepted");
+					//}
 
 					Advance = glyphWidths[i];
 					ValidChar[Char] = Advance;

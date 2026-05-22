@@ -1,6 +1,69 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.52.0] - 2026-05-23
+
+### 修复华为 HarmonyOS 实机简体汉字方框 + 回退字体基线偏移
+
+> **一句话根因**：华为实机上 `FontModel.Load()` 中 `InitFontMapping`/`LoadFontsFolder`/`RegisterMissingChineseFontFallbacks` 抛异常，导致 `Init=False`、`DrawTextUtils.Load()` 未调用、`EnabledFontCaches` 为空，整个回退链未建立。此前 v0.50.0 修复的 Final 强行认领、后续添加的 GetGlyph 二次验证和 MatchCharacter 修复逻辑上正确，但在 `Init=False` 的实机环境下无法生效。基线偏移的根因是每个 TextUnit 用各自字体的 Ascent 计算基线，导致不同字体的基线位置不同；正确做法是所有字符共享主字体的基线。
+
+#### 问题场景
+
+华为 Mate20X HarmonyOS 4.0.0 实机，HTML 多层嵌套内联文本中，MS Gothic 不支持的简体汉字（如【贝】、【厅】、【劲】、【组】、【姬】）显示为方框。MuMu 模拟器（华为 P50 虚拟机）上正常。
+
+#### 根因分析（按诊断时间线）
+
+| # | 问题 | 根因 | 修复 | 实际效果 |
+|---|------|------|------|---------|
+| 1 | `FontModel.Init = False`，回退链未建立 | `FontModel.Load()` 中 `InitFontMapping`/`LoadFontsFolder`/`RegisterMissingChineseFontFallbacks` 抛异常（如 `FontNameMapping.Add` 冲突、外部字体目录访问失败），提前跳出，`Init` 未设为 `true`。`DrawTextUtils.Load()` 依赖 `FontModel.Init`，未调用导致 `EnabledFontCaches` 为空 | 关键路径加 `try-catch`；`AllModels[]` 改为 `TryGetValue`；强制启用 YaHei；确保 `Save()` 和 `Init = true` 一定执行 | **方框消失** ✓ |
+| 2 | `SKPaint.GetGlyphs` 在 Android 上误报 | Android 上 `SKPaint.GetGlyphs(CharList)` 因字体替换机制对 MS Gothic 不支持的简体汉字返回非零 glyph ID，`PrepareGlyphs` 误判字体支持该字符 | 对 `Char > 0x7F` 添加 `Typeface.GetGlyph(Char)` 二次验证，直接查 cmap 表 | 逻辑正确，但 Init=False 时 PrepareGlyphs 根本不执行 |
+| 3 | `MatchCharacter` 返回不含目标字符的字体 | 华为 HarmonyOS 的 `fonts.xml` 中 `fFallbackFor` 属性处理不当，`MatchCharacter('贝')` 可能返回 Noto Sans CJK JP（日文子集） | 对 `MatchCharacter` 返回的字体用 `GetGlyph` 做二次验证 | 逻辑正确，但 Init=False 时回退链未建立，MatchCharacter 也无法被触发 |
+| 4 | FontFactory 安全回退跳过内嵌字体 | `GetFallbackTypefaceForChar` 使用 `SKTypeface.FromFamilyName` 查找，Android 上找不到 Xamarin 内嵌的 SimHei/YaHei | 优先从 `FontModel.HasFont/GetFont` 获取内嵌字体；添加 `FontModel.UserList` 遍历 | 逻辑正确，但 Init=False 时 FontFactory 回退链也无法正常工作 |
+| 5 | 终极保底用 MS Gothic 画方框 | `CharRemain > 0` 时用 `UserCache.FontModel`（MS Gothic）画缺失字符 | 终极保底改用 `FontModel.Final`（Microsoft YaHei） | 逻辑正确，与 #1 一起生效 |
+| 6 | `ContainsGlyph` 在 Android 上 False Positive | `SKTypeface.ContainsGlyph` 可能因系统字体替换返回 True | FontFactory 中所有 `ContainsGlyph` 替换为 `GetGlyph != 0` | 逻辑正确，防御性修复 |
+| 7 | 回退字体基线偏移 | `DrawText` 循环中每个 TextUnit 用各自字体的 `FontMetrics.Ascent` 计算基线，不同字体 Ascent 不同导致基线位置不一致 | 所有字符共享主字体的 `baselineY`，回退字体切换 Typeface 后仍用主字体基线绘制 | 方框修复后发现，立即修复 ✓ |
+
+#### 诊断过程
+
+1. **v0.50.0**：修复 Final 字体强行认领 → 模拟器上方框消失，实机无变化
+2. **后续迭代**：添加 `Typeface.GetGlyph` 二次验证 + FontFactory 内嵌字体优先 + `MatchCharacter` GetGlyph 二次验证 + 终极保底改用 YaHei → 实机无变化
+3. **添加 FontDiag 诊断日志**：导出 FontDiag.log 发现 `FontModel.Init = False`、`AllModels.Count` 正常但 `EnabledFontCaches` 为空
+4. **`FontModel.Load()` 异常防护** → **方框消失** ✓
+5. 方框消失后发现回退字体基线偏移 → 立即修复 ✓
+
+#### SKPaint.GetGlyphs vs Typeface.GetGlyph 差异
+
+| API | 行为 | Android 可靠性 |
+|-----|------|---------------|
+| `SKPaint.GetGlyphs(text)` | 考虑字体替换，缺失字符可能返回替换字形 glyph ID | ❌ 不可靠 |
+| `SKTypeface.GetGlyph(char)` | 直接查 cmap 表，缺失返回 0 | ✅ 可靠 |
+
+#### 修复后 Xamarin (Android) 管线
+
+```
+DrawTextUtils.DrawText(canvas, text, font, x, y, color)
+  → UserCache (当前 SETFONT 字体) CheckGlyphs + PrepareGlyphs
+    → glyphs[i]!=0 但 Typeface.GetGlyph(Char)==0 → InvalidChar（二次验证）
+  → EnabledFontCaches 遍历 CheckGlyphs + PrepareGlyphs
+    → 同上二次验证
+  → CharRemain > 0? → SKFontManager.Default.MatchCharacter 系统回退
+    → MatchCharacter 返回的字体用 GetGlyph 二次验证
+    → SystemFallbackCache 缓存结果
+  → CharRemain > 0? → 终极保底：FontModel.Final（YaHei）画占位符
+  → 按 FontModel 分组 → canvas.DrawText
+    → 所有 TextUnit 共享主字体的 baselineY（y - 主字体 Ascent），回退字体仅切换 Typeface
+```
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| `Models/FontModel.cs` | `Load()` 关键路径加异常防护（`try-catch`）；`AllModels[]` 改为 `TryGetValue`；强制启用 `FinalFontName`；`AllModels`/`Init` 改为 `internal` |
+| `Drawing/DrawTextUtils.cs` | `PrepareGlyphs()` 添加 `Typeface.GetGlyph` 二次验证；系统回退 `MatchCharacter` 增加 GetGlyph 二次验证；终极保底改用 `FontModel.Final`；所有 TextUnit 共享主字体 `baselineY`（回退字体仅切换 Typeface，不重新计算基线）；添加 `FontDiag` 诊断日志类 |
+| `Platform/Stubs/FontFactory.cs` | `CreateTypefaceWithFallback` 优先内嵌字体；`ContainsGlyph`→`GetGlyph`；`MatchCharacter` 增加 GetGlyph 二次验证；`GetFallbackTypefaceForChar` 优先 `FontModel.HasFont/GetFont`；`GetFallbackTypefaceForCodepoint`/`GetFallbackFontForChar`/`TryGetGlyphFromFallback` 添加 `FontModel.UserList` 遍历 |
+| `Platform/GameView/EmueraConsole.Print.cs` | 日志导出时追加 FontDiag 诊断信息 |
+| `Emuera.Xamarin.Android/AndroidApp.cs` | 导出系统日志时同步导出 `FontDiag.log` |
+
 ## [0.51.1] - 2026-05-22
 
 ### 修复旋转锁定按钮回归 Bug + 屏幕旋转锁定不生效

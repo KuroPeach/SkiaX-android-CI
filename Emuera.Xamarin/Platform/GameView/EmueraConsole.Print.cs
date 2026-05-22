@@ -633,6 +633,8 @@ namespace MinorShift.Emuera.GameView
 				{
 					writer.WriteLine(line.ToString());
 				}
+				// 追加字体诊断日志
+				XEmuera.Drawing.FontDiag.FlushTo(writer);
 			}
 			catch (Exception)
 			{

@@ -4,6 +4,8 @@ using System.Drawing;
 using SkiaSharp;
 using MinorShift.Emuera.UI.Game;
 using System;
+using XEmuera.Drawing;
+using XEmuera.Models;
 
 namespace MinorShift.Emuera.UI;
 
@@ -127,17 +129,27 @@ internal static class FontFactory
 
 		SKTypeface typeface = SKTypeface.FromFamilyName(fontName);
 		if (typeface != null)
+		{
+			FontDiag.Log($"CreateTypefaceWithFallback: request=\"{fontName}\" → FromFamilyName family={typeface.FamilyName}");
 			return typeface;
+		}
 
 		if (fontAliases.TryGetValue(fontName, out var aliasTypeface))
+		{
+			FontDiag.Log($"CreateTypefaceWithFallback: request=\"{fontName}\" → alias family={aliasTypeface.FamilyName}");
 			return aliasTypeface;
+		}
 
 		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
 		{
 			if (customTypeface != null && customTypeface.FamilyName.Contains(fontName, StringComparison.OrdinalIgnoreCase))
+			{
+				FontDiag.Log($"CreateTypefaceWithFallback: request=\"{fontName}\" → custom family={customTypeface.FamilyName}");
 				return customTypeface;
+			}
 		}
 
+		FontDiag.Log($"CreateTypefaceWithFallback: request=\"{fontName}\" → Default");
 		return SKTypeface.Default;
 	}
 
@@ -153,6 +165,19 @@ internal static class FontFactory
 			if (customTypeface != null && customTypeface.ContainsGlyph(c))
 			{
 				return new SKFont(customTypeface, fontSize)
+				{
+					Hinting = (SKFontHinting)Config.FontHinting,
+					Edging = (SKFontEdging)Config.FontEdging
+				};
+			}
+		}
+
+		// 遍历 FontModel 内嵌字体（Android 上 FromFamilyName 找不到内嵌字体）
+		foreach (var fontModel in FontModel.UserList)
+		{
+			if (fontModel?.Typeface != null && fontModel.Typeface.GetGlyph(c) != 0)
+			{
+				return new SKFont(fontModel.Typeface, fontSize)
 				{
 					Hinting = (SKFontHinting)Config.FontHinting,
 					Edging = (SKFontEdging)Config.FontEdging
@@ -184,10 +209,13 @@ internal static class FontFactory
 		if (fallbackTypefaceCache.TryGetValue(cacheKey, out var cachedTypeface))
 			return cachedTypeface;
 
+		FontDiag.Log($"GetFallbackTypefaceForChar: char='{c}' (U+{((int)c):X4}) currentFont={currentFontName}");
+
 		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
 		{
 			if (customTypeface != null && customTypeface.ContainsGlyph(c))
 			{
+				FontDiag.Log($"  → custom font: {customTypeface.FamilyName}");
 				fallbackTypefaceCache[cacheKey] = customTypeface;
 				return customTypeface;
 			}
@@ -208,22 +236,43 @@ internal static class FontFactory
 
 		foreach (var fontName in safeFallbackFonts)
 		{
-			var safeTypeface = SKTypeface.FromFamilyName(fontName);
-			if (safeTypeface != null && safeTypeface.FamilyName.Equals(fontName, StringComparison.OrdinalIgnoreCase) && safeTypeface.ContainsGlyph(c))
+			SKTypeface safeTypeface = null;
+			bool shouldDispose = false;
+
+			// 优先从 FontModel 获取内嵌字体（Android 上 FromFamilyName 找不到内嵌字体）
+			if (FontModel.HasFont(fontName))
 			{
+				safeTypeface = FontModel.GetFont(fontName).Typeface;
+			}
+			else
+			{
+				safeTypeface = SKTypeface.FromFamilyName(fontName);
+				shouldDispose = true;
+			}
+
+			if (safeTypeface != null && safeTypeface.ContainsGlyph(c))
+			{
+				FontDiag.Log($"  → safeFallback: {fontName} (HasFont={FontModel.HasFont(fontName)}) ContainsGlyph=true");
 				fallbackTypefaceCache[cacheKey] = safeTypeface;
 				return safeTypeface;
 			}
-			safeTypeface?.Dispose();
+			if (safeTypeface != null)
+			{
+				FontDiag.Log($"  → safeFallback: {fontName} (HasFont={FontModel.HasFont(fontName)}) ContainsGlyph=false GetGlyph={safeTypeface.GetGlyph(c)}");
+			}
+			if (shouldDispose)
+				safeTypeface?.Dispose();
 		}
 
 		var matchTypeface = SKFontManager.Default.MatchCharacter(c);
 		if (matchTypeface != null)
 		{
+			FontDiag.Log($"  → MatchCharacter: family={matchTypeface.FamilyName} GetGlyph={matchTypeface.GetGlyph(c)}");
 			fallbackTypefaceCache[cacheKey] = matchTypeface;
 			return matchTypeface;
 		}
 
+		FontDiag.Log($"  → SKTypeface.Default (all fallbacks failed)");
 		return SKTypeface.Default;
 	}
 
@@ -242,6 +291,16 @@ internal static class FontFactory
 			{
 				fallbackTypefaceCodepointCache[cacheKey] = customTypeface;
 				return customTypeface;
+			}
+		}
+
+		// 遍历 FontModel 内嵌字体（Android 上 FromFamilyName 找不到内嵌字体）
+		foreach (var fontModel in FontModel.UserList)
+		{
+			if (fontModel?.Typeface != null && fontModel.Typeface.GetGlyph(codepoint) != 0)
+			{
+				fallbackTypefaceCodepointCache[cacheKey] = fontModel.Typeface;
+				return fontModel.Typeface;
 			}
 		}
 
@@ -265,6 +324,12 @@ internal static class FontFactory
 		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
 		{
 			if (customTypeface != null && customTypeface.GetGlyph((int)codepoint) != 0)
+				return true;
+		}
+		// 遍历 FontModel 内嵌字体（Android 上 FromFamilyName 找不到内嵌字体）
+		foreach (var fontModel in FontModel.UserList)
+		{
+			if (fontModel?.Typeface != null && fontModel.Typeface.GetGlyph((int)codepoint) != 0)
 				return true;
 		}
 		return false;

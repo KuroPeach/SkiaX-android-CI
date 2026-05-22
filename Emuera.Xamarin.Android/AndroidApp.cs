@@ -114,6 +114,17 @@ namespace XEmuera.Droid
 
                 if (console.OutputSystemLog(fullPath))
                 {
+                    // 同时导出 FontDiag.log
+                    try
+                    {
+                        var diagPath = MinorShift.Emuera.Program.ExeDir + "FontDiag.log";
+                        using (var writer = new System.IO.StreamWriter(diagPath, false, System.Text.Encoding.UTF8))
+                        {
+                            XEmuera.Drawing.FontDiag.FlushTo(writer);
+                        }
+                    }
+                    catch { }
+
                     Device.BeginInvokeOnMainThread(async () =>
                     {
                         await flyoutPage.Detail.DisplayAlert(StringsText.LogSaved,
