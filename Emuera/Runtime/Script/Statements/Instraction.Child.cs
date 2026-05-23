@@ -2832,7 +2832,7 @@ internal sealed partial class FunctionIdentifier
 					for (i = 0; i < GlobalStatic.Sound.Length; i++)
 					{
 						if (GlobalStatic.Sound[i] == null)
-							GlobalStatic.Sound[i] = new Sound();
+							GlobalStatic.Sound[i] = Runtime.Utils.Sound.Factory();
 						//未使用もしくは再生完了してる要素を使う
 						if (!GlobalStatic.Sound[i].isPlaying())
 							break;
@@ -2863,7 +2863,7 @@ internal sealed partial class FunctionIdentifier
 			for (int i = 0; i < GlobalStatic.Sound.Length; i++)
 			{
 				if (GlobalStatic.Sound[i] == null)
-					GlobalStatic.Sound[i] = new Sound();
+					GlobalStatic.Sound[i] = Runtime.Utils.Sound.Factory();
 				if (GlobalStatic.Sound[i].isPlaying())
 					GlobalStatic.Sound[i].stop();
 			}
@@ -2927,7 +2927,7 @@ internal sealed partial class FunctionIdentifier
 			for (int i = 0; i < GlobalStatic.Sound.Length; i++)
 			{
 				if (GlobalStatic.Sound[i] == null)
-					GlobalStatic.Sound[i] = new Sound();
+					GlobalStatic.Sound[i] = Runtime.Utils.Sound.Factory();
 				GlobalStatic.Sound[i].setVolume(vol);
 			}
 		}

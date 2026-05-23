@@ -68,8 +68,9 @@
 
   <!-- 内核 Runtime/ 排除项（仅排除 WinForms/Desktop 专用文件） -->
   <ItemGroup>
-    <!-- WinForms/Desktop 音频 -->
+    <!-- WinForms/Desktop 音频：NAudio 不可用于 Android -->
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\Sound.NAudio.cs" />
     <!-- WinForms 插件系统 -->
     <Compile Remove="..\Emuera\Runtime\Utils\PluginSystem\**" />
     <!-- System.Drawing.Graphics / Drawing2D -->
@@ -82,6 +83,10 @@
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\ConsoleDivPart.cs" />
     <!-- Creator.Method.cs 不再引用 PluginSystem，恢复编译 -->
     <!-- <Compile Remove="..\Emuera\Runtime\Script\Statements\Function\Creator.Method.cs" /> -->
+    <!-- Android 专用：Windows TFM 下排除 -->
+    <!-- NAudio 依赖：Android 不可用 -->
+    <Compile Remove="..\Emuera\Runtime\Utils\NAudio_LoopStream.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\SoundTouch_byMarkHeath\**" />
   </ItemGroup>
 
   <!-- LazyLoading 主项目入口（WinForms 专用） -->
@@ -115,6 +120,8 @@
 
   <!-- Platform 层排除项 -->
   <ItemGroup>
+    <!-- Android 专用：Windows TFM 下排除 -->
+    <Compile Remove="Platform\Audio\**" />
     <!-- WinForms 专用 -->
     <Compile Remove="Platform\Forms\**" />
     <!-- WinForms stub 与真正的 System.Windows.Forms 冲突 -->
@@ -214,8 +221,6 @@
   <!-- ============================================================ -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
-    <PackageReference Include="NAudio" Version="2.2.1" />
-    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
     <PackageReference Include="ReorderableCollectionView.Forms" Version="1.0.0" />
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
     <PackageReference Include="SkiaSharp.Svg" Version="1.60.0" />

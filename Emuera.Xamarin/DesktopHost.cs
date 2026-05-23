@@ -162,12 +162,11 @@ namespace MinorShift.Emuera
             mainWindow = new DesktopMainWindow(this);
             console = new EmueraConsole(mainWindow);
 
-#if USE_NAUDIO
             GlobalStatic.Sound = new Runtime.Utils.Sound[16];
+            Runtime.Utils.Sound.Factory = () => new Runtime.Utils.Sound();
             for (int i = 0; i < GlobalStatic.Sound.Length; i++)
-                GlobalStatic.Sound[i] = new NAudioSound();
-            GlobalStatic.Bgm = new NAudioSound();
-#endif
+                GlobalStatic.Sound[i] = Runtime.Utils.Sound.Factory();
+            GlobalStatic.Bgm = Runtime.Utils.Sound.Factory();
 
             Task.Run(() =>
             {

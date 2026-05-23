@@ -114,6 +114,13 @@
     <Compile Remove="..\Emuera.Xamarin\Platform\Stubs\WinForms.cs" />
     <!-- NAudio stub -->
     <Compile Remove="..\Emuera.Xamarin\Platform\Stubs\SoundAndBgm.cs" />
+    <!-- SoundStub 冲突：内核已有 Sound.cs 基类 -->
+    <Compile Remove="Stubs\SoundStub.cs" />
+    <!-- Android 专用：Windows TFM 下排除 -->
+    <Compile Remove="..\Emuera.Xamarin\Platform\Audio\AndroidSound.cs" />
+    <!-- NAudio 依赖：Android 不可用 -->
+    <Compile Remove="..\Emuera\Runtime\Utils\NAudio_LoopStream.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\SoundTouch_byMarkHeath\**" />
     <!-- Lang.cs 与 LazyLoading 内核冲突 -->
     <Compile Remove="..\Emuera.Xamarin\Platform\Lang.cs" />
     <!-- ConfigCode.cs 与 LazyLoading 内核冲突 -->

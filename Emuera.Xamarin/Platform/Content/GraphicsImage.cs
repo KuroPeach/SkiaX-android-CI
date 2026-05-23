@@ -613,6 +613,9 @@ namespace MinorShift.Emuera.Content
 		}
 		public Pen Pen { get { return pen; } }
 		public Brush Brush { get { return brush; } }
+		public long PenColorArgb { get { return pen != null ? pen.DrawingColor.ToArgb() & 0xffffffffL : 0L; } }
+		public long PenWidth { get { return pen != null ? (long)pen.Width : 0L; } }
+		public long BrushColorArgb { get { return brush != null ? brush.DrawingColor.ToArgb() & 0xffffffffL : 0L; } }
 		public SKBitmap SKBitmap => Bitmap;
 		public SKBitmap RealBitmap;
 		#endregion

@@ -49,6 +49,11 @@ static partial class Program
 	{
 		// memo: Shift-JISを扱うためのおまじない
 		System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+		// 音频平台工厂：WinForms 使用 NAudioSound
+		Runtime.Utils.Sound.Factory = () => new NAudioSound();
+		GlobalStatic.Bgm = Runtime.Utils.Sound.Factory();
+
 		var rootCommand = new RootCommand("Emuera");
 
 		#region eee_カレントディレクトリー

@@ -1,6 +1,87 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.53.1] - 2026-05-23
+
+### Gemini 审查修复 + 内核解耦
+
+| # | 问题 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | GlobalStatic.cs 引用 NAudioSound 导致 Android 编译失败 | `Bgm = new NAudioSound()` 和 `Reset()` 中 `Factory = () => new NAudioSound()` 直接引用平台子类 | 改为 `new Sound()` 基类 + WinForms `Program.Main()` 设置 Factory |
+| 2 | AndroidSound repeat>1 只播放一次 | `OnCompletion` 中 `_remainingRepeats--` 但没有 SeekTo+Start | 补 `_player.SeekTo(0); _player.Start();` |
+| 3 | AndroidSound play() 同步 Prepare() 阻塞 UI | `MediaPlayer.Prepare()` 是同步阻塞调用 | 改为 `PrepareAsync()` + `Prepared` 事件回调 |
+| 4 | Platform 层 GraphicsImage 缺 PenColorArgb/PenWidth/BrushColorArgb | GGETPEN/GGETBRUSH null-safe 属性未在 Platform 版实现 | 添加三个 long 属性，用 `DrawingColor.ToArgb()` |
+| 5 | 切换游戏时音量不重置 | `GlobalStatic.Reset()` stop 后 Sound/Bgm 置 null 未重建 | stop+close 后用 Factory 重建实例 |
+| 6 | Volume 0-100 未归一化 | XEmuera-1 遗留：SetVolume 期望 0.0-1.0 | AndroidSound.setVolume 中 `/100.0f` 归一化 |
+| 7 | AndroidSound.play 签名不匹配基类 | `play(string, long)` 与基类 `play(string, int)` 不一致 | 改为 `int` 参数 |
+| 8 | AndroidSound.cs 重复 play 方法 | 两个 `play(string, int)` 导致 CS0111 | 删除重复方法 |
+
+### 待回流 develop-skiasharp
+
+| # | 问题 | 回流方案 |
+|---|------|---------|
+| 5 | PlatformInterop 不存在（29 处内核引用） | 在 develop-skiasharp 创建 PlatformInterop.cs（委托模式） |
+| 6 | Program.MusicDir/FileExists 不存在（6 处引用） | 取消注释 MusicDir，添加 FileExists |
+| 7 | SKColor→System.Drawing.Color 转换错误 | 用 ToArgb() 计算 long 值 |
+
+### 回流策略
+
+> 以上 #5-#7 应在 develop-skiasharp 分支完成，Xamarin 分支合并即可。
+> 详见 [kernel-audit.md §回流前提](file:///d:/emuera/shared-trae/knowledge/lazyloading/kernel-audit.md)
+
+## [0.53.0] - 2026-05-23
+
+### 音频系统跨平台移植（Phase 1）
+
+> 采用 Sound 虚方法继承方案 + Factory 工厂模式，Desktop 用 NAudioSound : Sound，Android 用 AndroidSound : Sound。
+
+#### 架构变更
+
+| 变更 | 说明 |
+|------|------|
+| `Sound` 基类 | 13 个虚方法（play/stop/pause/resume/close/isPlaying/setVolume/getVolume/setSpeed/getSpeed/SetPreservePitch/GetTotalTime/GetCurrentTime） |
+| `Sound.Factory` | `Func<Sound>` 静态属性，由宿主程序设置平台工厂 |
+| `NAudioSound : Sound` | Desktop 端，NAudio 混音器 + SoundTouch 变速 |
+| `AndroidSound : Sound` | Android 端，MediaPlayer + PlaybackParams 变速（Android 6+） |
+| csproj 条件编译 | `Sound.NAudio.cs` 仅 net8.0-windows；`AndroidSound.cs` 仅 net8.0-android |
+| DesktopHost 初始化 | `Sound.Factory = () => new NAudioSound()` |
+| AndroidHost 初始化 | `Sound.Factory = () => new AndroidSound()` |
+
+#### 已实现指令
+
+| 指令 | 类型 | Android 状态 |
+|------|------|-------------|
+| PLAYSOUND | 命令 | ✅ |
+| PLAYBGM | 命令 | ✅ |
+| STOPSOUND | 命令 | ✅ |
+| STOPBGM | 命令 | ✅ |
+| SETSOUNDVOLUME | 命令 | ✅ |
+| SETBGMVOLUME | 命令 | ✅ |
+| EXISTSOUND | 函数 | ✅ |
+
+#### 待实现指令（Phase 3）
+
+| 指令 | 类型 | 说明 |
+|------|------|------|
+| GETSOUNDORBGMINFO | 函数 | channelId + infoType，返回音频信息 |
+| ISPLAYINGSOUND | 函数 | 检查 Sound 通道播放状态 |
+| SOUNDCONTROL | 函数 | 暂停/恢复/停止/变速控制 |
+| ISPLAYINGBGM | 函数 | 检查 BGM 播放状态 |
+| BGMCONTROL | 函数 | BGM 暂停/恢复/停止/变速控制 |
+
+#### 修改文件
+
+| 文件 | 修改 |
+|------|------|
+| `Runtime/Utils/Sound.cs` | 添加 `Factory` 静态属性 |
+| `Runtime/Utils/Sound.NAudio.cs` | `Sound` → `NAudioSound : Sound` |
+| `emuera.xamarin/Platform/Audio/AndroidSound.cs` | 新建，MediaPlayer 实现 |
+| `Emuera.Xamarin.csproj` | 条件编译排除/包含 |
+| `Emuera.Xamarin.Core.csproj` | 条件编译排除/包含 |
+| `emuera.xamarin/DesktopHost.cs` | Factory 初始化 |
+| `Emuera/GlobalStatic.cs` | 去除 NAudioSound 直接依赖 |
+| `Emuera/Program.cs` | WinForms Factory 初始化 |
+
 ## [0.52.1] - 2026-05-23
 
 ### A 类内核修复（双端受益，已回流 develop-skiasharp）

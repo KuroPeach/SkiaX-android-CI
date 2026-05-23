@@ -9750,7 +9750,7 @@ internal static partial class FunctionMethodCreator
 			else if (channelId >= 0 && channelId < GlobalStatic.Sound.Length)
 			{
 				if (GlobalStatic.Sound[channelId] == null)
-					GlobalStatic.Sound[channelId] = new Sound();
+					GlobalStatic.Sound[channelId] = Runtime.Utils.Sound.Factory();
 				targetSound = GlobalStatic.Sound[channelId];
 			}
 
@@ -9867,7 +9867,7 @@ internal static partial class FunctionMethodCreator
 			// 确保通道已初始化
 			if (GlobalStatic.Sound[channelId] == null)
 			{
-				GlobalStatic.Sound[channelId] = new Sound();
+				GlobalStatic.Sound[channelId] = Runtime.Utils.Sound.Factory();
 			}
 			
 			// 根据控制行为执行相应操作
@@ -9955,7 +9955,7 @@ internal static partial class FunctionMethodCreator
 			// 确保通道已初始化
 			if (GlobalStatic.Bgm == null)
 			{
-				GlobalStatic.Bgm = new Sound();
+				GlobalStatic.Bgm = Runtime.Utils.Sound.Factory();
 			}
 			
 			// 根据控制行为执行相应操作

@@ -22,7 +22,8 @@ alwaysApply: true
 | **erabasic** | ERABASIC 解析/运行时、.erb/.erh/.csv |
 | **powershell-git** | 终端命令、Git |
 | **knowledge-builder** | 发现新洞见 |
-| **xemuera** | Xamarin 移植（IO/字体/AWAIT/渲染） |
+| **skiax** | SkiaX 移植端（Emuera.Xamarin*/）、ADB 测试、Android 渲染/IO/字体/AWAIT |
+| **xemuera** | XEmuera 上游原型参考（仅参考，不修改） |
 
 ## 子规则
 

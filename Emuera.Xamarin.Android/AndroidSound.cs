@@ -58,11 +58,6 @@ namespace XEmuera.Droid
             }
         }
 
-        public override void play(string filepath, long repeat)
-        {
-            play(filepath, (int)repeat);
-        }
-
         public override void stop()
         {
             try

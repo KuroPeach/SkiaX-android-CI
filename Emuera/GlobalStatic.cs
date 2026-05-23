@@ -62,7 +62,7 @@ internal static class GlobalStatic
 #endif
 	#region 尊尼获加荣誉出品
 	public static Sound[] Sound = new Sound[10];
-	public static Sound Bgm = new();
+	public static Sound Bgm = new Sound();
 	#endregion
 	public static void Reset()
 	{
@@ -77,24 +77,27 @@ internal static class GlobalStatic
 		LabelDictionary = null;
 		IdentifierDictionary = null;
 		tempDic.Clear();
+		Runtime.Utils.Sound.Factory = () => new Sound();
 		if (Sound != null)
 		{
 			for (int i = 0; i < Sound.Length; i++)
 			{
 				if (Sound[i] != null)
 				{
-					Sound[i].stop(); // 确保调用 stop 释放资源
-					Sound[i] = null; // 清空引用
+					Sound[i].stop();
+					Sound[i].close();
 				}
+				Sound[i] = Runtime.Utils.Sound.Factory();
 			}
 		}
 
-		// 清理 BGM
+		// 清理 BGM 并重建
 		if (Bgm != null)
 		{
 			Bgm.stop();
-			Bgm = null;
+			Bgm.close();
 		}
+		Bgm = Runtime.Utils.Sound.Factory();
 
 		// 清理数据库资源
 		SqlManager.CloseAll();
