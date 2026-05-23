@@ -78,6 +78,8 @@
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Shape.cs" />
     <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Utils.cs" />
+    <!-- 内核 PlatformInterop：Xamarin 有自己的 stub 版本 -->
+    <Compile Remove="..\Emuera\Runtime\Utils\PlatformInterop.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\ConsoleDivPart.cs" />
     <!-- NAudio: Windows-only audio -->
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.NAudio.cs" />

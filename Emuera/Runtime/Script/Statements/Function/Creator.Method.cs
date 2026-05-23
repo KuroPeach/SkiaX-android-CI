@@ -3422,7 +3422,7 @@ internal static partial class FunctionMethodCreator
 		readonly bool defaultColor;
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			var skc = defaultColor ? Config.BackColor.ToSKColor() : GlobalStatic.Console.bgColor;
+			SKColor skc = defaultColor ? Config.BackColor.ToSKColor() : GlobalStatic.Console.bgColor;
 			return ((long)skc.Red << 16 | (long)skc.Green << 8 | skc.Blue) & 0xFFFFFF;
 		}
 	}
@@ -7106,7 +7106,7 @@ internal static partial class FunctionMethodCreator
 			Point p = ReadPoint(Name, exm, arguments, 1);
 			if (p.X < 0 || p.X >= g.Width || p.X < 0 || p.Y >= g.Height)
 				return -1;
-			var c = (Color)g.GGetColor(p.X, p.Y);
+			var c = g.GGetColor(p.X, p.Y);
 			//Color.ToArgb()はInt32の負の値をとることがあり、Int64にうまく変換できない?（と思ったが気のせいだった
 			return ((long)c.Alpha << 24 | (long)c.Red << 16 | (long)c.Green << 8 | c.Blue) & 0xFFFFFFFFL;
 		}

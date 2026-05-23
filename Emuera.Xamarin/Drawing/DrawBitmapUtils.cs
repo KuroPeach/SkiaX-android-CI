@@ -73,7 +73,7 @@ namespace XEmuera.Drawing
 
 	public class SolidBrush : Brush
 	{
-		public Color Color => DrawingColor;
+		public new Color Color => DrawingColor;
 		public SolidBrush(Color color) : base(color) { }
 #if WINDOWS
 		public SolidBrush(System.Drawing.SolidBrush sb) : base(sb.Color) { }

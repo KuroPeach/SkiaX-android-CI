@@ -79,6 +79,8 @@
     <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
     <!-- System.Drawing.Bitmap/Icon -->
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Utils.cs" />
+    <!-- 内核 PlatformInterop：Xamarin 有自己的 stub 版本 -->
+    <Compile Remove="..\Emuera\Runtime\Utils\PlatformInterop.cs" />
     <!-- ConsoleDivPart 依赖 Shape.cs -->
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\ConsoleDivPart.cs" />
     <!-- Creator.Method.cs 不再引用 PluginSystem，恢复编译 -->

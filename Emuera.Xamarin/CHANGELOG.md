@@ -1,6 +1,48 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.54.0] - 2026-05-23
+
+### 内核回流合并（develop-skiasharp v4.1.0）
+
+> 合并 develop-skiasharp 的跨平台音频架构重构和回流修复。
+
+| # | 变更 | 说明 |
+|---|------|------|
+| 1 | Sound 基类 + Factory 工厂模式 | 内核代码通过 Factory 创建实例，消除平台直接依赖 |
+| 2 | NAudioSound : Sound, ISampleProvider | 原 Sound 类重命名为 NAudioSound，所有方法加 override |
+| 3 | SoundMixer 参数类型修正 | PlaySound/StopSound 参数改为 NAudioSound |
+| 4 | PlatformInterop 委托模式 | 替换内核 WinForms 直接调用（DoEvents/ShowMessage 等） |
+| 5 | Program.MusicDir + FileExists | 替换硬编码音频路径 |
+| 6 | Creator.Method/Instraction.Child | `new Sound()` → `Sound.Factory()` |
+| 7 | B 类回流修复 | 跨平台适配（#if WINDOWS 条件编译等） |
+| 8 | EraStreamReader try-catch 修复 | 缺少 catch 块导致 CS1524 |
+
+### 合并后修复
+
+| # | 问题 | 修复 |
+|---|------|------|
+| 1 | CS0101: PlatformInterop 重复定义 | Xamarin csproj 排除内核版 PlatformInterop.cs |
+| 2 | CS0111: Config.WildcardToRegex/GetFilesCaseInsensitive 重复 | 删除合并残留的重复方法 |
+| 3 | CS0176/CS0172: Creator.Method.cs Color 类型歧义 | `GGetColor` 直接返回 SKColor，移除 `(Color)` 强转；三元表达式显式声明 `SKColor` |
+| 4 | CS0108: SolidBrush.Color 隐藏继承成员 | 添加 `new` 关键字 |
+| 5 | CS8632: Argument.cs nullable 注释 | 添加 `#nullable enable` |
+| 6 | XA1029/XA0036: Android csproj 弃用属性 | `AotAssemblies` → 移除；`AndroidSupportedAbis` → `RuntimeIdentifiers` |
+
+### 冲突解决
+
+| 文件 | 策略 |
+|------|------|
+| Config.cs | 移除 `using System.Windows.Forms`（跨平台不引用） |
+| ExpressionMediator.cs | 移除 `#if !WINDOWS` 条件编译（Xamarin 不需要） |
+| Creator.Method.cs | 统一 `Sound.Factory()` 命名，保留 `(Color)` 转换 |
+| Instraction.Child.cs | 统一 Factory 命名，采用 develop-skiasharp 的 ShowQuestion 签名 |
+| EraStreamReader.cs | 保留 Xamarin 的详细错误日志 |
+| Sound.NAudio.cs | 保留 XML 文档注释 |
+| Sys.cs | 移除 `using System.Windows.Forms` |
+| WinmmTimer.cs | 保留 XML 文档注释 |
+| ImgUtils.cs | 保留 `LoadImageSK` 跨平台方法 |
+
 ## [0.53.1] - 2026-05-23
 
 ### Gemini 审查修复 + 内核解耦
