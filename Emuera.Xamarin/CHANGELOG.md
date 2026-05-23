@@ -3,15 +3,19 @@
 
 ## [0.56.0] - 2026-05-24
 
-### 内核合并同步（develop-skiasharp v4.1.2）
+### 内核合并同步（develop-skiasharp v4.1.2）+ 画廊修复
 
-> 合并 develop-skiasharp debug_log 修复 + 版本号显示修复。
+> 合并 develop-skiasharp debug_log 修复 + 版本号显示修复 + 画廊面板修复。
 
 - 合并 develop-skiasharp v4.1.2（debug_log 持续写入修复 + 版本号显示修复）
 - **AppContents.LoadContents** 返回类型从 `bool` 改为 `Exception?`，与内核签名一致
   - 修复：原 `return true` 被 `Process.cs` 的 `!= null` 判断为异常，导致游戏无法打开
   - 成功返回 `null`，异常返回 `Exception` 对象
-- APK versionCode 55→56, versionName 0.55.1→0.56.0
+- **画廊面板修复**：横排按钮过多时填充整个屏幕，而非限制为 1/2 宽度并横向滚动
+  - 根因 1：`RefreshQuickButtonGroup` 基类方法非 `virtual`，Android 端用 `new` 隐藏而非 `override`，`EmueraConsole.ex.cs` 调用的是基类空方法，宽度限制从未生效
+  - 根因 2：水平 StackLayout（每行按钮）默认 `HorizontalOptions=Fill`，被压缩到 ScrollView 宽度内导致换行
+  - 修复：基类 `RefreshQuickButtonGroup` 改为 `virtual`，Android 端改为 `override`；`quickScroll.WidthRequest` 直接用 `canvasView.Width / 2`；每行按钮和 `quickButtonLayout` 设 `HorizontalOptions=Start`
+- APK versionCode 56→57, versionName 0.55.1→0.56.0
 
 
 ## [0.55.1] - 2026-05-23

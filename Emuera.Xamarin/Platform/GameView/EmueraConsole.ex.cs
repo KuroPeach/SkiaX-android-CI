@@ -83,6 +83,7 @@ namespace MinorShift.Emuera.GameView
 				{
 					Orientation = StackOrientation.Horizontal,
 					Spacing = Config.QuickButtonSpacing,
+					HorizontalOptions = LayoutOptions.Start,
 				};
 
 				for (int b = 0; b < curLine.Buttons.Length; b++)

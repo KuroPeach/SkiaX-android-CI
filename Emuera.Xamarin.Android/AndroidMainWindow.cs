@@ -374,6 +374,7 @@ namespace XEmuera.Droid
             quickScroll.VerticalOptions = LayoutOptions.EndAndExpand;
             quickButtonLayout.Orientation = StackOrientation.Vertical;
             quickButtonLayout.Spacing = 3;
+            quickButtonLayout.HorizontalOptions = LayoutOptions.Start;
 
             // --- uiLayout（叠加层：工具栏 + 滚动条 + 快捷按钮） ---
             var uiLayout = new StackLayout
@@ -669,13 +670,13 @@ namespace XEmuera.Droid
 
         public override QuickButtonGroup QuickButtonGroup => (QuickButtonGroup)quickButtonLayout;
 
-        public new void RefreshQuickButtonGroup()
+        public override void RefreshQuickButtonGroup()
         {
             activity?.RunOnUiThread(() =>
             {
                 try
                 {
-                    quickScroll.WidthRequest = Math.Min(quickButtonLayout.Width, canvasView.Width / 2);
+                    quickScroll.WidthRequest = canvasView.Width / 2;
                     quickScroll.HeightRequest = Math.Min(quickButtonLayout.Height, canvasView.Height - 48 - 30);
                     quickScroll.ScrollToAsync(0, quickButtonLayout.Height, false);
                 }
