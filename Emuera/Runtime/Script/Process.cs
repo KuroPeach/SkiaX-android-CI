@@ -97,7 +97,7 @@ internal sealed partial class Process(EmueraConsole view)
 
 			logWriter?.WriteLine($"Proc:Init:Image:Start {stopWatch.ElapsedMilliseconds}ms");
 			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: Loading AppContents...");
-			if (!AppContents.LoadContents(false))
+			if (AppContents.LoadContents(false) != null)
 			{
 				ParserMediator.FlushWarningList();
 				console.PrintSystemLine(trsl.ResourceReadError.Text);

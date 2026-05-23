@@ -42,7 +42,7 @@
     <MandroidI18n>CJK</MandroidI18n>
     <RunAOTCompilation>false</RunAOTCompilation>
     <ServerGarbageCollection>true</ServerGarbageCollection>
-    <RuntimeIdentifiers>armeabi-v7a;x86;x86_64;arm64-v8a</RuntimeIdentifiers>
+    <RuntimeIdentifiers>android-arm;android-x86;android-x64;android-arm64</RuntimeIdentifiers>
     <AndroidKeyStore>true</AndroidKeyStore>
     <AndroidSigningKeyStore>xemuera.keystore</AndroidSigningKeyStore>
     <AndroidSigningKeyAlias>xemuera</AndroidSigningKeyAlias>

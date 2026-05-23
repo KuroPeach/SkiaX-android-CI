@@ -1,6 +1,44 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.55.0] - 2026-05-23
+
+### Phase 2-3：扩展音频 API + 编译修复
+
+> 完成 PLAYSOUND repeat 参数升级、6 个扩展音频函数移植、变速支持，修复编译错误和运行时 bug。
+
+#### 新增功能
+
+| # | 功能 | 说明 |
+|---|------|------|
+| 1 | PLAYSOUND repeat 参数 | ArgumentBuilder 升级为 SP_HTML_PRINT，支持 `PLAYSOUND "file", 3` 重复播放 |
+| 2 | GETSOUNDORBGMINFO | 获取音频信息：总长度/当前时间/播放状态/音量/速度 |
+| 3 | ISPLAYINGSOUND / ISPLAYINGBGM | 检查指定通道/BGM 播放状态 |
+| 4 | SOUNDCONTROL / BGMCONTROL | 控制：暂停(0)/恢复(1)/停止(2)/变速(3) |
+| 5 | 变速支持 | NAudioSound: VarispeedSampleProvider; AndroidSound: PlaybackParams (Android 6+) |
+
+#### 编译错误修复
+
+| # | 问题 | 修复 |
+|---|------|------|
+| 1 | CS0117: Config.Config 未定义 | Config 是静态类，Config.Config 被解析为嵌套类型。改为 Config（6 处） |
+| 2 | CS0023: !Exception 无效 | AppContents.LoadContents 返回 Exception 非 bool，改为 != null |
+| 3 | CS0115: NAudioSound.play(string,long) 无基类重载 | 删除无效 override |
+
+#### Bug 修复
+
+| # | 问题 | 修复 |
+|---|------|------|
+| 4 | IsPlayingSoundMethod 死代码+无限循环 | arguments[0]==null 永假；for 条件用 channelId 非 i 导致死循环 |
+| 5 | AndroidSound.ApplySpeed OnPrepared 不生效 | 移除 !_player.IsPlaying 前置条件 |
+
+#### 潜在风险
+
+- Android PlaybackParams 设备兼容性（部分 ROM 不支持变速）
+- Droid 版 AndroidSound 无变速实现（空 stub）
+- NAudioSound pause/resume 缓冲区状态一致性
+
+
 ## [0.54.0] - 2026-05-23
 
 ### 内核回流合并（develop-skiasharp v4.1.0）

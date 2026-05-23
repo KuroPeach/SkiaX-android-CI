@@ -225,7 +225,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 
 		private void ApplySpeed()
 		{
-			if (_player == null || !_player.IsPlaying) return;
+			if (_player == null) return;
 
 			// PlaybackParams 需要 Android 6.0+ (API 23)
 			if (Build.VERSION.SdkInt >= BuildVersionCodes.M)

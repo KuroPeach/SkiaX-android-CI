@@ -411,11 +411,6 @@ namespace MinorShift.Emuera.Runtime.Utils
             SoundMixer.PlaySound(this);
         }
 
-        public override void play(string filepath, long repeat)
-        {
-            play(filepath, (int)repeat);
-        }
-
         public override void pause()
         {
             if (!SoundMixer.Initialized || !Playing)

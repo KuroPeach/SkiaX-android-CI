@@ -1,6 +1,6 @@
 # Emuera.Xamarin 音频系统移植 TODO
 
-> 版本对应：Phase 1 = v0.53.0，Phase 1.5 = v0.53.1，回流合并 = v0.54.0
+> 版本对应：Phase 1 = v0.53.0，Phase 1.5 = v0.53.1，回流合并 = v0.54.0，Phase 2-3 = v0.55.0
 > 知识库参考：[audio-system.md](file:///d:/emuera/shared-trae/knowledge/xemuera/audio-system.md)
 > 回流审计：[kernel-audit.md](file:///d:/emuera/shared-trae/knowledge/lazyloading/kernel-audit.md)
 
@@ -36,27 +36,18 @@
 - [x] B 类回流修复（跨平台适配）
 - [x] 合并冲突解决（9 文件）
 
+### Phase 2-3：扩展音频 API + 编译修复 ✅ v0.55.0
+
+- [x] **2A** PLAYSOUND ArgumentBuilder 升级为 SP_HTML_PRINT（支持 repeat 参数）
+- [x] **2B** AndroidSound repeat=N Completion 计数
+- [x] **3A** 移植 GETSOUNDORBGMINFO（channelId, infoType）
+- [x] **3B** 移植 ISPLAYINGSOUND / ISPLAYINGBGM
+- [x] **3C** 移植 SOUNDCONTROL / BGMCONTROL（暂停/恢复/停止/变速）
+- [x] **3D** 变速支持（NAudioSound: VarispeedSampleProvider, AndroidSound: PlaybackParams）
+- [x] 编译错误修复：Config.Config→Config（6处）、AppContents.LoadContents 返回值（1处）、NAudioSound override 签名（1处）
+- [x] Bug 修复：IsPlayingSoundMethod 死代码+无限循环、AndroidSound.ApplySpeed OnPrepared 不生效
+
 ## 待实施
-
-### Phase 2：PLAYSOUND repeat 参数升级
-
-- [ ] **2A** 升级 PLAYSOUND ArgumentBuilder：STR_EXPRESSION → SP_HTML_PRINT
-- [ ] **2B** AndroidSound repeat 完善（repeat=N Completion 计数）
-
-### Phase 3：扩展音频 API
-
-| 函数 | 返回 | 参数 | 说明 |
-|------|------|------|------|
-| GETSOUNDORBGMINFO | Int | channelId, [infoType] | 总长度/当前时间/状态/音量/速度 |
-| ISPLAYINGSOUND | Int | channelId | 检查通道播放状态 |
-| SOUNDCONTROL | Int | channelId, action, [speed, preservePitch] | 暂停/恢复/停止/变速 |
-| ISPLAYINGBGM | Int | 无 | 检查 BGM 播放状态 |
-| BGMCONTROL | Int | action, [speed, preservePitch] | BGM 暂停/恢复/停止/变速 |
-
-- [ ] **3A** 移植 GETSOUNDORBGMINFO
-- [ ] **3B** 移植 ISPLAYINGSOUND / ISPLAYINGBGM
-- [ ] **3C** 移植 SOUNDCONTROL / BGMCONTROL
-- [ ] **3D** 变速支持调研（SoundTouch/Oboe / PlaybackParams 可靠性）
 
 ### Phase 4：APK 构建验证
 
@@ -69,3 +60,5 @@
 |---|------|------|
 | 1 | Android MediaPlayer 变速不可靠 | PlaybackParams + 设备测试 |
 | 2 | PLAYSOUND SP_HTML_PRINT 参数构建器复杂 | 参考 LazyLoading 已有实现 |
+| 3 | Droid 版 AndroidSound 无变速实现 | Phase 4 补充 |
+| 4 | NAudioSound pause/resume 缓冲区状态 | 需端到端测试验证 |

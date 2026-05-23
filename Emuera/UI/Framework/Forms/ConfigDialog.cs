@@ -878,10 +878,10 @@ namespace MinorShift.Emuera.Forms
 			if (Directory.Exists(Program.FontDir))
 			{
 				PrivateFontCollection pfc = new();
-				foreach (string fontFile in Config.Config.GetFilesCaseInsensitive(Program.FontDir, "*.ttf", SearchOption.AllDirectories))
+				foreach (string fontFile in Config.GetFilesCaseInsensitive(Program.FontDir, "*.ttf", SearchOption.AllDirectories))
 					pfc.AddFontFile(fontFile);
 
-				foreach (string fontFile in Config.Config.GetFilesCaseInsensitive(Program.FontDir, "*.otf", SearchOption.AllDirectories))
+				foreach (string fontFile in Config.GetFilesCaseInsensitive(Program.FontDir, "*.otf", SearchOption.AllDirectories))
 					pfc.AddFontFile(fontFile);
 
 				foreach (FontFamily ff in pfc.Families)

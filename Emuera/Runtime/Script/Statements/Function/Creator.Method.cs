@@ -9850,36 +9850,17 @@ internal static partial class FunctionMethodCreator
 		}	
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			// 从 arguments 列表中获取参数
 			int channelId = (int)arguments[0].GetIntValue(exm);
-			// 检查通道索引是否有效
 			if (channelId < 0 || channelId >= GlobalStatic.Sound.Length)
 			{
 				return -1;
 			}
-			if (arguments[0] == null)
+			// 检查指定通道是否正在播放
+			if (GlobalStatic.Sound[channelId] != null && GlobalStatic.Sound[channelId].isPlaying())
 			{
-			    for (int i = channelId ; channelId < GlobalStatic.Sound.Length; i++)
-			    {
-			        if (GlobalStatic.Sound[i] != null && GlobalStatic.Sound[i].isPlaying())
-			        {
-			            return i;
-			        }
-			    }
-				return -1;
+				return channelId;
 			}
-			else
-			{
-				// 检查通道是否存在且正在播放
-				if (GlobalStatic.Sound[channelId] != null && GlobalStatic.Sound[channelId].isPlaying())
-				{
-					return channelId;
-				}
-				else
-				{
-					return -1;
-				}
-			}
+			return -1;
 		}
 	}
 	private sealed class SoundControlMethod : FunctionMethod
@@ -9897,7 +9878,7 @@ internal static partial class FunctionMethodCreator
 		{
 			// 获取第一个参数：音频通道号
 			int channelId = (int)arguments[0].GetIntValue(exm);
-			// 获取第二个参数：控制行为 (0=暂停, 1=恢复, 2=变速)
+			// 获取第二个参数：控制行为 (0=暂停, 1=恢复, 2=停止, 3=变速)
 			int action = (int)arguments[1].GetIntValue(exm);
 			
 			// 检查通道号是否有效
