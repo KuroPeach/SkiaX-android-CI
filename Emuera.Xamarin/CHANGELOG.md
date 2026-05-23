@@ -1,6 +1,17 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.55.1] - 2026-05-23
+
+### 内核合并同步（develop-skiasharp v4.1.1）
+
+> 合并 develop-skiasharp A33-A34 修复，确认内核一致性。
+
+- 合并 develop-skiasharp v4.1.1（A33-A34 bug 修复）
+- CHANGELOG.md 合并冲突解决（3.8.3 + xamarin.1 双保留）
+- APK versionCode 55→56, versionName 0.55.0→0.55.1
+
+
 ## [0.55.0] - 2026-05-23
 
 ### Phase 2-3：扩展音频 API + 编译修复
