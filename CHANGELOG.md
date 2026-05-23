@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [4.1.1] — 音频 API Bug 修复（A33-A34 回流）
+
+### Fixed — 内核 Bug 修复（A类，从 feature/xamarin 回流）
+
+- **Creator.Method.cs** — ISPLAYINGSOUND 死代码 + 无限循环（A33）
+  - `arguments[0] == null` 永假：在调用 `arguments[0].GetIntValue(exm)` 之后，`arguments[0]` 不可能为 null
+  - for 循环条件 `channelId < GlobalStatic.Sound.Length` 应为 `i < GlobalStatic.Sound.Length`，使用 `channelId` 导致死循环
+  - 修复：简化为直接检查指定通道是否正在播放
+
+- **Creator.Method.cs** — SOUNDCONTROL 注释错误（A34）
+  - 注释 `2=变速` 与实际 switch 逻辑不一致（action=2 是停止，action=3 才是变速）
+  - 修正注释为 `0=暂停, 1=恢复, 2=停止, 3=变速`
+
+***
+
 ## [4.1.0] — 跨平台音频架构重构 + 回流修复
 
 ### Changed — 音频架构重构（跨平台基础建设）
@@ -84,7 +99,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **HtmlManager.cs** — HTML 自闭合 div 标签支持（A25）
   - `<div ... />` 自闭合标签语法未被解析器支持，`/` 被当作 `OperatorCode.Div` 导致属性解析失败
-  - 在 div 属性解析循环中检测 `/>` 并创建空 `ConsoleDivPart`
+  - 在 div 属性解析循环中检测 `</>` 并创建空 `ConsoleDivPart`
   - 根因：`XML_GET` 序列化空 div 元素按 XML 规范输出 `<div ... />`，但 HTML 解析器不支持（同一引擎的输出和输入不兼容）
 
 - **Utils.cs** — `GetValidPath` 文档注释同步
@@ -135,7 +150,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - 17 个配置属性从 `private set` 改为 `internal set`，允许 Xamarin 项目覆盖配置值（A21）
 
 - **OperatorMethod.cs** — 溢出警告参数修正
-  - `null` → `default(ScriptPosition)`：4 处整数溢出警告的第二个参数从 null 改为 default(ScriptPosition)，修复 PrintWarning 参数类型
+  - `null` → `default(ScriptPosition)`：4 处整数溢出警告的第2参数从 null 改为 default(ScriptPosition)，修复 PrintWarning 参数类型
 
 ### Fixed — 编译警告修复（1035→240，减少 77%）
 
@@ -149,6 +164,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **CA1854** — 9 个文件：`ContainsKey` + 索引器 → `TryGetValue`，消除双重字典查找
 
 ***
+
+## [3.8.3] — 上游对齐（BREAKBUTTON + 调试模式不关闭窗口）
+
+### Added
+
+- **BREAKBUTTON 指令**（源自 ee+em/master）
+  - `BREAKBUTTON` — 强制中断当前按钮等待，立即刷新显示
+  - 调用 `EmueraConsole.forceUpdateGeneration()` 实现
+  - 可选参数，用于需要强制刷新 UI 的场景
+- **调试模式下错误时不关闭窗口**（源自 ee+em/master，CRER 氏补丁）
+  - `ConsoleState.Error` 状态下若 `Program.DebugMode` 为 true 则直接返回，不执行关闭流程
+
+### Changed
+
+- **.gitignore 合并优化**：融合 ee+em/master 的组织方式与 feature/xamarin 的通配符覆盖（`**/bin/*`、`**/obj/*`、`**/artifacts/**`、`*.user`、`*.suo`）
 
 ## [3.8.2-xamarin.1] — 2026-05-15
 
