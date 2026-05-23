@@ -1,6 +1,19 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.56.0] - 2026-05-24
+
+### 内核合并同步（develop-skiasharp v4.1.2）
+
+> 合并 develop-skiasharp debug_log 修复 + 版本号显示修复。
+
+- 合并 develop-skiasharp v4.1.2（debug_log 持续写入修复 + 版本号显示修复）
+- **AppContents.LoadContents** 返回类型从 `bool` 改为 `Exception?`，与内核签名一致
+  - 修复：原 `return true` 被 `Process.cs` 的 `!= null` 判断为异常，导致游戏无法打开
+  - 成功返回 `null`，异常返回 `Exception` 对象
+- APK versionCode 55→56, versionName 0.55.1→0.56.0
+
+
 ## [0.55.1] - 2026-05-23
 
 ### 内核合并同步（develop-skiasharp v4.1.1）

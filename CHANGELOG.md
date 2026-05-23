@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [4.1.2] — debug_log 持续写入修复
+
+### Fixed — debug_log 不再持续写入
+
+- **Process.cs / Process.ScriptProc.cs** — `DebugLogEnabled` 一旦被设为 `true`（异常或 THROW 触发）后永不重置，导致后续正常执行流程持续写日志
+  - 根因：`catch` 块和 `THROW` 指令中 `DebugLogEnabled = true`，但所有 `return`/`break` 路径均未重置为 `false`
+  - 影响：WinForms 中 THROW 后程序退出影响不大；Android app 返回游戏列表后进程继续，`DebugLogEnabled` 保持 `true`，下次进入游戏时 `IntoFunction`/`ReturnF`/`ClearFunctionList`/`GetValue` 等高频调用持续写日志，导致 debug_log.log 快速增长
+  - 修复：在所有异常处理结束路径（`ClearFunctionList` 之后）和 THROW 的所有 `break` 路径前重置 `DebugLogEnabled = false`
+
+***
+
 ## [4.1.1] — 音频 API Bug 修复（A33-A34 回流）
 
 ### Fixed — 内核 Bug 修复（A类，从 feature/xamarin 回流）

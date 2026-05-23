@@ -258,13 +258,13 @@ namespace MinorShift.Emuera.Content
 			imageDictionary[imgName] = newCImg;
 		}
 
-		static public bool LoadContents(bool useAsync = false)
+		static public Exception LoadContents(bool useAsync = false)
 		{
 			System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: ContentDir={Program.ContentDir}");
 			if (!Directory.Exists(Program.ContentDir))
 			{
 				System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: ContentDir does not exist, skipping");
-				return true;
+				return null;
 			}
 			try
 			{
@@ -419,9 +419,9 @@ namespace MinorShift.Emuera.Content
 			catch (Exception ex)
 			{
 				System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents EXCEPTION: {ex.Message}");
-				return false;
+				return ex;
 			}
-			return true;
+			return null;
 		}
 
 		static public void UnloadContents()

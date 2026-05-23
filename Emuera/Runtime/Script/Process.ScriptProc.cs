@@ -798,12 +798,14 @@ internal sealed partial class Process
 				{
 					DebugLog("[THROW] inBeforeThrow=true, printing and breaking\n");
 					console.PrintSingleLine(throwMessage);
+					DebugLogEnabled = false;
 					break;
 				}
 				if (inBeforeError)
 				{
 					DebugLog("[THROW] inBeforeError=true, printing and breaking\n");
 					console.PrintSingleLine(throwMessage);
+					DebugLogEnabled = false;
 					break;
 				}
 				state.PendingThrowMessage = throwMessage;
@@ -821,6 +823,7 @@ internal sealed partial class Process
 				state.IntoFunction(beforeThrow, null, null);
 				state.InBeforeThrow = true;
 				DebugLog("[THROW] set InBeforeThrow=true\n");
+				DebugLogEnabled = false;
 				break;
 			}
 			case FunctionCode.CLEARTEXTBOX:
