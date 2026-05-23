@@ -32,6 +32,9 @@ internal sealed class WinmmTimer
 
 	private static volatile WinmmTimer instance;
 
+	/// <summary>
+	/// timeGetTime()。Windows が起動してから経過した時間(ms)。一周して0になる可能性に注意。
+	/// </summary>
 	public static uint TickCount
 	{
 		get
@@ -48,6 +51,9 @@ internal sealed class WinmmTimer
 	}
 
 	public static uint CurrentFrameTime;
+	/// <summary>
+	/// フレーム描画開始合図の時点でのミリ秒を固定するための数値
+	/// </summary>
 	public static void FrameStart() { CurrentFrameTime = TickCount; }
 
 #if WINDOWS

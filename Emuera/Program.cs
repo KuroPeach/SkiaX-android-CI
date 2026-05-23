@@ -292,6 +292,33 @@ static partial class Program
 
 		ApplicationConfiguration.Initialize();
 
+		// PlatformInterop 委托初始化（WinForms 实现）
+		PlatformInterop.DoEvents = () => Application.DoEvents();
+		PlatformInterop.ShowMessage = text => MessageBox.Show(text);
+		PlatformInterop.ShowMessageWithTitle = (text, title) => MessageBox.Show(text, title);
+		PlatformInterop.ShowQuestion = (text, title) => MessageBox.Show(text, title, MessageBoxButtons.YesNo) == DialogResult.Yes;
+		PlatformInterop.GetProductVersion = () => Application.ProductVersion;
+		PlatformInterop.GetMousePosition = () => Cursor.Position;
+		PlatformInterop.SetClipboardText = text => Clipboard.SetText(text);
+		PlatformInterop.MeasureText = (text, fontName, fontSize, fontStyle) =>
+		{
+			using var font = new Font(fontName, fontSize, fontStyle);
+			using var g = new Control().CreateGraphics();
+			var size = g.MeasureString(text, font);
+			return (size.Width, size.Height);
+		};
+		PlatformInterop.MeasureTextWidth = (text, fontName, fontSize, fontStyle) =>
+		{
+			using var font = new Font(fontName, fontSize, fontStyle);
+			using var g = new Control().CreateGraphics();
+			return g.MeasureString(text, font).Width;
+		};
+		PlatformInterop.DebugLog = msg => System.Diagnostics.Debug.WriteLine(msg);
+
+		// 音频平台工厂：WinForms 使用 NAudioSound
+		Runtime.Utils.Sound.Factory = () => new Runtime.Utils.NAudioSound();
+		GlobalStatic.Bgm = Runtime.Utils.Sound.Factory();
+
 		using var win = new Forms.MainWindow(args);
 		{
 			#region EM_私家版_Emuera多言語化改造
@@ -369,6 +396,9 @@ static partial class Program
 		#region EE_フォントファイル対応
 		FontDir = Path.Combine(ExeDir, "font") + Path.DirectorySeparatorChar;
 		#endregion
+		#region EE_PLAYSOUND系
+		MusicDir = Path.Combine(ExeDir, "sound") + Path.DirectorySeparatorChar;
+		#endregion
 
 		/*
 		CsvDir = WorkingDir + "csv\\";
@@ -396,7 +426,38 @@ static partial class Program
 	public static string ContentDir { get; private set; }
 	public static string ExeName { get; private set; }
 	#region EE_PLAYSOUND系
-	//public static string? MusicDir { get; private set; }
+	public static string MusicDir { get; private set; }
+	/// <summary>
+	/// 大小写不敏感文件查找。找到则 filepath 更新为实际路径，返回 true。
+	/// </summary>
+	public static bool FileExists(ref string filepath)
+	{
+		if (string.IsNullOrEmpty(filepath)) return false;
+		if (File.Exists(filepath)) return true;
+		// 大小写不敏感查找
+		var dir = Path.GetDirectoryName(filepath);
+		var name = Path.GetFileName(filepath);
+		if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(name)) return false;
+		try
+		{
+			foreach (var f in Directory.GetFiles(dir, name))
+			{
+				filepath = f;
+				return true;
+			}
+			// 尝试不区分大小写匹配
+			foreach (var f in Directory.GetFiles(dir))
+			{
+				if (string.Equals(Path.GetFileName(f), name, StringComparison.OrdinalIgnoreCase))
+				{
+					filepath = f;
+					return true;
+				}
+			}
+		}
+		catch { }
+		return false;
+	}
 	#endregion
 	#region EE_フォントファイル対応
 	public static string FontDir { get; private set; }

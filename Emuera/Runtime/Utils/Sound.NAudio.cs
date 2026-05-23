@@ -343,7 +343,8 @@ namespace MinorShift.Emuera.Runtime.Utils
 		private WaveStream stream;
 		private VolumeSampleProvider volumeProvider;
 		public WaveFormat WaveFormat { get => volumeProvider.WaveFormat; }
-	
+
+		// 新增：获取当前播放时间（秒）
 		public override double GetCurrentTime()
 		{
 			if (stream == null || volumeProvider == null) return 0;

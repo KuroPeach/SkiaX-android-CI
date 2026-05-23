@@ -7,8 +7,8 @@ using System.Linq;
 using System.Drawing;
 using System.IO;
 using System.Text;
-using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Reflection;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 
 namespace MinorShift.Emuera.Runtime.Config;
@@ -428,6 +428,30 @@ internal static class Config
 		return key;
 	}
 
+	private static string WildcardToRegex(string pattern)
+	{
+		var parts = pattern.Split('*');
+		var regex = new StringBuilder("^");
+		for (int i = 0; i < parts.Length; i++)
+		{
+			if (i > 0)
+				regex.Append(".*");
+			regex.Append(Regex.Escape(parts[i]).Replace("\\?", "."));
+		}
+		regex.Append("$");
+		return regex.ToString();
+	}
+
+	internal static string[] GetFilesCaseInsensitive(string dir, string pattern, SearchOption searchOption)
+	{
+		if (!Directory.Exists(dir))
+			return [];
+		var regex = new Regex(WildcardToRegex(pattern), RegexOptions.IgnoreCase);
+		IEnumerable<string> files = searchOption == SearchOption.AllDirectories
+			? Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+			: Directory.EnumerateFiles(dir);
+		return files.Where(f => regex.IsMatch(Path.GetFileName(f))).ToArray();
+	}
 
 	private static string WildcardToRegex(string pattern)
 	{

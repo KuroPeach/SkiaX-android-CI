@@ -906,7 +906,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		//	wait_timeout = true;
 		//	while (countTime < timeLimit)
 		//	{
-		//		Application.DoEvents();
+		//		PlatformInterop.DoEvents();
 		//	}
 		//	wait_timeout = false;
 		//}

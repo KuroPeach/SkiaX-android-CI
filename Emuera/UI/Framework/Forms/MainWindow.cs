@@ -1391,12 +1391,14 @@ namespace MinorShift.Emuera.Forms
 		Keys? modifiersWhileWaintingInputWithMouse;
 		private void richTextBox1_ModifierRecorder_KeyUp(object sender, KeyEventArgs e)
 		{
+			WinInput.SetKeyReleased((int)e.KeyCode);
 			if (console == null || !console.IsWaintingInputWithMouse)
 				return;
 			modifiersWhileWaintingInputWithMouse = null;
 		}
 		private void richTextBox1_ModifierRecorder_KeyDown(object sender, KeyEventArgs e)
 		{
+			WinInput.SetKeyPressed((int)e.KeyCode);
 			if (console == null || !console.IsWaintingInputWithMouse)
 				return;
 			modifiersWhileWaintingInputWithMouse = e.Modifiers;

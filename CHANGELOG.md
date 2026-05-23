@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [4.1.0] — 跨平台音频架构重构 + 回流修复
+
+### Changed — 音频架构重构（跨平台基础建设）
+
+- **Sound.cs** — 新增音频播放基类
+  - 提取虚方法：play/stop/pause/resume/close/isPlaying/setVolume/getVolume/setSpeed/getSpeed/GetTotalTime/GetCurrentTime/SetPreservePitch
+  - 新增 `Sound.Factory` 静态工厂属性，宿主程序设置平台实现（WinForms→NAudioSound，Android→AndroidSound）
+  - 内核代码通过 Factory 创建实例，消除平台直接依赖
+
+- **Sound.NAudio.cs** — NAudioSound 重构为 Sound 子类
+  - 原 `Sound` 类重命名为 `NAudioSound : Sound, ISampleProvider`
+  - 所有方法加 `override`，移除重复 `Playing` 字段（使用基类）
+  - `SoundMixer.PlaySound/StopSound` 参数类型改为 `NAudioSound`
+
+- **GlobalStatic.cs** — 去除 NAudioSound 直接依赖
+  - `Sound[]` 和 `Bgm` 初始化使用基类 `Sound`
+  - `Reset()` 中 stop+close 后用 `Sound.Factory()` 重建实例
+
+- **Program.cs** — WinForms 入口设置 Factory
+  - `Sound.Factory = () => new NAudioSound()` + `GlobalStatic.Bgm = Sound.Factory()`
+
+- **Creator.Method.cs / Instraction.Child.cs** — 所有 `new Sound()` 改为 `Sound.Factory()`
+  - 确保运行时创建平台正确的实例
+
+### Fixed — 内核 Bug 修复
+
+- **EraStreamReader.cs** — try 块缺少 catch 导致 CS1524
+  - 添加 `catch { return false; }`
+
 ## [4.0.0] — A类修复回流（第三轮）+ BINPUT 计数修复
 
 ### Fixed — 内核 Bug 修复（A类，从 EmueraFL 闭源引擎回溯）

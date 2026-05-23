@@ -2832,7 +2832,7 @@ internal sealed partial class FunctionIdentifier
 					for (i = 0; i < GlobalStatic.Sound.Length; i++)
 					{
 						if (GlobalStatic.Sound[i] == null)
-							GlobalStatic.Sound[i] = Runtime.Utils.Sound.Factory();
+							GlobalStatic.Sound[i] = Sound.Factory();
 						//未使用もしくは再生完了してる要素を使う
 						if (!GlobalStatic.Sound[i].isPlaying())
 							break;
@@ -2863,7 +2863,7 @@ internal sealed partial class FunctionIdentifier
 			for (int i = 0; i < GlobalStatic.Sound.Length; i++)
 			{
 				if (GlobalStatic.Sound[i] == null)
-					GlobalStatic.Sound[i] = Runtime.Utils.Sound.Factory();
+					GlobalStatic.Sound[i] = Sound.Factory();
 				if (GlobalStatic.Sound[i].isPlaying())
 					GlobalStatic.Sound[i].stop();
 			}
@@ -2927,7 +2927,7 @@ internal sealed partial class FunctionIdentifier
 			for (int i = 0; i < GlobalStatic.Sound.Length; i++)
 			{
 				if (GlobalStatic.Sound[i] == null)
-					GlobalStatic.Sound[i] = Runtime.Utils.Sound.Factory();
+					GlobalStatic.Sound[i] = Sound.Factory();
 				GlobalStatic.Sound[i].setVolume(vol);
 			}
 		}
@@ -2997,8 +2997,9 @@ internal sealed partial class FunctionIdentifier
 					}
 					if (version != GlobalStatic.GameBaseData.VersionName)
 					{
-						bool result = PlatformInterop.ShowQuestion(string.Format(trmb.NewVersionAvailable.Text, version, link), "");
-					if (result)
+						bool result = PlatformInterop.ShowQuestion(string.Format(trmb.NewVersionAvailable.Text, version, link),
+							trmb.UpdateCheck.Text);
+						if (result)
 						{
 							exm.VEvaluator.RESULT = 2;
 							try
