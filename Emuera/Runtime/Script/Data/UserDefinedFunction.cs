@@ -21,7 +21,6 @@ internal enum UserDifinedFunctionDataArgType
 	RefStr2 = 0x62,
 	RefStr3 = 0x63,
 	__Ref = 0x40,
-	__Variadic = 0x80,
 	__Out = 0x100,
 	__Dimention = 0x0F,
 	__BaseType = 0x30,
@@ -101,8 +100,6 @@ internal sealed class UserDefinedFunctionData
 						argList.Add(argType);
 						goto argend;
 					}
-					if (state == 7)
-						goto argend;
 					throw new CodeEE(trerror.UnexpectedBrackets.Text, sc);
 				case '0':
 					if (((LiteralIntegerWord)wc.Current).Int != 0)
@@ -187,18 +184,6 @@ internal sealed class UserDefinedFunctionData
 						else
 							goto argerr;
 					}
-				case '.':
-					if (state == 1 && wc.PeekNext(1).Type == '.' && wc.PeekNext(2).Type == '.')
-					{
-						if ((argType & UserDifinedFunctionDataArgType.__Ref) != 0)
-							throw new CodeEE("REF 参数不能同时标记为可变参数", sc);
-						argType |= UserDifinedFunctionDataArgType.__Variadic;
-						wc.ShiftNext(); wc.ShiftNext();
-						state = 7;
-						argList.Add(argType);
-						continue;
-					}
-					goto argerr;
 				default:
 					goto argerr;
 			}

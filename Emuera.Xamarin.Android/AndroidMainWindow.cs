@@ -52,6 +52,7 @@ namespace XEmuera.Droid
         private Button virtualKeypadEnterActionButton;
         private Button virtualKeypadAcceptActionButton;
         private StackLayout virtualAvgButtonGroup;
+        private StackLayout virtualHotkeyGroup;
         private bool virtualControllerVisible = false;
         private bool IsDragScrollBar;
         private Slider vScrollBar;
@@ -981,6 +982,55 @@ namespace XEmuera.Droid
                 IsVisible = false,
             };
 
+            // Hotkey buttons (mapped to VK key codes)
+            virtualHotkeyGroup = new StackLayout
+            {
+                Orientation = StackOrientation.Vertical,
+                Spacing = 2,
+                Children =
+                {
+                    new StackLayout
+                    {
+                        Orientation = StackOrientation.Horizontal,
+                        Spacing = 2,
+                        Children =
+                        {
+                            MakeVCButton("HK", (s, e) => { hotkeyState.Toggle(); RefreshVirtualControllerState(); }),
+                            MakeVCButton("W", (s, e) => ActivateHotkey(0x57)),
+                            MakeVCButton("E", (s, e) => ActivateHotkey(0x45)),
+                            MakeVCButton("R", (s, e) => ActivateHotkey(0x52)),
+                            MakeVCButton("T", (s, e) => ActivateHotkey(0x54)),
+                        }
+                    },
+                    new StackLayout
+                    {
+                        Orientation = StackOrientation.Horizontal,
+                        Spacing = 2,
+                        Children =
+                        {
+                            MakeVCButton("A", (s, e) => ActivateHotkey(0x41)),
+                            MakeVCButton("S", (s, e) => ActivateHotkey(0x53)),
+                            MakeVCButton("D", (s, e) => ActivateHotkey(0x44)),
+                            MakeVCButton("F", (s, e) => ActivateHotkey(0x46)),
+                            MakeVCButton("G", (s, e) => ActivateHotkey(0x47)),
+                        }
+                    },
+                    new StackLayout
+                    {
+                        Orientation = StackOrientation.Horizontal,
+                        Spacing = 2,
+                        Children =
+                        {
+                            MakeVCButton("X", (s, e) => ActivateHotkey(0x58)),
+                            MakeVCButton("C", (s, e) => ActivateHotkey(0x43)),
+                            MakeVCButton("V", (s, e) => ActivateHotkey(0x56)),
+                            MakeVCButton("B", (s, e) => ActivateHotkey(0x42)),
+                        }
+                    },
+                },
+                IsVisible = false,
+            };
+
             // Confirm/Return round buttons (always visible when VC is on)
             virtualConfirmButton = MakeRoundButton("确认", VirtualConfirmButton_Clicked);
             virtualReturnButton = MakeRoundButton("返回", VirtualReturnButton_Clicked);
@@ -995,6 +1045,7 @@ namespace XEmuera.Droid
                 {
                     virtualKeypadGroup,
                     virtualAvgButtonGroup,
+                    virtualHotkeyGroup,
                     virtualPageActionGroup,
                     new StackLayout
                     {
@@ -1039,6 +1090,7 @@ namespace XEmuera.Droid
                 virtualPageActionGroup.IsVisible = false;
                 virtualKeypadGroup.IsVisible = false;
                 virtualAvgButtonGroup.IsVisible = false;
+                virtualHotkeyGroup.IsVisible = false;
                 return;
             }
 
@@ -1086,6 +1138,9 @@ namespace XEmuera.Droid
             // Round buttons text
             virtualConfirmButton.Text = string.IsNullOrEmpty(confirmLabel) ? "确认" : confirmLabel;
             virtualReturnButton.Text = string.IsNullOrEmpty(backLabel) ? "返回" : backLabel;
+
+            // Hotkey group: show when hotkeys are enabled
+            virtualHotkeyGroup.IsVisible = hotkeyState.Enabled;
         }
 
         #endregion
@@ -1142,6 +1197,16 @@ namespace XEmuera.Droid
         private void VirtualKeypadBack_Clicked(object sender, EventArgs e)
         {
             TryActivateKeywordButton("返回", "取消", "归返", "结束", "完毕", "否");
+        }
+
+        private void ActivateHotkey(int vkCode)
+        {
+            if (console == null || console.IsInProcess) return;
+            int result = hotkeyState.KeyToNumber(vkCode);
+            if (result == -1) return;
+            ScrollBacklogToBottom();
+            textEntry.Text = result.ToString();
+            PressEnterKey(false, result.ToString(), true);
         }
 
         #endregion

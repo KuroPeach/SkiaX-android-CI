@@ -2956,6 +2956,12 @@ internal sealed partial class FunctionIdentifier
 		}
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
+			if (!System.OperatingSystem.IsWindows())
+			{
+				exm.VEvaluator.RESULT = 6;
+				return;
+			}
+
 			if (Config.ForbidUpdateCheck == true)
 			{
 				exm.VEvaluator.RESULT = 4;

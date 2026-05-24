@@ -1989,12 +1989,25 @@ internal static partial class FunctionMethodCreator
 				else
 				{
 					bool isString = dt.Columns[name].DataType == typeof(string);
-					if (v.GetEraType() != (isString ? EraType.String : EraType.Integer)) return -2;
-
+					bool isFloat = dt.Columns[name].DataType == typeof(double);
 					if (isString)
+					{
+						if (v.GetEraType() != EraType.String) return -2;
 						row[name] = v.GetStrValue(exm);
+					}
+					else if (isFloat)
+					{
+						if (v.GetEraType() == EraType.Integer)
+							row[name] = (double)v.GetIntValue(exm);
+						else if (v.GetEraType() == EraType.Float)
+							row[name] = v.GetFloatValue(exm);
+						else return -2;
+					}
 					else
+					{
+						if (v.GetEraType() != EraType.Integer) return -2;
 						row[name] = Utils.DataTable.ConvertInt(v.GetIntValue(exm), dt.Columns[name].DataType);
+					}
 				}
 				return 1;
 			}
@@ -10585,44 +10598,6 @@ internal static partial class FunctionMethodCreator
 				}
 			}
 			return 0.0;
-		}
-	}
-
-	private sealed class DataTableCellSetFloatMethod : FunctionMethod
-	{
-		public DataTableCellSetFloatMethod()
-		{
-			ReturnType = EraType.Integer;
-			argumentTypeArrayEx = [
-					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int, ArgType.String, ArgType.Any, ArgType.Int }, OmitStart = 3 },
-				];
-			CanRestructure = false;
-		}
-
-		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
-		{
-			var key = arguments[0].GetStrValue(exm);
-			var dict = exm.VEvaluator.VariableData.DataDataTables;
-			if (!dict.TryGetValue(key, out var dt))
-				return -1;
-			bool asId = arguments.Count == 5 ? arguments[4].GetIntValue(exm) != 0 : false;
-			var idx = arguments[1].GetIntValue(exm);
-			var name = arguments[2].GetStrValue(exm);
-			if (name.ToLower() == "id") return 0;
-			var v = arguments.Count > 3 ? arguments[3] : null;
-			DataRow row = null;
-			if (asId) row = dt.Rows.Find(idx);
-			else if (idx >= 0 && idx < dt.Rows.Count) row = dt.Rows[(int)idx];
-			if (row != null && dt.Columns.Contains(name))
-			{
-				if (v == null) row[name] = DBNull.Value;
-				else
-				{
-					row[name] = v.GetFloatValue(exm);
-				}
-				return 1;
-			}
-			return -3;
 		}
 	}
 	#endregion

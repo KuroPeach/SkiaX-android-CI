@@ -54,8 +54,6 @@ internal sealed class UserDefinedRefMethod
 					type |= UserDifinedFunctionDataArgType.Str;
 				if (vToken.IsOut)
 					type |= UserDifinedFunctionDataArgType.__Out;
-				if (i == label.VariadicArgIndex)
-					type |= UserDifinedFunctionDataArgType.__Variadic;
 				if (ArgTypeList[i] != type)
 					return false;
 			}
@@ -68,8 +66,6 @@ internal sealed class UserDefinedRefMethod
 					type = UserDifinedFunctionDataArgType.Int;
 				else
 					type = UserDifinedFunctionDataArgType.Str;
-				if (i == label.VariadicArgIndex)
-					type |= UserDifinedFunctionDataArgType.__Variadic;
 				
 				if (ArgTypeList[i] != type)
 					return false;

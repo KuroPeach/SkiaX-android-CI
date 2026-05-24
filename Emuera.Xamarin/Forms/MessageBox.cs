@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Xamarin.Essentials;
+using Xamarin.Forms;
 
 namespace XEmuera.Forms
 {
@@ -51,14 +52,18 @@ namespace XEmuera.Forms
 
 		private static async Task<bool> DisplayAlert(string title, string message, MessageBoxButtons messageBoxButtons)
 		{
+			var page = Application.Current?.MainPage;
+			if (page == null) return true;
+
 			switch (messageBoxButtons)
 			{
-				case MessageBoxButtons.OKCancel:
-					return true;
 				case MessageBoxButtons.YesNo:
-					return true;
+					return await page.DisplayAlert(title, message, "Yes", "No");
+				case MessageBoxButtons.OKCancel:
+					return await page.DisplayAlert(title, message, "OK", "Cancel");
 				default:
-					return false;
+					await page.DisplayAlert(title, message, "OK");
+					return true;
 			}
 		}
 

@@ -338,7 +338,6 @@ internal static partial class FunctionMethodCreator
 			["DT_CELL_ISNULL"] = new DataTableCellGetMethod(DataTableCellGetMethod.Operation.IsNull),
 			["DT_CELL_GETS"] = new DataTableCellGetMethod(DataTableCellGetMethod.Operation.Gets),
 			["DT_CELL_SET"] = new DataTableCellSetMethod(),
-			["DT_CELL_SETF"] = new DataTableCellSetFloatMethod(),
 
 			["DT_SELECT"] = new DataTableSelectMethod(),
 

@@ -1,6 +1,23 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.56.1] - 2026-05-24
+
+### 内核合并同步（develop-skiasharp v4.1.3）+ HOTKEY/DataTable 修复
+
+> 合并 develop-skiasharp 废弃语法清理 + HOTKEY 功能移植 + DataTable Float 支持。
+
+- 合并 develop-skiasharp v4.1.3（移除废弃的 #FUNCTION ... 可变参数语法）
+- **UserDefinedFunctionDataArgType** — 移除 `__Variadic = 0x80` 枚举值
+- **UserDefinedFunction.cs** — 移除 `case '.'` 解析代码和 `state == 7` 处理
+- **UserDefinedRefMethod.cs** — 移除 `__Variadic` 标志匹配（2 处）
+- **MainWindow.cs** — HOTKEY 字节码解析器与解释器移植（非 Windows 端 stub 实现）
+- **AndroidMainWindow.cs** — Android 端 HOTKEY Toggle 支持
+- **MessageBox.cs** — MessageBox 适配修改
+- **Instraction.Child.cs** — 非 Windows 平台跳过更新检查（返回 RESULT=6）
+- **Creator.Method.cs** — DT_CELL_SET 支持 Float 列（自动 Int→Float 转换），移除 DT_CELL_SETF 独立方法
+- **Creator.cs** — 移除 DT_CELL_SETF 注册
+
 ## [0.56.0] - 2026-05-24
 
 ### 内核合并同步（develop-skiasharp v4.1.2）+ 画廊修复
@@ -15,8 +32,6 @@
   - 根因 1：`RefreshQuickButtonGroup` 基类方法非 `virtual`，Android 端用 `new` 隐藏而非 `override`，`EmueraConsole.ex.cs` 调用的是基类空方法，宽度限制从未生效
   - 根因 2：水平 StackLayout（每行按钮）默认 `HorizontalOptions=Fill`，被压缩到 ScrollView 宽度内导致换行
   - 修复：基类 `RefreshQuickButtonGroup` 改为 `virtual`，Android 端改为 `override`；`quickScroll.WidthRequest` 直接用 `canvasView.Width / 2`；每行按钮和 `quickButtonLayout` 设 `HorizontalOptions=Start`
-- APK versionCode 56→57, versionName 0.55.1→0.56.0
-
 
 ## [0.55.1] - 2026-05-23
 
