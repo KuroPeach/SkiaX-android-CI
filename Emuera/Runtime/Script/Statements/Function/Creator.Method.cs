@@ -8911,7 +8911,15 @@ internal static partial class FunctionMethodCreator
 			switch (Name)
 			{
 				case "GETKEY": return (s < 0) ? 1 : 0;
-				case "GETKEYTRIGGERED": return (s < 0) && (toggle != keytoggle[keycode]) ? 1 : 0;//初回はtrue、2回目以降はトグル状態が前回と違う場合のみ1
+				case "GETKEYTRIGGERED":
+					{
+						// Check latch first: this catches clicks where MouseDown+MouseUp
+						// were both processed in the same DoEvents(), causing _keyState
+						// to already be 0 by the time we read it.
+						if (WinInput.ConsumeKeyLatch((int)keycode) != 0)
+							return 1;
+						return (s < 0) && (toggle != keytoggle[keycode]) ? 1 : 0;
+					}
 			}
 			throw new ExeEE("異常な分岐");
 		}

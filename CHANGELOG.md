@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [4.1.4] — GETKEY/GETKEYTRIGGERED 鼠标按键修复
+
+### Fixed — 跨平台回流引入的回归 Bug
+
+- **MainWindow.cs** — `GETKEYTRIGGERED(1/2/4)` 鼠标按键永远返回 0（A35）
+  - V4.1.0 将 `WinInput.GetKeyState` 从 Win32 `user32.dll GetKeyState` 改为事件驱动的 `_keyState` 数组
+  - `SetKeyPressed`/`SetKeyReleased` 只在 `richTextBox1_KeyDown`/`KeyUp` 中调用，鼠标按键不触发 `KeyDown` 事件
+  - 导致 `GETKEYTRIGGERED(1)` (VK_LBUTTON)、`GETKEYTRIGGERED(2)` (VK_RBUTTON)、`GETKEYTRIGGERED(4)` (VK_MBUTTON) 永远返回 0
+  - 修复：在 `mainPicBox_MouseDown`/`mainPicBox_MouseUp` 中添加 `WinInput.SetKeyPressed`/`SetKeyReleased` 映射鼠标按键到 VK_LBUTTON/VK_RBUTTON/VK_MBUTTON
+  - 对应 commit `63afa0d`（跨平台音频架构重构）引入的回归
+
+- **WinInput.cs / Creator.Method.cs** — 快速鼠标点击在 AWAIT 循环中丢失（A35 补充修复）
+  - 根因：`MouseDown` + `MouseUp` 可能在同一个 `DoEvents()` 中被处理，`SetKeyReleased` 立即清除 `_keyState`，导致 `GETKEYTRIGGERED` 读到 0
+  - V3 的 Win32 `GetKeyState` 直接读硬件状态，不受消息队列时序影响
+  - 修复：添加 `_keyLatch` 锁存数组，`SetKeyPressed` 时置 1，`GETKEYTRIGGERED` 优先消费 latch（`ConsumeKeyLatch`），确保即使按键已释放也能检测到按下事件
+
+***
+
 ## [4.1.3] — 移除废弃的 #FUNCTION ... 可变参数语法
 
 ### Removed — 废弃语法清理

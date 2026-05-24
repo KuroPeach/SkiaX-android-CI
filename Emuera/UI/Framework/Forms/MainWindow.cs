@@ -214,6 +214,7 @@ namespace MinorShift.Emuera.Forms
 				mainPicBox.MouseClick += mainPicBox_MouseClickCBCheck;
 				mainPicBox.MouseDoubleClick += mainPicBox_MouseDoubleClickCBCheck;
 				mainPicBox.MouseDown += mainPicBox_MouseDown;
+				mainPicBox.MouseUp += mainPicBox_MouseUp;
 				mainPicBox.MouseLeave += mainPicBox_MouseLeave;
 				mainPicBox.MouseMove += mainPicBox_MouseMove;
 
@@ -826,6 +827,14 @@ namespace MinorShift.Emuera.Forms
 		{
 			richTextBox1.Focus();//画面をクリックしてもテキストボックスからフォーカスが外れないようにする
 
+			// Map mouse buttons to WinInput key state for GETKEY/GETKEYTRIGGERED
+			if (e.Button == MouseButtons.Left)
+				WinInput.SetKeyPressed(1);   // VK_LBUTTON
+			else if (e.Button == MouseButtons.Right)
+				WinInput.SetKeyPressed(2);   // VK_RBUTTON
+			else if (e.Button == MouseButtons.Middle)
+				WinInput.SetKeyPressed(4);   // VK_MBUTTON
+
 			if (!Config.UseMouse)
 				return;
 			if (console == null || console.IsInProcess)
@@ -1100,6 +1109,17 @@ namespace MinorShift.Emuera.Forms
 		{
 			if (Config.UseMouse)
 				console.LeaveMouse();
+		}
+
+		private void mainPicBox_MouseUp(object sender, MouseEventArgs e)
+		{
+			// Release mouse button key state for GETKEY/GETKEYTRIGGERED
+			if (e.Button == MouseButtons.Left)
+				WinInput.SetKeyReleased(1);   // VK_LBUTTON
+			else if (e.Button == MouseButtons.Right)
+				WinInput.SetKeyReleased(2);   // VK_RBUTTON
+			else if (e.Button == MouseButtons.Middle)
+				WinInput.SetKeyReleased(4);   // VK_MBUTTON
 		}
 
 		private void コンフィグCToolStripMenuItem_Click(object sender, EventArgs e)

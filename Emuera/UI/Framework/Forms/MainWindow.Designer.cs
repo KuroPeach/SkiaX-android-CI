@@ -598,6 +598,7 @@ partial class MainWindow
 			mainPicBox.MouseClick += mainPicBox_MouseClickCBCheck;
 			mainPicBox.MouseDoubleClick += mainPicBox_MouseDoubleClickCBCheck;
 			mainPicBox.MouseDown += mainPicBox_MouseDown;
+			mainPicBox.MouseUp += mainPicBox_MouseUp;
 			mainPicBox.MouseLeave += mainPicBox_MouseLeave;
 			mainPicBox.MouseMove += mainPicBox_MouseMove;
 		// 
