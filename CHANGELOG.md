@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [4.1.3] — 移除废弃的 #FUNCTION ... 可变参数语法
+
+### Removed — 废弃语法清理
+
+- **UserDefinedFunctionDataArgType** — 移除 `__Variadic = 0x80` 枚举值
+  - `#FUNCTION` 声明中的 `...` 可变参数语法与词法分析器的浮点数解析冲突，已废弃
+  - 可变参数统一通过 `VARIADIC` 关键字在函数定义中声明（`@FUNC(VARIADIC ARG:0)`），`#FUNCTION` 声明不包含可变参数信息
+- **UserDefinedFunction.cs** — 移除 `case '.'` 解析代码和 `state == 7` 处理
+- **UserDefinedRefMethod.cs** — 移除 `__Variadic` 标志匹配（2 处）
+
+***
+
 ## [4.1.2] — debug_log 持续写入修复
 
 ### Fixed — debug_log 不再持续写入
