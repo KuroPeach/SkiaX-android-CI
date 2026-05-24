@@ -1,6 +1,21 @@
 # Emuera.Xamarin 变更记录
 
 
+## [0.57.0] - 2026-05-24
+
+### 内核合并同步（develop-skiasharp v4.1.4）+ HTML 自闭合 div 修复
+
+> 合并 develop-skiasharp GETKEYTRIGGERED 鼠标/键盘 latch 机制 + xamarin HtmlManager 自闭合 div 标签支持。
+
+- 合并 develop-skiasharp v4.1.4（GETKEYTRIGGERED 鼠标/键盘 latch 机制）
+- **WinInput.cs** — 添加 `_keyLatch` 锁存数组 + `ConsumeKeyLatch` 方法，解决快速触屏点击在 AWAIT 循环中丢失的问题
+- **Creator.Method.cs** — `GETKEYTRIGGERED` 优先消费 latch，再检查 toggle
+- **HtmlManager.cs (xamarin)** — 添加 `<div ... />` 自闭合标签支持
+  - 根因：erafl 游戏使用 `<div border="0px" width="8600" height="4500" xpos="50" ypos="0" />` 自闭合语法，xamarin 版 `tagAnalyze` 遇到 `/` 操作符时 `word == null` → `goto error`
+  - 修复：属性循环中检测 `OperatorWord(Div)` 设置 `isSelfClosing = true`，自闭合时创建空 div 立即返回
+  - 内核版 v0.52.1 已有此修复，xamarin 版 Platform 层独立副本未同步
+- APK versionCode 56→57, versionName 0.56.1→0.57.0
+
 ## [0.56.1] - 2026-05-24
 
 ### 内核合并同步（develop-skiasharp v4.1.3）+ HOTKEY/DataTable 修复
