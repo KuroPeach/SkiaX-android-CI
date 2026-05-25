@@ -432,6 +432,9 @@ internal static partial class FunctionMethodCreator
 			["GET_TEXT_DRAWING_MODE"] = new GetTextDrawingModeMethod(),
 			//["SET_SKIA_QUALITY"] 已移至 AInstruction: SET_SKIA_QUALITY_Instruction
 			["GET_SKIA_QUALITY"] = new GetSkiaQualityMethod(),
+
+			["GETPLATFORM"] = new GetPlatformMethod(),
+
 			#endregion
 		};
 

@@ -4,6 +4,46 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [4.3.0] — PRINTC 像素制表重构：跨平台列对齐统一
+
+### Fixed — PRINTFORMLC 中文环境列错位（回归修复）
+
+- **EmueraConsole.Print.cs** — `CreateTypeCString` 中 `Config.Encode.GetByteCount(str)` 默认 UTF-8 编码下 CJK 字符=3字节，但 `Config.PrintCLength` 以半角字符为单位（CJK=2）
+  - A24 修复将编码从 Shift-JIS 改为 Config.Encode 后引入回归
+  - 修复：改用 `LangManager.GetStrlenLang(str)`，基于语言设置的 ANSI 编码（中文=GB2312/936，日文=Shift-JIS/932）计算字节长度
+
+### Changed — PrintC/PrintButtonC 从字节制表重构为像素制表
+
+- **EmueraConsole.Print.cs** — 删除 `CreateTypeCString` 方法，`PrintC`/`PrintButtonC` 改用像素制表路径
+  - 旧方案：字节长度计算补空格字符 → while 循环删空格微调 → 受编码和字体 hinting 影响
+  - 新方案：`StringMeasure.GetDisplayLength` 测量内容像素宽度 → `ConsoleSpacePart` 像素矩形填充差值
+  - 与 `PrintHtmlC` 共享同一套像素制表理念，确保 WinForms + SkiaX 双端对齐一致
+  - 删除 `printCWidthL`/`printCWidthL2`（仅旧 while 循环使用）
+  - 根因分析：等宽字体 `N × charWidth ≠ stringWidth`（字体 hinting/kerning 截断），WinForms GDI 整串绘制误差被吸收，SkiaX 逐字符绘制误差累积为可见偏移
+
+### 同步修改
+
+- **SkiaX Desktop** (`Emuera/UI/Game/EmueraConsole.Print.cs`) — 同步重构
+- **SkiaX Xamarin** (`Emuera.Xamarin/Platform/GameView/EmueraConsole.Print.cs`) — 同步重构
+
+***
+
+## [4.2.0] — FONTBOLD/FONTITALIC/FONTREGULAR 跨平台修复 + GETPLATFORM API
+
+### Fixed — 移动端字体样式指令空操作导致 Bold 泄漏
+
+- **Instraction.Child.cs** — `FONTBOLD`/`FONTITALIC`/`FONTREGULAR` 在非 Windows 平台是空操作（`if (!OperatingSystem.IsWindows()) return;`）
+  - `FONTSTYLE` 命令无此限制，在移动端正常执行
+  - 不对称导致：`FONTSTYLE 1` 设置 Bold 后 `FONTREGULAR` 无法恢复 → Bold 泄漏 → `GETSTYLE()` 返回 1 → `HTMLWRAP(STYLE_FLAG=-1)` 生成 `<b>` 标签 → 嵌套 → SkiaX HtmlManager 抛出"标签重复使用"错误
+  - 修复：移除三个指令的 `!IsWindows()` 限制，`FontStyle` 枚举是纯内存操作，不依赖平台 API
+
+### Added — ERB 平台检测 API
+
+- **GETPLATFORM()** — 返回当前运行平台的整数编码
+  - 0=Windows, 1=Android, 2=iOS, 3=macOS, 4=Linux, 5=Unknown
+  - `CanRestructure = true`（纯函数，编译期可常量折叠）
+  - ERB 脚本可通过 `IF GETPLATFORM() == 0` 等方式做平台条件分支
+
 ***
 
 ## [4.1.4] — GETKEY/GETKEYTRIGGERED 鼠标按键修复

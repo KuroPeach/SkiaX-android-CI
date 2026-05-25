@@ -3465,6 +3465,26 @@ internal static partial class FunctionMethodCreator
 		}
 	}
 
+	private sealed class GetPlatformMethod : FunctionMethod
+	{
+		public GetPlatformMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArray = [];
+			CanRestructure = true;
+		}
+
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			if (OperatingSystem.IsWindows()) return 0;
+			if (OperatingSystem.IsAndroid()) return 1;
+			if (OperatingSystem.IsIOS()) return 2;
+			if (OperatingSystem.IsMacOS()) return 3;
+			if (OperatingSystem.IsLinux()) return 4;
+			return 5; // Unknown
+		}
+	}
+
 	private sealed class GetFontMethod : FunctionMethod
 	{
 		public GetFontMethod()

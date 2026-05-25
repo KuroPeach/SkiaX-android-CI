@@ -1748,8 +1748,6 @@ internal sealed partial class FunctionIdentifier
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
-			if (!OperatingSystem.IsWindows())
-				return;
 			exm.Console.SetStringStyle(exm.Console.StringStyle.FontStyle | FontStyle.Bold);
 		}
 	}
@@ -1763,8 +1761,6 @@ internal sealed partial class FunctionIdentifier
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
-			if (!OperatingSystem.IsWindows())
-				return;
 			exm.Console.SetStringStyle(exm.Console.StringStyle.FontStyle | FontStyle.Italic);
 		}
 	}
@@ -1778,8 +1774,6 @@ internal sealed partial class FunctionIdentifier
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
-			if (!OperatingSystem.IsWindows())
-				return;
 			exm.Console.SetStringStyle(FontStyle.Regular);
 		}
 	}

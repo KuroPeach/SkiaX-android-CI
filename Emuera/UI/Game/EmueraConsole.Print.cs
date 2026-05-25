@@ -575,14 +575,77 @@ internal sealed partial class EmueraConsole : IDisposable
 	#endregion
 
 	private int printCWidth = -1;
-	private int printCWidthL = -1;
-	private int printCWidthL2 = -1;
+	// Track accumulated pixel width for PrintC/PrintButtonC line-wrap decisions.
+	// printBuffer.CurrentLineWidth returns 0 for buttons created via Append(str,Style,true)
+	// because their Width is not set until Flush, so we track it ourselves.
+	private int printCCurrentLinePx = 0;
+
 	public void PrintC(string str, bool alignmentRight)
 	{
 		if (string.IsNullOrEmpty(str))
 			return;
 
-		printBuffer.Append(CreateTypeCString(str, alignmentRight), Style, true);
+		if (printCWidth == -1)
+			calcPrintCWidth(stringMeasure);
+
+		var font = Config.DefaultFont;
+		int contentWidth = StringMeasure.GetDisplayLength(str, font);
+		int cellWidth = printCWidth;
+		int padPx = cellWidth - contentWidth;
+
+		// If buffer was flushed externally (e.g. NewLine), reset our counter
+		if (printBuffer.IsEmpty)
+			printCCurrentLinePx = 0;
+
+		int maxLineWidth = Config.DrawableWidth;
+		bool fullColumnFits = (printCCurrentLinePx + cellWidth <= maxLineWidth);
+		bool contentFits = (printCCurrentLinePx + contentWidth <= maxLineWidth);
+
+		// Line-wrap: if even the content doesn't fit, flush current line
+		if (printCCurrentLinePx > 0 && !contentFits)
+		{
+			ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
+			addRangeDisplayLine(dispList);
+			printCCurrentLinePx = 0;
+			// Recalculate after wrap
+			fullColumnFits = true;
+			contentFits = true;
+		}
+
+		// Right-align: pad with ConsoleSpacePart before content (only if full column fits)
+		if (alignmentRight && padPx > 0 && fullColumnFits)
+		{
+			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+			var spacePart = new ConsoleSpacePart(spaceRect);
+			spacePart.SetWidth(stringMeasure, 0);
+			var spaceBtn = new ConsoleButtonString(this, [spacePart]);
+			spaceBtn.CalcWidth(stringMeasure, 0);
+			printBuffer.AppendButton(spaceBtn);
+		}
+
+		// Append content with force_button=true to preserve ButtonStringCreator.SplitButton
+		// parsing (e.g. [123] selector patterns in PRINTFORMLC).
+		printBuffer.Append(str, Style, true);
+
+		// Left-align: pad with ConsoleSpacePart after content (only if full column fits)
+		if (!alignmentRight && padPx > 0 && fullColumnFits)
+		{
+			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+			var spacePart = new ConsoleSpacePart(spaceRect);
+			spacePart.SetWidth(stringMeasure, 0);
+			var spaceBtn = new ConsoleButtonString(this, [spacePart]);
+			spaceBtn.CalcWidth(stringMeasure, 0);
+			printBuffer.AppendButton(spaceBtn);
+		}
+
+		// Width tracking:
+		// - Full column fits: track cellWidth (content + padding)
+		// - Only content fits (partial column): set to maxLineWidth to mark line as
+		//   "full" — no more columns can be added, preventing a 9th column from
+		//   being squeezed in without padding
+		printCCurrentLinePx = fullColumnFits
+			? printCCurrentLinePx + cellWidth
+			: maxLineWidth;
 	}
 
 	private void calcPrintCWidth(StringMeasure stringMeasure)
@@ -590,63 +653,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		string str = new(' ', Config.PrintCLength);
 		var font = Config.DefaultFont;
 		printCWidth = StringMeasure.GetDisplayLength(str, font);
-
-		//この処理要る？
-		//str += " ";
-		printCWidthL = StringMeasure.GetDisplayLength(str, font);
-
-		//str += " ";
-		printCWidthL2 = StringMeasure.GetDisplayLength(str, font);
-	}
-
-	private string CreateTypeCString(string str, bool alignmentRight)
-	{
-		if (printCWidth == -1)
-			calcPrintCWidth(stringMeasure);
-		int length = 0;
-		int width;
-		if (str != null)
-		{
-			#region .NET 7化の弊害でPRINTC系の文字数カウントがおかしい不具合修正
-			// Use Config.Encode with fallback to avoid crashing on unencodable chars
-			// (e.g. Chinese chars in Shift-JIS). Config.Encode respects
-			// DEFAULT ANSI ENCODING setting (GB2312 for Chinese, etc.)
-			var encode = Encoding.GetEncoding(Config.Encode.CodePage, EncoderFallback.ReplacementFallback, DecoderFallback.ReplacementFallback);
-			length = encode.GetByteCount(str);
-			#endregion
-		}
-		int printcLength = Config.PrintCLength;
-		var font = new SKFont(SKTypeface.FromFamilyName(Style.Fontname), Config.DefaultFont.Size); 
-		if (font == null)
-		{
-			return str;
-		}
-
-		if (alignmentRight && (length < printcLength))
-		{
-			str = new string(' ', printcLength - length) + str;
-			width = StringMeasure.GetDisplayLength(str, font);
-			while (width > printCWidth)
-			{
-				if (str[0] != ' ')
-					break;
-				str = str.Remove(0, 1);
-				width = StringMeasure.GetDisplayLength(str, font);
-			}
-		}
-		else if ((!alignmentRight) && (length < printcLength + 1))
-		{
-			str += new string(' ', printcLength + 1 - length);
-			width = StringMeasure.GetDisplayLength(str, font);
-			while (width > printCWidthL)
-			{
-				if (str[^1] != ' ')
-					break;
-				str = str.Remove(str.Length - 1, 1);
-				width = StringMeasure.GetDisplayLength(str, font);
-			}
-		}
-		return str;
 	}
 
 	internal void PrintButton(string str, string p)
@@ -665,13 +671,121 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (string.IsNullOrEmpty(str))
 			return;
-		printBuffer.AppendButton(CreateTypeCString(str, isRight), Style, p);
+
+		if (printCWidth == -1)
+			calcPrintCWidth(stringMeasure);
+
+		var font = Config.DefaultFont;
+		int contentWidth = StringMeasure.GetDisplayLength(str, font);
+		int cellWidth = printCWidth;
+		int padPx = cellWidth - contentWidth;
+
+		// If buffer was flushed externally, reset our counter
+		if (printBuffer.IsEmpty)
+			printCCurrentLinePx = 0;
+
+		int maxLineWidth = Config.DrawableWidth;
+		bool fullColumnFits = (printCCurrentLinePx + cellWidth <= maxLineWidth);
+		bool contentFits = (printCCurrentLinePx + contentWidth <= maxLineWidth);
+
+		// Line-wrap: if even the content doesn't fit, flush current line
+		if (printCCurrentLinePx > 0 && !contentFits)
+		{
+			ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
+			addRangeDisplayLine(dispList);
+			printCCurrentLinePx = 0;
+			fullColumnFits = true;
+			contentFits = true;
+		}
+
+		// Right-align: pad with ConsoleSpacePart before content (only if full column fits)
+		if (isRight && padPx > 0 && fullColumnFits)
+		{
+			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+			var spacePart = new ConsoleSpacePart(spaceRect);
+			spacePart.SetWidth(stringMeasure, 0);
+			var spaceBtn = new ConsoleButtonString(this, [spacePart]);
+			spaceBtn.CalcWidth(stringMeasure, 0);
+			printBuffer.AppendButton(spaceBtn);
+		}
+
+		// Content as explicit button (p provided by ERB script)
+		printBuffer.AppendButton(str, Style, p);
+
+		// Left-align: pad with ConsoleSpacePart after content (only if full column fits)
+		if (!isRight && padPx > 0 && fullColumnFits)
+		{
+			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+			var spacePart = new ConsoleSpacePart(spaceRect);
+			spacePart.SetWidth(stringMeasure, 0);
+			var spaceBtn = new ConsoleButtonString(this, [spacePart]);
+			spaceBtn.CalcWidth(stringMeasure, 0);
+			printBuffer.AppendButton(spaceBtn);
+		}
+
+		printCCurrentLinePx = fullColumnFits
+			? printCCurrentLinePx + cellWidth
+			: maxLineWidth;
 	}
 	internal void PrintButtonC(string str, long p, bool isRight)
 	{
 		if (string.IsNullOrEmpty(str))
 			return;
-		printBuffer.AppendButton(CreateTypeCString(str, isRight), Style, p);
+
+		if (printCWidth == -1)
+			calcPrintCWidth(stringMeasure);
+
+		var font = Config.DefaultFont;
+		int contentWidth = StringMeasure.GetDisplayLength(str, font);
+		int cellWidth = printCWidth;
+		int padPx = cellWidth - contentWidth;
+
+		// If buffer was flushed externally, reset our counter
+		if (printBuffer.IsEmpty)
+			printCCurrentLinePx = 0;
+
+		int maxLineWidth = Config.DrawableWidth;
+		bool fullColumnFits = (printCCurrentLinePx + cellWidth <= maxLineWidth);
+		bool contentFits = (printCCurrentLinePx + contentWidth <= maxLineWidth);
+
+		// Line-wrap: if even the content doesn't fit, flush current line
+		if (printCCurrentLinePx > 0 && !contentFits)
+		{
+			ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
+			addRangeDisplayLine(dispList);
+			printCCurrentLinePx = 0;
+			fullColumnFits = true;
+			contentFits = true;
+		}
+
+		// Right-align: pad with ConsoleSpacePart before content (only if full column fits)
+		if (isRight && padPx > 0 && fullColumnFits)
+		{
+			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+			var spacePart = new ConsoleSpacePart(spaceRect);
+			spacePart.SetWidth(stringMeasure, 0);
+			var spaceBtn = new ConsoleButtonString(this, [spacePart]);
+			spaceBtn.CalcWidth(stringMeasure, 0);
+			printBuffer.AppendButton(spaceBtn);
+		}
+
+		// Content as explicit button (p provided by ERB script)
+		printBuffer.AppendButton(str, Style, p);
+
+		// Left-align: pad with ConsoleSpacePart after content (only if full column fits)
+		if (!isRight && padPx > 0 && fullColumnFits)
+		{
+			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+			var spacePart = new ConsoleSpacePart(spaceRect);
+			spacePart.SetWidth(stringMeasure, 0);
+			var spaceBtn = new ConsoleButtonString(this, [spacePart]);
+			spaceBtn.CalcWidth(stringMeasure, 0);
+			printBuffer.AppendButton(spaceBtn);
+		}
+
+		printCCurrentLinePx = fullColumnFits
+			? printCCurrentLinePx + cellWidth
+			: maxLineWidth;
 	}
 
 	internal void PrintPlain(string str)
