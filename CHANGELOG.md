@@ -4,6 +4,22 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [4.3.1] — GETKEY 解耦：Latch 泄漏修复
+
+### Fixed — AWAIT 循环首次迭代虚假鼠标点击
+
+- **EmueraConsole.cs** — `Await()` 方法在 `DoEvents()` 前调用 `WinInput.ClearLatches()`
+  - 根因：INPUTS/TINPUTS 模式下 `MouseDown` 事件设置 `_keyLatch[1]=1`，但内置输入系统不调用 `GETKEYTRIGGERED` 消费 latch
+  - 从 INPUTS 切换到 AWAIT 循环时，残留 latch 被 `GETKEYTRIGGERED(1)` 消费，产生虚假点击
+  - 现象：qol_MAP 地图首次进入时大概率立即退出（鼠标左键虚假触发）
+  - 修复：每次 `Await()` 迭代开始前清除所有残留 latch，`DoEvents()` 产生的新 latch 由 `GETKEYTRIGGERED` 正常消费
+
+- **WinInput.cs** — 新增 `ClearLatches()` 方法
+  - 原子清除 `_keyLatch` 数组所有元素为 0
+  - 防止跨输入模式（INPUTS → AWAIT）的 latch 泄漏
+
+***
+
 ## [4.3.0] — PRINTC 像素制表重构：跨平台列对齐统一
 
 ### Fixed — PRINTFORMLC 中文环境列错位（回归修复）
