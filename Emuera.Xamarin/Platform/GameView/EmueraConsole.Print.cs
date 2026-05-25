@@ -414,14 +414,68 @@ namespace MinorShift.Emuera.GameView
 		}
 
 		private int printCWidth = -1;
-		private int printCWidthL = -1;
-		private int printCWidthL2 = -1;
+		// Track accumulated pixel width for PrintC/PrintButtonC line-wrap decisions.
+		// printBuffer.CurrentLineWidth returns 0 for buttons created via Append(str,Style,true)
+		// because their Width is not set until Flush, so we track it ourselves.
+		private int printCCurrentLinePx = 0;
+
 		public void PrintC(string str, bool alignmentRight)
 		{
 			if (string.IsNullOrEmpty(str))
 				return;
 
-			printBuffer.Append(CreateTypeCString(str, alignmentRight), Style, true);
+			if (printCWidth == -1)
+				calcPrintCWidth(stringMeasure);
+
+			Font font = Config.Font;
+			int contentWidth = stringMeasure.GetDisplayLength(str, font);
+			int cellWidth = printCWidth;
+			int padPx = cellWidth - contentWidth;
+
+			if (printBuffer.IsEmpty)
+				printCCurrentLinePx = 0;
+
+			int maxLineWidth = Config.DrawableWidth;
+			bool fullColumnFits = (printCCurrentLinePx + cellWidth <= maxLineWidth);
+			bool contentFits = (printCCurrentLinePx + contentWidth <= maxLineWidth);
+
+			// Line-wrap: if even the content doesn't fit, flush current line
+			if (printCCurrentLinePx > 0 && !contentFits)
+			{
+				ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
+				addRangeDisplayLine(dispList);
+				printCCurrentLinePx = 0;
+				fullColumnFits = true;
+				contentFits = true;
+			}
+
+			// Right-align: pad with ConsoleSpacePart before content (only if full column fits)
+			if (alignmentRight && padPx > 0 && fullColumnFits)
+			{
+				var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+				var spacePart = new ConsoleSpacePart(spaceRect);
+				spacePart.SetWidth(stringMeasure, 0);
+				var spaceBtn = new ConsoleButtonString(this, new AConsoleDisplayNode[] { spacePart });
+				spaceBtn.CalcWidth(stringMeasure, 0);
+				printBuffer.AppendButton(spaceBtn);
+			}
+
+			printBuffer.Append(str, Style, true);
+
+			// Left-align: pad with ConsoleSpacePart after content (only if full column fits)
+			if (!alignmentRight && padPx > 0 && fullColumnFits)
+			{
+				var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+				var spacePart = new ConsoleSpacePart(spaceRect);
+				spacePart.SetWidth(stringMeasure, 0);
+				var spaceBtn = new ConsoleButtonString(this, new AConsoleDisplayNode[] { spacePart });
+				spaceBtn.CalcWidth(stringMeasure, 0);
+				printBuffer.AppendButton(spaceBtn);
+			}
+
+			printCCurrentLinePx = fullColumnFits
+				? printCCurrentLinePx + cellWidth
+				: maxLineWidth;
 		}
 
 		private void calcPrintCWidth(StringMeasure stringMeasure)
@@ -429,58 +483,6 @@ namespace MinorShift.Emuera.GameView
 			string str = new string(' ', Config.PrintCLength);
 			Font font = Config.Font;
 			printCWidth = stringMeasure.GetDisplayLength(str, font);
-
-			str += " ";
-			printCWidthL = stringMeasure.GetDisplayLength(str, font);
-
-			str += " ";
-			printCWidthL2 = stringMeasure.GetDisplayLength(str, font);
-		}
-
-		private string CreateTypeCString(string str, bool alignmentRight)
-		{
-			if (printCWidth == -1)
-				calcPrintCWidth(stringMeasure);
-			int length = 0;
-			int width;
-			if (str != null)
-				length = Config.Encode.GetByteCount(str);
-			int printcLength = Config.PrintCLength;
-			Font font;
-			try
-			{
-				font = new Font(Style.Fontname, Config.Font.Size, Style.FontStyle, GraphicsUnit.Pixel);
-			}
-			catch
-			{
-				return str;
-			}
-
-			if ((alignmentRight) && (length < printcLength))
-			{
-				str = new string(' ', printcLength - length) + str;
-				width = stringMeasure.GetDisplayLength(str, font);
-				while (width > printCWidth)
-				{
-					if (str[0] != ' ')
-						break;
-					str = str.Remove(0, 1);
-					width = stringMeasure.GetDisplayLength(str, font);
-				}
-			}
-			else if ((!alignmentRight) && (length < printcLength + 1))
-			{
-				str += new string(' ', printcLength + 1 - length);
-				width = stringMeasure.GetDisplayLength(str, font);
-				while (width > printCWidthL)
-				{
-					if (str[str.Length - 1] != ' ')
-						break;
-					str = str.Remove(str.Length - 1, 1);
-					width = stringMeasure.GetDisplayLength(str, font);
-				}
-			}
-			return str;
 		}
 
 		internal void PrintButton(string str, string p)
@@ -499,13 +501,111 @@ namespace MinorShift.Emuera.GameView
 		{
 			if (string.IsNullOrEmpty(str))
 				return;
-			printBuffer.AppendButton(CreateTypeCString(str, isRight), Style, p);
+
+			if (printCWidth == -1)
+				calcPrintCWidth(stringMeasure);
+
+			Font font = Config.Font;
+			int contentWidth = stringMeasure.GetDisplayLength(str, font);
+			int cellWidth = printCWidth;
+			int padPx = cellWidth - contentWidth;
+
+			if (printBuffer.IsEmpty)
+				printCCurrentLinePx = 0;
+
+			int maxLineWidth = Config.DrawableWidth;
+			bool fullColumnFits = (printCCurrentLinePx + cellWidth <= maxLineWidth);
+			bool contentFits = (printCCurrentLinePx + contentWidth <= maxLineWidth);
+
+			if (printCCurrentLinePx > 0 && !contentFits)
+			{
+				ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
+				addRangeDisplayLine(dispList);
+				printCCurrentLinePx = 0;
+				fullColumnFits = true;
+				contentFits = true;
+			}
+
+			if (isRight && padPx > 0 && fullColumnFits)
+			{
+				var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+				var spacePart = new ConsoleSpacePart(spaceRect);
+				spacePart.SetWidth(stringMeasure, 0);
+				var spaceBtn = new ConsoleButtonString(this, new AConsoleDisplayNode[] { spacePart });
+				spaceBtn.CalcWidth(stringMeasure, 0);
+				printBuffer.AppendButton(spaceBtn);
+			}
+
+			printBuffer.AppendButton(str, Style, p);
+
+			if (!isRight && padPx > 0 && fullColumnFits)
+			{
+				var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+				var spacePart = new ConsoleSpacePart(spaceRect);
+				spacePart.SetWidth(stringMeasure, 0);
+				var spaceBtn = new ConsoleButtonString(this, new AConsoleDisplayNode[] { spacePart });
+				spaceBtn.CalcWidth(stringMeasure, 0);
+				printBuffer.AppendButton(spaceBtn);
+			}
+
+			printCCurrentLinePx = fullColumnFits
+				? printCCurrentLinePx + cellWidth
+				: maxLineWidth;
 		}
 		internal void PrintButtonC(string str, long p, bool isRight)
 		{
 			if (string.IsNullOrEmpty(str))
 				return;
-			printBuffer.AppendButton(CreateTypeCString(str, isRight), Style, p);
+
+			if (printCWidth == -1)
+				calcPrintCWidth(stringMeasure);
+
+			Font font = Config.Font;
+			int contentWidth = stringMeasure.GetDisplayLength(str, font);
+			int cellWidth = printCWidth;
+			int padPx = cellWidth - contentWidth;
+
+			if (printBuffer.IsEmpty)
+				printCCurrentLinePx = 0;
+
+			int maxLineWidth = Config.DrawableWidth;
+			bool fullColumnFits = (printCCurrentLinePx + cellWidth <= maxLineWidth);
+			bool contentFits = (printCCurrentLinePx + contentWidth <= maxLineWidth);
+
+			if (printCCurrentLinePx > 0 && !contentFits)
+			{
+				ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
+				addRangeDisplayLine(dispList);
+				printCCurrentLinePx = 0;
+				fullColumnFits = true;
+				contentFits = true;
+			}
+
+			if (isRight && padPx > 0 && fullColumnFits)
+			{
+				var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+				var spacePart = new ConsoleSpacePart(spaceRect);
+				spacePart.SetWidth(stringMeasure, 0);
+				var spaceBtn = new ConsoleButtonString(this, new AConsoleDisplayNode[] { spacePart });
+				spaceBtn.CalcWidth(stringMeasure, 0);
+				printBuffer.AppendButton(spaceBtn);
+			}
+
+			printBuffer.AppendButton(str, Style, p);
+
+			if (!isRight && padPx > 0 && fullColumnFits)
+			{
+				var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
+				var spacePart = new ConsoleSpacePart(spaceRect);
+				spacePart.SetWidth(stringMeasure, 0);
+				var spaceBtn = new ConsoleButtonString(this, new AConsoleDisplayNode[] { spacePart });
+				spaceBtn.CalcWidth(stringMeasure, 0);
+				printBuffer.AppendButton(spaceBtn);
+			}
+
+			printCCurrentLinePx = fullColumnFits
+				? printCCurrentLinePx + cellWidth
+				: maxLineWidth;
 		}
 
 		internal void PrintPlain(string str)

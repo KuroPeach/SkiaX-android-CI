@@ -607,7 +607,6 @@ internal sealed partial class EmueraConsole : IDisposable
 			ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
 			addRangeDisplayLine(dispList);
 			printCCurrentLinePx = 0;
-			// Recalculate after wrap
 			fullColumnFits = true;
 			contentFits = true;
 		}
@@ -680,7 +679,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		int cellWidth = printCWidth;
 		int padPx = cellWidth - contentWidth;
 
-		// If buffer was flushed externally, reset our counter
 		if (printBuffer.IsEmpty)
 			printCCurrentLinePx = 0;
 
@@ -688,7 +686,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		bool fullColumnFits = (printCCurrentLinePx + cellWidth <= maxLineWidth);
 		bool contentFits = (printCCurrentLinePx + contentWidth <= maxLineWidth);
 
-		// Line-wrap: if even the content doesn't fit, flush current line
 		if (printCCurrentLinePx > 0 && !contentFits)
 		{
 			ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
@@ -698,7 +695,6 @@ internal sealed partial class EmueraConsole : IDisposable
 			contentFits = true;
 		}
 
-		// Right-align: pad with ConsoleSpacePart before content (only if full column fits)
 		if (isRight && padPx > 0 && fullColumnFits)
 		{
 			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
@@ -709,10 +705,8 @@ internal sealed partial class EmueraConsole : IDisposable
 			printBuffer.AppendButton(spaceBtn);
 		}
 
-		// Content as explicit button (p provided by ERB script)
 		printBuffer.AppendButton(str, Style, p);
 
-		// Left-align: pad with ConsoleSpacePart after content (only if full column fits)
 		if (!isRight && padPx > 0 && fullColumnFits)
 		{
 			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
@@ -740,7 +734,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		int cellWidth = printCWidth;
 		int padPx = cellWidth - contentWidth;
 
-		// If buffer was flushed externally, reset our counter
 		if (printBuffer.IsEmpty)
 			printCCurrentLinePx = 0;
 
@@ -748,7 +741,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		bool fullColumnFits = (printCCurrentLinePx + cellWidth <= maxLineWidth);
 		bool contentFits = (printCCurrentLinePx + contentWidth <= maxLineWidth);
 
-		// Line-wrap: if even the content doesn't fit, flush current line
 		if (printCCurrentLinePx > 0 && !contentFits)
 		{
 			ConsoleDisplayLine[] dispList = printBuffer.Flush(stringMeasure, force_temporary);
@@ -758,7 +750,6 @@ internal sealed partial class EmueraConsole : IDisposable
 			contentFits = true;
 		}
 
-		// Right-align: pad with ConsoleSpacePart before content (only if full column fits)
 		if (isRight && padPx > 0 && fullColumnFits)
 		{
 			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);
@@ -769,10 +760,8 @@ internal sealed partial class EmueraConsole : IDisposable
 			printBuffer.AppendButton(spaceBtn);
 		}
 
-		// Content as explicit button (p provided by ERB script)
 		printBuffer.AppendButton(str, Style, p);
 
-		// Left-align: pad with ConsoleSpacePart after content (only if full column fits)
 		if (!isRight && padPx > 0 && fullColumnFits)
 		{
 			var spaceRect = new RectangleF(0, 0, padPx, Config.FontSize);

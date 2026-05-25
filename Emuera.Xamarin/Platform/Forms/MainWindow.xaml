@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage
 	xmlns="http://xamarin.com/schemas/2014/forms"
 	xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
@@ -141,7 +141,8 @@
 						x:Name="quickButtonGroup"
 						x:FieldModifier="public"
 						Spacing="3"
-						Orientation="Vertical" />
+						Orientation="Vertical"
+						HorizontalOptions="End" />
 
 				</ScrollView>
 			</StackLayout>

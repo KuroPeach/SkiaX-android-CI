@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -17,7 +17,8 @@ internal sealed class StringMeasure : IDisposable
 		using var paint = new SKPaint();
 		paint.Typeface = f.Typeface;
 		paint.TextSize = f.Size;
-		return (int)paint.MeasureText(chars.ToString());
+		// Use Ceiling instead of truncation for consistency with Xamarin StringMeasure
+		return (int)Math.Ceiling(paint.MeasureText(chars.ToString()));
 	}
 
 

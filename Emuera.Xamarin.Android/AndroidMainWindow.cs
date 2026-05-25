@@ -155,14 +155,20 @@ namespace XEmuera.Droid
             {
                 Orientation = StackOrientation.Horizontal,
                 Spacing = 4,
+                HorizontalOptions = LayoutOptions.Start,
             };
 
             quickScroll = new ScrollView
             {
-                Orientation = ScrollOrientation.Horizontal,
+                Orientation = ScrollOrientation.Both,
                 Content = quickButtonLayout,
                 HeightRequest = 0,
                 IsVisible = true,
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.EndAndExpand,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Never,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Never,
+                Margin = new Thickness(0, 0, 20, 20),
             };
 
             quickButtonScrollView = quickScroll;
@@ -677,7 +683,13 @@ namespace XEmuera.Droid
             {
                 try
                 {
-                    quickScroll.WidthRequest = canvasView.Width / 2;
+                    // ScrollView wraps content width (anchored right via HorizontalOptions=End).
+                    // When few buttons: narrow strip at right edge. When many: cap at 1/2 screen.
+                    var contentWidth = quickButtonLayout.Width;
+                    var maxWidth = canvasView.Width / 2;
+                    quickScroll.WidthRequest = contentWidth > 0
+                        ? Math.Min(contentWidth, maxWidth)
+                        : maxWidth;
                     quickScroll.HeightRequest = Math.Min(quickButtonLayout.Height, canvasView.Height - 48 - 30);
                     quickScroll.ScrollToAsync(0, quickButtonLayout.Height, false);
                 }

@@ -187,7 +187,13 @@ namespace MinorShift.Emuera
 
 		public void RefreshQuickButtonGroup()
 		{
-			quickButtonScrollView.WidthRequest = Math.Min(quickButtonGroup.Width, uiLayout.Width * 3 / 5);
+			// ScrollView wraps content width (anchored right via HorizontalOptions=End).
+			// When few buttons: narrow strip at right edge. When many: cap at 1/2 screen.
+			var contentWidth = quickButtonGroup.Width;
+			var maxWidth = uiLayout.Width / 2;
+			quickButtonScrollView.WidthRequest = contentWidth > 0
+				? Math.Min(contentWidth, maxWidth)
+				: maxWidth;
 			quickButtonScrollView.HeightRequest = Math.Min(quickButtonGroup.Height, uiLayout.Height - ToolButtonGroup.Height - 30d);
 
 			quickButtonScrollView.ScrollToAsync(0, quickButtonGroup.Height, false);

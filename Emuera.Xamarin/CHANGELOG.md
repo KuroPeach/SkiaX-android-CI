@@ -1,5 +1,62 @@
 # Emuera.Xamarin 变更记录
 
+## [0.59.0] - 2026-05-25
+
+### PRINTC 像素制表重构：跨平台列对齐统一
+
+> PrintC/PrintButtonC 从字节制表（CreateTypeCString）重构为像素制表（ConsoleSpacePart），与 PrintHtmlC 共享同一套对齐逻辑，解决 WinForms + SkiaX 双端列对齐问题。
+
+#### 回归修复：PRINTFORMLC 中文环境列错位
+
+- **问题**：A24 修复将 `CreateTypeCString` 编码从 Shift-JIS 改为 `Config.Encode`（默认 UTF-8），CJK 字符=3字节，但 `Config.PrintCLength` 以半角字符为单位（CJK=2），导致补空格不足
+- **修复**：改用 `LangManager.GetStrlenLang(str)`，基于语言设置的 ANSI 编码（中文=GB2312/936，日文=Shift-JIS/932）计算字节长度
+
+#### 像素制表重构
+
+- **根因**：等宽字体 `N × charWidth ≠ stringWidth`（字体 hinting/kerning 截断），WinForms GDI 整串绘制误差被吸收，SkiaX 逐字符渲染误差累积为可见偏移
+- **旧方案**：字节长度计算补空格字符 → while 循环删空格微调 → 受编码和字体 hinting 影响
+- **新方案**：`StringMeasure.GetDisplayLength` 测量内容像素宽度 → `ConsoleSpacePart` 像素矩形填充差值
+- **删除**：`CreateTypeCString` 方法、`printCWidthL`/`printCWidthL2` 字段
+- **同步修改**：LazyLoading (`develop-skiasharp`)、SkiaX Desktop (`feature/xamarin`)
+
+
+## [0.58.0] - 2026-05-25
+
+### 画廊按钮右对齐 + HTML_FILL_LINE 溢出修复
+
+> 画廊视图按钮改为靠右吸附（向左自然溢出）；修复 HTML_FILL_LINE 在 SkiaX 下因字体测量截断导致填充溢出换行。
+
+#### 画廊按钮右对齐（靠右吸附 + 向左自然溢出）
+
+- **问题**：当只有少量按钮（如"是/否"）时，按钮出现在画面居中偏右位置，视觉上不协调
+- **用户期望布局**（1列=屏幕宽度，`-`=空白，`1`=按钮）：
+  ```
+  ---1     (1个按钮，窄条靠右)
+  --12     (2个按钮)
+  -123     (3个按钮)
+  1234     (4个按钮满)
+  2345     (溢出，向左滚动)
+  ```
+- **根因**：Android 端的 `AndroidMainWindow` 不使用 XAML 控件，而是在 `BuildLayout()` 中代码创建独立控件，并通过 `quickButtonScrollView = quickScroll` 覆盖基类属性。初次修复错误地修改了 `MainWindow.xaml`（Desktop XAML 控件），对 Android 端无效
+- **修复**（`AndroidMainWindow.cs`）：
+  1. `quickButtonLayout`（按钮行容器）设 `HorizontalOptions = LayoutOptions.Start`（行内左对齐）
+  2. `quickScroll`（ScrollView）设 `HorizontalOptions = LayoutOptions.End`（靠右吸附）+ `Margin = (0,0,20,20)`（右边距）
+  3. `RefreshQuickButtonGroup()` 改为动态宽度：`contentWidth > 0 ? Math.Min(contentWidth, maxWidth) : maxWidth`，随内容收缩，上限半屏
+- **修改文件**：`Emuera.Xamarin.Android/AndroidMainWindow.cs`
+
+#### HTML_FILL_LINE 溢出换行
+
+- **问题**：`HTML_FILL_LINE` 函数在 SkiaX 下填充错误，总是溢出导致多余的换行。DRAWLINE 系列函数（如 `DRAWLINEFORM *`）无此问题。WinForms 端无此问题
+- **根因**：`StringMeasure.GetDisplayLength` 使用 `(int)paint.MeasureText(s)` 截断小数部分，导致测量值偏小。`HTML_FILL_LINE` 用 `HTML_STRINGLEN` 计算填充字符数时：
+  1. `STYLED_CHAR_PX`（单字符宽度）偏小 → `FILL_NUM` 偏大
+  2. `HTML_STR_LEN`（已有内容宽度）偏小 → 额外空间偏大
+  3. 填充后实际渲染宽度超出 `TARGET_PX`，`ButtonsToDisplayLines` 检测到 `PointX + Width > DrawableWidth`，触发换行
+  - 例：`=` 实际宽度 10.3px，`(int)` 截断为 10px；80 个 `=` 实际宽度 824px，但计算预期 800px，差 24px 足以溢出
+- **修复**：`StringMeasure.GetDisplayLength` 改用 `(int)Math.Ceiling(paint.MeasureText(s))`，确保测量值 >= 实际渲染宽度
+- **WinForms 端为何无此问题**：WinForms 端 `ConsoleStyledString.DrawTo` 使用 `graph.DrawText(Text, x, y, Font, paint)` 一次性绘制整串文本，渲染宽度 = `paint.MeasureText` 测量值，测量和渲染一致。Xamarin 端使用 `DrawTextUtils.DrawText` 逐字符绘制（Advance 累加），渲染宽度可能与 `MeasureText` 不同
+- **修改文件**：`Emuera.Xamarin/Platform/GameView/StringMeasure.cs`、`Emuera/UI/Game/StringMeasure.cs`（双端同步）
+
+- APK versionCode 57→58, versionName 0.57.0→0.58.0
 
 ## [0.57.0] - 2026-05-24
 

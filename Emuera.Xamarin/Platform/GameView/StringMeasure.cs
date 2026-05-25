@@ -74,7 +74,10 @@ namespace MinorShift.Emuera.GameView
 
 			paint.Typeface = font.FontModel.Typeface;
 			paint.TextSize = font.Size;
-			return (int)paint.MeasureText(s);
+			// Use Ceiling instead of truncation: (int) truncates toward zero,
+			// causing HTML_FILL_LINE to over-fill because single-char width
+			// appears smaller than it really is, leading to extra line wraps.
+			return (int)Math.Ceiling(paint.MeasureText(s));
 		}
 
 
