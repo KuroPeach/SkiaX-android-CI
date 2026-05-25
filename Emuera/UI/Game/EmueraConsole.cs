@@ -671,6 +671,9 @@ internal sealed partial class EmueraConsole : IDisposable
 		RefreshStrings(true);
 		state = ConsoleState.Sleep;
 		process.UpdateCheckInfiniteLoopState();
+		// Clear latches before DoEvents to prevent leakage from previous
+		// input mode (INPUTS/TINPUTS) into AWAIT+GETKEYTRIGGERED loops.
+		WinInput.ClearLatches();
 		PlatformInterop.DoEvents();
 		if (time > 0)
 			System.Threading.Thread.Sleep(time);

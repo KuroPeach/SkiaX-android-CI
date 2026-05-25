@@ -36,6 +36,16 @@ internal sealed class WinInput
 		return System.Threading.Interlocked.Exchange(ref _keyLatch[nVirtKey], 0);
 	}
 
+	/// <summary>
+	/// Clear all latches. Called at the start of AWAIT to prevent latch leakage
+	/// from previous input mode (INPUTS/TINPUTS) into AWAIT+GETKEYTRIGGERED loops.
+	/// </summary>
+	public static void ClearLatches()
+	{
+		for (int i = 0; i < 256; i++)
+			System.Threading.Volatile.Write(ref _keyLatch[i], 0);
+	}
+
 	public static short GetKeyToggle(int nVirtKey)
 	{
 		if (nVirtKey < 0 || nVirtKey >= 256) return 0;

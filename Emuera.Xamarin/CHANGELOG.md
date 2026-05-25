@@ -1,5 +1,28 @@
 # Emuera.Xamarin 变更记录
 
+## [0.59.1] - 2026-05-25
+
+### GETKEY 解耦：Latch 泄漏修复
+
+> 修复 AWAIT 循环首次迭代虚假鼠标点击问题，与内核版本 v4.3.1 同步。
+
+#### 问题根因
+
+INPUTS/TINPUTS 模式下 `MouseDown` 事件设置 `_keyLatch[1]=1`，但内置输入系统不调用 `GETKEYTRIGGERED` 消费 latch。从 INPUTS 切换到 AWAIT 循环时，残留 latch 被 `GETKEYTRIGGERED(1)` 消费，产生虚假点击，导致 qol_MAP 地图首次进入时大概率立即退出。
+
+#### 修复内容
+
+| 文件 | 修改 |
+|------|------|
+| `WinInput.cs` | 新增 `ClearLatches()` 方法，原子清除 `_keyLatch` 数组所有元素 |
+| `EmueraConsole.cs (Desktop)` | `Await()` 在 `DoEvents()` 前调用 `WinInput.ClearLatches()` |
+| `EmueraConsole.cs (Xamarin/Android)` | `Await()` 在 `App.DoEvents()` 前调用 `WinInput.ClearLatches()` |
+
+#### 版本同步
+
+- APK versionCode 58→59, versionName 0.58.0→0.59.1
+- 与内核 develop-skiasharp v4.3.1 同步
+
 ## [0.59.0] - 2026-05-25
 
 ### PRINTC 像素制表重构：跨平台列对齐统一

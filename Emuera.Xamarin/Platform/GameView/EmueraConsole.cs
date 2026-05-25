@@ -567,6 +567,9 @@ namespace MinorShift.Emuera.GameView
 			state = ConsoleState.Sleep;
 			emuera.UpdateCheckInfiniteLoopState();
 			_awaitInterrupted = false;
+			// Clear latches before DoEvents to prevent leakage from previous
+			// input mode (INPUTS/TINPUTS) into AWAIT+GETKEYTRIGGERED loops.
+			WinInput.ClearLatches();
 			App.DoEvents();
 
 			// 使用短暂 Sleep 轮询，让 UI 线程有机会处理触摸事件
