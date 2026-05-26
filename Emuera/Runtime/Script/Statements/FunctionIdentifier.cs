@@ -197,6 +197,12 @@ internal sealed partial class FunctionIdentifier
 		addFunction(FunctionCode.TINPUTS, new TINPUTS_Instruction(false));
 		addFunction(FunctionCode.TONEINPUT, new TINPUT_Instruction(true));
 		addFunction(FunctionCode.TONEINPUTS, new TINPUTS_Instruction(true));
+		#region 尊尼获加_NF后缀
+		addFunction(FunctionCode.INPUTNF, new INPUT_Instruction(true));
+		addFunction(FunctionCode.INPUTSNF, new INPUTS_Instruction(true));
+		addFunction(FunctionCode.TINPUTNF, new TINPUT_Instruction(false, true));
+		addFunction(FunctionCode.TINPUTSNF, new TINPUTS_Instruction(false, true));
+		#endregion
 		addFunction(FunctionCode.TWAIT, new TWAIT_Instruction());
 		addFunction(FunctionCode.WAITANYKEY, new WAITANYKEY_Instruction());
 		addFunction(FunctionCode.FORCEWAIT, new WAIT_Instruction(true));

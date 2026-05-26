@@ -4,6 +4,99 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [5.0.0] — NF 后缀指令族 + 自由滚动 + HOVER_PAUSE 悬停暂停
+
+> 本轮开发的核心目标：消除动态地图 AWAIT 轮询 hack，用 INPUT 系 NF 后缀实现自由滚动，
+> 并通过 HOVER_PAUSE 解决动画模式下 Tooltip 不兼容问题。
+
+### Added — INPUT 系列指令 NoFocus 后缀变体
+
+- **新指令**：`INPUTNF`, `INPUTSNF`, `TINPUTNF`, `TINPUTSNF`
+  - 语义：与原版 INPUT/INPUTS/TINPUT/TINPUTS 完全相同的参数和返回值，唯一区别是不强制滚动到底部
+  - NF = NoFocus，进入 `ConsoleState.WaitInputNoFocus` 状态而非 `WaitInput`
+  - 效果：保留按钮高亮/Tooltip/输入可靠性（拉取模型优势）+ 自由滚动（推送模型优势）
+  - 设计理念：效仿 PRINT 系列后缀模式（`PRINTFORMKL` = FORM参数 + K修饰 + L后缀），NF 是 INPUT 系的修饰后缀
+  - 替代场景：用 `TINPUTSNF` 替代 AWAIT+GETKEYTRIGGERED 轮询 hack，代码量从 ~200 行 ERB 降至 ~10 行
+
+- **ConsoleState 新增枚举值** — `WaitInputNoFocus = 22`
+  - 与 `WaitInput` 的唯一区别：不调用 `ApplyTextBoxChanges()`
+  - `selectingButton` 在 `WaitInputNoFocus` 下保留（按钮高亮/Tooltip 正常工作）
+  - `Process.Run()` 中所有 `WaitInput` 判断扩展为包含 `WaitInputNoFocus`
+
+- **InputRequest 新增字段** — `NoFocus` 布尔标志
+  - 指令类构造函数通过指令名末尾 "NF" 设置 `isNoFocus` 标志
+  - `DoInstruction` 中条件调用 `ApplyTextBoxChanges`：`if (!isNoFocus) exm.Console.Window?.ApplyTextBoxChanges()`
+
+- **EmueraConsole 新增方法** — `WaitInputNoFocus(InputRequest req)`
+  - 设置 `state = ConsoleState.WaitInputNoFocus`，其余逻辑与 `WaitInput` 相同
+  - 超时（TINPUTNF/TINPUTSNF）走相同的 `presetTimer` → `setTimer` 管线
+
+- **EmueraConsole 新增辅助属性** — `IsWaitInputState`
+  - 替代所有 `state == ConsoleState.WaitInput` 判断，扩展为包含 `WaitInputNoFocus`
+  - 28 处 `ConsoleState.WaitInput` 判断统一迁移至 `IsWaitInputState`
+
+### Fixed — NF 后缀滚动机制
+
+- **nfUserScrolledBack 标志** — 显式记录用户主动上滚意图
+  - 根因：`wasAtBottom` 无法区分"用户主动在底部"和"CLEARLINE 删除行使位置变成底部"
+  - `WaitInputNoFocus` 入口保留上一次的 `nfBack` 状态（从上一个 WaitInputNoFocus 继承）
+  - `vScrollBar_Scroll` 事件中更新（`NotifyUserScrolled`，仅在 `WaitInputNoFocus` 状态下）
+  - `WaitInput` 入口清除 `nfBack` 和 `offset`，强制滚到底部
+  - 鼠标滚轮事件显式调用 `NotifyUserScrolled`（滚轮修改 Value 不触发 Scroll 事件）
+
+- **nfScrollOffsetFromBottom 偏移量** — 保存用户滚动位置相对于底部的偏移量
+  - 解决 WinForms ScrollBar 在 `Maximum` 变化时自动调整 `Value` 导致的位置丢失
+  - `verticalScrollBarUpdate` 中始终更新 ScrollBar（包括 CLEARLINE），`targetVal = max - offset`
+
+- **RefreshStrings 跳过逻辑** — NF 上滚时跳过 Running 状态的中间渲染
+  - 条件：`nfUserScrolledBack && !force_Paint && state == ConsoleState.Running`
+  - 避免 CLEARLINE/PRINT 交替时在两个行位置之间闪烁
+
+- **Demo 退出场景** — 内容被完全替换时自动回到底部
+  - 条件：`nfBack=True && displayLineList.Count < nfScrollOffsetFromBottom`
+  - 清除 `nfBack` 并强制 `ScrollBar.Value = Maximum`
+
+- **WaitInput 强制回底** — 非 NF 的 WaitInput 入口强制滚动到底部
+  - 解决从 demo（AWAIT/Running 状态）退出后进入 WaitInput 时滚动条停留在中间的问题
+
+### Added — HOVER_PAUSE 悬停暂停动画逻辑
+
+- **ERB 层悬停暂停** — 鼠标悬停按钮时暂停动画，离开时恢复
+  - `HOVER_PAUSE` 标志 + `MOUSEB()` 检测，替代旧 `AWAIT_HANG` 双状态闸口
+  - 动画模式：`TINPUTSNF ANIMATERECOLOREDMAPS` 帧间隔超时 → 检查 `MOUSEB()`
+    - 鼠标在按钮上 → `HOVER_PAUSE=1`，`GOTO INPUT_LOOP`（不推进动画）
+    - 鼠标不在 → 正常推进动画
+  - 悬停模式：`TINPUTSNF 200` 短超时轮询 → 检查 `MOUSEB()`
+    - 鼠标仍在 → 继续暂停（`GOTO INPUT_LOOP`）
+    - 鼠标离开 → `HOVER_PAUSE=0`，恢复动画
+  - 4 个地图函数统一应用：QOL_COM400/QOL_COM604/QOL_SET_MAINHOME/HIKKOSHI_ROOM
+
+### Changed — 修改文件清单
+
+| 文件 | 修改内容 |
+|------|---------|
+| `Emuera/UI/Game/EmueraConsole.cs` | `ConsoleState` 新增 `WaitInputNoFocus=22`；新增 `IsWaitInputState` 属性；新增 `WaitInputNoFocus()` 方法；28 处 WaitInput 判断迁移；`nfUserScrolledBack`/`nfScrollOffsetFromBottom` 滚动机制；`RefreshStrings` 跳过逻辑；`WaitInput` 强制回底 |
+| `Emuera/Runtime/InputRequest.cs` | 新增 `NoFocus` 布尔字段 |
+| `Emuera/Runtime/Script/Statements/BuiltInFunctionCode.cs` | 新增 `INPUTNF`/`INPUTSNF`/`TINPUTNF`/`TINPUTSNF` 枚举值 |
+| `Emuera/Runtime/Script/Statements/Instraction.Child.cs` | INPUT/INPUTS/TINPUT/TINPUTS 构造函数新增 `noFocus` 参数；条件调用 `ApplyTextBoxChanges`/`WaitInputNoFocus` |
+| `Emuera/Runtime/Script/Statements/FunctionIdentifier.cs` | 注册 4 个 NF 变体指令 |
+| `Emuera/UI/Framework/Forms/MainWindow.cs` | 鼠标滚轮事件添加 `NotifyUserScrolled()` 调用 |
+| `eratw-chs/ERB/TITLE.ERB` | `TINPUT` → `TINPUTNF`（demo 场景） |
+| `eratw-chs/ERB/魔改内容/qol/qol_MAP.ERB` | 4 处 `TINPUTS`→`TINPUTSNF`，4 处 `INPUTS`→`INPUTSNF`；HOVER_PAUSE 悬停暂停逻辑 |
+
+### SkiaX/Xamarin 继承评估
+
+| 组件 | Desktop | Xamarin | 风险 |
+|------|---------|---------|------|
+| `ConsoleState` 枚举 | 新增 `WaitInputNoFocus=22` | 同步新增 | 低 |
+| `EmueraConsole.cs` | 新增 `WaitInputNoFocus()` + 滚动机制 | 同步新增 | 低 |
+| `InputRequest.cs` | 新增 `NoFocus` 字段 | 共享文件 | 低 |
+| `Instraction.Child.cs` | 注册 NF 变体；条件调用 `ApplyTextBoxChanges` | 共享文件 | 低 |
+| `Process.cs` | `Run()` 中 WaitInput 判断扩展 | 同步修改 | 低 |
+| `ApplyTextBoxChanges` | 条件跳过（WinForms 端有实际效果） | Xamarin 端为空操作，天然安全 | 低 |
+
+***
+
 ## [4.3.1] — GETKEY 解耦：Latch 泄漏修复
 
 ### Fixed — AWAIT 循环首次迭代虚假鼠标点击

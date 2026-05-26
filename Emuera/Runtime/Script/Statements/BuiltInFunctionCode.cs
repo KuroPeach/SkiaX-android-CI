@@ -52,6 +52,12 @@ enum FunctionCode
 	TONEINPUT,
 	TONEINPUTS,
 	AWAIT,//入力不可 DoEvents
+	#region 尊尼获加_NF后缀
+	INPUTNF,//整数入力（不强制滚动）
+	INPUTSNF,//文字列入力（不强制滚动）
+	TINPUTNF,
+	TINPUTSNF,
+	#endregion
 
 	DRAWLINE,//画面の左端から右端まで----と線を引く。
 	BAR,//[*****....]のようなグラフを書く。BAR (変数) , (最大値), (長さ)

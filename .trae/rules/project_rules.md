@@ -12,6 +12,26 @@ alwaysApply: true
 - 构建：`dotnet build "D:\emuera\emuera_lazyloading_selfmodified_version\Emuera.sln" 2>&1`
 - 测试：`dotnet test 2>&1`
 
+## Git 拓扑（强制认知）
+
+> **Agent 激活本工作区时必须理解以下拓扑，禁止将 SkiaX 与 m-emuera 混淆。**
+
+```
+本仓库: emuera_lazyloading_selfmodified_version (D:\emuera\emuera_lazyloading_selfmodified_version)
+├── .git/                                    ← 主仓库
+├── [主工作区] checkout: develop-skiasharp   ← LazyLoading Desktop 开发（你当前所在）
+├── .git/worktrees/SkiaX/ → D:\emuera\SkiaX ← checkout: feature/xamarin（SkiaX 移植端）
+├── 分支: main-skiasharp                     ← 稳定发布
+├── 分支: develop-legency                    ← 旧版 GDI+
+└── 分支: legency-textrender                 ← 旧版文本渲染
+```
+
+**关键事实**：
+- **SkiaX（D:\emuera\SkiaX）是本仓库的 Git worktree**，不是独立仓库，不是 m-emuera
+- **m-emuera（D:\emuera\m-emuera）是完全独立的 Git 仓库**，与本仓库无 Git 共享关系
+- **XEmuera** 是上游原型仓库，仅参考不修改
+- 两个工作区共享 `.git`，任何分支上的提交对另一个工作区立即可见
+
 ## 技能
 
 通用语言：[CONTEXT.md](file:///d:/emuera/shared-trae/CONTEXT.md)

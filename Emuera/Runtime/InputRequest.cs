@@ -47,6 +47,9 @@ internal sealed class InputRequest
 	#region EM_私家版_INPUT系機能拡張
 	public bool MouseInput;
 	#endregion
+	#region 尊尼获加_NF后缀
+	public bool NoFocus;//不强制滚动（INPUTNF等）
+	#endregion
 	public bool OneInput;
 	public bool StopMesskip;
 	public bool IsSystemInput;

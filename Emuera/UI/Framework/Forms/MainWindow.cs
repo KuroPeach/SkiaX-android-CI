@@ -855,8 +855,15 @@ namespace MinorShift.Emuera.Forms
 			if (isBacklog)
 				if ((e.Button == MouseButtons.Left) || (e.Button == MouseButtons.Right))
 				{
-					vScrollBar.Value = vScrollBar.Maximum;
-					console.RefreshStrings(true);
+					// 尊尼获加：NF 等待期间不拉回滚动，保持用户滚动位置
+					if (!console.IsWaitInputNoFocusState)
+					{
+						vScrollBar.Value = vScrollBar.Maximum;
+						console.RefreshStrings(true);
+					}
+					else
+					{
+					}
 				}
 			if (console.IsWaitingEnterKey && str == null)
 			{
@@ -963,6 +970,9 @@ namespace MinorShift.Emuera.Forms
 			//上端でも下端でもないなら描画を控えめに。
 			if (console == null)
 				return;
+			// 尊尼获加：程序修改 ScrollBar 时不更新 NF 标志，只有用户主动滚动才更新
+			if (!TextBoxIgnoreScrollBarChanges)
+				console.NotifyUserScrolled();
 			console.RefreshStrings((vScrollBar.Value == vScrollBar.Maximum) || (vScrollBar.Value == vScrollBar.Minimum));
 		}
 
@@ -1351,6 +1361,8 @@ namespace MinorShift.Emuera.Forms
 				vScrollBar.Value = vScrollBar.Minimum;
 			else
 				vScrollBar.Value = value;
+			// 尊尼获加：鼠标滚轮修改 Value 不触发 Scroll 事件，需手动通知
+			console.NotifyUserScrolled();
 			bool force_refresh = (vScrollBar.Value == vScrollBar.Maximum) || (vScrollBar.Value == vScrollBar.Minimum);
 
 			//ボタンとの関係をチェック
@@ -1478,8 +1490,12 @@ namespace MinorShift.Emuera.Forms
 			}
 			else if (vScrollBar.Value != vScrollBar.Maximum)
 			{
-				vScrollBar.Value = vScrollBar.Maximum;
-				console.RefreshStrings(true);
+				// 尊尼获加：NF 等待期间不拉回滚动
+				if (!console.IsWaitInputNoFocusState)
+				{
+					vScrollBar.Value = vScrollBar.Maximum;
+					console.RefreshStrings(true);
+				}
 			}
 			if (e.KeyCode == Keys.Return)
 			{

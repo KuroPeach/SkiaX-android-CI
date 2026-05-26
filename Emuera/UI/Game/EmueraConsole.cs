@@ -49,6 +49,7 @@ internal enum ConsoleState
 	Running = 7,
 	WaitInput = 20,
 	Sleep = 21,//DoEvents
+	WaitInputNoFocus = 22,//尊尼获加_NF：不强制滚动的输入等待
 
 	//WaitKey = 1,//WAIT
 	//WaitSystemInteger = 2,//Systemが要求するInput
@@ -347,13 +348,19 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// スクリプトが継続中かどうか
 	/// 入力系はメッセージスキップやマクロも含めてIsInProcessを参照すべき
 	/// </summary>
+	#region 尊尼获加_NF后缀
+	/// <summary>WaitInput または WaitInputNoFocus 状态</summary>
+	internal bool IsWaitInputState => state == ConsoleState.WaitInput || state == ConsoleState.WaitInputNoFocus;
+	/// <summary>WaitInputNoFocus 状态（NF 等待，不强制滚动）</summary>
+	internal bool IsWaitInputNoFocusState => state == ConsoleState.WaitInputNoFocus;
+	#endregion
 	internal bool IsRunning
 	{
 		get
 		{
 			if (state == ConsoleState.Initializing)
 				return true;
-			if (state == ConsoleState.WaitInput)
+			if (state == ConsoleState.WaitInput || state == ConsoleState.WaitInputNoFocus)
 				return false;
 			return state == ConsoleState.Running || runningERBfromMemory;
 		}
@@ -363,7 +370,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		get
 		{
-			return state == ConsoleState.WaitInput && inputReq.MouseInput;
+			return IsWaitInputState && inputReq.MouseInput;
 		}
 	}
 	#endregion
@@ -375,7 +382,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				return true;
 			if (state == ConsoleState.Sleep)
 				return true;
-			if (state == ConsoleState.WaitInput)
+			if (state == ConsoleState.WaitInput || state == ConsoleState.WaitInputNoFocus)
 				return false;
 			if (inProcess)
 				return true;
@@ -400,7 +407,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				GlobalStatic.ForceQuitAndRestart = false;
 				return true;
 			}
-			if (state == ConsoleState.WaitInput)
+			if (IsWaitInputState)
 			{
 				GlobalStatic.ForceQuitAndRestart = false;
 				return inputReq.InputType == InputType.AnyKey || inputReq.InputType == InputType.EnterKey;
@@ -414,7 +421,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		get
 		{
 			GlobalStatic.ForceQuitAndRestart = false;
-			return state == ConsoleState.WaitInput && inputReq.InputType == InputType.AnyKey;
+			return IsWaitInputState && inputReq.InputType == InputType.AnyKey;
 		}
 	}
 	#endregion
@@ -422,7 +429,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		get
 		{
-			return state == ConsoleState.WaitInput && inputReq.OneInput;
+			return IsWaitInputState && inputReq.OneInput;
 		}
 	}
 
@@ -430,7 +437,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		get
 		{
-			return state == ConsoleState.WaitInput && inputReq.Timelimit > 0 && !isTimeout;
+			return IsWaitInputState && inputReq.Timelimit > 0 && !isTimeout;
 		}
 	}
 
@@ -438,7 +445,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		get
 		{
-			if (state == ConsoleState.WaitInput)
+			if (IsWaitInputState)
 				return inputReq.InputType == InputType.PrimitiveMouseKey;
 			return false;
 		}
@@ -452,7 +459,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				return null;
 			if (state == ConsoleState.Error)
 				return selectingButton.Inputs;
-			if (state != ConsoleState.WaitInput)
+			if (!IsWaitInputState)
 				return null;
 			#region EE_BINPUT
 			if ((inputReq.InputType == InputType.IntValue || inputReq.InputType == InputType.IntButton) && selectingButton.IsInteger)
@@ -588,7 +595,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	private void newGeneration()
 	{
 		//値の入力を求められない時は更新は必要ないはず
-		if (state != ConsoleState.WaitInput || !inputReq.NeedValue)
+		if (!IsWaitInputState || !inputReq.NeedValue)
 			return;
 		if (!updatedGeneration && process.getCurrentLine != lastInputLine)
 		{
@@ -695,6 +702,16 @@ internal sealed partial class EmueraConsole : IDisposable
 		#endregion
 		state = ConsoleState.WaitInput;
 		inputReq = req;
+		// 尊尼获加：非 NF 的 WaitInput 清除上滚标志和偏移量，恢复正常跟随滚动
+		nfUserScrolledBack = false;
+		nfScrollOffsetFromBottom = 0;
+		// 强制滚动到底部，确保从 NF 状态退出后回到最新内容
+		if (window.ScrollBar.Value < window.ScrollBar.Maximum)
+		{
+			window.TextBoxIgnoreScrollBarChanges = true;
+			window.ScrollBar.Value = window.ScrollBar.Maximum;
+			window.TextBoxIgnoreScrollBarChanges = false;
+		}
 		if (req.Timelimit > 0)
 		{
 			if (req.OneInput)
@@ -710,6 +727,73 @@ internal sealed partial class EmueraConsole : IDisposable
 		//	MoveMouse(point);
 		//}
 	}
+
+	#region 尊尼获加_NF后缀
+	// 用户在 NF 等待期间主动上滚的标志
+	// wasAtBottom 无法区分"用户主动在底部"和"CLEARLINE 删除行使位置变成底部"
+	// 所以需要显式记录用户的滚动意图
+	private bool nfUserScrolledBack = false;
+	// 用户上滚时保存的滚动偏移（从底部算起的距离）
+	// CLEARLINE 会改变 Maximum，WinForms 不允许 Value > Maximum
+	// 所以用偏移量在重绘后恢复用户的相对位置
+	private int nfScrollOffsetFromBottom = 0;
+
+	/// <summary>
+	/// 用户滚动时更新 NF 上滚标志。由 MainWindow.vScrollBar_Scroll 调用。
+	/// </summary>
+	public void NotifyUserScrolled()
+	{
+		if (state == ConsoleState.WaitInputNoFocus)
+		{
+			nfUserScrolledBack = window.ScrollBar.Value < window.ScrollBar.Maximum;
+			if (nfUserScrolledBack)
+				nfScrollOffsetFromBottom = window.ScrollBar.Maximum - window.ScrollBar.Value;
+		}
+	}
+
+	public void WaitInputNoFocus(InputRequest req)
+	{
+		if (Config.CBUseClipboard)
+			CBProc.Check(ClipboardProcessor.CBTriggers.InputWait);
+		// 尊尼获加：NF 上滚状态管理
+		// 只有从上一个 WaitInputNoFocus 继承的 nfBack 才保留（动态地图循环场景）
+		// 如果是从其他状态（Running/WaitInput）进入，清除 nfBack（demo 退出场景）
+		// 因为 Running 期间的滚动由 wasAtBottom 逻辑处理，不需要 NF 机制
+		if (nfUserScrolledBack)
+		{
+			// 检测内容是否被完全替换（如从 demo 退出到标题画面）
+			if (displayLineList.Count < nfScrollOffsetFromBottom)
+			{
+				nfUserScrolledBack = false;
+				nfScrollOffsetFromBottom = 0;
+			}
+			else if (window.ScrollBar.Value < window.ScrollBar.Maximum)
+			{
+				// 从上一个 WaitInputNoFocus 继承，更新偏移量
+				nfScrollOffsetFromBottom = window.ScrollBar.Maximum - window.ScrollBar.Value;
+			}
+			// Val >= Max 且 nfBack=True：CLEARLINE 把 Value 拉到了 Max，保留 offset
+		}
+		// nfBack=False 时不设置，即使 Val < Max（可能是 AWAIT 期间的滚动）
+		// 但需要确保 ScrollBar 在底部，否则 verticalScrollBarUpdate 的 wasAtBottom 会出错
+		if (!nfUserScrolledBack && window.ScrollBar.Value < window.ScrollBar.Maximum)
+		{
+			window.TextBoxIgnoreScrollBarChanges = true;
+			window.ScrollBar.Value = window.ScrollBar.Maximum;
+			window.TextBoxIgnoreScrollBarChanges = false;
+		}
+		state = ConsoleState.WaitInputNoFocus;
+		inputReq = req;
+		// 尊尼获加_NF：像 AWAIT 一样在进入等待前刷新 UI，确保用户看到最新 PRINT 的内容
+		RefreshStrings(true);
+		if (req.Timelimit > 0)
+		{
+			if (req.OneInput)
+				window.update_lastinput();
+			presetTimer();
+		}
+	}
+	#endregion
 
 	public void ReadAnyKey(bool anykey = false, bool stopMesskip = false)
 	{
@@ -817,7 +901,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (!redrawTimer.Enabled)
 			return;
 		//INPUT待ちでないとき、又はタイマー付きINPUT状態の場合はこれ以外の処理に任せる
-		if (state != ConsoleState.WaitInput || genericTimer.Enabled)
+		if (!IsWaitInputState || genericTimer.Enabled)
 		{
 			return;
 		}
@@ -881,7 +965,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (!genericTimer.Enabled)
 			return;
-		if (state != ConsoleState.WaitInput || inputReq.Timelimit <= 0 || timerID != inputReq.ID)
+		if (!IsWaitInputState || inputReq.Timelimit <= 0 || timerID != inputReq.ID)
 		{
 			stopTimer();
 			return;
@@ -930,7 +1014,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			#region EE_INPUTMOUSEKEY拡張
 			// InputMouseKey(4, 0, 0, 0, 0);
 			InputMouseKey(4, 0, 0, 0, 0, 0);
-			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+			if (IsWaitInputState && inputReq.NeedValue)
 			{
 				Point point = window.MainPicBox.PointToClient(Control.MousePosition);
 				if (window.MainPicBox.ClientRectangle.Contains(point))
@@ -947,7 +1031,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		window.Invoke(() =>
 		{
 			RunEmueraProgram("");//ディフォルト入力の処理はcallEmueraProgram側で
-			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+			if (IsWaitInputState && inputReq.NeedValue)
 			{
 				window.Invoke(() =>
 				{
@@ -985,6 +1069,9 @@ internal sealed partial class EmueraConsole : IDisposable
 			if (state == ConsoleState.Error)
 				return;
 		}
+		// 尊尼获加：超时恢复执行时不清除 NF 上滚标志
+		// nfUserScrolledBack 在 WaitInput（非 NF）中清除
+		// 因为超时后的 ERB 代码（CLEARLINE + redraw + TINPUTSNF）仍在 NF 上下文中
 		state = ConsoleState.Running;
 		process.DoScript();
 		if (state == ConsoleState.Running)
@@ -1006,7 +1093,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	private bool doInputToEmueraProgram(string str)
 	{
-		if (state == ConsoleState.WaitInput)
+		if (IsWaitInputState)
 		{
 			long inputValue;
 			List<AConsoleDisplayNode> ep;
@@ -1256,7 +1343,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		{
 			//1823 Escキーもマクロも右クリックも不可。単純に押されたキーを送るのみ。
 			RunEmueraProgram(null);
-			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+			if (IsWaitInputState && inputReq.NeedValue)
 			{
 				Point point = window.MainPicBox.PointToClient(Control.MousePosition);
 				if (window.MainPicBox.ClientRectangle.Contains(point))
@@ -1297,7 +1384,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			return;
 		}
 #if DEBUG
-		if (state != ConsoleState.WaitInput || inputReq == null)
+		if (!IsWaitInputState || inputReq == null)
 			throw new ExeEE("");
 #endif
 		KillMacro = false;
@@ -1346,7 +1433,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				}
 				RunEmueraProgram(inputs);
 				RefreshStrings(false);
-				while (MesSkip && state == ConsoleState.WaitInput)
+				while (MesSkip && IsWaitInputState)
 				{
 					//TODO:入力無効を通していいか？スキップ停止をマクロでは飛ばせていいのか？
 					if (inputReq.NeedValue)
@@ -1360,12 +1447,12 @@ internal sealed partial class EmueraConsole : IDisposable
 					//	goto endMacro;
 				}
 				MesSkip = false;
-				if (state != ConsoleState.WaitInput)
+				if (!IsWaitInputState)
 					break;
 				//マクロループ時は待ち処理が起こらないのでここでシステムキューを捌く
 				PlatformInterop.DoEvents();
 #if DEBUG
-				if (state != ConsoleState.WaitInput || inputReq == null)
+				if (!IsWaitInputState || inputReq == null)
 					throw new ExeEE("");
 #endif
 				if (KillMacro)
@@ -1383,7 +1470,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 		void endMacro()
 		{
-			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+			if (IsWaitInputState && inputReq.NeedValue)
 			{
 				Point point = window.MainPicBox.PointToClient(Control.MousePosition);
 				if (window.MainPicBox.ClientRectangle.Contains(point))
@@ -1650,6 +1737,10 @@ internal sealed partial class EmueraConsole : IDisposable
 		//ログ表示はREDRAWの設定に関係なく行うようにする
 		if ((redraw == ConsoleRedraw.None) && (!force_Paint) && (!isBackLog))
 			return;
+		// 尊尼获加：NF 上滚时，跳过 Running 状态的中间渲染（CLEARLINE/PRINT 交替时）
+		// 避免在两个行位置之间闪烁，只在 WaitInputNoFocus 的 force_Paint 时渲染
+		if (nfUserScrolledBack && !force_Paint && state == ConsoleState.Running)
+			return;
 		//選択中ボタンの適性チェック
 		if (selectingButton != null)
 		{
@@ -1657,9 +1748,9 @@ internal sealed partial class EmueraConsole : IDisposable
 			//if (isBackLog)
 			//	selectingButton = null;
 			//数値か文字列の入力待ち状態でなければ無効
-			if (state != ConsoleState.Error && state != ConsoleState.WaitInput)
+			if (state != ConsoleState.Error && !IsWaitInputState)
 				selectingButton = null;
-			else if ((state == ConsoleState.WaitInput) && !inputReq.NeedValue)
+			else if (IsWaitInputState && !inputReq.NeedValue)
 				selectingButton = null;
 			//選択肢が最新でないなら無効
 			else if (selectingButton.Generation != lastButtonGeneration)
@@ -2382,7 +2473,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		//数値か文字列の入力待ち状態でなければ選択中にはならない
 		if (state == ConsoleState.Error)
 			canSelect = true;
-		else if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+		else if (IsWaitInputState && inputReq.NeedValue)
 			canSelect = true;
 		//スクリプト実行中は無視//入力・マクロ処理中は無視
 		#region EE_MOUSEB
@@ -2534,7 +2625,7 @@ internal sealed partial class EmueraConsole : IDisposable
 					continue;
 				else if (!p.IsButton)
 					continue;
-				else if (state == ConsoleState.WaitInput && !p.IsInteger)
+				else if (IsWaitInputState && !p.IsInteger)
 				{
 					if ((inputReq.InputType == InputType.IntValue) || (inputReq.InputType == InputType.IntButton))
 						continue;
@@ -2550,7 +2641,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				canSelect = false;
 			else if (!pointing.IsButton)
 				canSelect = false;
-			else if (state == ConsoleState.WaitInput && !pointing.IsInteger)
+			else if (IsWaitInputState && !pointing.IsInteger)
 			{
 				if ((inputReq.InputType == InputType.IntValue) || (inputReq.InputType == InputType.IntButton))
 					canSelect = false;
@@ -2660,18 +2751,28 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (move == 0)
 			return;
 		window.TextBoxIgnoreScrollBarChanges = true;
-		if (move > 0)
+		// 尊尼获加：NF 上滚时用偏移量保持用户相对位置
+		// 始终更新 ScrollBar（包括 CLEARLINE），确保 Maximum 与 displayLineList 同步
+		// 闪烁通过 RefreshStrings 中跳过 Running 状态的渲染来避免
+		if (nfUserScrolledBack)
 		{
 			window.ScrollBar.Maximum = max;
-			window.ScrollBar.Value += move;
+			int targetVal = max - nfScrollOffsetFromBottom;
+			if (targetVal < 0) targetVal = 0;
+			if (targetVal > max) targetVal = max;
+			window.ScrollBar.Value = targetVal;
+			window.ScrollBar.Enabled = max > 0;
 		}
 		else
 		{
-			if (max > window.ScrollBar.Value)
-				window.ScrollBar.Value = max;
+			bool wasAtBottom = window.ScrollBar.Value >= window.ScrollBar.Maximum;
 			window.ScrollBar.Maximum = max;
+			if (wasAtBottom && move > 0)
+				window.ScrollBar.Value += move;
+			else if (max < window.ScrollBar.Value)
+				window.ScrollBar.Value = max;
+			window.ScrollBar.Enabled = max > 0;
 		}
-		window.ScrollBar.Enabled = max > 0;
 		window.TextBoxIgnoreScrollBarChanges = false;
 	}
 	#endregion
