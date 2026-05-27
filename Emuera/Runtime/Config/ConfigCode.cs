@@ -1,4 +1,4 @@
-﻿namespace MinorShift.Emuera.Runtime.Config;
+namespace MinorShift.Emuera.Runtime.Config;
 
 internal enum DisplayWarningFlag
 {
@@ -193,6 +193,9 @@ internal enum ConfigCode
 	#endregion
 	#region EE_行連結の改行コード置換
 	ReplaceContinuationBR,
+	#endregion
+	#region EE_CALLSHARP注意
+	PluginAvailableWarn,
 	#endregion
 
 	#region EM_私家版_LoadText＆SaveText機能拡張

@@ -1720,6 +1720,7 @@ namespace MinorShift.Emuera.Forms
 			// checkBoxUseLazyLoading
 			// 
 			resources.ApplyResources(checkBoxUseLazyLoading, "checkBoxUseLazyLoading");
+			checkBoxUseLazyLoading.AutoSize = true;
 			checkBoxUseLazyLoading.Name = "checkBoxUseLazyLoading";
 			checkBoxUseLazyLoading.UseVisualStyleBackColor = true;
 			// 

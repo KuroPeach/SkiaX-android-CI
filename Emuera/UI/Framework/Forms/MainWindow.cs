@@ -1146,6 +1146,8 @@ namespace MinorShift.Emuera.Forms
 		{
 			if (console == null || GlobalStatic.Console == null)
 				return;
+			// 暂停 TINPUT 等定时器，防止模态对话框期间超时触发 RunEmueraProgram
+			bool timerWasRunning = console.PauseTimer();
 			string lang = Config.EmueraLang;
 			ConfigDialog dialog = new();
 			dialog.TranslateUI();
@@ -1164,6 +1166,7 @@ namespace MinorShift.Emuera.Forms
 				TranslateUI();
 				ResetCheckedLanguage();
 			}
+			console.ResumeTimer(timerWasRunning);
 		}
 
 		private void タイトルへ戻るTToolStripMenuItem_Click(object sender, EventArgs e)

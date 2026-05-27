@@ -1053,6 +1053,29 @@ internal sealed partial class EmueraConsole : IDisposable
 			genericTimer.Enabled = false;
 		}
 	}
+
+	/// <summary>
+	/// 暂停定时器并返回是否正在运行，供 ShowConfigDialog 等模态对话框使用
+	/// </summary>
+	public bool PauseTimer()
+	{
+		bool wasRunning = genericTimer.Enabled;
+		if (wasRunning)
+			genericTimer.Enabled = false;
+		return wasRunning;
+	}
+
+	/// <summary>
+	/// 恢复定时器（仅当 wasRunning 为 true 时恢复），重置计时起点避免暂停期间累积超时
+	/// </summary>
+	public void ResumeTimer(bool wasRunning)
+	{
+		if (wasRunning && IsWaitInputState && inputReq.Timelimit > 0)
+		{
+			_genericTimerStopwatch.Restart();
+			genericTimer.Enabled = true;
+		}
+	}
 	#endregion
 
 	#region Call系
@@ -2020,6 +2043,12 @@ internal sealed partial class EmueraConsole : IDisposable
 			if (!string.IsNullOrEmpty(title))
 			{
 				title = title.Replace("<br>", Environment.NewLine);
+				if (window.ToolTip.OwnerDraw == false && window.ToolTip.InitialDelay == 0 && tooltip_duration == 0)
+				{
+					window.ToolTip.SetToolTip(window.MainPicBox, title);
+				}
+				else
+				{
 				System.Threading.SynchronizationContext context = System.Threading.SynchronizationContext.Current;
 				Task.Run(async () =>
 				{
@@ -2048,6 +2077,7 @@ internal sealed partial class EmueraConsole : IDisposable
 						}
 					}, null);
 				});
+				}
 				tooltipUsed = true;
 			}
 			lastPointingString = pointingString;

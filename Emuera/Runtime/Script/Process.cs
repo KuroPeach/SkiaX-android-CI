@@ -215,6 +215,10 @@ internal sealed partial class Process(EmueraConsole view)
 
 			PluginManager.GetInstance().SetParent(this, state, exm);
 			PluginManager.GetInstance().LoadPlugins();
+			if (GlobalStatic.ExistPlugin == true && Config.PluginAvailableWarn == true)
+			{
+				console.PrintSingleLine(trsl.PluginAvailable.Text);
+			}
 
 			//ERH読込
 			System.Diagnostics.Debug.WriteLine($"[Emuera] Process.Initialize: Loading ERH files (LoadHeaderFiles)...");

@@ -1344,7 +1344,8 @@ internal sealed partial class Lang
 		[Managed] public static TranslatableString CreateFromCSV { get; } = new TranslatableString("ファイル「{0}」からスプライト「{1}」を生成・・・");
 		[Managed] public static TranslatableString Variant { get; } = new TranslatableString("# バリアント");
 		[Managed] public static TranslatableString NotDefinedGameBase { get; } = new TranslatableString("GameBase未定義");
-		
+		[Managed] public static TranslatableString PluginAvailable { get; } = new TranslatableString("注意：外部プラグイン機能が有効になっています。この機能で生じた不具合等はEmueraのサポート対象外となります");
+
 		#region LazyLoading
         [Managed] public static TranslatableString LazyLoadingNoConfigFile { get; } = new TranslatableString("遅延ローディング設定ファイルが見つからないため、テーブル構築をスキップします");
         [Managed] public static TranslatableString LazyLoadingConfigError { get; } = new TranslatableString("遅延ローディング設定ファイルの読み込みに失敗しました。メッセージ：{0}");
