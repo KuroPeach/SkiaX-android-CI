@@ -40,6 +40,9 @@ namespace MinorShift.Emuera
 		public static Runtime.Utils.Sound[] Sound = new Runtime.Utils.Sound[16];
 		public static Runtime.Utils.Sound Bgm;
 		public static List<SkiaSharp.SKTypeface> CustomTypefaces = new();
+		#region EE_CALLSHARP注意
+		public static bool ExistPlugin;
+		#endregion
 
 
 		//ERBloaderに引数解析の結果を渡すための橋渡し変数

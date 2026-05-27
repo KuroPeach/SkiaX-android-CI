@@ -161,6 +161,7 @@ internal sealed partial class Lang
 				[Managed] public static TranslatableString UseSaveFolder { get; } = new TranslatableString("セーブデータをsavフォルダ内に作成する");
 				[Managed] public static TranslatableString EnglishConfigOutput { get; } = new TranslatableString("CONFIGファイルの内容を英語で保存する");
 				[Managed] public static TranslatableString UseCtrlZUndo { get; } = new TranslatableString("Zで元に戻す機能を有効にする");
+				[Managed] public static TranslatableString PluginAvailableWarn { get; } = new TranslatableString("外部プラグインが有効時に警告を表示する");
 				[Managed] public static TranslatableString MaxLog { get; } = new TranslatableString("履歴ログの行数");
 				[Managed] public static TranslatableString InfiniteLoopAlertTime { get; } = new TranslatableString("無限ループ警告までのミリ秒");
 				[Managed] public static TranslatableString SaveDataPerPage { get; } = new TranslatableString("使用するセーブデータ数");

@@ -106,6 +106,7 @@ namespace MinorShift.Emuera.Forms
 			checkBox24.Text = Lang.UI.ConfigDialog.Environment.UseSaveFolder.Text;
 			checkBox33.Text = Lang.UI.ConfigDialog.Environment.EnglishConfigOutput.Text;
 			checkBox27.Text = Lang.UI.ConfigDialog.Environment.UseCtrlZUndo.Text;
+			checkBox36.Text = Lang.UI.ConfigDialog.Environment.PluginAvailableWarn.Text;
 			label6.Text = Lang.UI.ConfigDialog.Environment.MaxLog.Text;
 			label17.Text = Lang.UI.ConfigDialog.Environment.InfiniteLoopAlertTime.Text;
 			label20.Text = Lang.UI.ConfigDialog.Environment.SaveDataPerPage.Text;
@@ -600,6 +601,8 @@ namespace MinorShift.Emuera.Forms
 
 			setCheckBox(checkBox27, ConfigCode.Ctrl_Z_Enabled);
 
+			setCheckBox(checkBox36, ConfigCode.PluginAvailableWarn);
+
 		}
 
 		private void SaveConfig()
@@ -794,6 +797,8 @@ namespace MinorShift.Emuera.Forms
 			config.GetConfigItem(ConfigCode.RikaiUseSeparateBoxes).SetValue(rikaiCheckBoxSeparateBoxes.Checked);
 
 			config.GetConfigItem(ConfigCode.Ctrl_Z_Enabled).SetValue(checkBox27.Checked);
+
+			config.GetConfigItem(ConfigCode.PluginAvailableWarn).SetValue(checkBox36.Checked);
 
 			config.SaveConfig();
 
@@ -1077,6 +1082,11 @@ namespace MinorShift.Emuera.Forms
 		private void _useVAR_CheckedChanged(object sender, EventArgs e)
 		{
 			JSONConfig.Data.UseScopedVariableInstruction = _useVAR.Checked;
+		}
+
+		private void checkBox36_CheckedChanged(object sender, EventArgs e)
+		{
+
 		}
 	}
 }

@@ -726,7 +726,7 @@ internal static class Config
 	public static string ReplaceContinuationBR { get; internal set; }
 	#endregion
 	#region EE_CALLSHARP注意
-	public static bool PluginAvailableWarn { get; private set; }
+	public static bool PluginAvailableWarn { get; internal set; }
 	#endregion
 	#region EM_私家版_LoadText＆SaveText機能拡張
 	public static List<string> ValidExtension { get; internal set; }

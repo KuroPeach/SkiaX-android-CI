@@ -57,6 +57,7 @@
     <tr id="UI.ConfigDialog.Environment.UseSaveFolder"><![CDATA[将存档保存到sav文件夹]]></tr>
     <tr id="UI.ConfigDialog.Environment.EnglishConfigOutput"><![CDATA[用英文输出配置文件的设置项目]]></tr>
 	<tr id="UI.ConfigDialog.Environment.UseCtrlZUndo"><![CDATA[使用Ctrl+Z撤销热键]]></tr>
+	<tr id="UI.ConfigDialog.Environment.PluginAvailableWarn"><![CDATA[外部插件启用时显示警告]]></tr>
     <tr id="UI.ConfigDialog.Environment.MaxLog"><![CDATA[历史日志行数]]></tr>
     <tr id="UI.ConfigDialog.Environment.InfiniteLoopAlertTime"><![CDATA[无限循环警告超时毫秒数]]></tr>
     <tr id="UI.ConfigDialog.Environment.SaveDataPerPage"><![CDATA[每页显示的存档数]]></tr>
@@ -1094,6 +1095,7 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
 	<tr id="SystemLine.CreateFromCSV"><![CDATA[从文件「{0}」生成拼接图索引「{1}」……]]></tr>
 	<tr id="SystemLine.Variant"><![CDATA[# 变体]]></tr>
 	<tr id="SystemLine.NotDefinedGameBase"><![CDATA[未定义GameBase]]></tr>
+	<tr id="SystemLine.PluginAvailable"><![CDATA[注意：外部插件功能已启用。因该功能引发的问题不在Emuera支持范围内]]></tr>
 	<tr id="SystemLine.LazyLoadingNoConfigFile"><![CDATA[懒加载配置文件未找到，因此跳过索引表构建]]></tr>
 	<tr id="SystemLine.LazyLoadingConfigError"><![CDATA[懒加载配置文件读取失败。消息：{0}]]></tr>
 	<tr id="SystemLine.LazyLoadingTableReadError"><![CDATA[懒加载索引表读取失败。消息：{0}]]></tr>

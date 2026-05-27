@@ -154,6 +154,7 @@ namespace MinorShift.Emuera.Forms
 			checkBox34 = new System.Windows.Forms.CheckBox();
 			_useNewRandom = new System.Windows.Forms.CheckBox();
 			_useVAR = new System.Windows.Forms.CheckBox();
+			checkBox36 = new System.Windows.Forms.CheckBox();
 			label25 = new System.Windows.Forms.Label();
 			textBox3 = new System.Windows.Forms.TextBox();
 			label35 = new System.Windows.Forms.Label();
@@ -1080,6 +1081,7 @@ namespace MinorShift.Emuera.Forms
 			flowLayoutPanel30.Controls.Add(checkBox34);
 			flowLayoutPanel30.Controls.Add(_useNewRandom);
 			flowLayoutPanel30.Controls.Add(_useVAR);
+			flowLayoutPanel30.Controls.Add(checkBox36);
 			flowLayoutPanel30.Controls.Add(label25);
 			flowLayoutPanel30.Controls.Add(textBox3);
 			flowLayoutPanel30.Controls.Add(label35);
@@ -1146,6 +1148,13 @@ namespace MinorShift.Emuera.Forms
 			_useVAR.Name = "_useVAR";
 			_useVAR.UseVisualStyleBackColor = true;
 			_useVAR.CheckedChanged += _useVAR_CheckedChanged;
+			// 
+			// checkBox36
+			// 
+			resources.ApplyResources(checkBox36, "checkBox36");
+			checkBox36.Name = "checkBox36";
+			checkBox36.UseVisualStyleBackColor = true;
+			checkBox36.CheckedChanged += checkBox36_CheckedChanged;
 			// 
 			// label25
 			// 
@@ -2068,6 +2077,7 @@ namespace MinorShift.Emuera.Forms
 		private System.Windows.Forms.CheckBox _useButtonFocusColor;
 		private System.Windows.Forms.CheckBox _useNewRandom;
 		private System.Windows.Forms.CheckBox _useVAR;
+		private System.Windows.Forms.CheckBox checkBox36;
 		private System.Windows.Forms.Label label35;
 		private System.Windows.Forms.TextBox textBox4;
 		private System.Windows.Forms.CheckBox checkBox27;

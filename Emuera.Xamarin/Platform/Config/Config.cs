@@ -182,6 +182,9 @@ namespace MinorShift.Emuera
 			#region EE版_UPDATECHECK
 			ForbidUpdateCheck = instance.GetConfigValue<bool>(ConfigCode.ForbidUpdateCheck);
 			#endregion
+			#region EE_CALLSHARP注意
+			PluginAvailableWarn = instance.GetConfigValue<bool>(ConfigCode.PluginAvailableWarn);
+			#endregion
 			#region EE版_ERDConfig
 			UseERD = instance.GetConfigValue<bool>(ConfigCode.UseERD);
 			#endregion
@@ -394,6 +397,7 @@ namespace MinorShift.Emuera
 			Runtime.Config.Config.AllowLongInputByMouse = AllowLongInputByMouse;
 			Runtime.Config.Config.TimesNotRigorousCalculation = TimesNotRigorousCalculation;
 			Runtime.Config.Config.ForbidUpdateCheck = ForbidUpdateCheck;
+			Runtime.Config.Config.PluginAvailableWarn = PluginAvailableWarn;
 			Runtime.Config.Config.UseERD = UseERD;
 			Runtime.Config.Config.VarsizeDimConfig = VarsizeDimConfig;
 			Runtime.Config.Config.ValidExtension = ValidExtension;
@@ -858,6 +862,9 @@ namespace MinorShift.Emuera
 
 		#region EE版_UPDATECHECK
 		public static bool ForbidUpdateCheck { get; private set; }
+		#endregion
+		#region EE_CALLSHARP注意
+		public static bool PluginAvailableWarn { get; internal set; }
 		#endregion
 		#region EE版_ERDConfig
 		public static bool UseERD { get; private set; }
