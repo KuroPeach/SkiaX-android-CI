@@ -424,6 +424,29 @@ namespace MinorShift.Emuera
 					return;
 				}
 			}
+			#region EE_INPUT第二引数修正
+			// INPUT -1, 1 等带 MouseInput 标志的输入：需要设置 RESULT:1（鼠标按键）和 RESULT:2（修饰键）
+			if (console.IsWaintingInputWithMouse && !console.IsError && (e.MouseButton == SKMouseButton.Left || e.MouseButton == SKMouseButton.Right || e.MouseButton == SKMouseButton.Middle))
+			{
+				if (console.IsWaintingOnePhrase)
+					last_inputed = "";
+				richTextBox1.Text = string.Empty;
+
+				if (str != null)
+					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = str;
+				if (e.MouseButton == SKMouseButton.Left)
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = 1;
+				if (e.MouseButton == SKMouseButton.Right)
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = 2;
+				if (e.MouseButton == SKMouseButton.Middle)
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = 3;
+				// 修饰键（移动端无键盘修饰键，保持为 0）
+				GlobalStatic.VEvaluator.RESULT_ARRAY[2] = 0;
+
+				PressEnterKey(false, true);
+				return;
+			}
+			#endregion
 			//左が押されたなら選択。
 			if (str != null && e.MouseButton == SKMouseButton.Left)
 			{

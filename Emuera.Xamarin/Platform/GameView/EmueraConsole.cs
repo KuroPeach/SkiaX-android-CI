@@ -46,6 +46,7 @@ namespace MinorShift.Emuera.GameView
 		Error = 6,
 		Running = 7,
 		WaitInput = 20,
+		WaitInputNoFocus = 22,
 		Sleep = 21,
 	}
 
@@ -266,6 +267,8 @@ namespace MinorShift.Emuera.GameView
 			{
 				if (state == ConsoleState.Initializing)
 					return true;
+				if (IsWaitInputState)
+					return false;
 				return (state == ConsoleState.Running || runningERBfromMemory);
 			}
 		}
@@ -274,7 +277,7 @@ namespace MinorShift.Emuera.GameView
 		{
 			get
 			{
-				return (state == ConsoleState.WaitInput && inputReq.MouseInput);
+				return (IsWaitInputState && inputReq.MouseInput);
 			}
 		}
 		#endregion
@@ -309,7 +312,7 @@ namespace MinorShift.Emuera.GameView
 					GlobalStatic.ForceQuitAndRestart = false;
 					return true;
 				}
-				if (state == ConsoleState.WaitInput)
+				if (IsWaitInputState)
 				{
 					GlobalStatic.ForceQuitAndRestart = false;
 					return (inputReq.InputType == InputType.AnyKey || inputReq.InputType == InputType.EnterKey);
@@ -318,12 +321,38 @@ namespace MinorShift.Emuera.GameView
 			}
 		}
 
+		/// <summary>
+		/// 是否处于 WaitInputNoFocus 状态（NF 后缀指令）
+		/// </summary>
+		internal bool IsWaitInputNoFocusState
+		{
+			get { return state == ConsoleState.WaitInputNoFocus; }
+		}
+
+		/// <summary>
+		/// WaitInput 或 WaitInputNoFocus 状态（统一判断输入等待）
+		/// </summary>
+		internal bool IsWaitInputState
+		{
+			get { return state == ConsoleState.WaitInput || state == ConsoleState.WaitInputNoFocus; }
+		}
+
+		/// <summary>
+		/// NF 上滚标志：用户是否主动上滚了（不强制滚动到底部）
+		/// </summary>
+		private bool nfUserScrolledBack = false;
+
+		/// <summary>
+		/// NF 滚动偏移量：用户位置相对于底部的偏移
+		/// </summary>
+		private int nfScrollOffsetFromBottom = 0;
+
         internal bool IsWaitAnyKey
         {
             get
 			{
 				GlobalStatic.ForceQuitAndRestart = false;
-				return (state == ConsoleState.WaitInput && inputReq.InputType == InputType.AnyKey);
+				return (IsWaitInputState && inputReq.InputType == InputType.AnyKey);
             }
         }
 		#endregion
@@ -331,7 +360,7 @@ namespace MinorShift.Emuera.GameView
         {
             get
             {
-				return (state == ConsoleState.WaitInput && inputReq.OneInput);
+				return (IsWaitInputState && inputReq.OneInput);
             }
         }
 
@@ -339,7 +368,7 @@ namespace MinorShift.Emuera.GameView
 		{
 			get
 			{
-				return (state == ConsoleState.WaitInput && inputReq.Timelimit > 0 && !isTimeout);
+				return (IsWaitInputState && inputReq.Timelimit > 0 && !isTimeout);
 			}
 		}
 
@@ -347,7 +376,7 @@ namespace MinorShift.Emuera.GameView
 		{
 			get
 			{
-				if (state == ConsoleState.WaitInput)
+				if (IsWaitInputState)
 					return (inputReq.InputType == InputType.PrimitiveMouseKey);
 				return false;
 			}
@@ -361,7 +390,7 @@ namespace MinorShift.Emuera.GameView
 					return null;
 				if (state == ConsoleState.Error)
 					return selectingButton.Inputs;
-				if (state != ConsoleState.WaitInput)
+				if (!IsWaitInputState)
 					return null;
 				if (inputReq.InputType == InputType.IntValue && (selectingButton.IsInteger))
 					return selectingButton.Input.ToString();
@@ -483,7 +512,7 @@ namespace MinorShift.Emuera.GameView
 		private void newGeneration()
 		{
             //値の入力を求められない時は更新は必要ないはず
-			if (state != ConsoleState.WaitInput || !inputReq.NeedValue)
+			if (!IsWaitInputState || !inputReq.NeedValue)
 				return;
             if (!updatedGeneration && emuera.getCurrentLine != lastInputLine)
             {
@@ -589,6 +618,9 @@ namespace MinorShift.Emuera.GameView
 
 		public void WaitInput(InputRequest req)
 		{
+			// 进入普通 WaitInput 时清除 NF 上滚状态
+			nfUserScrolledBack = false;
+			nfScrollOffsetFromBottom = 0;
 			state = ConsoleState.WaitInput;
 			inputReq = req;
 			if (req.Timelimit > 0)
@@ -604,6 +636,55 @@ namespace MinorShift.Emuera.GameView
 			{
 				PrintFlush(false);
 				MoveMouse(point);
+			}
+		}
+
+		/// <summary>
+		/// 用户滚动时更新 NF 上滚标志。由 AndroidMainWindow 的 Slider.ValueChanged 调用。
+		/// </summary>
+		public void NotifyUserScrolled()
+		{
+			if (state == ConsoleState.WaitInputNoFocus)
+			{
+				nfUserScrolledBack = window.ScrollBar.Value < window.ScrollBar.Maximum;
+				if (nfUserScrolledBack)
+					nfScrollOffsetFromBottom = window.ScrollBar.Maximum - window.ScrollBar.Value;
+			}
+		}
+
+		public void WaitInputNoFocus(InputRequest req)
+		{
+			// NF 上滚状态管理
+			// 只有从上一个 WaitInputNoFocus 继承的 nfBack 才保留（动态地图循环场景）
+			// 如果是从其他状态（Running/WaitInput）进入，清除 nfBack（demo 退出场景）
+			if (nfUserScrolledBack)
+			{
+				if (displayLineList.Count < nfScrollOffsetFromBottom)
+				{
+					nfUserScrolledBack = false;
+					nfScrollOffsetFromBottom = 0;
+				}
+				else if (window.ScrollBar.Value < window.ScrollBar.Maximum)
+				{
+					nfScrollOffsetFromBottom = window.ScrollBar.Maximum - window.ScrollBar.Value;
+				}
+			}
+			if (!nfUserScrolledBack && window.ScrollBar.Value < window.ScrollBar.Maximum)
+			{
+				window.TextBoxIgnoreScrollBarChanges = true;
+				window.ScrollBar.Value = window.ScrollBar.Maximum;
+				window.TextBoxIgnoreScrollBarChanges = false;
+			}
+			state = ConsoleState.WaitInputNoFocus;
+			inputReq = req;
+			// 重置无限循环检测计数器，避免 TINPUTSNF 循环中 lineCount 累积触发误报
+			emuera.UpdateCheckInfiniteLoopState();
+			RefreshStrings(true);
+			if (req.Timelimit > 0)
+			{
+				if (req.OneInput)
+					window.update_lastinput();
+				presetTimer();
 			}
 		}
 
@@ -631,7 +712,7 @@ namespace MinorShift.Emuera.GameView
 			if (!redrawTimer.Enabled)
 				return;
 			//INPUT待ちでないとき、又はタイマー付きINPUT状態の場合はこれ以外の処理に任せる
-			if (state != ConsoleState.WaitInput || timer.Enabled)
+			if (!IsWaitInputState || timer.Enabled)
 			{
 				return;
 			}
@@ -701,7 +782,7 @@ namespace MinorShift.Emuera.GameView
 		{
 			if (!timer.Enabled)
 				return;
-			if (state != ConsoleState.WaitInput || inputReq.Timelimit <= 0 || timerID != inputReq.ID)
+			if (!IsWaitInputState || inputReq.Timelimit <= 0 || timerID != inputReq.ID)
 			{
 #if DEBUG
 				throw new ExeEE("");
@@ -750,7 +831,7 @@ namespace MinorShift.Emuera.GameView
 				#region EE_INPUTMOUSEKEY拡張
 				// InputMouseKey(4, 0, 0, 0, 0);
 				InputMouseKey(4, 0, 0, 0, 0, 0);
-				if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+				if (IsWaitInputState && inputReq.NeedValue)
 				{
 					Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 					if (window.MainPicBox.ClientRectangle.Contains(point))
@@ -764,16 +845,22 @@ namespace MinorShift.Emuera.GameView
 				changeLastLine(inputReq.TimeUpMes);
 			else if (inputReq.TimeUpMes != null)
 				PrintSingleLine(inputReq.TimeUpMes);
-			callEmueraProgram("");//ディフォルト入力の処理はcallEmueraProgram側で
-			if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+			// 同步调度到 UI 线程：System.Timers.Timer 在 ThreadPool 线程上触发，
+			// callEmueraProgram 和 RefreshStrings 需要在 UI 线程上执行以避免竞态条件。
+			// Desktop 版的 window.Invoke 是同步的（WinForms Control.Invoke），
+			// Android 版的 window.Invoke 是异步的（RunOnUiThread），所以用 InvokeSync。
+			window.InvokeSync(() =>
 			{
-				Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
-				if (window.MainPicBox.ClientRectangle.Contains(point))
-					MoveMouse(point);
-			}
-			RefreshStrings(true);
-
-			RefreshQuickButton();
+				callEmueraProgram("");//ディフォルト入力の処理はcallEmueraProgram側で
+				if (IsWaitInputState && inputReq.NeedValue)
+				{
+					Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
+					if (window.MainPicBox.ClientRectangle.Contains(point))
+						MoveMouse(point);
+				}
+				RefreshStrings(true);
+				RefreshQuickButton();
+			});
 		}
 
         public void forceStopTimer()
@@ -822,7 +909,7 @@ namespace MinorShift.Emuera.GameView
 
 		private bool doInputToEmueraProgram(string str)
 		{
-			if (state == ConsoleState.WaitInput)
+			if (IsWaitInputState)
 			{
 				Int64 inputValue;
 
@@ -962,7 +1049,7 @@ namespace MinorShift.Emuera.GameView
 			{
 				//1823 Escキーもマクロも右クリックも不可。単純に押されたキーを送るのみ。
 				callEmueraProgram(null);
-				if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+				if (IsWaitInputState && inputReq.NeedValue)
 				{
 					Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 					if (window.MainPicBox.ClientRectangle.Contains(point))
@@ -1000,7 +1087,7 @@ namespace MinorShift.Emuera.GameView
 				return;
 			}
 #if DEBUG
-			if (state != ConsoleState.WaitInput || inputReq == null)
+			if (!IsWaitInputState || inputReq == null)
 				throw new ExeEE("");
 #endif
 			KillMacro = false;
@@ -1048,7 +1135,7 @@ namespace MinorShift.Emuera.GameView
 					}
 					callEmueraProgram(inputs);
 					RefreshStrings(false);
-					while (MesSkip && state == ConsoleState.WaitInput)
+					while (MesSkip && IsWaitInputState)
 					{
 						//TODO:入力無効を通していいか？スキップ停止をマクロでは飛ばせていいのか？
 						if (inputReq.NeedValue)
@@ -1064,12 +1151,12 @@ namespace MinorShift.Emuera.GameView
 						//	goto endMacro;
 					}
 					MesSkip = false;
-					if (state != ConsoleState.WaitInput)
+					if (!IsWaitInputState)
 						break;
 					//マクロループ時は待ち処理が起こらないのでここでシステムキューを捌く
 					App.DoEvents();
 #if DEBUG
-					if (state != ConsoleState.WaitInput || inputReq == null)
+					if (!IsWaitInputState || inputReq == null)
 						throw new ExeEE("");
 #endif
 					if (KillMacro)
@@ -1083,7 +1170,7 @@ namespace MinorShift.Emuera.GameView
 				RefreshQuickButton();
 			}
 			endMacro:
-			if(state == ConsoleState.WaitInput && inputReq.NeedValue)
+			if(IsWaitInputState && inputReq.NeedValue)
 			{
 				Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
 				if (window.MainPicBox.ClientRectangle.Contains(point))
@@ -1359,9 +1446,9 @@ namespace MinorShift.Emuera.GameView
 				//if (isBackLog)
 				//	selectingButton = null;
 				//数値か文字列の入力待ち状態でなければ無効
-				if(state != ConsoleState.Error && state != ConsoleState.WaitInput)
+				if(state != ConsoleState.Error && !IsWaitInputState)
 					selectingButton = null;
-				else if((state == ConsoleState.WaitInput) && !inputReq.NeedValue)
+				else if(IsWaitInputState && !inputReq.NeedValue)
 					selectingButton = null;
 				//選択肢が最新でないなら無効
 				else if (selectingButton.Generation != lastButtonGeneration)
@@ -1913,7 +2000,7 @@ namespace MinorShift.Emuera.GameView
 			//数値か文字列の入力待ち状態でなければ選択中にはならない
 			if (state == ConsoleState.Error)
 				canSelect = true;
-			else if (state == ConsoleState.WaitInput && inputReq.NeedValue)
+			else if (IsWaitInputState && inputReq.NeedValue)
 				canSelect = true;
 			int curLineY = 0;
 			//スクリプト実行中は無視//入力・マクロ処理中は無視
@@ -2055,7 +2142,7 @@ namespace MinorShift.Emuera.GameView
 				canSelect = false;
 			else if (!pointing.IsButton)
 				canSelect = false;
-			else if ((state == ConsoleState.WaitInput && inputReq.InputType == InputType.IntValue) && (!pointing.IsInteger))
+			else if ((IsWaitInputState && inputReq.InputType == InputType.IntValue) && (!pointing.IsInteger))
 				canSelect = false;
 		end:
 			if (canSelect)
@@ -2153,22 +2240,37 @@ namespace MinorShift.Emuera.GameView
 			if (max == 0)
 				return;
 
-			int move = max - (int)window.ScrollBar.Maximum;
+			int move = max - window.ScrollBar.Maximum;
 			if (move == 0)
 				return;
 
-			if (move > 0)
+			window.TextBoxIgnoreScrollBarChanges = true;
+			// NF 上滚时用偏移量保持用户相对位置
+			if (nfUserScrolledBack)
 			{
 				window.ScrollBar.Maximum = max;
-				window.ScrollBar.Value += move;
+				int targetVal = max - nfScrollOffsetFromBottom;
+				if (targetVal < 0) targetVal = 0;
+				if (targetVal > max) targetVal = max;
+				window.ScrollBar.Value = targetVal;
+				window.ScrollBar.Enabled = max > 0;
 			}
 			else
 			{
-				if (max > window.ScrollBar.Value)
-					window.ScrollBar.Value = max;
-				window.ScrollBar.Maximum = max;
+				if (move > 0)
+				{
+					window.ScrollBar.Maximum = max;
+					window.ScrollBar.Value += move;
+				}
+				else
+				{
+					if (max > window.ScrollBar.Value)
+						window.ScrollBar.Value = max;
+					window.ScrollBar.Maximum = max;
+				}
+				window.ScrollBar.Enabled = max > 0;
 			}
-			window.ScrollBar.Enabled = max > 0;
+			window.TextBoxIgnoreScrollBarChanges = false;
 		}
 		#endregion
 
@@ -2603,7 +2705,7 @@ namespace MinorShift.Emuera.GameView
 				return false;
 			if (state == ConsoleState.Error)
 				return true;
-			return state == ConsoleState.WaitInput && inputReq != null && inputReq.NeedValue;
+			return IsWaitInputState && inputReq != null && inputReq.NeedValue;
 		}
 
 		private List<VirtualSelectionCandidate> CollectVisibleSelectionCandidates()
@@ -2675,7 +2777,7 @@ namespace MinorShift.Emuera.GameView
 				return false;
 			if (button.Generation != lastButtonGeneration)
 				return false;
-			if (state == ConsoleState.WaitInput && inputReq != null
+			if (IsWaitInputState && inputReq != null
 				&& (inputReq.InputType == InputType.IntValue || inputReq.InputType == InputType.IntButton)
 				&& !button.IsInteger)
 				return false;

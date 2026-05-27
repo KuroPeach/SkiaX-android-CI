@@ -6,16 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [5.0.0] — NF 后缀指令族 + 自由滚动 + HOVER_PAUSE 悬停暂停
 
-> 本轮开发的核心目标：消除动态地图 AWAIT 轮询 hack，用 INPUT 系 NF 后缀实现自由滚动，
+> 本轮开发的核心目标：消除动态地图 AWAIT 轮询 hack，用 T 前缀 NF 后缀实现自由滚动，
 > 并通过 HOVER_PAUSE 解决动画模式下 Tooltip 不兼容问题。
+
+### Architecture — NF 后缀仅限 T 前缀指令
+
+**设计决策**：NF（NoFocus）后缀仅适用于 T 前缀（定时输入）指令，不适用于 INPUT/INPUTS。
+
+理由：INPUT/INPUTS 是全阻塞指令——等待期间程序暂停，不会有新内容输出或 CLEARLINE，因此"不强制滚动"没有实际意义。只有带超时的 T 前缀指令才能在轮询循环中自动返回并刷新界面，NF 后缀才有价值。
+
+| 撤回 | 原因 |
+|------|------|
+| `INPUTNF` | 全阻塞，等待期间无新内容，NF 无意义 |
+| `INPUTSNF` | 同上；qol_MAP 中的使用改为 `INPUTS` |
+
+| 保留 | 原因 |
+|------|------|
+| `TINPUTNF` | 超时轮询循环中保留用户滚动位置 |
+| `TINPUTSNF` | 同上，替代 AWAIT+GETKEYTRIGGERED hack |
+
+| 新增 | 原因 |
+|------|------|
+| `TONEINPUTNF` | TONEINPUT 的 NF 变体，补全 T 前缀 NF 覆盖 |
+| `TONEINPUTSNF` | TONEINPUTS 的 NF 变体，补全 T 前缀 NF 覆盖 |
 
 ### Added — INPUT 系列指令 NoFocus 后缀变体
 
-- **新指令**：`INPUTNF`, `INPUTSNF`, `TINPUTNF`, `TINPUTSNF`
-  - 语义：与原版 INPUT/INPUTS/TINPUT/TINPUTS 完全相同的参数和返回值，唯一区别是不强制滚动到底部
+- **新指令**：`TINPUTNF`, `TINPUTSNF`, `TONEINPUTNF`, `TONEINPUTSNF`
+  - 语义：与原版 TINPUT/TINPUTS/TONEINPUT/TONEINPUTS 完全相同的参数和返回值，唯一区别是不强制滚动到底部
   - NF = NoFocus，进入 `ConsoleState.WaitInputNoFocus` 状态而非 `WaitInput`
   - 效果：保留按钮高亮/Tooltip/输入可靠性（拉取模型优势）+ 自由滚动（推送模型优势）
-  - 设计理念：效仿 PRINT 系列后缀模式（`PRINTFORMKL` = FORM参数 + K修饰 + L后缀），NF 是 INPUT 系的修饰后缀
   - 替代场景：用 `TINPUTSNF` 替代 AWAIT+GETKEYTRIGGERED 轮询 hack，代码量从 ~200 行 ERB 降至 ~10 行
 
 - **ConsoleState 新增枚举值** — `WaitInputNoFocus = 22`
@@ -24,8 +44,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `Process.Run()` 中所有 `WaitInput` 判断扩展为包含 `WaitInputNoFocus`
 
 - **InputRequest 新增字段** — `NoFocus` 布尔标志
-  - 指令类构造函数通过指令名末尾 "NF" 设置 `isNoFocus` 标志
+  - T 前缀 NF 变体指令构造函数通过 `noFocus` 参数设置此标志
   - `DoInstruction` 中条件调用 `ApplyTextBoxChanges`：`if (!isNoFocus) exm.Console.Window?.ApplyTextBoxChanges()`
+  - INPUT/INPUTS 不使用此标志（全阻塞，始终调用 `ApplyTextBoxChanges` + `WaitInput`）
 
 - **EmueraConsole 新增方法** — `WaitInputNoFocus(InputRequest req)`
   - 设置 `state = ConsoleState.WaitInputNoFocus`，其余逻辑与 `WaitInput` 相同
@@ -77,12 +98,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 |------|---------|
 | `Emuera/UI/Game/EmueraConsole.cs` | `ConsoleState` 新增 `WaitInputNoFocus=22`；新增 `IsWaitInputState` 属性；新增 `WaitInputNoFocus()` 方法；28 处 WaitInput 判断迁移；`nfUserScrolledBack`/`nfScrollOffsetFromBottom` 滚动机制；`RefreshStrings` 跳过逻辑；`WaitInput` 强制回底 |
 | `Emuera/Runtime/InputRequest.cs` | 新增 `NoFocus` 布尔字段 |
-| `Emuera/Runtime/Script/Statements/BuiltInFunctionCode.cs` | 新增 `INPUTNF`/`INPUTSNF`/`TINPUTNF`/`TINPUTSNF` 枚举值 |
-| `Emuera/Runtime/Script/Statements/Instraction.Child.cs` | INPUT/INPUTS/TINPUT/TINPUTS 构造函数新增 `noFocus` 参数；条件调用 `ApplyTextBoxChanges`/`WaitInputNoFocus` |
-| `Emuera/Runtime/Script/Statements/FunctionIdentifier.cs` | 注册 4 个 NF 变体指令 |
+| `Emuera/Runtime/Script/Statements/BuiltInFunctionCode.cs` | 新增 `TINPUTNF`/`TINPUTSNF`/`TONEINPUTNF`/`TONEINPUTSNF` 枚举值（移除 `INPUTNF`/`INPUTSNF`） |
+| `Emuera/Runtime/Script/Statements/Instraction.Child.cs` | TINPUT/TINPUTS 构造函数保留 `noFocus` 参数；INPUT/INPUTS 移除 `noFocus` 参数，恢复始终调用 `ApplyTextBoxChanges`/`WaitInput` |
+| `Emuera/Runtime/Script/Statements/FunctionIdentifier.cs` | 注册 4 个 T 前缀 NF 变体指令（移除 INPUTNF/INPUTSNF 注册） |
 | `Emuera/UI/Framework/Forms/MainWindow.cs` | 鼠标滚轮事件添加 `NotifyUserScrolled()` 调用 |
 | `eratw-chs/ERB/TITLE.ERB` | `TINPUT` → `TINPUTNF`（demo 场景） |
-| `eratw-chs/ERB/魔改内容/qol/qol_MAP.ERB` | 4 处 `TINPUTS`→`TINPUTSNF`，4 处 `INPUTS`→`INPUTSNF`；HOVER_PAUSE 悬停暂停逻辑 |
+| `eratw-chs/ERB/魔改内容/qol/qol_MAP.ERB` | 4 处 `TINPUTS`→`TINPUTSNF`，3 处 `INPUTSNF`→`INPUTS`；HOVER_PAUSE 悬停暂停逻辑 |
 
 ### SkiaX/Xamarin 继承评估
 

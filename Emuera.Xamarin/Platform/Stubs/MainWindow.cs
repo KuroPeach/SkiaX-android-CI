@@ -29,6 +29,12 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public virtual void Close() { }
 		public virtual void Refresh() { }
 		public virtual void Invoke(Action action) { action?.Invoke(); }
+		/// <summary>
+		/// 同步 Invoke：将 action 投递到 UI 线程并阻塞等待完成。
+		/// Android 端用 RunOnUiThread + ManualResetEventSlim 实现；
+		/// Desktop 端的 Invoke 已是同步的，默认直接调用 Invoke。
+		/// </summary>
+		public virtual void InvokeSync(Action action) { Invoke(action); }
 		public new virtual void Focus() { }
 		public virtual void ShowConfigDialog() { }
 		public virtual void ShowDebugDialog() { }

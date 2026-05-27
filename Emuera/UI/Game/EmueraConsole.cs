@@ -784,6 +784,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		}
 		state = ConsoleState.WaitInputNoFocus;
 		inputReq = req;
+		// 重置无限循环检测计数器，避免 TINPUTSNF 循环中 lineCount 累积触发误报
+		process.UpdateCheckInfiniteLoopState();
 		// 尊尼获加_NF：像 AWAIT 一样在进入等待前刷新 UI，确保用户看到最新 PRINT 的内容
 		RefreshStrings(true);
 		if (req.Timelimit > 0)

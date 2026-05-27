@@ -52,11 +52,11 @@ enum FunctionCode
 	TONEINPUT,
 	TONEINPUTS,
 	AWAIT,//入力不可 DoEvents
-	#region 尊尼获加_NF后缀
-	INPUTNF,//整数入力（不强制滚动）
-	INPUTSNF,//文字列入力（不强制滚动）
+	#region 尊尼获加_NF后缀（仅T前缀：INPUT全阻塞无轮询，NF无意义）
 	TINPUTNF,
 	TINPUTSNF,
+	TONEINPUTNF,
+	TONEINPUTSNF,
 	#endregion
 
 	DRAWLINE,//画面の左端から右端まで----と線を引く。

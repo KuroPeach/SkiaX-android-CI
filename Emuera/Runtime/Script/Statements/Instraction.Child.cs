@@ -864,13 +864,11 @@ internal sealed partial class FunctionIdentifier
 
 	private sealed class INPUT_Instruction : AInstruction
 	{
-		public INPUT_Instruction(bool noFocus = false)
+		public INPUT_Instruction()
 		{
 			ArgBuilder = ArgumentParser.GetArgumentBuilder(FunctionArgType.SP_INPUT);
 			flag = IS_PRINT | IS_INPUT;
-			_noFocus = noFocus;
 		}
-		readonly bool _noFocus;
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
@@ -878,8 +876,7 @@ internal sealed partial class FunctionIdentifier
 			SpInputsArgument arg = (SpInputsArgument)func.Argument;
 			InputRequest req = new()
 			{
-				InputType = InputType.IntValue,
-				NoFocus = _noFocus
+				InputType = InputType.IntValue
 			};
 
 			if (arg.Def != null)
@@ -893,8 +890,7 @@ internal sealed partial class FunctionIdentifier
 			{
 				req.MouseInput = arg.Mouse.GetIntValue(exm) != 0;
 			}
-			if (!_noFocus)
-				exm.Console.Window.ApplyTextBoxChanges();
+			exm.Console.Window.ApplyTextBoxChanges();
 			#endregion
 			#region EE_INPUT機能拡張
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
@@ -905,24 +901,17 @@ internal sealed partial class FunctionIdentifier
 					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = arg.Def.GetIntValue(exm);
 			}
 			else
-			{
-				if (_noFocus)
-					exm.Console.WaitInputNoFocus(req);
-				else
-					exm.Console.WaitInput(req);
-			}
+				exm.Console.WaitInput(req);
 			#endregion
 		}
 	}
 	private sealed class INPUTS_Instruction : AInstruction
 	{
-		public INPUTS_Instruction(bool noFocus = false)
+		public INPUTS_Instruction()
 		{
 			ArgBuilder = ArgumentParser.GetArgumentBuilder(FunctionArgType.SP_INPUTS);
 			flag = IS_PRINT | IS_INPUT;
-			_noFocus = noFocus;
 		}
-		readonly bool _noFocus;
 
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
@@ -930,8 +919,7 @@ internal sealed partial class FunctionIdentifier
 			SpInputsArgument arg = (SpInputsArgument)func.Argument;
 			InputRequest req = new()
 			{
-				InputType = InputType.StrValue,
-				NoFocus = _noFocus
+				InputType = InputType.StrValue
 			};
 			if (arg.Def != null)
 			{
@@ -944,8 +932,7 @@ internal sealed partial class FunctionIdentifier
 			{
 				req.MouseInput = arg.Mouse.GetIntValue(exm) != 0;
 			}
-			if (!_noFocus)
-				exm.Console.Window.ApplyTextBoxChanges();
+			exm.Console.Window.ApplyTextBoxChanges();
 			#endregion
 			#region EE_INPUT機能拡張
 			if (arg.CanSkip != null && GlobalStatic.Console.MesSkip)
@@ -956,12 +943,7 @@ internal sealed partial class FunctionIdentifier
 					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = arg.Def.GetStrValue(exm);
 			}
 			else
-			{
-				if (_noFocus)
-					exm.Console.WaitInputNoFocus(req);
-				else
-					exm.Console.WaitInput(req);
-			}
+				exm.Console.WaitInput(req);
 			#endregion
 		}
 	}

@@ -1,6 +1,7 @@
 extern alias skviews;
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Android.App;
 using Android.Content;
@@ -346,8 +347,12 @@ namespace XEmuera.Droid
             vScrollBar.ValueChanged += (s, e) =>
             {
                 if (!IsDragScrollBar) return;
+                if (TextBoxIgnoreScrollBarChanges) return;
                 int newValue = (int)e.NewValue;
                 ScrollBar.Value = newValue;
+                // 通知 EmueraConsole 用户主动滚动了（NF 上滚状态管理）
+                if (console != null)
+                    console.NotifyUserScrolled();
                 if (newValue == (int)vScrollBar.Minimum || newValue == (int)vScrollBar.Maximum || (int)e.OldValue != newValue)
                     RefreshStrings(vScrollBar.Value == vScrollBar.Maximum || vScrollBar.Value == vScrollBar.Minimum);
             };
@@ -548,6 +553,8 @@ namespace XEmuera.Droid
                             {
                                 ScrollBar.Value = newValue;
                                 SyncVScrollBar();
+                                // 通知 EmueraConsole 用户主动滚动了（NF 上滚状态管理）
+                                console.NotifyUserScrolled();
                                 RefreshStrings(true);
                             }
                         }
@@ -621,12 +628,31 @@ namespace XEmuera.Droid
                 return;
             }
 
-            if (str != null && button == SKMouseButton.Left)
-            {
-                textEntry.Text = str;
-                PressEnterKey(false, str, true);
-                return;
-            }
+			#region EE_INPUT第二引数修正
+			// INPUT -1, 1 等带 MouseInput 标志的输入：需要设置 RESULT:1（鼠标按键）和 RESULT:2（修饰键）
+			if (console.IsWaintingInputWithMouse && !console.IsError && (button == SKMouseButton.Left || button == SKMouseButton.Right || button == SKMouseButton.Middle))
+			{
+				if (str != null)
+					GlobalStatic.VEvaluator.RESULTS_ARRAY[1] = str;
+				if (button == SKMouseButton.Left)
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = 1;
+				if (button == SKMouseButton.Right)
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = 2;
+				if (button == SKMouseButton.Middle)
+					GlobalStatic.VEvaluator.RESULT_ARRAY[1] = 3;
+				// 修饰键（移动端无键盘修饰键，保持为 0）
+				GlobalStatic.VEvaluator.RESULT_ARRAY[2] = 0;
+
+				PressEnterKey(false, str ?? "", true);
+				return;
+			}
+			#endregion
+			if (str != null && button == SKMouseButton.Left)
+			{
+				textEntry.Text = str;
+				PressEnterKey(false, str, true);
+				return;
+			}
         }
 
         private bool IsMouseMove(SKPoint endPoint)
@@ -715,6 +741,37 @@ namespace XEmuera.Droid
             {
                 try { action?.Invoke(); } catch { }
             });
+        }
+
+        /// <summary>
+        /// 同步 Invoke：将 action 投递到 UI 线程并阻塞等待完成。
+        /// 用于 System.Timers.Timer 回调（ThreadPool 线程）中需要安全操作 UI 的场景。
+        /// </summary>
+        public override void InvokeSync(Action action)
+        {
+            if (action == null) return;
+            if (activity == null || activity.IsDestroyed)
+            {
+                action();
+                return;
+            }
+            // 如果已在 UI 线程，直接执行
+            if (Looper.MyLooper() == Looper.MainLooper)
+            {
+                action();
+                return;
+            }
+            var mre = new ManualResetEventSlim(false);
+            Exception captured = null;
+            activity.RunOnUiThread(() =>
+            {
+                try { action(); }
+                catch (Exception ex) { captured = ex; }
+                finally { mre.Set(); }
+            });
+            mre.Wait();
+            if (captured != null)
+                throw captured;
         }
 
         public override void Refresh()

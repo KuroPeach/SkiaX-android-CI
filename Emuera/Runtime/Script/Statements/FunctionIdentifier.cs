@@ -197,11 +197,11 @@ internal sealed partial class FunctionIdentifier
 		addFunction(FunctionCode.TINPUTS, new TINPUTS_Instruction(false));
 		addFunction(FunctionCode.TONEINPUT, new TINPUT_Instruction(true));
 		addFunction(FunctionCode.TONEINPUTS, new TINPUTS_Instruction(true));
-		#region 尊尼获加_NF后缀
-		addFunction(FunctionCode.INPUTNF, new INPUT_Instruction(true));
-		addFunction(FunctionCode.INPUTSNF, new INPUTS_Instruction(true));
+		#region 尊尼获加_NF后缀（仅T前缀：INPUT全阻塞无轮询，NF无意义）
 		addFunction(FunctionCode.TINPUTNF, new TINPUT_Instruction(false, true));
 		addFunction(FunctionCode.TINPUTSNF, new TINPUTS_Instruction(false, true));
+		addFunction(FunctionCode.TONEINPUTNF, new TINPUT_Instruction(true, true));
+		addFunction(FunctionCode.TONEINPUTSNF, new TINPUTS_Instruction(true, true));
 		#endregion
 		addFunction(FunctionCode.TWAIT, new TWAIT_Instruction());
 		addFunction(FunctionCode.WAITANYKEY, new WAITANYKEY_Instruction());

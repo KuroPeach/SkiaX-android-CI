@@ -1,5 +1,38 @@
 # Emuera.Xamarin 变更记录
 
+## [0.60.1] - 2026-05-27
+
+### Fixed
+
+- **endTimer() 线程竞态修复**：`System.Timers.Timer.Elapsed` 在 ThreadPool 线程触发，原实现直接在 ThreadPool 上调用 `callEmueraProgram("")` + `RefreshStrings(true)`，与 UI 线程产生竞态条件，导致动态地图（TINPUTSNF 循环）几帧后卡死
+  - 根因：Desktop 版 `endTimer()` 用 `window.Invoke()`（WinForms `Control.Invoke` 同步阻塞）调度到 UI 线程；Android 版 `window.Invoke()` 用 `RunOnUiThread`（异步非阻塞），导致 `DoScript()` 在 ThreadPool 上与 UI 线程并发访问 `displayLineList` 等共享状态
+  - 修复：新增 `MainWindow.InvokeSync()` 虚方法 + `AndroidMainWindow` 用 `ManualResetEventSlim` 实现同步调度；`endTimer()` 改用 `window.InvokeSync()` 包裹 `callEmueraProgram` + `RefreshStrings`，与 Desktop 版行为一致
+
+- **WaitInputNoFocus 无限循环警告误触发**：TINPUTSNF 循环中 `lineCount` 持续累积触发 `checkInfiniteLoop` 误报
+  - 根因：`WaitInputNoFocus()` 未调用 `UpdateCheckInfiniteLoopState()` 重置计数器
+  - 修复：Xamarin 版 + 内核版 `WaitInputNoFocus()` 中添加 `emuera.UpdateCheckInfiniteLoopState()` / `process.UpdateCheckInfiniteLoopState()`
+
+### Changed
+
+- `MainWindow` 基类新增 `InvokeSync(Action)` 虚方法，默认委托给 `Invoke`（Desktop 端 `Invoke` 已是同步）
+- `AndroidMainWindow` override `InvokeSync`：`Looper.MyLooper() == Looper.MainLooper` 时直接执行，否则 `RunOnUiThread` + `ManualResetEventSlim` 同步等待
+
+## [0.60.0] - 2026-05-27
+
+### Added
+
+- **NF 后缀指令移植**：从 LazyLoading develop-skiasharp v5.0 移植 `WaitInputNoFocus` 滚动机制到 SkiaX Android 端
+  - `ConsoleState.WaitInputNoFocus = 22`；`IsWaitInputNoFocusState`/`IsWaitInputState` 属性
+  - `nfUserScrolledBack`/`nfScrollOffsetFromBottom` 字段；`NotifyUserScrolled()`/`WaitInputNoFocus()` 方法
+  - `WaitInput()` 入口清除 NF 上滚状态；`verticalScrollBarUpdateAsync()` 加入 NF 偏移量保持逻辑
+  - 15 处 `state == ConsoleState.WaitInput` 判断改为 `IsWaitInputState`
+  - `AndroidMainWindow.cs`：`Slider.ValueChanged` + `IsDragScrollBar` 过滤用户滚动；触摸 `Moved` 事件调用 `NotifyUserScrolled()`
+
+### Note
+
+- 内核层 NF 指令（`TINPUTNF`/`TINPUTSNF`/`TONEINPUTNF`/`TONEINPUTSNF`、`InputRequest.NoFocus`）通过 `<Compile Include="..\Emuera\Runtime\**\*.cs"` 自动获得，无需额外移植
+
+
 ## [0.59.1] - 2026-05-25
 
 ### GETKEY 解耦：Latch 泄漏修复
