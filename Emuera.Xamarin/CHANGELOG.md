@@ -1,5 +1,16 @@
 # Emuera.Xamarin 变更记录
 
+## [0.60.2] - 2026-05-28
+
+### Fixed
+
+- **Xamarin 端加载时 NRE 修复**：`Config.SetConfig()` 调用 `GetConfigValue<bool>(ConfigCode.PluginAvailableWarn)`，但 Xamarin 版 `ConfigData.SetDefault()` 未注册该配置项，导致 `GetConfigItem(code)` 返回 `null`，触发 `NullReferenceException`
+  - 修复：在 `ConfigData.SetDefault()` 中添加 `PluginAvailableWarn` ConfigItem，默认值 `false`（Xamarin 端无插件功能）
+
+### Changed
+
+- **Auto TOSTR 默认开启**：移动端 `CompatiFuncArgAutoConvert` 默认值从 `false` 改为 `true`，避免因编码、解压等问题导致外部配置读取失败时的兼容性问题
+
 ## [0.60.1] - 2026-05-27
 
 ### Fixed

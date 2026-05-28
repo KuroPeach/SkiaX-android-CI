@@ -118,7 +118,7 @@ namespace MinorShift.Emuera
 
 			configArray.Add(new ConfigItem(ConfigCode.SystemSaveInBinary, ConfigsText.SystemSaveInBinary, "Use the binary format for saving data", false));
 			configArray.Add(new ConfigItem(ConfigCode.CompatiFuncArgOptional, ConfigsText.CompatiFuncArgOptional, "Allow arguments omission for user functions", false));
-			configArray.Add(new ConfigItem(ConfigCode.CompatiFuncArgAutoConvert, ConfigsText.CompatiFuncArgAutoConvert, "Auto TOSTR conversion for user function arguments", false));
+			configArray.Add(new ConfigItem(ConfigCode.CompatiFuncArgAutoConvert, ConfigsText.CompatiFuncArgAutoConvert, "Auto TOSTR conversion for user function arguments", true));
 			configArray.Add(new ConfigItem(ConfigCode.SystemIgnoreTripleSymbol, ConfigsText.SystemIgnoreTripleSymbol, "Do not process triple symbols inside FORM", false));
 			configArray.Add(new ConfigItem(ConfigCode.TimesNotRigorousCalculation, ConfigsText.TimesNotRigorousCalculation, "Imitate behavior for TIMES", false));
 
@@ -127,6 +127,9 @@ namespace MinorShift.Emuera
 
 			#region EE_UPDATECHECK
 			configArray.Add(new ConfigItem(ConfigCode.ForbidUpdateCheck, ConfigsText.ForbidUpdateCheck, "Disallow UPDATECHECK", false));
+			#endregion
+			#region EE_CALLSHARP注意
+			configArray.Add(new ConfigItem(ConfigCode.PluginAvailableWarn, "PluginAvailableWarn", "Plugin available warning", false));
 			#endregion
 			#region EE_ERDConfig
 			configArray.Add(new ConfigItem(ConfigCode.UseERD, ConfigsText.UseERD, "Use ERD", true));
