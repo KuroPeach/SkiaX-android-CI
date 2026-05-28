@@ -131,6 +131,9 @@ namespace MinorShift.Emuera
 			#region EE_CALLSHARP注意
 			configArray.Add(new ConfigItem(ConfigCode.PluginAvailableWarn, "PluginAvailableWarn", "Plugin available warning", false));
 			#endregion
+			#region LL_BEFORE_EVENT
+			configArray.Add(new ConfigItem(ConfigCode.DisableBeforeErrorThrow, "DisableBeforeErrorThrow", "Disable BEFORE_ERROR/BEFORE_THROW events", false));
+			#endregion
 			#region EE_ERDConfig
 			configArray.Add(new ConfigItem(ConfigCode.UseERD, ConfigsText.UseERD, "Use ERD", true));
 			#endregion

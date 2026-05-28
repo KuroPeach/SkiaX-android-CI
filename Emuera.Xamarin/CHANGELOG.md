@@ -1,5 +1,14 @@
 # Emuera.Xamarin 变更记录
 
+## [0.60.3] - 2026-05-28
+
+### Fixed
+
+- **Xamarin 端 DisableBeforeErrorThrow 编译错误**：`Config.DisableBeforeErrorThrow` 在内核 `Process.cs`/`Process.ScriptProc.cs` 中引用，但 Xamarin 端 `Platform/Config/Config.cs` 缺少三处定义，导致 CS0117 编译错误
+  - 根因：v5.2.0 在 develop-skiasharp 新增 `DisableBeforeErrorThrow` 配置项，Xamarin 端 `ConfigData.SetDefault()` 已注册（v0.60.2 同步），但 `Platform/Config/Config.cs` 的 `SetConfig()` 赋值、`CopyToRuntime()` 传递、属性声明三处遗漏
+  - 修复：在 `Platform/Config/Config.cs` 中添加 `DisableBeforeErrorThrow` 的 `SetConfig` 赋值、`CopyToRuntime` 传递和属性声明
+  - 教训：与 v0.60.2 的 `PluginAvailableWarn` NRE 问题模式完全一致——新增配置项时 `ConfigData.SetDefault()` 注册了但 `Config.cs` 三处定义遗漏。kernel-audit.md 已有"6 文件 + Xamarin 同步"模式记录，但未覆盖 `Platform/Config/Config.cs` 的三处定义
+
 ## [0.60.2] - 2026-05-28
 
 ### Fixed

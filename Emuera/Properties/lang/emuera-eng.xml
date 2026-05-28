@@ -109,6 +109,7 @@ ERB scripts may not work properly.]]></tr>
     <tr id="UI.ConfigDialog.System.DuplicateFuncWarn"><![CDATA[Warn when multiple non-event functions use same name]]></tr>
     <tr id="UI.ConfigDialog.System.WSIncludesFullWidth"><![CDATA[Include full-width space in whitespace]]></tr>
     <tr id="UI.ConfigDialog.System.ANSI"><![CDATA[Internal language used]]></tr>
+    <tr id="UI.ConfigDialog.System.DisableBeforeErrorThrow"><![CDATA[Disable BEFORE_ERROR/THROW events]]></tr>
     <tr id="UI.ConfigDialog.System2"><![CDATA[System2]]></tr>
     <tr id="UI.ConfigDialog.System2.IgnoreTripleSymbol"><![CDATA[Don't process triple symbols inside FORM]]></tr>
     <tr id="UI.ConfigDialog.System2.SaveInBinary"><![CDATA[Use binary format for save data]]></tr>

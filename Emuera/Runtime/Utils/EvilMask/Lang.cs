@@ -242,6 +242,7 @@ internal sealed partial class Lang
 				[Managed] public static TranslatableString WSIncludesFullWidth { get; } = new TranslatableString("全角スペースをホワイトスペースに含める");
 				[Managed] public static TranslatableString ANSI { get; } = new TranslatableString("内部で使用する東アジア言語");
 				[Managed] public static TranslatableString UseLazyLoading { get; } = new TranslatableString("遅延ローディング使用");
+				[Managed] public static TranslatableString DisableBeforeErrorThrow { get; } = new TranslatableString("BEFORE_ERROR/THROWイベントを無効化する");
 			}
 
 			[Translate("システム2"), Managed]

@@ -465,8 +465,8 @@ internal sealed partial class Process(EmueraConsole view)
 				}
 				state.InBeforeError = true;
 				DebugLog("[DoScript-catch] >>> Normal path, checking BEFORE_ERROR\n");
-				var beforeError = CalledFunction.CallEventFunction(this, "BEFORE_ERROR", null);
-				DebugLog(string.Format("[DoScript-catch] BEFORE_ERROR found={0}\n", beforeError != null));
+				var beforeError = Config.DisableBeforeErrorThrow ? null : CalledFunction.CallEventFunction(this, "BEFORE_ERROR", null);
+				DebugLog(string.Format("[DoScript-catch] BEFORE_ERROR found={0} (DisableBeforeErrorThrow={1})\n", beforeError != null, Config.DisableBeforeErrorThrow));
 				if (beforeError != null)
 				{
 					DebugLog(string.Format("[DoScript-catch] Pushing BEFORE_ERROR, functionList.Count before={0}\n", state.FunctionList.Count));

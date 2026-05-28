@@ -192,6 +192,7 @@ namespace MinorShift.Emuera.Forms
 			checkBox22.Text = Lang.UI.ConfigDialog.System.DuplicateFuncWarn.Text;
 			checkBoxSystemFullSpace.Text = Lang.UI.ConfigDialog.System.WSIncludesFullWidth.Text;
 			checkBoxUseLazyLoading.Text = Lang.UI.ConfigDialog.System.UseLazyLoading.Text;
+			checkBoxDisableBeforeEvent.Text = Lang.UI.ConfigDialog.System.DisableBeforeErrorThrow.Text;
 			label11.Text = Lang.UI.ConfigDialog.System.ANSI.Text;
 
 			tabPageSystem2.Text = Lang.UI.ConfigDialog.System2.Text;
@@ -412,6 +413,7 @@ namespace MinorShift.Emuera.Forms
 			setCheckBox(checkBoxFuncNoIgnoreCase, ConfigCode.CompatiFunctionNoignoreCase);
 			setCheckBox(checkBoxSystemFullSpace, ConfigCode.SystemAllowFullSpace);
 			setCheckBox(checkBoxUseLazyLoading, ConfigCode.UseLazyLoading);
+			setCheckBox(checkBoxDisableBeforeEvent, ConfigCode.DisableBeforeErrorThrow);
 			setCheckBox(checkBox12, ConfigCode.CompatiFuncArgOptional);
 			setCheckBox(checkBox25, ConfigCode.CompatiFuncArgAutoConvert);
 			setCheckBox(checkBox26, ConfigCode.SystemSaveInBinary);
@@ -645,6 +647,7 @@ namespace MinorShift.Emuera.Forms
 			config.GetConfigItem(ConfigCode.CompatiFunctionNoignoreCase).SetValue(checkBoxFuncNoIgnoreCase.Checked);
 			config.GetConfigItem(ConfigCode.SystemAllowFullSpace).SetValue(checkBoxSystemFullSpace.Checked);
 			config.GetConfigItem(ConfigCode.UseLazyLoading).SetValue(checkBoxUseLazyLoading.Checked);
+			config.GetConfigItem(ConfigCode.DisableBeforeErrorThrow).SetValue(checkBoxDisableBeforeEvent.Checked);
 			config.GetConfigItem(ConfigCode.CompatiSPChara).SetValue(checkBoxCompatiSP.Checked);
 			config.GetConfigItem(ConfigCode.TimesNotRigorousCalculation).SetValue(checkBox9.Checked);
 			config.GetConfigItem(ConfigCode.SystemNoTarget).SetValue(checkBox29.Checked);

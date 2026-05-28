@@ -239,6 +239,7 @@ namespace MinorShift.Emuera.Forms
 			flowLayoutPanel3 = new System.Windows.Forms.FlowLayoutPanel();
 			flowLayoutPanel2 = new System.Windows.Forms.FlowLayoutPanel();
 			checkBoxUseLazyLoading = new System.Windows.Forms.CheckBox();
+			checkBoxDisableBeforeEvent = new System.Windows.Forms.CheckBox();
 			tabControl.SuspendLayout();
 			tabEnvironment.SuspendLayout();
 			flowLayoutPanel13.SuspendLayout();
@@ -979,6 +980,7 @@ namespace MinorShift.Emuera.Forms
 			flowLayoutPanel29.Controls.Add(checkBox22);
 			flowLayoutPanel29.Controls.Add(checkBoxSystemFullSpace);
 			flowLayoutPanel29.Controls.Add(checkBoxUseLazyLoading);
+			flowLayoutPanel29.Controls.Add(checkBoxDisableBeforeEvent);
 			flowLayoutPanel29.Controls.Add(flowLayoutPanel28);
 			flowLayoutPanel29.Name = "flowLayoutPanel29";
 			// 
@@ -1727,11 +1729,18 @@ namespace MinorShift.Emuera.Forms
 			flowLayoutPanel2.Name = "flowLayoutPanel2";
 			// 
 			// checkBoxUseLazyLoading
-			// 
+		// 
 			resources.ApplyResources(checkBoxUseLazyLoading, "checkBoxUseLazyLoading");
 			checkBoxUseLazyLoading.AutoSize = true;
 			checkBoxUseLazyLoading.Name = "checkBoxUseLazyLoading";
 			checkBoxUseLazyLoading.UseVisualStyleBackColor = true;
+			// 
+			// checkBoxDisableBeforeEvent
+			// 
+			resources.ApplyResources(checkBoxDisableBeforeEvent, "checkBoxDisableBeforeEvent");
+			checkBoxDisableBeforeEvent.AutoSize = true;
+			checkBoxDisableBeforeEvent.Name = "checkBoxDisableBeforeEvent";
+			checkBoxDisableBeforeEvent.UseVisualStyleBackColor = true;
 			// 
 			// ConfigDialog
 			// 
@@ -2082,5 +2091,6 @@ namespace MinorShift.Emuera.Forms
 		private System.Windows.Forms.TextBox textBox4;
 		private System.Windows.Forms.CheckBox checkBox27;
 		private System.Windows.Forms.CheckBox checkBoxUseLazyLoading;
+		private System.Windows.Forms.CheckBox checkBoxDisableBeforeEvent;
 	}
 }

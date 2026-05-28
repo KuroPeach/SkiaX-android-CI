@@ -113,6 +113,7 @@
     <tr id="UI.ConfigDialog.System.WSIncludesFullWidth"><![CDATA[全角空格视为普通空格]]></tr>
     <tr id="UI.ConfigDialog.System.ANSI"><![CDATA[读取非UTF-8文件时的默认编码]]></tr>
 	<tr id="UI.ConfigDialog.System.UseLazyLoading"><![CDATA[启用懒加载]]></tr>
+	<tr id="UI.ConfigDialog.System.DisableBeforeErrorThrow"><![CDATA[禁用BEFORE_ERROR/THROW事件]]></tr>
     <tr id="UI.ConfigDialog.System2"><![CDATA[系统2]]></tr>
     <tr id="UI.ConfigDialog.System2.IgnoreTripleSymbol"><![CDATA[不展开FORM中的三联符号]]></tr>
     <tr id="UI.ConfigDialog.System2.SaveInBinary"><![CDATA[存档以二进制的形式保存]]></tr>

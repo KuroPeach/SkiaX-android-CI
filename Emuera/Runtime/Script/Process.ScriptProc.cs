@@ -811,8 +811,8 @@ internal sealed partial class Process
 				state.PendingThrowMessage = throwMessage;
 				state.PendingThrowLine = func;
 				DebugLog("[THROW] calling CallEventFunction for BEFORE_THROW\n");
-				var beforeThrow = CalledFunction.CallEventFunction(this, "BEFORE_THROW", func);
-				DebugLog(string.Format("[THROW] BEFORE_THROW found={0}\n", beforeThrow != null));
+				var beforeThrow = Config.DisableBeforeErrorThrow ? null : CalledFunction.CallEventFunction(this, "BEFORE_THROW", func);
+				DebugLog(string.Format("[THROW] BEFORE_THROW found={0} (DisableBeforeErrorThrow={1})\n", beforeThrow != null, Config.DisableBeforeErrorThrow));
 				if (beforeThrow == null)
 				{
 					DebugLog("[THROW] no BEFORE_THROW, throwing CodeEE directly\n");

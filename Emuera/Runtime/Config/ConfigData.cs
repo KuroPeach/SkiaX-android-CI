@@ -146,6 +146,9 @@ internal sealed class ConfigData
 		#region EE_CALLSHARP注意
 		configArray.Add(new ConfigItem<bool>(ConfigCode.PluginAvailableWarn, "外部プラグインが有効時に警告を表示する", "Plugin available warning", true));
 		#endregion
+		#region LL_BEFORE_EVENT
+		configArray.Add(new ConfigItem<bool>(ConfigCode.DisableBeforeErrorThrow, "BEFORE_ERROR/THROWイベントを無効化する", "Disable BEFORE_ERROR/THROW events", false));
+		#endregion
 		#region EM_私家版_LoadText＆SaveText機能拡張
 		configArray.Add(new ConfigItem<List<string>>(ConfigCode.ValidExtension, "LOADTEXTとSAVETEXTで使える拡張子", "Valid extensions for LOADTEXT and SAVETEXT", ["txt"]));
 		#endregion

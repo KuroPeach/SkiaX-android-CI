@@ -197,6 +197,9 @@ internal enum ConfigCode
 	#region EE_CALLSHARP注意
 	PluginAvailableWarn,
 	#endregion
+	#region LL_BEFORE_EVENT
+	DisableBeforeErrorThrow,
+	#endregion
 
 	#region EM_私家版_LoadText＆SaveText機能拡張
 	ValidExtension = 200,

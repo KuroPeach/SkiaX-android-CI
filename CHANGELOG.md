@@ -4,6 +4,22 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [5.2.0] — DisableBeforeErrorThrow 配置项：保留调试函数栈
+
+### Added
+
+- **DisableBeforeErrorThrow 配置项** — 新增配置选项，启用后跳过 BEFORE_ERROR/BEFORE_THROW 事件函数，直接抛出异常。解决这两个事件在异常处理时清空函数栈的问题，使调试窗口能在异常发生时正确显示调用栈和局部变量。默认关闭以保持向后兼容。
+
+### Fixed
+
+- 调试窗口在 THROW 或错误发生时无法监视函数参数的问题（需启用 DisableBeforeErrorThrow）
+
+### Xamarin 移植注意
+
+- Xamarin 端 `ConfigData.SetDefault()` 已同步添加对应 ConfigItem（参考 v0.60.2 PluginAvailableWarn NRE 修复）
+
+***
+
 ## [5.1.0] — EEv56 上游对齐：PluginAvailableWarn + TOOLTIP 回退
 
 ### Changed — 上游对齐（emuera.em EEv56）
