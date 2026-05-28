@@ -7,21 +7,25 @@ using MinorShift.Emuera;
 using MinorShift.Emuera.UI.Game;
 using MinorShift.Emuera.Runtime.Config;
 using XEmuera.Drawing;
+using XEmuera.Models;
+using XEmuera;
 using SkiaSharp;
 using TextDrawingMode = MinorShift.Emuera.Runtime.Config.TextDrawingMode;
 
 namespace MinorShift.Emuera.GameView
 {
-	/// <summary>
-	/// 装飾付文字列。stringとStringStyleからなる。
-	/// </summary>
+	internal struct TextsWithFont
+	{
+		public string Text;
+		public SKFont Font;
+		public float Width;
+	}
+
 	internal sealed class ConsoleStyledString : AConsoleColoredPart
 	{
 		private ConsoleStyledString() { }
 		public ConsoleStyledString(string str, StringStyle style)
 		{
-            //if ((StaticConfig.TextDrawingMode != TextDrawingMode.GRAPHICS) && (str.IndexOf('\t') >= 0))
-            //    str = str.Replace("\t", "");
 			this.Text = str;
 			this.StringStyle = style;
 			Font = Config.GetFont(style.Fontname, style.FontStyle);
@@ -32,11 +36,13 @@ namespace MinorShift.Emuera.GameView
 			}
 			Color = style.Color;
 			ButtonColor = style.ButtonColor;
-            colorChanged = style.ColorChanged;
+			colorChanged = style.ColorChanged;
 			if (!colorChanged && Color != Config.ForeColor)
 				colorChanged = true;
 			PointX = -1;
 			Width = -1;
+
+			BuildFallbacks();
 		}
 		public ConsoleStyledString(string str, StringStyle style, TextDrawingMode? renderMode, SkiaSharpFontEdging? fontEdging, SkiaSharpFontHinting? fontHinting, float? fontSize)
 			: this(str, style)
@@ -52,17 +58,87 @@ namespace MinorShift.Emuera.GameView
 		public TextDrawingMode? RenderMode { get; private set; }
 		public SkiaSharpFontEdging? FontEdging { get; private set; }
 		public SkiaSharpFontHinting? FontHinting { get; private set; }
+		List<TextsWithFont> _texts;
 		public override bool CanDivide
 		{
 			get { return true; }
 		}
-		//単一のボタンフラグ
-		//public bool IsButton { get; set; }
-		//indexの文字数の前方文字列とindex以降の後方文字列に分割
+
+		private void BuildFallbacks()
+		{
+			if (Font?.FontModel?.Typeface == null)
+				return;
+
+			var typeface = Font.FontModel.Typeface;
+
+			bool hasSurrogate = false;
+			for (int i = 0; i < Text.Length; i++)
+			{
+				if (char.IsSurrogate(Text[i])) { hasSurrogate = true; break; }
+			}
+
+			if (!hasSurrogate && typeface.ContainsGlyphs(Text))
+			{
+				_texts = null;
+				return;
+			}
+
+			var textsWithFontList = new List<TextsWithFont>();
+			var currentText = new StringBuilder();
+			SKTypeface currentTypeface = null;
+
+			var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(Text);
+			while (enumerator.MoveNext())
+			{
+				string grapheme = enumerator.GetTextElement();
+				int codepoint = char.ConvertToUtf32(grapheme, 0);
+
+				SKTypeface glyphTypeface = typeface;
+
+				if (!typeface.ContainsGlyphs(grapheme))
+				{
+					glyphTypeface = FontFactory.GetFallbackTypefaceForCodepoint(codepoint, typeface.FamilyName) ?? typeface;
+				}
+
+				if (currentTypeface == null)
+					currentTypeface = glyphTypeface;
+
+				if (glyphTypeface != currentTypeface)
+				{
+					if (currentText.Length > 0)
+					{
+						textsWithFontList.Add(CreateTextWithFont(currentTypeface, currentText.ToString()));
+						currentText.Clear();
+					}
+					currentTypeface = glyphTypeface;
+				}
+				currentText.Append(grapheme);
+			}
+
+			if (currentText.Length > 0)
+			{
+				textsWithFontList.Add(CreateTextWithFont(currentTypeface, currentText.ToString()));
+			}
+
+			_texts = textsWithFontList;
+		}
+
+		private TextsWithFont CreateTextWithFont(SKTypeface typeface, string t)
+		{
+			var textsWithFont = new TextsWithFont
+			{
+				Text = t,
+				Font = new SKFont(typeface, Font.Size)
+			};
+			using var paint = new SKPaint();
+			paint.Typeface = typeface;
+			paint.TextSize = Font.Size;
+			textsWithFont.Width = paint.MeasureText(textsWithFont.Text);
+			return textsWithFont;
+		}
+
 		public ConsoleStyledString DivideAt(int index, StringMeasure sm)
 		{
-			//if ((index <= 0)||(index > Text.Length)||this.Error)
-			//	return null;
 			ConsoleStyledString ret = DivideAt(index);
 			if (ret == null)
 				return null;
@@ -84,6 +160,8 @@ namespace MinorShift.Emuera.GameView
 			ret.colorChanged = this.colorChanged;
 			ret.StringStyle = this.StringStyle;
 			ret.XsubPixel = this.XsubPixel;
+			ret._texts = null;
+			this._texts = null;
 			return ret;
 		}
 
@@ -94,7 +172,18 @@ namespace MinorShift.Emuera.GameView
 				Width = 0;
 				return;
 			}
-			Width = sm.GetDisplayLength(Text, Font);
+
+			if (_texts == null)
+			{
+				Width = sm.GetDisplayLength(Text, Font);
+			}
+			else
+			{
+				var offsetX = 0.0f;
+				foreach (var text in _texts) offsetX += text.Width;
+				Width = (int)offsetX;
+			}
+
 			XsubPixel = subPixel;
 			#region EmuEra-Rikaichan
 			if (!rikaichaned && Config.RikaiEnabled)
@@ -121,28 +210,51 @@ namespace MinorShift.Emuera.GameView
 			else if (isBackLog && !colorChanged)
                 color = Config.LogColor;
 
-			//if (mode == TextDrawingMode.GRAPHICS)
-			//	graph.DrawString(Text, Font, new SolidBrush(color), new Point(PointX, (int)point.Y));
-			//else
-			//	TextRenderer.DrawText(graph, Text, Font, new Point(PointX, (int)point.Y), color, TextFormatFlags.NoPrefix);
+			var skColor = DisplayUtils.ToSKColor(color);
+			float x = PointX;
+			float baselineY = point.Y - Font.SKFont.Metrics.Ascent;
 
-			DrawTextUtils.DrawText(graph, Text, Font, PointX, (int)point.Y, color);
+			using var paint = new SKPaint
+			{
+				Color = skColor,
+				IsAntialias = Config.TextAntialias,
+			};
+
+			if (_texts == null)
+			{
+				paint.Typeface = Font.FontModel.Typeface;
+				paint.TextSize = Font.Size;
+				paint.FakeBoldText = Font.Style.HasFlag(FontStyle.Bold);
+				paint.TextSkewX = Font.Style.HasFlag(FontStyle.Italic) ? -0.4f : 0;
+				graph.DrawText(Text, x, baselineY, Font.SKFont, paint);
+			}
+			else
+			{
+				foreach (var text in _texts)
+				{
+					paint.Typeface = text.Font.Typeface;
+					paint.TextSize = Font.Size;
+					paint.FakeBoldText = Font.Style.HasFlag(FontStyle.Bold);
+					paint.TextSkewX = Font.Style.HasFlag(FontStyle.Italic) ? -0.4f : 0;
+					graph.DrawText(text.Text, x, baselineY, text.Font, paint);
+					x += text.Width;
+				}
+			}
+
+			if (StringStyle.HasUnderline)
+			{
+				float underlineY = baselineY + (Font.SKFont.Metrics.UnderlinePosition ?? 0);
+				paint.StrokeWidth = Font.SKFont.Metrics.UnderlineThickness ?? 1;
+				paint.Typeface = Font.FontModel.Typeface;
+				graph.DrawLine(PointX, underlineY, PointX + Width, underlineY, paint);
+			}
+			if (StringStyle.HasStrikeout)
+			{
+				float strikeoutY = baselineY + (Font.SKFont.Metrics.StrikeoutPosition ?? 0);
+				paint.StrokeWidth = Font.SKFont.Metrics.StrikeoutThickness ?? 1;
+				paint.Typeface = Font.FontModel.Typeface;
+				graph.DrawLine(PointX, strikeoutY, PointX + Width, strikeoutY, paint);
+			}
 		}
-
-		//public override void GDIDrawTo(int pointY, bool isSelecting, bool isBackLog)
-		//{
-		//	if (this.Error)
-		//		return;
-		//	Color color = this.Color;
-		//	if(isSelecting)
-		//		color = this.ButtonColor;
-		//	else if (isBackLog && !colorChanged)
-		//		color = Config.LogColor;
-		//	GDI.TabbedTextOutFull(Font,color,Text, PointX, pointY);
-		//	//GDI.SetFont(Font);
-		//	//GDI.SetTextColor(color);
-		//	//GDI.TabbedTextOut(Text, PointX, pointY);
-		//}
-
 	}
 }

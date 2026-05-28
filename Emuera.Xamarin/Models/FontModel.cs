@@ -83,8 +83,25 @@ namespace XEmuera.Models
 			try { InitFontMapping(); } catch { }
 
 			AddFontFromResource(DefaultFontName);
-			AddFontFromResource(FinalFontName);
+			// TEST: 排除 Microsoft YaHei 内嵌字体，测试 SimHei 单独工作
+			// AddFontFromResource(FinalFontName);
 			AddFontFromResource(SimHeiFontName);
+
+			// 如果 SimHei 内嵌字体加载失败，尝试从系统字体加载
+			if (!AllModels.ContainsKey(SimHeiFontName) && !AllModels.Any(kv => string.Equals(kv.Value.Typeface?.FamilyName, SimHeiFontName, StringComparison.OrdinalIgnoreCase)))
+			{
+				var systemSimHei = SKTypeface.FromFamilyName(SimHeiFontName);
+				if (systemSimHei != null && !string.Equals(systemSimHei.FamilyName, "sans-serif", StringComparison.OrdinalIgnoreCase))
+				{
+					FontDiag.Log($"[FontModel] Loading SimHei from system: {systemSimHei.FamilyName}");
+					AddFontModel(systemSimHei, SimHeiFontName);
+				}
+				else
+				{
+					FontDiag.Log($"[FontModel] System SimHei not found or is sans-serif");
+					if (systemSimHei != null) systemSimHei.Dispose();
+				}
+			}
 
 			if (AllModels.TryGetValue(DefaultFontName, out var defaultModel))
 				Default = defaultModel;
@@ -123,6 +140,12 @@ namespace XEmuera.Models
 			if (AllModels.TryGetValue(FinalFontName, out var yaheiModel2) && !yaheiModel2.Enabled)
 			{
 				yaheiModel2.Enabled = true;
+			}
+
+			// 强制确保 SimHei 始终启用（作为等宽简体汉字回退字体，优先于 YaHei）
+			if (AllModels.TryGetValue(SimHeiFontName, out var simheiModel2) && !simheiModel2.Enabled)
+			{
+				simheiModel2.Enabled = true;
 			}
 
 			Save();
@@ -229,7 +252,7 @@ namespace XEmuera.Models
 
 		/// <summary>
 		/// 为缺失的中文字体注册回退别名。
-		/// 当外部字体文件（如 simhei.ttf）不存在时，将中文别名（如"黑体"）映射到内嵌的 Microsoft YaHei。
+		/// 当外部字体文件不存在时，将中文别名映射到内嵌的等宽中文字体（SimHei 优先于 Microsoft YaHei）。
 		/// </summary>
 		private static void RegisterMissingChineseFontFallbacks()
 		{
@@ -249,8 +272,14 @@ namespace XEmuera.Models
 				if (FontNameMapping.GetByKey(alias, out _))
 					continue;
 
-				// 别名未映射，说明外部字体不存在，回退到 Microsoft YaHei
-				if (AllModels.TryGetValue("Microsoft YaHei", out var yaheiModel))
+				// 别名未映射，说明外部字体不存在
+				// 优先回退到 SimHei（等宽），其次 Microsoft YaHei
+				if (AllModels.TryGetValue("SimHei", out var simheiModel))
+				{
+					try { FontNameMapping.Add(alias, simheiModel.Name); }
+					catch (ArgumentException) { /* 双向字典冲突，跳过 */ }
+				}
+				else if (AllModels.TryGetValue("Microsoft YaHei", out var yaheiModel))
 				{
 					try { FontNameMapping.Add(alias, yaheiModel.Name); }
 					catch (ArgumentException) { /* 双向字典冲突，跳过 */ }
@@ -285,9 +314,22 @@ namespace XEmuera.Models
 			{
 				var stream = GameUtils.GetManifestResourceStream(path);
 				if (stream != null)
+				{
 					sKTypeface = SKTypeface.FromStream(stream);
+					if (sKTypeface == null)
+						FontDiag.Log($"[FontModel] SKTypeface.FromStream returned null for {fileName}");
+					else
+						FontDiag.Log($"[FontModel] Loaded {fileName} -> FamilyName={sKTypeface.FamilyName}");
+				}
+				else
+				{
+					FontDiag.Log($"[FontModel] GetManifestResourceStream returned null for {path}");
+				}
 			}
-			catch { }
+			catch (Exception ex)
+			{
+				FontDiag.Log($"[FontModel] Exception loading {fileName}: {ex.Message}");
+			}
 
 			// 嵌入资源字体加载失败时，使用系统默认字体作为回退
 			if (sKTypeface == null)
@@ -302,9 +344,11 @@ namespace XEmuera.Models
 			if (AllModels.ContainsKey(fontModel.Name))
 			{
 				// 同族字体已存在，跳过（避免重复键异常）
+				FontDiag.Log($"[FontModel] AddFontModel skipped {fileName} -> {fontModel.Name} (already exists)");
 				return;
 			}
 			AllModels.Add(fontModel.Name, fontModel);
+			FontDiag.Log($"[FontModel] AddFontModel added {fileName} -> {fontModel.Name}");
 
 			FontNameMapping.GetByValue(fontModel.Name, out var otherName, fileName);
 			fontModel.OtherName = otherName;

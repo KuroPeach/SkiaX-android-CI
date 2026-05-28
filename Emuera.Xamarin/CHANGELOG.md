@@ -1,5 +1,26 @@
 # Emuera.Xamarin 变更记录
 
+## [0.61.0] - 2026-05-29
+
+### Changed
+
+- **文本渲染管线统一重构（测量=渲染）**：Android 端 `ConsoleStyledString` 移植 Desktop 端 `BuildFallbacks` 架构，在构造时完成字体回退，测量和渲染都使用整串 `MeasureText` + `DrawText`（同一条 HarfBuzz 管线）
+  - 根因：v5.3.0 发现 Android 端 `DrawTextUtils` 使用 `GetGlyphWidths`（原始 hmtx）逐字符渲染，而 `StringMeasure` 使用 `MeasureText`（HarfBuzz 整形）整串测量，两条管线不一致导致空格宽度异常
+  - 变更：`ConsoleStyledString` 添加 `BuildFallbacks` + `_texts` + `TextsWithFont`；`SetWidth` 改为分段 `MeasureText`；`DrawTo` 改为分段 `DrawText`；`DrawTextUtils.DrawText` 简化为整串渲染（移除 `FontCache`/`TextUnit`/`SystemFallbackCache` 逐字符回退逻辑）
+  - 结果：Android 端测量-渲染管线完全一致，空格宽度问题自然消失，不再需要空格特殊处理
+
+- **排除 Microsoft YaHei 内嵌字体**：注释排除 `Microsoft YaHei.ttf` 内嵌资源，SimHei（等宽）作为 Android 端唯一内嵌中文字体
+  - 变更：`FontModel.cs` 注释 `AddFontFromResource(FinalFontName)`；`Emuera.Xamarin.Core.csproj` 注释 `Microsoft YaHei.ttf` 嵌入资源
+  - 原因：YaHei（非等宽）作为内嵌字体会干扰 SimHei 等宽优先级，导致空格宽度不一致；YaHei 仅在系统已安装时通过 `SKTypeface.FromFamilyName` 被发现
+  - 如需恢复：取消两处注释即可
+
+### Fixed
+
+- **"黑体"→YaHei 映射错误导致空格不等宽**：游戏配置 `FONT NAME:黑体` 时，`RegisterMissingChineseFontFallbacks()` 将 "黑体" 映射到 Microsoft YaHei（非等宽），导致空格宽度 7.10px ≠ 数字宽度 12px，编号框 `[  0]`/`[ 10]` 长度不一致
+  - 根因：`RegisterMissingChineseFontFallbacks()` 设计意图是"外部字体不存在时回退到 YaHei"，但 SkiaX 内嵌了 SimHei（等宽），且 YaHei 是非等宽字体，映射到 YaHei 导致主字体非等宽
+  - 修复：`RegisterMissingChineseFontFallbacks()` 优先映射到 SimHei（等宽），其次 YaHei（非等宽）
+  - 相关：`FontFactory.GetFallbackTypefaceForChar` 回退优先级已在 v5.4.1 修正（SimHei 先于 YaHei），但 `FontNameMapping` 的中文别名映射独立于此优先级，需单独修复
+
 ## [0.60.3] - 2026-05-28
 
 ### Fixed

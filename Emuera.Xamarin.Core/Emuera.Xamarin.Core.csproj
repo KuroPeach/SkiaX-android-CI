@@ -157,7 +157,9 @@
   <ItemGroup>
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Docs\Emuera_readme.txt" LinkBase="Resources\Docs" />
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Fonts\MS Gothic.ttf" LinkBase="Resources\Fonts" />
-    <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Fonts\Microsoft YaHei.ttf" LinkBase="Resources\Fonts" />
+    <!-- TEST: 排除 Microsoft YaHei 内嵌字体 -->
+    <!-- <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Fonts\Microsoft YaHei.ttf" LinkBase="Resources\Fonts" /> -->
+    <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Fonts\SimHei.ttf" LinkBase="Resources\Fonts" />
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Images\app_icon.png" LinkBase="Resources\Images" />
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Images\edit.svg" LinkBase="Resources\Images" />
     <EmbeddedResource Include="..\Emuera.Xamarin\Resources\Images\gamepad.svg" LinkBase="Resources\Images" />

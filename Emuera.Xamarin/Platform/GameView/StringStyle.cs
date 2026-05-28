@@ -39,9 +39,22 @@ namespace MinorShift.Emuera.GameView
 		}
 
 		public Color Color;
+		public Color? BackgroundColor;
 		public Color ButtonColor;
 		public bool ColorChanged;
-		public FontStyle FontStyle;
+		FontStyle _fontStyle;
+		public FontStyle FontStyle
+		{
+			get { return _fontStyle; }
+			set
+			{
+				_fontStyle = value;
+				HasUnderline = _fontStyle.HasFlag(FontStyle.Underline);
+				HasStrikeout = _fontStyle.HasFlag(FontStyle.Strikeout);
+			}
+		}
+		public bool HasStrikeout;
+		public bool HasUnderline;
 		public string Fontname;
 		public override bool Equals(object obj)
 		{

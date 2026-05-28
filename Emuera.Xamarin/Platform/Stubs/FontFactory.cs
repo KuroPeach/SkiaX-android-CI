@@ -230,9 +230,9 @@ internal static class FontFactory
 
 		string[] safeFallbackFonts;
 		if (isSerif)
-			safeFallbackFonts = ["MS Mincho", "MS PMincho", "SimSun", "NSimSun", "FangSong", "MingLiU", "PMingLiU", "Microsoft YaHei", "MS Gothic", "SimHei"];
+			safeFallbackFonts = ["MS Mincho", "MS PMincho", "SimSun", "NSimSun", "FangSong", "SimHei", "MingLiU", "PMingLiU", "Microsoft YaHei", "MS Gothic"];
 		else
-			safeFallbackFonts = ["Microsoft YaHei", "MS Gothic", "MS PGothic", "MS UI Gothic", "SimHei", "Meiryo", "Yu Gothic", "SimSun"];
+			safeFallbackFonts = ["SimHei", "MS Gothic", "MS PGothic", "MS UI Gothic", "Microsoft YaHei", "Meiryo", "Yu Gothic", "SimSun"];
 
 		foreach (var fontName in safeFallbackFonts)
 		{
@@ -240,11 +240,19 @@ internal static class FontFactory
 			bool shouldDispose = false;
 
 			// 优先从 FontModel 获取内嵌字体（Android 上 FromFamilyName 找不到内嵌字体）
-			if (FontModel.HasFont(fontName))
+			// 直接遍历 AllModels，按 FamilyName 匹配，绕过 FontNameMapping 的别名映射
+			bool foundInModel = false;
+			foreach (var kv in FontModel.AllModels)
 			{
-				safeTypeface = FontModel.GetFont(fontName).Typeface;
+				if (string.Equals(kv.Key, fontName, StringComparison.OrdinalIgnoreCase) ||
+				    string.Equals(kv.Value.Typeface?.FamilyName, fontName, StringComparison.OrdinalIgnoreCase))
+				{
+					safeTypeface = kv.Value.Typeface;
+					foundInModel = true;
+					break;
+				}
 			}
-			else
+			if (!foundInModel)
 			{
 				safeTypeface = SKTypeface.FromFamilyName(fontName);
 				shouldDispose = true;
@@ -252,13 +260,13 @@ internal static class FontFactory
 
 			if (safeTypeface != null && safeTypeface.ContainsGlyph(c))
 			{
-				FontDiag.Log($"  → safeFallback: {fontName} (HasFont={FontModel.HasFont(fontName)}) ContainsGlyph=true");
+				FontDiag.Log($"  → safeFallback: {fontName} (foundInModel={foundInModel}) ContainsGlyph=true");
 				fallbackTypefaceCache[cacheKey] = safeTypeface;
 				return safeTypeface;
 			}
 			if (safeTypeface != null)
 			{
-				FontDiag.Log($"  → safeFallback: {fontName} (HasFont={FontModel.HasFont(fontName)}) ContainsGlyph=false GetGlyph={safeTypeface.GetGlyph(c)}");
+				FontDiag.Log($"  → safeFallback: {fontName} (foundInModel={foundInModel}) ContainsGlyph=false GetGlyph={safeTypeface.GetGlyph(c)}");
 			}
 			if (shouldDispose)
 				safeTypeface?.Dispose();

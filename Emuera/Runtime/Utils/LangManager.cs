@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 
 namespace MinorShift.Emuera.Runtime.Utils;
 
@@ -13,13 +13,38 @@ internal static class LangManager
 		lang = Encoding.GetEncoding(code);
 	}
 
+	static bool IsWideChar(char c)
+	{
+		if (c >= 0x2E80 && c <= 0x9FFF) return true;
+		if (c >= 0xA960 && c <= 0xA97F) return true;
+		if (c >= 0xAC00 && c <= 0xD7AF) return true;
+		if (c >= 0xF900 && c <= 0xFAFF) return true;
+		if (c >= 0xFE30 && c <= 0xFE6F) return true;
+		if (c >= 0xFF01 && c <= 0xFF60) return true;
+		if (c >= 0xFFE0 && c <= 0xFFE6) return true;
+		return false;
+	}
+
+	static int GetCharByteCount(char c)
+	{
+		int byteCount = lang.GetByteCount(c.ToString());
+		if (byteCount == 1 && IsWideChar(c))
+			return 2;
+		return byteCount;
+	}
+
 	public static int GetStrlenLang(string str)
 	{
 		if (Ascii.IsValid(str))
 		{
 			return str.Length;
 		}
-		return lang.GetByteCount(str);
+		int total = 0;
+		for (int i = 0; i < str.Length; i++)
+		{
+			total += GetCharByteCount(str[i]);
+		}
+		return total;
 	}
 	public static int GetUFTIndex(string str, int LangIndex)
 	{
@@ -32,7 +57,7 @@ internal static class LangManager
 		int JIScnt = 0;
 		for (int i = 0; i < str.Length; i++)
 		{
-			JIScnt += lang.GetByteCount(str[UTFcnt].ToString());
+			JIScnt += GetCharByteCount(str[UTFcnt]);
 			UTFcnt++;
 			if (JIScnt >= LangIndex)
 				break;
@@ -61,7 +86,7 @@ internal static class LangManager
 		{
 			for (int i = 0; i < str.Length; i++)
 			{
-				JIScnt += lang.GetByteCount(str[UTFcnt].ToString());
+				JIScnt += GetCharByteCount(str[UTFcnt]);
 				UTFcnt++;
 				if (JIScnt >= startindex)
 					break;
@@ -74,7 +99,7 @@ internal static class LangManager
 		while (true)
 		{
 			ret.Append(str[UTFcnt]);
-			JIScnt += lang.GetByteCount(str[UTFcnt].ToString());
+			JIScnt += GetCharByteCount(str[UTFcnt]);
 			UTFcnt++;
 			if (JIScnt >= length)
 				break;
