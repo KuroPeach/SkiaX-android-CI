@@ -1,4 +1,31 @@
 
+2026年5月28日
+ExecutionContext 调试修复：LOCAL@FUNCNAME + 调用栈保留 + 监视窗口
+
+	1. 修复 LOCAL@FUNCNAME 检测失效：
+		- Phase 1.1 ExecutionContext 改造后，GetArrayLocal() 始终返回 CurrentContext 的数组，忽略了 subID（函数名）
+		- 现在 GetArrayLocal() 按 subID 在上下文栈中查找匹配的 ExecutionContext
+		- LOCAL@FOO 语法和调试窗口监视 LOCAL@函数名 均恢复正常
+		- ProcessState 新增 FindContextByLabel() 方法，按函数名查找上下文栈
+
+	2. 修复错误/THROW 后调试窗口调用栈被清空：
+		- 与上游 emuera.em 对齐：handleException 后不再调用 ClearFunctionList()
+		- 上游在错误后保留 functionList 和 dTraceLogList，调试窗口可正常查看调用栈
+		- 新增 ClearFunctionListPreserveTrace() 方法，仅在 BEFORE_ERROR/BEFORE_THROW 内部错误路径中使用
+		- Normal path（无 BEFORE_ERROR）与上游一致，不清理函数列表
+
+	3. 修复调试窗口监视含 LOCAL 变量的表达式报错：
+		- saveCurrentState 克隆 state 后 CurrentContext 为 null，LOCAL 变量走 FallbackArray 返回空数组
+		- Clone() 现在保留对原始 _contextStack 的引用（_savedContextStack）
+		- CurrentContext 和 FindContextByLabel 在自身栈为空时自动回退到保存的栈
+
+	4. 修复调试窗口一个监视报错后其他监视全部失败：
+		- Process.GetValue 的 finally 块在 runScriptProc() 抛出异常时，只 PopContext() 一次但未清理 functionList 残留条目
+		- 后续监视表达式求值时 state.Scope 返回错误的函数名，导致私有变量查找失败
+		- 现在 GetValue 在 IntoFunction 前记录 functionList/_contextStack 快照
+		- 异常时通过 RollbackToState() 回滚到调用前状态，确保一个监视报错不影响后续监视
+		- ProcessState 新增 CaptureCallState() 和 RollbackToState() 方法
+
 2026年5月5日
 合并 mr-6 分支冲突解决：修复手动 OpenGL 渲染与 PaintSurface 事件隐藏导致的黑屏问题
 	问题描述：合并 mr-6 分支（d69147a）后，程序启动黑屏，仅显示输入光标，控制台内容完全不渲染。

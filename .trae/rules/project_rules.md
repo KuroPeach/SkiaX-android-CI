@@ -45,6 +45,20 @@ alwaysApply: true
 | **skiax** | SkiaX 移植端（Emuera.Xamarin*/）、ADB 测试、Android 渲染/IO/字体/AWAIT |
 | **xemuera** | XEmuera 上游原型参考（仅参考，不修改） |
 
+## 版本签名（强制认知）
+
+> 更新版本号时**只改 `Emuera/Emuera.csproj`**，运行时通过 `PlatformInterop.GetProductVersion()` 自动读取。
+> 详见 [branch-strategy.md §版本签名](file:///d:/emuera/shared-trae/knowledge/lazyloading/branch-strategy.md)。
+
+| 场景 | 改什么 | 示例 |
+|------|--------|------|
+| SkiaSharp NuGet 升级 | `Skiav` 段 | `Skiav5.1` → `Skiav6.0` |
+| 上游 EM+EE 同步 | `EMv`/`EEv` 段 | `EEv56` → `EEv57` |
+| 功能版本发布 | `v` 段 | `v24` → `v25` |
+| Android 版本 | `AndroidManifest.xml` 的 `versionCode`/`versionName` | 独立维护 |
+
+**禁止**：不要改 `Sys.cs` 的 `EmueraVersionText`、不要改 `Program.cs` 的 `GetProductVersion` 委托——它们自动读取 csproj 的 `<InformationalVersion>`。
+
 ## 子规则
 
 - [内核修改分类](kernel/modification-classification.md) — A/B/C 类分类与回流策略

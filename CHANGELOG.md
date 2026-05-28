@@ -4,6 +4,23 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [6.0.0] — 调试窗口修复：LOCAL@FUNCNAME + 调用栈保留 + 监视稳定性
+
+### Fixed
+
+- **LOCAL@FUNCNAME 检测失效** — `GetArrayLocal()` 忽略 `subID`，始终返回 `CurrentContext` 的数组。现在按 `subID` 在上下文栈中查找匹配的 `ExecutionContext`
+- **错误/THROW 后调试窗口调用栈被清空** — `handleException` 后不再调用 `ClearFunctionList()`，保留调用栈供调试窗口查看。新增 `ClearFunctionListPreserveTrace()` 供 BEFORE_ERROR/BEFORE_THROW 内部使用
+- **调试窗口监视含 LOCAL 变量的表达式报错** — `saveCurrentState` 克隆 state 后 `CurrentContext` 为 null，LOCAL 变量走 FallbackArray 返回空数组。现在 `Clone()` 保留对原始 `_contextStack` 的引用，`CurrentContext` 在自身栈为空时自动回退
+- **调试窗口表达式函数求值后 currentLine 残留** — `Process.GetValue` 的 finally 块在成功路径下 `PopContext()` 但未恢复 `currentLine`。现在 `CaptureCallState` 同时保存 `currentLine`，成功/失败路径均恢复
+- **调试窗口一个监视报错后其他监视全部失败** — 上述 currentLine 残留导致后续监视在错误函数上下文中解析私有变量。修复 currentLine 恢复后错误传播链断裂
+
+### Changed
+
+- `DisableBeforeErrorThrow` 配置项不再必要（错误后调用栈已默认保留），但保留以维持向后兼容
+- 新增 `ProcessState.ContextStackCount` 属性
+
+***
+
 ## [5.2.0] — DisableBeforeErrorThrow 配置项：保留调试函数栈
 
 ### Added

@@ -1683,17 +1683,36 @@ internal sealed partial class VariableData
 
 		long[] GetArrayLocal()
 		{
-			var ctx = GlobalStatic.Process?.State?.CurrentContext;
+			var procState = GlobalStatic.Process?.State;
+			var ctx = procState?.CurrentContext;
 			if (ctx != null)
 			{
-				var arr = Code switch
+				if (string.IsNullOrEmpty(subID) || ctx.Function?.LabelName == subID)
 				{
-					VariableCode.LOCAL => ctx.LocalIntegers,
-					VariableCode.ARG => ctx.ArgIntegers,
-					_ => null
-				};
-				if (arr != null)
-					return arr;
+					var arr = Code switch
+					{
+						VariableCode.LOCAL => ctx.LocalIntegers,
+						VariableCode.ARG => ctx.ArgIntegers,
+						_ => null
+					};
+					if (arr != null)
+						return arr;
+				}
+				else
+				{
+					var targetCtx = procState.FindContextByLabel(subID);
+					if (targetCtx != null)
+					{
+						var arr = Code switch
+						{
+							VariableCode.LOCAL => targetCtx.LocalIntegers,
+							VariableCode.ARG => targetCtx.ArgIntegers,
+							_ => null
+						};
+						if (arr != null)
+							return arr;
+					}
+				}
 			}
 			return FallbackArray();
 		}
@@ -1767,17 +1786,36 @@ internal sealed partial class VariableData
 
 		string[] GetArrayLocal()
 		{
-			var ctx = GlobalStatic.Process?.State?.CurrentContext;
+			var procState = GlobalStatic.Process?.State;
+			var ctx = procState?.CurrentContext;
 			if (ctx != null)
 			{
-				var arr = Code switch
+				if (string.IsNullOrEmpty(subID) || ctx.Function?.LabelName == subID)
 				{
-					VariableCode.LOCALS => ctx.LocalStrings,
-					VariableCode.ARGS => ctx.ArgStrings,
-					_ => null
-				};
-				if (arr != null)
-					return arr;
+					var arr = Code switch
+					{
+						VariableCode.LOCALS => ctx.LocalStrings,
+						VariableCode.ARGS => ctx.ArgStrings,
+						_ => null
+					};
+					if (arr != null)
+						return arr;
+				}
+				else
+				{
+					var targetCtx = procState.FindContextByLabel(subID);
+					if (targetCtx != null)
+					{
+						var arr = Code switch
+						{
+							VariableCode.LOCALS => targetCtx.LocalStrings,
+							VariableCode.ARGS => targetCtx.ArgStrings,
+							_ => null
+						};
+						if (arr != null)
+							return arr;
+					}
+				}
 			}
 			return FallbackArray();
 		}
@@ -1845,17 +1883,36 @@ internal sealed partial class VariableData
 
 		double[] GetArrayLocal()
 		{
-			var ctx = GlobalStatic.Process?.State?.CurrentContext;
+			var procState = GlobalStatic.Process?.State;
+			var ctx = procState?.CurrentContext;
 			if (ctx != null)
 			{
-				var arr = Code switch
+				if (string.IsNullOrEmpty(subID) || ctx.Function?.LabelName == subID)
 				{
-					VariableCode.LOCALF => ctx.LocalFloats,
-					VariableCode.ARGF => ctx.ArgFloats,
-					_ => null
-				};
-				if (arr != null)
-					return arr;
+					var arr = Code switch
+					{
+						VariableCode.LOCALF => ctx.LocalFloats,
+						VariableCode.ARGF => ctx.ArgFloats,
+						_ => null
+					};
+					if (arr != null)
+						return arr;
+				}
+				else
+				{
+					var targetCtx = procState.FindContextByLabel(subID);
+					if (targetCtx != null)
+					{
+						var arr = Code switch
+						{
+							VariableCode.LOCALF => targetCtx.LocalFloats,
+							VariableCode.ARGF => targetCtx.ArgFloats,
+							_ => null
+						};
+						if (arr != null)
+							return arr;
+					}
+				}
 			}
 			return FallbackArray();
 		}

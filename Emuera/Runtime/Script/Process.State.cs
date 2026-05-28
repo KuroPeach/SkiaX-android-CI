@@ -112,10 +112,46 @@ internal sealed class ProcessState
 	private bool pendingErrorSystemProc;
 
 	private readonly Stack<ExecutionContext> _contextStack = new();
-	public ExecutionContext CurrentContext => _contextStack.Count > 0 ? _contextStack.Peek() : null;
+	private Stack<ExecutionContext> _savedContextStack;
+	public ExecutionContext CurrentContext => _contextStack.Count > 0 ? _contextStack.Peek() : _savedContextStack?.Count > 0 ? _savedContextStack.Peek() : null;
+	public IEnumerable<ExecutionContext> ContextStack => _contextStack.Count > 0 ? _contextStack : _savedContextStack ?? _contextStack;
+
+	public ExecutionContext FindContextByLabel(string labelName)
+	{
+		var stack = _contextStack.Count > 0 ? _contextStack : _savedContextStack;
+		if (stack != null)
+		{
+			foreach (var ctx in stack)
+			{
+				if (ctx.Function != null && ctx.Function.LabelName == labelName)
+					return ctx;
+			}
+		}
+		return null;
+	}
 
 	public void PushContext(ExecutionContext ctx) => _contextStack.Push(ctx);
 	public ExecutionContext PopContext() => _contextStack.Count > 0 ? _contextStack.Pop() : null;
+	public int ContextStackCount => _contextStack.Count;
+
+	public (int funcCount, int ctxCount, LogicalLine currentLine) CaptureCallState() => (functionList.Count, _contextStack.Count, CurrentLine);
+
+	public void RollbackToState(int targetFuncCount, int targetCtxCount, LogicalLine targetCurrentLine)
+	{
+		while (functionList.Count > targetFuncCount)
+		{
+			var called = functionList[functionList.Count - 1];
+			if (called.CurrentLabel.hasPrivDynamicVar)
+				called.CurrentLabel.ScopeOut();
+			functionList.RemoveAt(functionList.Count - 1);
+		}
+		while (_contextStack.Count > targetCtxCount)
+		{
+			var ctx = _contextStack.Pop();
+			ctx?.Dispose();
+		}
+		CurrentLine = targetCurrentLine;
+	}
 
 	//private LogicalLine nextLine;
 	public int lineCount;
@@ -310,6 +346,22 @@ internal sealed class ProcessState
 		functionList.Clear();
 		begintype = BeginType.NULL;
 		if (GameProcProcess.DebugLogEnabled) GameProcProcess.DebugLog("[ClearFunctionList] done\n");
+	}
+
+	public void ClearFunctionListPreserveTrace()
+	{
+		if (GameProcProcess.DebugLogEnabled) GameProcProcess.DebugLog(string.Format("[ClearFunctionListPreserveTrace] clearing {0} functions\n", functionList.Count));
+		foreach (CalledFunction called in functionList)
+			if (called.CurrentLabel.hasPrivDynamicVar)
+				called.CurrentLabel.ScopeOut();
+		while (_contextStack.Count > 0)
+		{
+			var ctx = _contextStack.Pop();
+			ctx.Dispose();
+		}
+		functionList.Clear();
+		begintype = BeginType.NULL;
+		if (GameProcProcess.DebugLogEnabled) GameProcProcess.DebugLog("[ClearFunctionListPreserveTrace] done\n");
 	}
 
 	public bool calledWhenNormal = true;
@@ -744,6 +796,7 @@ internal sealed class ProcessState
 			sysStateCode = sysStateCode,
 			begintype = begintype
 		};
+		ret._savedContextStack = _contextStack;
 		//ret.MethodReturnValue = this.MethodReturnValue;
 		return ret;
 

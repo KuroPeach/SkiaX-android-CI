@@ -422,8 +422,8 @@ internal sealed partial class Process(EmueraConsole view)
 						handleExceptionInSystemProc(ec, errorLine, true);
 					else
 						handleException(ec, errorLine, true);
-					DebugLog("[DoScript-catch] InBeforeError: calling ClearFunctionList and returning\n");
-					state.ClearFunctionList();
+					DebugLog("[DoScript-catch] InBeforeError: clearing function list (preserve trace) and returning\n");
+					state.ClearFunctionListPreserveTrace();
 					DebugLogEnabled = false;
 					return;
 				}
@@ -439,8 +439,8 @@ internal sealed partial class Process(EmueraConsole view)
 						handleExceptionInSystemProc(ec, throwLine, true);
 					else
 						handleException(ec, throwLine, true);
-					DebugLog("[DoScript-catch] SkipBeforeError: calling ClearFunctionList and returning\n");
-					state.ClearFunctionList();
+					DebugLog("[DoScript-catch] SkipBeforeError: clearing function list (preserve trace) and returning\n");
+					state.ClearFunctionListPreserveTrace();
 					DebugLogEnabled = false;
 					return;
 				}
@@ -458,8 +458,8 @@ internal sealed partial class Process(EmueraConsole view)
 						handleExceptionInSystemProc(new CodeEE(throwMsg), throwLine, true);
 					else
 						handleException(new CodeEE(throwMsg), throwLine, true);
-					DebugLog("[DoScript-catch] InBeforeThrow: calling ClearFunctionList and returning\n");
-					state.ClearFunctionList();
+					DebugLog("[DoScript-catch] InBeforeThrow: clearing function list (preserve trace) and returning\n");
+					state.ClearFunctionListPreserveTrace();
 					DebugLogEnabled = false;
 					return;
 				}
@@ -483,8 +483,7 @@ internal sealed partial class Process(EmueraConsole view)
 					handleExceptionInSystemProc(ec, currentLine, true);
 				else
 					handleException(ec, currentLine, true);
-				DebugLog("[DoScript-catch] Normal path: calling ClearFunctionList and returning\n");
-				state.ClearFunctionList();
+				DebugLog("[DoScript-catch] Normal path: returning (preserve function list for debug)\n");
 				DebugLogEnabled = false;
 				return;
 			}
@@ -548,33 +547,40 @@ internal sealed partial class Process(EmueraConsole view)
 			methodStack, udmt.Call.FunctionName, state.FunctionList.Count));
 		if (methodStack > 100)
 		{
-			//StackOverflowExceptionはcatchできない上に再現性がないので発生前に一定数で打ち切る。
-			//環境によっては100以前にStackOverflowExceptionがでるかも？
 			throw new CodeEE(trerror.OverflowFuncStack.Text);
 		}
 		SingleTerm ret = null;
 		int temp_current = state.currentMin;
 		state.currentMin = state.functionCount;
 		udmt.Call.updateRetAddress(state.CurrentLine);
+		bool success = false;
+		var savedState = state.CaptureCallState();
 		try
 		{
 			state.IntoFunction(udmt.Call, udmt.Argument, exm);
-			//do whileの中でthrow されたエラーはここではキャッチされない。
-			//#functionを全て抜けてDoScriptでキャッチされる。
 			runScriptProc();
 			ret = state.MethodReturnValue;
+			success = true;
 		}
 		finally
-		{
-			if (DebugLogEnabled) DebugLog(string.Format("[GetValue-finally] func={0} methodStack={1} functionList.Count={2}\n",
-				udmt.Call.FunctionName, methodStack, state.FunctionList.Count));
-			if (udmt.Call.TopLabel.hasPrivDynamicVar)
-				udmt.Call.TopLabel.ScopeOut();
-			var popped = state.PopContext();
-			popped?.Dispose();
-			state.currentMin = temp_current;
-			methodStack--;
-		}
+			{
+				if (DebugLogEnabled) DebugLog(string.Format("[GetValue-finally] func={0} methodStack={1} functionList.Count={2} success={3}\n",
+					udmt.Call.FunctionName, methodStack, state.FunctionList.Count, success));
+				if (success)
+				{
+					if (udmt.Call.TopLabel.hasPrivDynamicVar)
+						udmt.Call.TopLabel.ScopeOut();
+					var popped = state.PopContext();
+					popped?.Dispose();
+					state.CurrentLine = savedState.currentLine;
+				}
+				else
+				{
+					state.RollbackToState(savedState.funcCount, savedState.ctxCount, savedState.currentLine);
+				}
+				state.currentMin = temp_current;
+				methodStack--;
+			}
 		return ret;
 	}
 
