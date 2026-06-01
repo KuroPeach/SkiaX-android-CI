@@ -4,6 +4,20 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [6.1.0] — IsFunctionMethod 边界检查 + FindContextByLabel 快照枚举
+
+### Fixed — A 类跨平台 Bug 修复（双端受益）
+
+- **Process.State.cs** — `IsFunctionMethod` 属性 `ArgumentOutOfRangeException`
+  - `functionList[currentMin]` 在 `functionList` 被部分清除后索引越界
+  - 修复：添加 `if (currentMin >= functionList.Count) return false;` 边界检查
+  - 触发场景：异常路径（BEFORE_ERROR/BEFORE_THROW 处理）中 `RollbackToState()` 修改 `functionList` 但未同步 `currentMin`
+
+- **Process.State.cs** — `FindContextByLabel` 方法 `InvalidOperationException`
+  - `foreach (var ctx in stack)` 枚举 `_contextStack` 期间栈被 `ClearFunctionList()` 等操作修改
+  - 修复：改用快照枚举 `foreach (var ctx in stack.ToArray())`
+  - 触发场景：LOCAL/ARG 变量带 subID 访问时，`Return()` 异常触发 BEFORE_ERROR → `ClearFunctionList()` 修改 `_contextStack`
+
 ## [6.0.0] — 调试窗口修复：LOCAL@FUNCNAME + 调用栈保留 + 监视稳定性
 
 ### Fixed
