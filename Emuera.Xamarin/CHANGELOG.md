@@ -1,5 +1,14 @@
 # Emuera.Xamarin 变更记录
 
+## [0.62.0] - 2026-06-02
+
+### Fixed
+
+- **AndroidHost.cs** — 游戏会话切换后引擎状态残留
+  - 右滑退出游戏回到列表 → 重新选择游戏时 `StartGame` 因 `engineInitialized` 守卫直接返回，跳过所有初始化
+  - 新游戏的 UI 显示了，但引擎内部仍是旧游戏的 ProcessState/VariableData/LabelDictionary
+  - 修复：`StartGame` 检测到 `engineInitialized` 时先执行 `console.Quit()` + `console.Dispose()` + `GlobalStatic.Reset()` + `AppContents.UnloadContents()`，然后重新走完整初始化流程
+
 ## [0.61.0] - 2026-05-29
 
 ### Changed

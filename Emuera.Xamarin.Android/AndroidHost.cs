@@ -36,7 +36,20 @@ namespace XEmuera.Droid
 
         public void StartGame(string gamePath)
         {
-            if (engineInitialized) return;
+            if (engineInitialized)
+            {
+                Android.Util.Log.Debug("EmueraHost", "StartGame: cleaning up previous session");
+                if (console != null)
+                {
+                    try { console.Quit(); } catch { }
+                    try { console.Dispose(); } catch { }
+                    console = null;
+                }
+                GlobalStatic.Reset();
+                MinorShift.Emuera.Content.AppContents.UnloadContents();
+                engineInitialized = false;
+                Android.Util.Log.Debug("EmueraHost", "StartGame: cleanup complete, re-initializing");
+            }
 
             var context = MainActivity.Instance;
             if (context == null) return;

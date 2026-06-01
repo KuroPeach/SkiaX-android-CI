@@ -121,7 +121,7 @@ internal sealed class ProcessState
 		var stack = _contextStack.Count > 0 ? _contextStack : _savedContextStack;
 		if (stack != null)
 		{
-			foreach (var ctx in stack)
+			foreach (var ctx in stack.ToArray())
 			{
 				if (ctx.Function != null && ctx.Function.LabelName == labelName)
 					return ctx;
@@ -741,6 +741,8 @@ internal sealed class ProcessState
 	{
 		get
 		{
+			if (currentMin >= functionList.Count)
+				return false;
 			return functionList[currentMin].TopLabel.IsMethod;
 		}
 	}
