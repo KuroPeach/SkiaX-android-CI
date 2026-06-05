@@ -9564,13 +9564,25 @@ internal static partial class FunctionMethodCreator
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			//修正に失敗したので差し戻す
-			//long num = arguments[0].GetIntValue(exm)-exm.Console.DeletedLines;
 			long num = arguments[0].GetIntValue(exm);
-			if (num < 0 || num >= exm.Console.DisplayLineList.Count)
+			int count = exm.Console.DisplayLineList.Count;
+			if (count == 0)
 				return "";
+			int index;
+			if (num >= 0)
+			{
+				if (num >= count)
+					return "";
+				index = (int)num;
+			}
 			else
-				return exm.Console.DisplayLineList[(int)num].ToString();
+			{
+				// 从最下往上数第 |n| 行: -1=最后一行, -2=倒数第二行
+				if (num == long.MinValue || -num > count)
+					return "";
+				index = count + (int)num; // count - (-num) = count + num (num is negative)
+			}
+			return exm.Console.DisplayLineList[index].ToString();
 		}
 	}
 	#endregion
