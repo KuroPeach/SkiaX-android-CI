@@ -13,6 +13,10 @@
 - **HTML div height auto**：`<div>` 的 `height` 属性改为可选，省略时自动计算高度
 - **新增 `GetLinePointY(int lineNo)` 方法**：为共享代码 `ConsoleButtonString.GetMappedColor` 提供行 Y 坐标计算
 
+### Fixed
+
+- **ConsoleDivPart 绝对定位坐标系错误**：`AbsoluteLeftBottom`/默认模式使用 `MainPicBox.Height`（逻辑像素）计算 Y 坐标，但 Canvas 坐标系是物理像素，在 density>1.0 的设备上 div 定位偏小。改用 `ClientHeight`（物理像素）
+
 ## [0.62.0] - 2026-06-02
 
 ### Fixed
