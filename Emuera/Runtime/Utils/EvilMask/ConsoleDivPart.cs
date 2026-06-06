@@ -38,10 +38,10 @@ class ConsoleDivPart : AConsoleDisplayNode
 			AddTagMixedParam(sb, "radius", box.radius);
 			MixedNum4ToInt4(box.radius, ref radius);
 			if (box.color != null)
-				{
-					borderColors = new Color[4];
-					for (int i = 0; i < 4; i++)
-						borderColors[i] = box.color[i] != -1 ? Color.FromArgb(box.color[i]) : Color.Transparent;
+			{
+				borderColors = new Color[4];
+				for (int i = 0; i < 4; i++)
+					borderColors[i] = box.color[i] != -1 ? Color.FromArgb(box.color[i]) : Color.Transparent;
 				AddColorParam4(sb, "bcolor", borderColors);
 			}
 		}
@@ -63,6 +63,12 @@ class ConsoleDivPart : AConsoleDisplayNode
 		#endregion
 
 		this.width = MixedNum.ToPixel(width, 0);
+		children = childs;
+		Depth = depth;
+		IsRelative = isRelative;
+		Display = displayMode;
+
+		// height auto: calculate from content lines + padding/border
 		if (height != null)
 		{
 			Height = MixedNum.ToPixel(height, 0);
@@ -74,10 +80,6 @@ class ConsoleDivPart : AConsoleDisplayNode
 			if (border != null) { padTop += border[Direction.Top]; padBottom += border[Direction.Bottom]; }
 			Height = childs.Length * Config.Config.LineHeight + padTop + padBottom;
 		}
-		children = childs;
-		Depth = depth;
-		IsRelative = isRelative;
-		Display = displayMode;
 		
 		ShiftChildrenX(PointX + xOffset + divXOffset);
 	}

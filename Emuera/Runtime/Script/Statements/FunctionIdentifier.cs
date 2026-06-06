@@ -280,6 +280,7 @@ internal sealed partial class FunctionIdentifier
 		addFunction(FunctionCode.SETBGCOLOR, argb[FunctionArgType.SP_COLOR], METHOD_SAFE | EXTENDED);
 		addFunction(FunctionCode.SETBGIMAGE, new SETBGIMAGE_Instruction());
 		addFunction(FunctionCode.SETIMAGELAYER, new SETIMAGELAYER_Instruction());
+		addFunction(FunctionCode.SETIMAGELAYERL, new SETIMAGELAYERL_Instruction());
 		addFunction(FunctionCode.CLEARIMAGELAYER, new CLEARIMAGELAYER_Instruction());
 		addFunction(FunctionCode.CLEARIMAGELAYER_ALL, new CLEARIMAGELAYER_ALL_Instruction());
 		addFunction(FunctionCode.SETBGCOLORBYNAME, argb[FunctionArgType.STR], METHOD_SAFE | EXTENDED);

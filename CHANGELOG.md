@@ -4,6 +4,46 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [7.0.0] — 渲染管线统一 depth + SETIMAGELAYER 多精灵 + SETIMAGELAYERL + ARGB 透明度 + div height auto
+
+### 引擎层修复
+
+- **渲染管线统一 depth**：SETIMAGELAYER、CBG、escapedParts（含 div）共享同一 depth 排序系统
+  - 修复了 div 永远在 ImageLayer 之上的问题——原来 ImageLayer 在 Step 3 整批绘制，div 在 Step 4 绘制，两套独立 depth 系统
+  - `ImageLayerManager` 新增 `DrawLayersAtDepth(canvas, viewportW, viewportH, scrollY, int? depth)` 和 `GetDepths()` 方法
+  - `EmueraConsole.OnPaint` 将三个 depth 源（edepth + cbgList.zdepth + idepths）合并为统一降序列表，每个 depth 先绘制 ImageLayer 再绘制 CBG/div/文本
+- **SETIMAGELAYER 多精灵支持**：`ImageLayerManager._layers` 从 `Dictionary<long, ImageLayer>` 改为 `List<ImageLayer>`，同 depth 多精灵按添加顺序渲染，不再覆盖
+- **SETIMAGELAYERL 新增指令**：自动 followScroll=1 + 自动 GETLINEY y 轴转换，y 参数为行号（LINECOUNT），渲染位置与 HTML img 完全一致
+- **SETIMAGELAYER 空参数支持**：第 3-9 参数为空时采用默认值，只有 spriteName/depth 不可为空
+- **HTML div color ARGB 支持**：`stringToColorInt32` 支持 ARGB 透明度，6 位及以下解析为 RGB（Alpha=255），6 位以上解析为 ARGB；`ConsoleDivPart` 不再强制 Alpha=255
+- **HTML div height auto**：`<div>` 的 `height` 属性改为可选，省略时自动从内容行数 × 行高 + padding/border 计算高度
+
+***
+
+## [6.3.1] — SETIMAGELAYER 多精灵支持 + SETIMAGELAYERL + ARGB 透明度 + div height auto
+
+### 引擎层修复
+
+- **SETIMAGELAYER 多精灵支持**：`ImageLayerManager._layers` 从 `Dictionary<long, ImageLayer>` 改为 `List<ImageLayer>`，同 depth 多精灵按添加顺序渲染，不再覆盖
+- **SETIMAGELAYERL 新增指令**：自动 followScroll=1 + 自动 GETLINEY y 轴转换，y 参数为行号（LINECOUNT），渲染位置与 HTML img 完全一致
+- **SETIMAGELAYER 空参数支持**：第 3-9 参数为空时采用默认值，只有 spriteName/depth 不可为空
+- **HTML div color ARGB 支持**：`stringToColorInt32` 支持 ARGB 透明度，6 位及以下解析为 RGB（Alpha=255），6 位以上解析为 ARGB；`ConsoleDivPart` 不再强制 Alpha=255
+- **HTML div height auto**：`<div>` 的 `height` 属性改为可选，省略时自动从内容行数 × 行高 + padding/border 计算高度
+
+***
+
+## [6.3.0] — GETLINEY 表达式函数
+
+### Added
+
+- **GETLINEY 表达式函数** — 返回指定行号的物理 Y 坐标（左下原点，与 SETIMAGELAYER 坐标系一致）
+  - `GETLINEY(lineNo)` 返回 `lineNo` 行在窗口中的物理 Y 坐标
+  - 用于将 SETIMAGELAYER 图层与 HTML 文本流对齐
+  - 底层复用 `EmueraConsole.GetLinePointY(int lineNo)` 方法
+  - 负数参数抛出 `CodeEE`
+
+***
+
 ## [6.2.0] — GETDISPLAYLINE 负数倒数索引
 
 ### Added

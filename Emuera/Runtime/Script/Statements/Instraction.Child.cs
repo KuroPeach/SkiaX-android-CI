@@ -4148,6 +4148,48 @@ internal sealed partial class FunctionIdentifier
 		}
 	}
 
+	/// <summary>
+	/// SETIMAGELAYERL — auto followScroll=1 + auto GETLINEY y-axis conversion.
+	/// y parameter is lineNo (LINECOUNT), internally converted to top-edge-aligned SETIMAGELAYER y.
+	/// Rendering position matches HTML img at the same line.
+	/// </summary>
+	private sealed class SETIMAGELAYERL_Instruction : AInstruction
+	{
+		public SETIMAGELAYERL_Instruction()
+		{
+			ArgBuilder = ArgumentParser.GetArgumentBuilder(FunctionArgType.SP_SETIMAGELAYERL);
+			flag = METHOD_SAFE | EXTENDED;
+		}
+
+		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
+		{
+			SpSetImageLayerArgument arg = (SpSetImageLayerArgument)func.Argument;
+			string spriteName = arg.SpriteName.GetStrValue(exm);
+			long depth = arg.Depth.GetIntValue(exm);
+			int x = arg.X != null ? (int)arg.X.GetIntValue(exm) : 0;
+			long lineNo = arg.Y != null ? arg.Y.GetIntValue(exm) : exm.Console.LineCount;
+			int width = arg.Width != null ? (int)arg.Width.GetIntValue(exm) : 0;
+			int height = arg.Height != null ? (int)arg.Height.GetIntValue(exm) : 0;
+			int opacity = arg.Opacity != null ? (int)arg.Opacity.GetIntValue(exm) : 255;
+			float[]? colorMatrix = arg.CMArray != null ? ColorMatrixHelper.ReadFromVariableTerm(arg.CMArray, exm) : null;
+
+			// Auto GETLINEY conversion: y = GETLINEY(lineNo) + (imageHeight - LineHeight)
+			// This makes the image top-edge align with the line top-edge, matching HTML img rendering.
+			int imageHeight = height;
+			if (imageHeight <= 0)
+			{
+				var sprite = AppContents.GetSprite(spriteName);
+				if (sprite != null && sprite.IsCreated)
+					imageHeight = sprite.DestBaseSize.Height;
+			}
+			int lineHeight = Config.LineHeight;
+			int pointY = exm.Console.GetLinePointY((int)lineNo);
+			int y = pointY + lineHeight - exm.Console.ClientHeight + (imageHeight - lineHeight);
+
+			exm.Console.SetImageLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, true);
+		}
+	}
+
 	private sealed class CLEARIMAGELAYER_Instruction : AInstruction
 	{
 		public CLEARIMAGELAYER_Instruction()

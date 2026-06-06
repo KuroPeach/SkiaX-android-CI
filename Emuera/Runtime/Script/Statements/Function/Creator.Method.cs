@@ -10717,4 +10717,30 @@ internal static partial class FunctionMethodCreator
 			return exm.Console.ExistsImageLayer(depth) ? 1 : 0;
 		}
 	}
+
+	/// <summary>
+	/// GETLINEY(lineNo) — 返回指定行号的物理 Y 坐标（左下原点，与 SETIMAGELAYER 坐标系一致）
+	/// 坐标系：y=0 为窗口底部，负值向上。转换公式：y = GetLinePointY(lineNo) + LineHeight - ClientHeight
+	/// </summary>
+	public sealed class GetLineYMethod : FunctionMethod
+	{
+		public GetLineYMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArray = [EraType.Integer];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			long lineNo = arguments[0].GetIntValue(exm);
+			if (lineNo < 0)
+				throw new CodeEE(string.Format(trerror.ArgIsNegative.Text, Name, 1, lineNo));
+			// GetLinePointY 返回自顶向下像素坐标（0在顶部），
+			// SETIMAGELAYER 使用左下原点坐标系（0在底部，负值向上）。
+			// 转换：y = pointY + LineHeight - ClientHeight
+			// 效果：SETIMAGELAYER 传入此 y 值时，图片底边对齐行底边。
+			int pointY = exm.Console.GetLinePointY((int)lineNo);
+			return pointY + Config.LineHeight - exm.Console.ClientHeight;
+		}
+	}
 }

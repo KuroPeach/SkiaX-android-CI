@@ -252,6 +252,7 @@ internal static partial class ArgumentParser
 		#endregion
 		argb[FunctionArgType.SP_SETBGIMAGE] = new SP_SETBGIMAGE_ArgumentBuilder();
 		argb[FunctionArgType.SP_SETIMAGELAYER] = new SP_SETIMAGELAYER_ArgumentBuilder();
+		argb[FunctionArgType.SP_SETIMAGELAYERL] = new SP_SETIMAGELAYERL_ArgumentBuilder();
 	}
 
 	#region EM_私家版_HTMLパラメータ拡張
@@ -2639,8 +2640,28 @@ internal static partial class ArgumentParser
 		public override Argument CreateArgument(InstructionLine line, ExpressionMediator exm)
 		{
 			var terms = popTerms(line);
-			if (!checkArgumentType(line, exm, terms)) return null;
-
+			if (terms == null)
+			{
+				warn(trerror.MissingArg.Text, line, 2, false);
+				return null;
+			}
+			if (terms.Count < minArg)
+			{
+				warn(trerror.NotEnoughArguments.Text, line, 2, false);
+				return null;
+			}
+			// Validate required args (spriteName, depth)
+			if (terms[0] == null || terms[0].GetEraType() != EraType.String)
+			{
+				warn(string.Format(trerror.IncorrectArg.Text, "1"), line, 2, false);
+				return null;
+			}
+			if (terms[1] == null || terms[1].GetEraType() != EraType.Integer)
+			{
+				warn(string.Format(trerror.IncorrectArg.Text, "2"), line, 2, false);
+				return null;
+			}
+			// Optional args (3-9): null is allowed, will use defaults in DoInstruction
 			return new SpSetImageLayerArgument(
 				terms[0],
 				terms[1],
@@ -2651,6 +2672,55 @@ internal static partial class ArgumentParser
 				terms.Count > 6 ? terms[6] : null,
 				terms.Count > 7 ? terms[7] : null,
 				terms.Count > 8 ? terms[8] : null
+			);
+		}
+	}
+
+	private sealed class SP_SETIMAGELAYERL_ArgumentBuilder : ArgumentBuilder
+	{
+		public SP_SETIMAGELAYERL_ArgumentBuilder()
+		{
+			// SETIMAGELAYERL: spriteName, depth, x, y, width, height, opacity, CM_ARRAY
+			// No followScroll param (always 1), y is lineNo (auto GETLINEY conversion)
+			argumentTypeArray = [
+				EraType.String, EraType.Integer, EraType.Integer, EraType.Integer,
+				EraType.Integer, EraType.Integer, EraType.Integer, EraType.Void
+			];
+			minArg = 2;
+		}
+		public override Argument CreateArgument(InstructionLine line, ExpressionMediator exm)
+		{
+			var terms = popTerms(line);
+			if (terms == null)
+			{
+				warn(trerror.MissingArg.Text, line, 2, false);
+				return null;
+			}
+			if (terms.Count < minArg)
+			{
+				warn(trerror.NotEnoughArguments.Text, line, 2, false);
+				return null;
+			}
+			if (terms[0] == null || terms[0].GetEraType() != EraType.String)
+			{
+				warn(string.Format(trerror.IncorrectArg.Text, "1"), line, 2, false);
+				return null;
+			}
+			if (terms[1] == null || terms[1].GetEraType() != EraType.Integer)
+			{
+				warn(string.Format(trerror.IncorrectArg.Text, "2"), line, 2, false);
+				return null;
+			}
+			return new SpSetImageLayerArgument(
+				terms[0],
+				terms[1],
+				terms.Count > 2 ? terms[2] : null,
+				terms.Count > 3 ? terms[3] : null,
+				terms.Count > 4 ? terms[4] : null,
+				terms.Count > 5 ? terms[5] : null,
+				terms.Count > 6 ? terms[6] : null,
+				terms.Count > 7 ? terms[7] : null,
+				null // followScroll not applicable, always true
 			);
 		}
 	}

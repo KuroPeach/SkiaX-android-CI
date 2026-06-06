@@ -92,4 +92,5 @@ enum FunctionArgType
 	#endregion
 	SP_SETBGIMAGE,
 	SP_SETIMAGELAYER,
+	SP_SETIMAGELAYERL,
 }

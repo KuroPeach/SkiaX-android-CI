@@ -390,6 +390,7 @@ internal static partial class FunctionMethodCreator
 			#region 尊尼获加荣誉出品
 			["ARGLEN"] = new ArgLengthMethod(),
 			["EXISTSIMAGELAYER"] = new ExistsImageLayerMethod(),
+			["GETLINEY"] = new GetLineYMethod(),
 			["GETSOUNDORBGMINFO"] = new GetSoundOrBgmInfoMethod(),
 			["ISPLAYINGSOUND"] = new IsPlayingSoundMethod(),
 			["SOUNDCONTROL"] = new SoundControlMethod(),
