@@ -4,9 +4,23 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [7.0.0] — 渲染管线统一 depth + SETIMAGELAYER 多精灵 + SETIMAGELAYERL + ARGB 透明度 + div height auto
+## [7.3.0] — SETIMAGELAYERL 行相对定位（xpos/ypos）+ ARGB_TO_HTML_COLOR 工具函数
 
-### 引擎层修复
+### Fixed
+
+- **SETIMAGELAYERL 参数重新设计**：API 简化为 `SETIMAGELAYERL spriteName, depth, xpos, ypos, width, height, opacity, CM_ARRAY`
+  - 移除 `lineNo` 参数，始终锚定当前行（LINECOUNT），与 HTML `<img>` 参数约定一致
+  - `xpos`：相对行位置的 X 偏移（与 HTML `<img>` 的 `xpos` 属性语义一致，自动包含 `ShapePositionShift`）
+  - `ypos`：相对行顶边的 Y 偏移（与 HTML `<img>` 的 `ypos` 属性语义一致）
+  - `xpos=0, ypos=0` 时渲染位置与同行的 `<img>` 完全一致
+  - SETIMAGELAYER 与 SETIMAGELAYERL 的定位模型明确区分：绝对坐标 vs 行相对偏移
+
+
+***
+
+## [7.2.0] — 渲染管线统一 depth + SETIMAGELAYER 多精灵 + SETIMAGELAYERL + ARGB 透明度 + div height auto
+
+### Fixed
 
 - **渲染管线统一 depth**：SETIMAGELAYER、CBG、escapedParts（含 div）共享同一 depth 排序系统
   - 修复了 div 永远在 ImageLayer 之上的问题——原来 ImageLayer 在 Step 3 整批绘制，div 在 Step 4 绘制，两套独立 depth 系统
@@ -20,9 +34,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
-## [6.3.1] — SETIMAGELAYER 多精灵支持 + SETIMAGELAYERL + ARGB 透明度 + div height auto
+## [7.1.0] — SETIMAGELAYER 多精灵支持 + SETIMAGELAYERL + ARGB 透明度 + div height auto
 
-### 引擎层修复
+### Fixed
 
 - **SETIMAGELAYER 多精灵支持**：`ImageLayerManager._layers` 从 `Dictionary<long, ImageLayer>` 改为 `List<ImageLayer>`，同 depth 多精灵按添加顺序渲染，不再覆盖
 - **SETIMAGELAYERL 新增指令**：自动 followScroll=1 + 自动 GETLINEY y 轴转换，y 参数为行号（LINECOUNT），渲染位置与 HTML img 完全一致
@@ -32,7 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
-## [6.3.0] — GETLINEY 表达式函数
+## [7.0.0] — GETLINEY 表达式函数
 
 ### Added
 

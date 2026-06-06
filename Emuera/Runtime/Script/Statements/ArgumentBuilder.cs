@@ -2680,8 +2680,10 @@ internal static partial class ArgumentParser
 	{
 		public SP_SETIMAGELAYERL_ArgumentBuilder()
 		{
-			// SETIMAGELAYERL: spriteName, depth, x, y, width, height, opacity, CM_ARRAY
-			// No followScroll param (always 1), y is lineNo (auto GETLINEY conversion)
+			// SETIMAGELAYERL: spriteName, depth, xpos, ypos, width, height, opacity, CM_ARRAY
+			// xpos: X offset relative to line position (matches HTML img xpos, includes ShapePositionShift)
+			// ypos: Y offset relative to line top-edge (matches HTML img ypos)
+			// Always anchors to LINECOUNT (current line), no lineNo parameter
 			argumentTypeArray = [
 				EraType.String, EraType.Integer, EraType.Integer, EraType.Integer,
 				EraType.Integer, EraType.Integer, EraType.Integer, EraType.Void
@@ -2712,15 +2714,15 @@ internal static partial class ArgumentParser
 				return null;
 			}
 			return new SpSetImageLayerArgument(
-				terms[0],
-				terms[1],
-				terms.Count > 2 ? terms[2] : null,
-				terms.Count > 3 ? terms[3] : null,
-				terms.Count > 4 ? terms[4] : null,
-				terms.Count > 5 ? terms[5] : null,
-				terms.Count > 6 ? terms[6] : null,
-				terms.Count > 7 ? terms[7] : null,
-				null // followScroll not applicable, always true
+				terms[0],                                    // SpriteName
+				terms[1],                                    // Depth
+				terms.Count > 2 ? terms[2] : null,          // X → xpos (relative offset)
+				terms.Count > 3 ? terms[3] : null,          // Y → ypos (relative offset)
+				terms.Count > 4 ? terms[4] : null,          // Width
+				terms.Count > 5 ? terms[5] : null,          // Height
+				terms.Count > 6 ? terms[6] : null,          // Opacity
+				terms.Count > 7 ? terms[7] : null,          // CMArray
+				null                                         // FollowScroll (always true for L)
 			);
 		}
 	}

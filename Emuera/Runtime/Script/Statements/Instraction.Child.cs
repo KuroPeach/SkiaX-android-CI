@@ -4149,9 +4149,13 @@ internal sealed partial class FunctionIdentifier
 	}
 
 	/// <summary>
-	/// SETIMAGELAYERL — auto followScroll=1 + auto GETLINEY y-axis conversion.
-	/// y parameter is lineNo (LINECOUNT), internally converted to top-edge-aligned SETIMAGELAYER y.
-	/// Rendering position matches HTML img at the same line.
+	/// SETIMAGELAYERL — Line-relative positioning variant of SETIMAGELAYER.
+	/// Parameters: spriteName, depth, xpos, ypos, width, height, opacity, colorMatrix
+	/// - xpos: X offset relative to line position (includes ShapePositionShift, matches HTML img xpos)
+	/// - ypos: Y offset relative to line top-edge (matches HTML img ypos)
+	/// - Always anchors to LINECOUNT (current line)
+	/// - followScroll is always true
+	/// Rendering position matches HTML img at the same line when xpos=0, ypos=0.
 	/// </summary>
 	private sealed class SETIMAGELAYERL_Instruction : AInstruction
 	{
@@ -4166,12 +4170,18 @@ internal sealed partial class FunctionIdentifier
 			SpSetImageLayerArgument arg = (SpSetImageLayerArgument)func.Argument;
 			string spriteName = arg.SpriteName.GetStrValue(exm);
 			long depth = arg.Depth.GetIntValue(exm);
-			int x = arg.X != null ? (int)arg.X.GetIntValue(exm) : 0;
-			long lineNo = arg.Y != null ? arg.Y.GetIntValue(exm) : exm.Console.LineCount;
+
+			// SETIMAGELAYERL: xpos/ypos semantics (matching HTML img)
+			int xpos = arg.X != null ? (int)arg.X.GetIntValue(exm) : 0;
+			int ypos = arg.Y != null ? (int)arg.Y.GetIntValue(exm) : 0;
+
 			int width = arg.Width != null ? (int)arg.Width.GetIntValue(exm) : 0;
 			int height = arg.Height != null ? (int)arg.Height.GetIntValue(exm) : 0;
 			int opacity = arg.Opacity != null ? (int)arg.Opacity.GetIntValue(exm) : 255;
 			float[]? colorMatrix = arg.CMArray != null ? ColorMatrixHelper.ReadFromVariableTerm(arg.CMArray, exm) : null;
+
+			// Always anchor to current line (LINECOUNT)
+			int lineNo = (int)exm.Console.LineCount;
 
 			// Auto GETLINEY conversion: y = GETLINEY(lineNo) + (imageHeight - LineHeight)
 			// This makes the image top-edge align with the line top-edge, matching HTML img rendering.
@@ -4183,8 +4193,12 @@ internal sealed partial class FunctionIdentifier
 					imageHeight = sprite.DestBaseSize.Height;
 			}
 			int lineHeight = Config.LineHeight;
-			int pointY = exm.Console.GetLinePointY((int)lineNo);
-			int y = pointY + lineHeight - exm.Console.ClientHeight + (imageHeight - lineHeight);
+			int pointY = exm.Console.GetLinePointY(lineNo);
+
+			// xpos: relative to line position + ShapePositionShift (matches HTML img xpos behavior)
+			// ypos: relative to line top-edge (matches HTML img ypos behavior)
+			int x = Config.DrawingParam_ShapePositionShift + xpos;
+			int y = pointY + lineHeight - exm.Console.ClientHeight + (imageHeight - lineHeight) + ypos;
 
 			exm.Console.SetImageLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, true);
 		}
