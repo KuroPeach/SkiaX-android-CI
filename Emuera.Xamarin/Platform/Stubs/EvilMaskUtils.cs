@@ -402,13 +402,15 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 		{
 			ConsoleButtonString pointing = null;
 			// 与 DrawTo 使用相同的 rect 计算逻辑
+			// Xamarin: 使用 ClientHeight（物理像素）而非 MainPicBox.Height（逻辑像素）
+			int canvasHeight = GlobalStatic.EMediator.Console.ClientHeight;
 			var rect = IsRelative
 				? new Rectangle(PointX + xOffset, lineScreenY + PointY, width + 2, Height)
 				: Display switch
 				{
 					DisplayMode.AbsoluteLeftTop => new Rectangle(xOffset, PointY, width + 2, Height),
-					DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height),
-					_ => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height)
+					DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, canvasHeight - PointY - Height, width + 2, Height),
+					_ => new Rectangle(xOffset, canvasHeight - PointY - Height, width + 2, Height)
 				};
 			if (margin != null)
 				rect = new Rectangle(rect.X + margin[Direction.Left], rect.Y + margin[Direction.Top],
@@ -451,13 +453,15 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 		public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 		{
 			if (GlobalStatic.EMediator.Console.Window == null) return;
+			// Xamarin: 使用 ClientHeight（物理像素）而非 MainPicBox.Height（逻辑像素）
+			int canvasHeight = GlobalStatic.EMediator.Console.ClientHeight;
 			var rect = IsRelative
 				? new Rectangle(PointX + xOffset, (int)point.Y + PointY, width + 2, Height)
 				: Display switch
 				{
 					DisplayMode.AbsoluteLeftTop => new Rectangle(xOffset, PointY, width + 2, Height),
-					DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height),
-					_ => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height)
+					DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, canvasHeight - PointY - Height, width + 2, Height),
+					_ => new Rectangle(xOffset, canvasHeight - PointY - Height, width + 2, Height)
 				};
 			graph.Save();
 			if (margin != null)
