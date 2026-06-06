@@ -23,9 +23,9 @@ internal sealed class ImageLayer
 
 internal sealed class ImageLayerManager
 {
-	private readonly Dictionary<long, ImageLayer> _layers = new();
+	private readonly List<ImageLayer> _layers = new();
 
-	public IReadOnlyDictionary<long, ImageLayer> Layers => _layers;
+	public IReadOnlyList<ImageLayer> Layers => _layers;
 
 	public void SetLayer(string spriteName, long depth, int x, int y,
 		int width, int height, int opacity, float[]? colorMatrix, bool followScroll, int currentScrollY)
@@ -33,7 +33,7 @@ internal sealed class ImageLayerManager
 		var sprite = AppContents.GetSprite(spriteName);
 		if (sprite == null) return;
 
-		_layers[depth] = new ImageLayer
+		_layers.Add(new ImageLayer
 		{
 			Image = sprite,
 			Depth = depth,
@@ -45,12 +45,12 @@ internal sealed class ImageLayerManager
 			ColorMatrix = colorMatrix,
 			FollowScroll = followScroll,
 			InitialScrollY = currentScrollY
-		};
+		});
 	}
 
 	public void ClearLayer(long depth)
 	{
-		_layers.Remove(depth);
+		_layers.RemoveAll(l => l.Depth == depth);
 	}
 
 	public void ClearAll()
@@ -58,17 +58,30 @@ internal sealed class ImageLayerManager
 		_layers.Clear();
 	}
 
-	public bool Exists(long depth) => _layers.ContainsKey(depth);
+	public bool Exists(long depth) => _layers.Exists(l => l.Depth == depth);
 
 	public void DrawTo(SKCanvas canvas, int viewportW, int viewportH, int scrollY)
 	{
+		DrawLayersAtDepth(canvas, viewportW, viewportH, scrollY, null);
+	}
+
+	/// <summary>
+	/// Draw ImageLayers at the specified depth only. If depth is null, draw all layers (legacy behavior).
+	/// </summary>
+	public void DrawLayersAtDepth(SKCanvas canvas, int viewportW, int viewportH, int scrollY, int? depth)
+	{
 		if (_layers.Count == 0) return;
 
-		var sortedLayers = new List<ImageLayer>(_layers.Values);
+		// Sort by depth (ascending), same depth preserves insertion order (stable sort)
+		var sortedLayers = new List<ImageLayer>(_layers);
 		sortedLayers.Sort((a, b) => a.Depth.CompareTo(b.Depth));
 
 		foreach (var layer in sortedLayers)
 		{
+			// If a specific depth is requested, skip layers at other depths
+			if (depth.HasValue && layer.Depth != depth.Value)
+				continue;
+
 			if (layer.Image == null || !layer.Image.IsCreated) continue;
 
 			int drawW = layer.Width > 0 ? layer.Width : layer.Image.DestBaseSize.Width;
@@ -96,6 +109,19 @@ internal sealed class ImageLayerManager
 			using SKColorFilter? filter = BuildFilter(layer);
 			layer.Image.GraphicsDraw(canvas, destRect, filter);
 		}
+	}
+
+	/// <summary>
+	/// Get all unique depth values used by current layers, sorted descending (same order as escapedParts).
+	/// </summary>
+	public List<int> GetDepths()
+	{
+		var depths = new HashSet<int>();
+		foreach (var layer in _layers)
+			depths.Add((int)layer.Depth);
+		var result = new List<int>(depths);
+		result.Sort((a, b) => -a.CompareTo(b)); // descending, same as escapedParts
+		return result;
 	}
 
 	private static SKColorFilter? BuildFilter(ImageLayer layer)

@@ -15,16 +15,18 @@ class ConsoleDivPart : AConsoleDisplayNode
 {
 	public ConsoleDivPart(MixedNum xPos, MixedNum yPos, MixedNum width, MixedNum height, int depth, int color, StyledBoxModel box, bool isRelative, DisplayMode displayMode, ConsoleDisplayLine[] childs)
 	{
-		backgroundColor = color >= 0 ? Color.FromArgb((int)(color | 0xff000000)) : Color.Transparent;
+		backgroundColor = color != -1 ? Color.FromArgb(color) : Color.Transparent;
 		StringBuilder sb = new();
 		width.num = Math.Abs(width.num);
-		height.num = Math.Abs(height.num);
+		if (height != null)
+			height.num = Math.Abs(height.num);
 		sb.Append("<div");
 		AddTagMixedNumArg(sb, "xpos", xPos);
 		AddTagMixedNumArg(sb, "ypos", yPos);
 		AddTagMixedNumArg(sb, "width", width);
 		AddColorParam(sb, "color", backgroundColor);
-		AddTagMixedNumArg(sb, "height", height);
+		if (height != null)
+			AddTagMixedNumArg(sb, "height", height);
 		if (box != null)
 		{
 			AddTagMixedParam(sb, "margin", box.margin);
@@ -36,10 +38,10 @@ class ConsoleDivPart : AConsoleDisplayNode
 			AddTagMixedParam(sb, "radius", box.radius);
 			MixedNum4ToInt4(box.radius, ref radius);
 			if (box.color != null)
-			{
-				borderColors = new Color[4];
-				for (int i = 0; i < 4; i++)
-					borderColors[i] = box.color[i] >= 0 ? Color.FromArgb((int)(box.color[i] | 0xff000000)) : Color.Transparent;
+				{
+					borderColors = new Color[4];
+					for (int i = 0; i < 4; i++)
+						borderColors[i] = box.color[i] != -1 ? Color.FromArgb(box.color[i]) : Color.Transparent;
 				AddColorParam4(sb, "bcolor", borderColors);
 			}
 		}
@@ -61,7 +63,17 @@ class ConsoleDivPart : AConsoleDisplayNode
 		#endregion
 
 		this.width = MixedNum.ToPixel(width, 0);
-		Height = MixedNum.ToPixel(height, 0);
+		if (height != null)
+		{
+			Height = MixedNum.ToPixel(height, 0);
+		}
+		else
+		{
+			int padTop = 0, padBottom = 0;
+			if (padding != null) { padTop = padding[Direction.Top]; padBottom = padding[Direction.Bottom]; }
+			if (border != null) { padTop += border[Direction.Top]; padBottom += border[Direction.Bottom]; }
+			Height = childs.Length * Config.Config.LineHeight + padTop + padBottom;
+		}
 		children = childs;
 		Depth = depth;
 		IsRelative = isRelative;

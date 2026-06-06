@@ -1153,8 +1153,6 @@ namespace MinorShift.Emuera.GameView
 						}
 						if (width == null)
 							throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "width"));
-						if (height == null)
-							throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "height"));
 						var divTag = new HtmlDivTag(x, y, width, height, depth, color, box, isRelative, divDisplayMode);
 						if (isSelfClosing)
 						{

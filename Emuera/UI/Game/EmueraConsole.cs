@@ -1884,8 +1884,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				graph.DrawBitmap(bakedBackground, 0, 0);
 			}
 
-			_imageLayerManager.DrawTo(graph, (int)graph.LocalClipBounds.Width, (int)graph.LocalClipBounds.Height, window.ScrollBar.Value * Config.LineHeight);
-
+			// Unified depth rendering: ImageLayer, CBG, escapedParts all share the same depth system
 			//1823 cbg追加
 			#region EM_私家版_描画拡張
 			if (escapedParts == null) escapedParts = [];
@@ -1893,12 +1892,32 @@ internal sealed partial class EmueraConsole : IDisposable
 				ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
 			var edepth = escapedParts.Keys.ToArray();
 			Array.Sort(edepth, (int a, int b) => -a.CompareTo(b));
+			var idepths = _imageLayerManager.GetDepths();
+
+			// Merge all depth sources into a unified descending list
+			var allDepths = new List<int>();
+			{
+				int ei = 0, ci = 0, ii = 0;
+				while (ei < edepth.Length || ci < cbgList.Count || ii < idepths.Count)
+				{
+					int eVal = ei < edepth.Length ? edepth[ei] : int.MinValue;
+					int cVal = ci < cbgList.Count ? cbgList[ci].zdepth : int.MinValue;
+					int iVal = ii < idepths.Count ? idepths[ii] : int.MinValue;
+					int depth = Math.Max(eVal, Math.Max(cVal, iVal));
+					allDepths.Add(depth);
+					if (ei < edepth.Length && edepth[ei] == depth) ei++;
+					if (ci < cbgList.Count && cbgList[ci].zdepth == depth) ci++;
+					if (ii < idepths.Count && idepths[ii] == depth) ii++;
+				}
+			}
+
 			int eidx = 0, cidx = 0;
 			int topPointY = pointY;
-			while (eidx < edepth.Length || cidx < cbgList.Count)
+			foreach (var depth in allDepths)
 			{
-				var depth = Math.Max(eidx < edepth.Length ? edepth[eidx] : int.MinValue,
-					cidx < cbgList.Count ? cbgList[cidx].zdepth : int.MinValue);
+				// Draw ImageLayers at this depth
+				_imageLayerManager.DrawLayersAtDepth(graph, (int)graph.LocalClipBounds.Width, (int)graph.LocalClipBounds.Height, window.ScrollBar.Value * Config.LineHeight, depth);
+
 				if (cidx < cbgList.Count && cbgList[cidx].zdepth == depth)
 				{
 					// 先にCBGを描画

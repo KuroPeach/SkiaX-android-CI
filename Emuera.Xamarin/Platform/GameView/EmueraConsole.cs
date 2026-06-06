@@ -1558,7 +1558,7 @@ namespace MinorShift.Emuera.GameView
 					// 目标区域用逻辑像素，SkiaSharp 会自动将物理像素位图缩放到逻辑区域。
 					graph.DrawBitmap(bakedBackground, new SKRect(0, 0, ClientWidth, ClientHeight));
 				}
-				_imageLayerManager.DrawTo(graph, ClientWidth, ClientHeight, window.ScrollBar.Value * Config.LineHeight);
+				// Unified depth rendering: ImageLayer, CBG, escapedParts all share the same depth system
 				//1823 cbg追加
 				#region EM_私家版_描画拡張
 				var escapedParts = EscapedParts;
@@ -1566,12 +1566,31 @@ namespace MinorShift.Emuera.GameView
 					ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
 				var edepth = escapedParts.Keys.ToArray();
 				Array.Sort(edepth, (int a, int b) => -a.CompareTo(b));
+				var idepths = _imageLayerManager.GetDepths();
+
+				// Merge all depth sources into a unified descending list
+				var allDepths = new List<int>();
+				{
+					int ei = 0, ci = 0, ii = 0;
+					while (ei < edepth.Length || ci < cbgList.Count || ii < idepths.Count)
+					{
+						int eVal = ei < edepth.Length ? edepth[ei] : int.MinValue;
+						int cVal = ci < cbgList.Count ? cbgList[ci].zdepth : int.MinValue;
+						int iVal = ii < idepths.Count ? idepths[ii] : int.MinValue;
+						int depth = Math.Max(eVal, Math.Max(cVal, iVal));
+						allDepths.Add(depth);
+						if (ei < edepth.Length && edepth[ei] == depth) ei++;
+						if (ci < cbgList.Count && cbgList[ci].zdepth == depth) ci++;
+						if (ii < idepths.Count && idepths[ii] == depth) ii++;
+					}
+				}
+
 				int eidx = 0, cidx = 0;
 				int topPointY = pointY;
-				while (eidx < edepth.Length || cidx < cbgList.Count)
+				foreach (var depth in allDepths)
 				{
-					var depth = Math.Max(eidx < edepth.Length ? edepth[eidx] : int.MinValue,
-						cidx < cbgList.Count ? cbgList[cidx].zdepth : int.MinValue);
+					// Draw ImageLayers at this depth
+					_imageLayerManager.DrawLayersAtDepth(graph, ClientWidth, ClientHeight, window.ScrollBar.Value * Config.LineHeight, depth);
 
 					if (cidx < cbgList.Count && cbgList[cidx].zdepth == depth)
 					{
@@ -2523,6 +2542,18 @@ namespace MinorShift.Emuera.GameView
 		public Dictionary<int, List<AConsoleDisplayNode>> EscapedParts { get; } = new Dictionary<int, List<AConsoleDisplayNode>>();
 
 		public int GetLineNo { get { return lineNo; } }
+
+		#region EM_私家版_imgマースク
+		public int GetLinePointY(int lineNo)
+		{
+			int pointY = ClientHeight - Config.LineHeight;
+			int bottomLineNo = window.ScrollBar.Value - 1;
+			if (displayLineList.Count - 1 < bottomLineNo)
+				bottomLineNo = displayLineList.Count - 1;
+			pointY -= (bottomLineNo - lineNo) * Config.LineHeight;
+			return pointY;
+		}
+		#endregion
 
 		public void ClearText()
 		{

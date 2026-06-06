@@ -1,5 +1,18 @@
 # Emuera.Xamarin 变更记录
 
+## [0.63.0] - 2026-06-06
+
+### Changed
+
+- **渲染管线统一 depth**：SETIMAGELAYER、CBG、escapedParts（含 div）共享同一 depth 排序系统
+  - 修复了 div 永远在 ImageLayer 之上的问题
+  - `ImageLayerManager` 新增 `DrawLayersAtDepth` 和 `GetDepths()` 方法
+  - `EmueraConsole` 渲染循环将三个 depth 源合并为统一降序列表
+- **SETIMAGELAYER 多精灵支持**：`ImageLayerManager._layers` 从 `Dictionary` 改为 `List`，同 depth 多精灵按添加顺序渲染
+- **HTML div color ARGB 支持**：`ConsoleDivPart` 不再强制 Alpha=255，支持 ARGB 透明度
+- **HTML div height auto**：`<div>` 的 `height` 属性改为可选，省略时自动计算高度
+- **新增 `GetLinePointY(int lineNo)` 方法**：为共享代码 `ConsoleButtonString.GetMappedColor` 提供行 Y 坐标计算
+
 ## [0.62.0] - 2026-06-02
 
 ### Fixed
