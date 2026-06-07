@@ -1,5 +1,14 @@
 # Emuera.Xamarin 变更记录
 
+## [0.64.1] - 2026-06-07
+
+### Fixed
+
+- **Xamarin HtmlManager 颜色哨兵值未同步**：Xamarin 端有独立的 `HtmlManager.cs` 副本，v7.3.1 的颜色哨兵值修复未同步到此副本
+  - 症状：无 `color` 属性的 `<div>` 在安卓端显示纯白背景（`Color.FromArgb(-1)` = `0xFFFFFFFF`）
+  - 修复：Xamarin `HtmlManager.cs` 所有颜色哨兵值从 `-1` 改为 `int.MinValue`，守卫从 `>= 0` / `< 0` 改为 `!= int.MinValue` / `== int.MinValue`
+  - 同步修复 `stringToColorInt32`：RGB 模式自动补 `0xFF` alpha，ARGB 模式用 `ToInt64` 防溢出
+
 ## [0.64.0] - 2026-06-07
 
 ### Fixed
