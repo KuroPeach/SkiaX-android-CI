@@ -1597,9 +1597,9 @@ internal static class HtmlManager
 					if (state.FonttagList.Count > 0)
 					{
 						HtmlAnalzeStateFontTag oldFont = state.FonttagList[^1];
-						if (font.Color == -1)
+						if (font.Color == int.MinValue)
 							font.Color = oldFont.Color;
-						if (font.BColor == -1)
+						if (font.BColor == int.MinValue)
 							font.BColor = oldFont.BColor;
 						if (font.FontName == null)
 							font.FontName = oldFont.FontName;

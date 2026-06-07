@@ -190,8 +190,8 @@ namespace MinorShift.Emuera.GameView
 		static readonly Dictionary<char, string> repDic = new Dictionary<char, string>();
 		private sealed class HtmlAnalzeStateFontTag
 		{
-			public int Color = -1;
-			public int BColor = -1;
+			public int Color = int.MinValue;
+			public int BColor = int.MinValue;
 			public string FontName = null;
 			public float? FontSize = null;
 			public TextDrawingMode? RenderMode = null;
@@ -263,14 +263,14 @@ namespace MinorShift.Emuera.GameView
 				{
 					HtmlAnalzeStateFontTag font = FonttagList[FonttagList.Count - 1];
 					fontname = font.FontName;
-					if (font.Color >= 0)
+					if (font.Color != int.MinValue)
 					{
 						colorChanged = true;
-						c = Color.FromArgb(font.Color >> 16, (font.Color >> 8) & 0xFF, font.Color & 0xFF);
+						c = Color.FromArgb(font.Color);
 					}
-					if (font.BColor >= 0)
+					if (font.BColor != int.MinValue)
 					{
-						b = Color.FromArgb(font.BColor >> 16, (font.BColor >> 8) & 0xFF, font.BColor & 0xFF);
+						b = Color.FromArgb(font.BColor);
 					}
 				}
 				return new StringStyle(c, colorChanged, b, FontStyle, fontname);
@@ -1078,7 +1078,7 @@ namespace MinorShift.Emuera.GameView
 						bool isRelative = true;
 						DisplayMode divDisplayMode = DisplayMode.Relative;
 						int depth = 0;
-						int color = -1;
+						int color = int.MinValue;
 						string attrValue;
 						bool isSelfClosing = false;
 						while (wc != null && !wc.EOL)
@@ -1116,7 +1116,7 @@ namespace MinorShift.Emuera.GameView
 							}
 							else if (word.Code.Equals("color", StringComparison.OrdinalIgnoreCase))
 							{
-								if (color >= 0)
+								if (color != int.MinValue)
 									throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 								color = stringToColorInt32(attrValue);
 							}
@@ -1172,8 +1172,8 @@ namespace MinorShift.Emuera.GameView
 						#region EM_私家版_HTMLパラメータ拡張
 						MixedNum[] param = null;
 						string type = null;
-						int color = -1;
-						int bcolor = -1;
+						int color = int.MinValue;
+						int bcolor = int.MinValue;
 						while (!wc.EOL)
 						{
 							word = wc.Current as IdentifierWord;
@@ -1188,12 +1188,12 @@ namespace MinorShift.Emuera.GameView
 							switch (word.Code.ToLower())
 							{
 								case "color":
-									if (color >= 0)
+									if (color != int.MinValue)
 										throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 									color = stringToColorInt32(attrValue);
 									break;
 								case "bcolor":
-									if (bcolor >= 0)
+									if (bcolor != int.MinValue)
 										throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 									bcolor = stringToColorInt32(attrValue);
 									break;
@@ -1234,15 +1234,15 @@ namespace MinorShift.Emuera.GameView
 							throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "type"));
 						Color c = Config.ForeColor;
 						Color b = Config.FocusColor;
-						if (color >= 0)
+						if (color != int.MinValue)
 						{
-							c = Color.FromArgb(color >> 16, (color >> 8) & 0xFF, color & 0xFF);
+							c = Color.FromArgb(color);
 						}
-						if (bcolor >= 0)
+						if (bcolor != int.MinValue)
 						{
-							b = Color.FromArgb(bcolor >> 16, (bcolor >> 8) & 0xFF, bcolor & 0xFF);
+							b = Color.FromArgb(bcolor);
 						}
-						return ConsoleShapePart.CreateShape(type, param, c, b, color >= 0);
+						return ConsoleShapePart.CreateShape(type, param, c, b, color != int.MinValue);
 						#endregion
 					}
 				case "button":
@@ -1364,12 +1364,12 @@ namespace MinorShift.Emuera.GameView
 							switch (word.Code.ToLower())
 							{
 								case "color":
-									if (font.Color >= 0)
+									if (font.Color != int.MinValue)
 										throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 									font.Color = stringToColorInt32(attrValue);
 									break;
 								case "bcolor":
-									if (font.BColor >= 0)
+									if (font.BColor != int.MinValue)
 										throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 									font.BColor = stringToColorInt32(attrValue);
 									break;
@@ -1431,9 +1431,9 @@ namespace MinorShift.Emuera.GameView
 						if (state.FonttagList.Count > 0)
 						{
 							HtmlAnalzeStateFontTag oldFont = state.FonttagList[state.FonttagList.Count - 1];
-							if (font.Color < 0)
+							if (font.Color == int.MinValue)
 								font.Color = oldFont.Color;
-							if (font.BColor < 0)
+							if (font.BColor == int.MinValue)
 								font.BColor = oldFont.BColor;
 							if (font.FontName == null)
 								font.FontName = oldFont.FontName;
@@ -1466,11 +1466,37 @@ namespace MinorShift.Emuera.GameView
 			if (str[0] == '#')
 			{
 				string colorvalue = str.Substring(1);
+				// Strip optional "0x"/"0X" prefix (e.g. "#0xf19ec2" → "f19ec2")
+				if (colorvalue.Length > 2 &&
+					colorvalue[0] == '0' && (colorvalue[1] == 'x' || colorvalue[1] == 'X'))
+				{
+					colorvalue = colorvalue.Substring(2);
+				}
 				try
 				{
-					i = Convert.ToInt32(colorvalue, 16);
-					if (i < 0 || i > 0xFFFFFF)
-						throw new CodeEE(string.Format(trerror.OoRColorValue.Text, colorvalue));
+					// Support ARGB: 6 hex digits or less → RGB (alpha defaults to 0xFF),
+					// more than 6 hex digits → ARGB
+					if (colorvalue.Length <= 6)
+					{
+						// RGB mode: value must be in [0, 0xFFFFFF]
+						i = Convert.ToInt32(colorvalue, 16);
+						if (i < 0 || i > 0xFFFFFF)
+							throw new CodeEE(string.Format(trerror.OoRColorValue.Text, colorvalue));
+						// Set alpha to 0xFF for RGB values
+						i = unchecked((int)((uint)i | 0xFF000000));
+					}
+					else
+					{
+						// ARGB mode: value must be in [0, 0xFFFFFFFF]
+						long val = Convert.ToInt64(colorvalue, 16);
+						if (val < 0 || val > 0xFFFFFFFF)
+							throw new CodeEE(string.Format(trerror.OoRColorValue.Text, colorvalue));
+						i = unchecked((int)val);
+					}
+				}
+				catch (CodeEE)
+				{
+					throw;
 				}
 				catch
 				{
@@ -1494,7 +1520,7 @@ namespace MinorShift.Emuera.GameView
 					}
 					throw new CodeEE(string.Format(trerror.InvalidColorName2.Text, str));
 				}
-				i = color.R * 0x10000 + color.G * 0x100 + color.B;
+				i = unchecked((int)((uint)(color.R * 0x10000 + color.G * 0x100 + color.B) | 0xFF000000));
 			}
 			return i;
 		}

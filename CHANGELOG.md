@@ -4,6 +4,21 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [7.3.2] — Xamarin HtmlManager 颜色哨兵值同步 + font 继承修复
+
+### Fixed
+
+- **Xamarin HtmlManager 颜色哨兵值未同步**：Xamarin 端有独立的 `HtmlManager.cs` 副本，v7.3.1 的颜色哨兵值修复未同步到此副本
+  - 症状：无 `color` 属性的 `<div>` 在安卓端显示纯白背景（`Color.FromArgb(-1)` = `0xFFFFFFFF`）
+  - 修复：Xamarin `HtmlManager.cs` 所有颜色哨兵值从 `-1` 改为 `int.MinValue`，守卫从 `>= 0` / `< 0` 改为 `!= int.MinValue` / `== int.MinValue`
+  - 同步修复 `stringToColorInt32`：RGB 模式自动补 `0xFF` alpha，ARGB 模式用 `ToInt64` 防溢出
+- **font 标签颜色继承失效**：`font.Color` 初始值已改为 `int.MinValue`，但继承检查仍用 `font.Color == -1`（死代码），导致嵌套 `<font>` 标签不继承外层颜色
+  - 修复：`font.Color == -1` → `font.Color == int.MinValue`，`font.BColor == -1` → `font.BColor == int.MinValue`
+  - 3 端同步修复：LazyLoading Desktop + SkiaX Desktop + SkiaX Xamarin
+- **SETIMAGELAYERL 过时注释**：`Instraction.Child.cs` 和 `ArgumentBuilder.cs` 中 "Always anchors to LINECOUNT" 修正为 "Always anchors to GetLineNo (current display line index)"
+
+***
+
 ## [7.3.1] — 颜色哨兵值修复 + SETIMAGELAYERL GetLineNo 修复 + border 默认颜色
 
 ### Fixed
