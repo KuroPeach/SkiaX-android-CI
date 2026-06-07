@@ -96,10 +96,14 @@ internal sealed class ImageLayerManager
 				drawY + drawH <= 0 || drawY >= viewportH)
 			{
 				layer.IsOffScreen = true;
+				if (layer.Image is SpriteAnime anime)
+					anime.PauseAnimation();
 				continue;
 			}
 
 			layer.IsOffScreen = false;
+			if (layer.Image is SpriteAnime anime2)
+				anime2.ResumeAnimation();
 
 			var destRect = new Rectangle(drawX, drawY, drawW, drawH);
 			using SKColorFilter? filter = BuildFilter(layer);

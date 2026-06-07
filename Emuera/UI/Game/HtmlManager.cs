@@ -226,8 +226,8 @@ internal static class HtmlManager
 	static readonly Dictionary<char, string> repDic = [];
 	private sealed class HtmlAnalzeStateFontTag
 	{
-		public int Color = -1;
-		public int BColor = -1;
+		public int Color = int.MinValue;
+		public int BColor = int.MinValue;
 		public string FontName;
 		public float? FontSize = null;
 		public TextDrawingMode? RenderMode = null;
@@ -312,12 +312,12 @@ internal static class HtmlManager
 			{
 				HtmlAnalzeStateFontTag font = FonttagList[^1];
 				fontname = font.FontName;
-				if (font.Color != -1)
+				if (font.Color != int.MinValue)
 				{
 					colorChanged = true;
 					c = Color.FromArgb(font.Color);
 				}
-				if (font.BColor != -1)
+				if (font.BColor != int.MinValue)
 				{
 					b = Color.FromArgb(font.BColor);
 				}
@@ -1189,7 +1189,7 @@ internal static class HtmlManager
 					bool isRelative = true;
 					DisplayMode divDisplayMode = DisplayMode.Relative;
 					int depth = 0;
-					int color = -1;
+					int color = int.MinValue;
 					string attrValue;
 					bool isSelfClosing = false;
 					while (wc != null && !wc.EOL)
@@ -1235,7 +1235,7 @@ internal static class HtmlManager
 						}
 						else if (word.Code.Equals("color", StringComparison.OrdinalIgnoreCase))
 						{
-							if (color != -1)
+							if (color != int.MinValue)
 								throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 							color = stringToColorInt32(attrValue);
 						}
@@ -1309,8 +1309,8 @@ internal static class HtmlManager
 					// int[] param = null;
 					MixedNum[] param = null;
 					string type = null;
-					int color = -1;
-					int bcolor = -1;
+					int color = int.MinValue;
+					int bcolor = int.MinValue;
 					while (!wc.EOL)
 					{
 						word = wc.Current as IdentifierWord;
@@ -1325,12 +1325,12 @@ internal static class HtmlManager
 						switch (word.Code.ToLower())
 						{
 							case "color":
-								if (color != -1)
+								if (color != int.MinValue)
 									throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 								color = stringToColorInt32(attrValue);
 								break;
 							case "bcolor":
-								if (bcolor != -1)
+								if (bcolor != int.MinValue)
 									throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 								bcolor = stringToColorInt32(attrValue);
 								break;
@@ -1373,15 +1373,15 @@ internal static class HtmlManager
 						throw new CodeEE(string.Format(trerror.NotSetAttribute.Text, tag, "type"));
 					Color c = Config.ForeColor;
 					Color b = Config.FocusColor;
-					if (color != -1)
-					{
-						c = Color.FromArgb(color);
-					}
-					if (bcolor != -1)
-					{
-						b = Color.FromArgb(bcolor);
-					}
-					return ConsoleShapePart.CreateShape(type, param, c, b, color != -1);
+					if (color != int.MinValue)
+				{
+					c = Color.FromArgb(color);
+				}
+				if (bcolor != int.MinValue)
+				{
+					b = Color.FromArgb(bcolor);
+				}
+				return ConsoleShapePart.CreateShape(type, param, c, b, color != int.MinValue);
 					#endregion
 				}
 			case "button":
@@ -1517,12 +1517,12 @@ internal static class HtmlManager
 						switch (word.Code.ToLower())
 						{
 							case "color":
-								if (font.Color != -1)
+								if (font.Color != int.MinValue)
 									throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 								font.Color = stringToColorInt32(attrValue);
 								break;
 							case "bcolor":
-								if (font.BColor != -1)
+								if (font.BColor != int.MinValue)
 									throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
 								font.BColor = stringToColorInt32(attrValue);
 								break;
@@ -1597,9 +1597,9 @@ internal static class HtmlManager
 					if (state.FonttagList.Count > 0)
 					{
 						HtmlAnalzeStateFontTag oldFont = state.FonttagList[^1];
-						if (font.Color < 0)
+						if (font.Color == -1)
 							font.Color = oldFont.Color;
-						if (font.BColor < 0)
+						if (font.BColor == -1)
 							font.BColor = oldFont.BColor;
 						if (font.FontName == null)
 							font.FontName = oldFont.FontName;
@@ -1632,14 +1632,20 @@ internal static class HtmlManager
 		if (str[0] == '#')
 		{
 			string colorvalue = str[1..];
+			// Strip optional "0x"/"0X" prefix (e.g. "#0xf19ec2" → "f19ec2")
+			if (colorvalue.Length > 2 &&
+				colorvalue[0] == '0' && (colorvalue[1] == 'x' || colorvalue[1] == 'X'))
+			{
+				colorvalue = colorvalue[2..];
+			}
 			try
 			{
 				// Support ARGB: 6 hex digits or less → RGB (alpha defaults to 0xFF),
 				// more than 6 hex digits → ARGB
-				i = Convert.ToInt32(colorvalue, 16);
 				if (colorvalue.Length <= 6)
 				{
 					// RGB mode: value must be in [0, 0xFFFFFF]
+					i = Convert.ToInt32(colorvalue, 16);
 					if (i < 0 || i > 0xFFFFFF)
 						throw new CodeEE(string.Format(trerror.OoRColorValue.Text, colorvalue));
 					// Set alpha to 0xFF for RGB values

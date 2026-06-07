@@ -249,6 +249,26 @@ namespace MinorShift.Emuera.Content
 			lastFrame = -1;
 		}
 
+		private bool _paused = false;
+		private Int64 _pausedAtTime = 0;
+
+		internal void PauseAnimation()
+		{
+			if (_paused || StartTime < 0)
+				return;
+			_paused = true;
+			_pausedAtTime = WinmmTimer.CurrentFrameTime;
+		}
+
+		internal void ResumeAnimation()
+		{
+			if (!_paused)
+				return;
+			_paused = false;
+			// Shift StartTime forward by the duration we were paused
+			StartTime += (WinmmTimer.CurrentFrameTime - _pausedAtTime);
+		}
+
 		/// <summary>
 		/// 開始時間調整用の値。ミリ秒でUInt32の範囲まで想定。
 		/// </summary>

@@ -15,7 +15,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 {
 	public ConsoleDivPart(MixedNum xPos, MixedNum yPos, MixedNum width, MixedNum height, int depth, int color, StyledBoxModel box, bool isRelative, DisplayMode displayMode, ConsoleDisplayLine[] childs)
 	{
-		backgroundColor = color != -1 ? Color.FromArgb(color) : Color.Transparent;
+		backgroundColor = Color.FromArgb(color);
 		StringBuilder sb = new();
 		width.num = Math.Abs(width.num);
 		if (height != null)
@@ -41,8 +41,15 @@ class ConsoleDivPart : AConsoleDisplayNode
 			{
 				borderColors = new Color[4];
 				for (int i = 0; i < 4; i++)
-					borderColors[i] = box.color[i] != -1 ? Color.FromArgb(box.color[i]) : Color.Transparent;
+					borderColors[i] = Color.FromArgb(box.color[i]);
 				AddColorParam4(sb, "bcolor", borderColors);
+			}
+			else if (box.border != null)
+			{
+				// WinForms original uses Config.ForeColor when bcolor is omitted
+				borderColors = new Color[4];
+				for (int i = 0; i < 4; i++)
+					borderColors[i] = Config.Config.ForeColor;
 			}
 		}
 		sb.Append('>');

@@ -4180,8 +4180,11 @@ internal sealed partial class FunctionIdentifier
 			int opacity = arg.Opacity != null ? (int)arg.Opacity.GetIntValue(exm) : 255;
 			float[]? colorMatrix = arg.CMArray != null ? ColorMatrixHelper.ReadFromVariableTerm(arg.CMArray, exm) : null;
 
-			// Always anchor to current line (LINECOUNT)
-			int lineNo = (int)exm.Console.LineCount;
+			// Anchor to current display line (GetLineNo = displayLineList index)
+			// LineCount is logicalLineCount which only counts logical lines,
+			// but GetLinePointY and escapedParts rendering use displayLineList indices.
+			// Using LineCount causes a Y offset of (displayLine - logicalLine) * LineHeight.
+			int lineNo = exm.Console.GetLineNo;
 
 			// Auto GETLINEY conversion: y = GETLINEY(lineNo) + (imageHeight - LineHeight)
 			// This makes the image top-edge align with the line top-edge, matching HTML img rendering.

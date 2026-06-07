@@ -1,5 +1,14 @@
 # Emuera.Xamarin 变更记录
 
+## [0.64.0] - 2026-06-07
+
+### Fixed
+
+- **ImageLayerManager 离窗动图暂停/恢复**：`DrawLayersAtDepth` 中补全 `SpriteAnime` 的 `PauseAnimation()`/`ResumeAnimation()` 逻辑，与 Desktop 端对齐
+  - 离窗图层（完全在视口外）调用 `PauseAnimation()` 暂停动图帧更新，节省 CPU
+  - 回到视口内时调用 `ResumeAnimation()` 恢复帧更新
+  - 之前 SkiaX 版本缺少此逻辑，离窗动图持续播放浪费 CPU 资源
+
 ## [0.63.0] - 2026-06-06
 
 ### Changed
