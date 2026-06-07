@@ -4153,7 +4153,7 @@ internal sealed partial class FunctionIdentifier
 	/// Parameters: spriteName, depth, xpos, ypos, width, height, opacity, colorMatrix
 	/// - xpos: X offset relative to line position (includes ShapePositionShift, matches HTML img xpos)
 	/// - ypos: Y offset relative to line top-edge (matches HTML img ypos)
-	/// - Always anchors to LINECOUNT (current line)
+	/// - Always anchors to GetLineNo (current display line index)
 	/// - followScroll is always true
 	/// Rendering position matches HTML img at the same line when xpos=0, ypos=0.
 	/// </summary>

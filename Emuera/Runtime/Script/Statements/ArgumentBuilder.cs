@@ -2683,7 +2683,7 @@ internal static partial class ArgumentParser
 			// SETIMAGELAYERL: spriteName, depth, xpos, ypos, width, height, opacity, CM_ARRAY
 			// xpos: X offset relative to line position (matches HTML img xpos, includes ShapePositionShift)
 			// ypos: Y offset relative to line top-edge (matches HTML img ypos)
-			// Always anchors to LINECOUNT (current line), no lineNo parameter
+			// Always anchors to GetLineNo (current display line index), no lineNo parameter
 			argumentTypeArray = [
 				EraType.String, EraType.Integer, EraType.Integer, EraType.Integer,
 				EraType.Integer, EraType.Integer, EraType.Integer, EraType.Void
