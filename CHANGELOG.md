@@ -4,6 +4,32 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [7.3.1] — 颜色哨兵值修复 + SETIMAGELAYERL GetLineNo 修复 + border 默认颜色
+
+### Fixed
+
+- **颜色哨兵值 `-1` 与 `0xFFFFFFFF` 冲突**：`stringToColorInt32("#FFFFFF")` 返回 `0xFFFFFFFF`（有符号 int = -1），被 `!= -1` / `>= 0` 守卫误判为"颜色未设置"
+  - `HtmlManager` 中所有颜色哨兵值从 `-1` 改为 `int.MinValue`（`HtmlAnalzeStateFontTag.Color/BColor`、div/shape 解析中的 `color/bcolor` 局部变量）
+  - `ConsoleDivPart` 构造函数中 `color != int.MinValue` 替代 `color != -1`
+  - `box.color[i]` 直接 `Color.FromArgb()`，不再用 `!= -1` 守卫（`box.color != null` 已确认 bcolor 属性存在）
+  - 3 端同步修复：LazyLoading Desktop + SkiaX Desktop + SkiaX Xamarin
+- **SETIMAGELAYERL 行号锚定错误**：使用 `LineCount`（逻辑行号）而非 `GetLineNo`（显示行索引）锚定行号，导致 Y 坐标偏移 (displayLine - logicalLine) × LineHeight
+  - 修复：改为 `exm.Console.GetLineNo`（displayLineList 索引）
+- **HTML div border 无 bcolor 时边框不绘制**：`ConsoleDivPart` 只在有 `bcolor` 属性时初始化 `borderColors`，WinForms 原版在 `colors == null` 时用 `Config.ForeColor`
+  - 修复：`box.border != null && box.color == null` 时，`borderColors` 默认使用 `Config.ForeColor`
+- **`stringToColorInt32` ARGB 分支 `ToInt32` 溢出**：ARGB 分支先执行 `Convert.ToInt32(colorvalue, 16)`，9 位+ hex 溢出 int32，报错信息不准确
+  - 修复：先判断 `colorvalue.Length`，≤6 走 `ToInt32`（RGB），>6 走 `ToInt64`（ARGB）
+- **HTML div `border='1'` em 单位陷阱**：无 px 后缀被当作 em 单位，FontSize=18 时 `1*18/100=0`
+  - 修复：ERB 层 `border='1'` → `border='1px'`
+
+### Changed
+
+- **SETIMAGELAYERL 锚定语义修正**：文档从"始终锚定当前行（LINECOUNT）"修正为"始终锚定当前显示行（GetLineNo）"
+  - `LINECOUNT` 是逻辑行计数器，`GetLineNo` 是 displayLineList 索引，两者不一致
+  - `GetLinePointY` 期望的参数是 displayLineList 索引
+
+***
+
 ## [7.3.0] — SETIMAGELAYERL 行相对定位（xpos/ypos）+ ARGB_TO_HTML_COLOR 工具函数
 
 ### Fixed
