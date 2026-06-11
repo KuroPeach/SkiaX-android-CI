@@ -1,5 +1,16 @@
 # Emuera.Xamarin 变更记录
 
+## [0.65.0] - 2026-06-11
+
+### Fixed
+
+- **Xamarin ConsoleButtonString div 渲染未跳过导致文字被遮住**：Xamarin 端 `ConsoleButtonString.DrawTo` 缺少 Desktop 端的 `if (css is ConsoleDivPart) continue;` 逻辑，导致 div 在行渲染中与文字按追加顺序绘制，不透明背景色覆盖文字
+  - 症状：0.64.1 同步 `stringToColorInt32` 的 alpha 补全后，`#RRGGBB` 格式颜色从 alpha=0x00 变为 alpha=0xFF，eratw 角色列表被灰色/黑色条纹 div 完全遮住
+  - 根因：Desktop 端 `ConsoleButtonString.DrawTo` 显式跳过 `ConsoleDivPart`，div 由 escapedParts 系统独立绘制；Xamarin 端移植时遗漏了此逻辑
+  - 修复：同步 Desktop 端两处逻辑：
+    1. `DrawTo` 中添加 `if (css is ConsoleDivPart) continue;`，div 不在行渲染中绘制
+    2. `CalcPointX` 中添加 `if (strArray[i] is ConsoleDivPart div && !div.IsRelative) continue;`，非相对定位 div 不参与 PointX 流式计算
+
 ## [0.64.1] - 2026-06-07
 
 ### Fixed

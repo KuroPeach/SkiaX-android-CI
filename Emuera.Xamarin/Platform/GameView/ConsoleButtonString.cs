@@ -227,6 +227,8 @@ namespace MinorShift.Emuera.GameView
 				px = PointX;
 			for (int i = 0; i < strArray.Length; i++)
 			{
+				// 非相对定位的 div 不参与 PointX 流式计算
+				if (strArray[i] is ConsoleDivPart div && !div.IsRelative) continue;
 				strArray[i].PointX = px;
 				px += strArray[i].Width;
 			}
@@ -250,7 +252,11 @@ namespace MinorShift.Emuera.GameView
 		{
 			bool isSelecting = (IsButton) && (parent.ButtonIsSelected(this));
 			foreach (AConsoleDisplayNode css in strArray)
+			{
+				// div 不在行渲染中绘制，由 escapedParts 系统独立绘制
+				if (css is ConsoleDivPart) continue;
 				css.DrawTo(graph, new SKPoint(css.PointX, pointY), isSelecting, false, isBackLog, mode);
+			}
 		}
 
 		//public void GDIDrawTo(int pointY, bool isBackLog)
