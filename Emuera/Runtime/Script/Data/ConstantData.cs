@@ -783,6 +783,71 @@ internal sealed class ConstantData
 		foreach (var pair in preDict)
 			dict.Add(pair.Key, pair.Value.num);
 		erdNameToIntDics.Add(varname, dict);
+
+		// 加载用户定义变量的 ALS 别名文件
+		foreach (var filepath in filepaths)
+		{
+			var aliasPath = Path.Combine(Path.GetDirectoryName(filepath), Path.GetFileNameWithoutExtension(filepath) + ".als");
+			if (File.Exists(aliasPath))
+			{
+				loadAliasesForUserDefined(aliasPath, dict);
+			}
+		}
+	}
+
+	/// <summary>
+	/// 为用户定义变量加载 ALS 别名文件，将别名注入 erdNameToIntDics 字典。
+	/// 与系统变量的 loadAliases 不同，系统变量写入 aliases[targetIndex] 数组，
+	/// 而用户变量没有 VariableCode 枚举索引，只能写入 erdNameToIntDics[varname] 字典。
+	/// </summary>
+	private void loadAliasesForUserDefined(string aliasPath, Dictionary<string, int> targetDict)
+	{
+		if (!File.Exists(aliasPath))
+			return;
+		EraStreamReader eReader = new(false);
+		if (!eReader.Open(aliasPath) && output != null)
+		{
+			output.PrintError(string.Format(trerror.FailedOpenFile.Text, eReader.Filename));
+			return;
+		}
+		ScriptPosition? position = null;
+		try
+		{
+			CharStream st = null;
+			while ((st = eReader.ReadEnabledLine()) != null)
+			{
+				position = new ScriptPosition(eReader.Filename, eReader.LineNo);
+				string[] tokens = st.Substring().Split(',');
+				if (tokens.Length < 2)
+				{
+					ParserMediator.Warn(trerror.MissingComma.Text, position, 1);
+					continue;
+				}
+				if (!int.TryParse(tokens[0], out int index))
+				{
+					ParserMediator.Warn(trerror.FirstValueCanNotConvertToInt.Text, position, 1);
+					continue;
+				}
+				string aliasName = tokens[1].Trim();
+				if (string.IsNullOrEmpty(aliasName))
+					continue;
+				// 别名不覆盖 CSV 中已有的同名定义
+				if (!targetDict.ContainsKey(aliasName))
+					targetDict.Add(aliasName, index);
+			}
+		}
+		catch
+		{
+			System.Media.SystemSounds.Hand.Play();
+			if (position != null)
+				ParserMediator.Warn(trerror.UnexpectedError.Text, position, 3);
+			else
+				output?.PrintError(trerror.UnexpectedError.Text);
+		}
+		finally
+		{
+			eReader.Close();
+		}
 	}
 
 	#region EE_重複定義の確認
