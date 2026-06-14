@@ -536,6 +536,8 @@ internal sealed partial class Lang
 		[Managed] public static TranslatableString AbnormalArray { get; } = new TranslatableString("異常な配列");
 		[Managed] public static TranslatableString SetStrToInt { get; } = new TranslatableString("文字列型でない変数\"{0}\"に文字列型を代入しようとしました");
 		[Managed] public static TranslatableString SetIntToStr { get; } = new TranslatableString("整数型でない変数\"{0}\"に整数値を代入しようとしました");
+		[Managed] public static TranslatableString SetStrToFloat { get; } = new TranslatableString("浮動小数点型変数\"{0}\"に文字列型を代入しようとしました");
+		[Managed] public static TranslatableString SetFloatToInt { get; } = new TranslatableString("整数型変数\"{0}\"に浮動小数点型を代入しようとしました");
 		[Managed] public static TranslatableString InvalidRegexArg { get; } = new TranslatableString("{0}関数: 第{1}引数が正規表現として不正です: {2}");
 		[Managed] public static TranslatableString XmlParseError { get; } = new TranslatableString("{0}関数:\"{1}\"の解析エラー:{2}");
 		[Managed] public static TranslatableString XmlXPathParseError { get; } = new TranslatableString("{0}関数:XPath\"{1}\"の解析エラー:{2}");
@@ -782,7 +784,10 @@ internal sealed partial class Lang
 		[Managed] public static TranslatableString AbnormalContinue { get; } = new TranslatableString("異常なCONTINUE");
 		[Managed] public static TranslatableString CanNotUseReturnf { get; } = new TranslatableString("RETURNFは#FUNCTION(S)以外では使用できません");
 		[Managed] public static TranslatableString ReturnfStrInIntFunc { get; } = new TranslatableString("#FUNCTIONで始まる関数の戻り値に文字列型が指定されました");
+		[Managed] public static TranslatableString ReturnfFloatInIntFunc { get; } = new TranslatableString("#FUNCTIONで始まる関数の戻り値に浮動小数点型が指定されました");
 		[Managed] public static TranslatableString ReturnfIntInStrFunc { get; } = new TranslatableString("#FUCNTIONSで始まる関数の戻り値に数値型が指定されました");
+		[Managed] public static TranslatableString ReturnfFloatInStrFunc { get; } = new TranslatableString("#FUNCTIONSで始まる関数の戻り値に浮動小数点型が指定されました");
+		[Managed] public static TranslatableString CanNotConvertFloatToInt { get; } = new TranslatableString("\"@{0}\"の{1}番目の引数を浮動小数点型から整数型に変換できません");
 		[Managed] public static TranslatableString CanNotUseCallevent { get; } = new TranslatableString("EVENT関数中にCALLEVENT命令は使用できません");
 		[Managed] public static TranslatableString NotDefinedLabelName { get; } = new TranslatableString("指定されたラベル名\"${0}\"は現在の関数内に存在しません");
 		[Managed] public static TranslatableString InvalidLabelName { get; } = new TranslatableString("指定されたラベル名\"${0}\"は無効な$ラベル行です");
@@ -1143,12 +1148,15 @@ internal sealed partial class Lang
 		[Managed] public static TranslatableString InvalidArgType { get; } = new TranslatableString("{0}関数: 第{1}引数の型が正しくありません");
 		[Managed] public static TranslatableString ArgIsNotStr { get; } = new TranslatableString("{0}関数: 第{1}引数は文字列ではありません");
 		[Managed] public static TranslatableString ArgIsNotInt { get; } = new TranslatableString("{0}関数: 第{1}引数は整数ではありません");
+		[Managed] public static TranslatableString ArgIsNotFloat { get; } = new TranslatableString("{0}関数: 第{1}引数は浮動小数点数ではありません");
 		[Managed] public static TranslatableString ArgIsNotVar { get; } = new TranslatableString("{0}関数: 第{1}引数は変数ではありません");
 		[Managed] public static TranslatableString ArgIsNotStrVar { get; } = new TranslatableString("{0}関数: 第{1}引数は文字列型変数ではありません");
 		[Managed] public static TranslatableString ArgIsNotIntVar { get; } = new TranslatableString("{0}関数: 第{1}引数は整数型変数ではありません");
+		[Managed] public static TranslatableString ArgIsNotFloatVar { get; } = new TranslatableString("{0}関数: 第{1}引数は浮動小数点型変数ではありません");
 		[Managed] public static TranslatableString ArgIsNotArray { get; } = new TranslatableString("{0}関数: 第{1}引数は配列変数ではありません");
 		[Managed] public static TranslatableString ArgIsNotStrArray { get; } = new TranslatableString("{0}関数: 第{1}引数は文字列型配列変数ではありません");
 		[Managed] public static TranslatableString ArgIsNotIntArray { get; } = new TranslatableString("{0}関数: 第{1}引数は整数型配列変数ではありません");
+		[Managed] public static TranslatableString ArgIsNotFloatArray { get; } = new TranslatableString("{0}関数: 第{1}引数は浮動小数点型配列変数ではありません");
 		[Managed] public static TranslatableString ArgIsNotNDArray { get; } = new TranslatableString("{0}関数: 第{1}引数は{2}次元配列変数ではありません");
 		[Managed] public static TranslatableString ArgIsNotNDStrArray { get; } = new TranslatableString("{0}関数: 第{1}引数は文字列型{2}次元配列変数ではありません");
 		[Managed] public static TranslatableString ArgIsNotNDIntArray { get; } = new TranslatableString("{0}関数: 第{1}引数は整数型{2}次元配列変数ではありません");

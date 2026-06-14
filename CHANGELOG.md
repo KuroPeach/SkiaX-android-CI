@@ -4,6 +4,48 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [8.2.0] — 调试窗口 WaitInput 状态下自定义函数求值修复
+
+### Fixed
+
+- **调试窗口 WaitInput 状态下监视自定义函数返回错误值**：游戏处于 WaitInput 状态时，`console.IsRunning` 返回 `False`，导致 `runScriptProc` 在循环开头立即退出，不执行函数体
+  - 症状 1：返回 0（`MethodReturnValue` 为 null，克隆状态下初始值）
+  - 症状 2：返回 HTML 字符串（`MethodReturnValue` 保留上一个 `#FUNCTIONS` 函数的残留值）
+  - 修复：`Process.GetValue` 进入时设置 `forceRunning=true`，`runScriptProc` 检查 `(!console.IsRunning && !forceRunning)` 而非 `!console.IsRunning`
+  - 修复：`Process.GetValue` 进入时 `state.MethodReturnValue = null`，清除残留值
+  - 修复：`Process.GetValue` 的 finally 块中恢复 `forceRunning = savedForceRunning`
+
+- **调试窗口表达式函数求值后 NullReferenceException**：`ReturnF` 后 `currentLine=null`，`ShiftNextLine` 访问 null
+  - 修复：将 `ScriptEnd` 检查移至 `runScriptProc` 循环开头，`currentLine` null 安全检查
+
+- **调试窗口 GetValue 失败路径私有变量状态泄漏**：`GetValue` 失败路径未调用 `ScopeOut`
+  - 修复：检测 `functionList.Count < savedState.funcCount` 时显式调用 `ScopeOut`
+
+## [8.1.0] — Float 类型错误消息修复 + CanReturnFloat 动态返回类型
+
+### Fixed
+
+- **Float 类型错误消息误报为"字符串型"**：原引擎只有 Integer/String 两种类型，错误消息使用二则判断（`== String ? Str消息 : Int消息`），Float 类型被误报为"字符串型"或"整型"
+  - `#FUNCTION` 函数返回 Float 时报 `ReturnfStrInIntFunc`（"返回了字符串类型"）→ 区分 Float→`ReturnfFloatInIntFunc` / String→`ReturnfStrInIntFunc`
+  - `#FUNCTIONS` 函数返回 Float 时同理 → 新增 `ReturnfFloatInStrFunc`
+  - 函数参数 Float→Integer 转换报 `CanNotConvertStrToInt`（"不能从字符串型转换"）→ 报 `CanNotConvertFloatToInt`
+  - 函数参数类型不匹配时 `String? Str : Int` 二则判断 → 三则：`String? Str : Float? Float : Int`（2处）
+  - Ref 参数类型不匹配时缺少 Float 分支 → 添加 `Float? FloatVar : Var` 和 `Float? FloatArray : Array`
+  - Float 变量赋 String 报 `SetIntToStr`（"向非整型赋整数"）→ 报 `SetStrToFloat`（"向浮点型赋字符串"）
+  - Integer 变量赋 Float 报 `SetIntToStr` → 区分 Float→`SetFloatToInt` / String→`SetStrToInt`
+
+### Changed
+
+- **CanReturnFloat 动态返回类型机制**：POWER/SQRT/ABS 等函数根据参数类型动态返回 Integer 或 Float
+  - 编译期 `GetEraType()` 检查参数中是否有 Float 类型来决定返回类型
+  - 运行期 `GetReturnValue()` 通过 `HasFloatArg` 分派实际返回值
+  - `FunctionMethod.CanReturnFloat` 属性标记动态返回函数
+  - `FunctionMethodTerm.GetEraType()` 覆盖基类方法
+  - 涉及函数：POWER, ABS, SQRT, CBRT, LOG, EXP, SIGN, LIMIT, MAX, MIN, SIN, COS, TAN, ASIN, ACOS, ATAN, FLOOR, CEIL, ROUND
+- **版本签名**：`Skiav8` → `Skiav8.1`（`1824+v24+EMv18+EEv56+Skiav8.1`）
+
+***
+
 ## [8.0.0] — ERD 系统 ALS 别名支持
 
 ### Added

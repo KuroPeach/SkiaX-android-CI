@@ -321,6 +321,8 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
     <tr id="Error.AbnormalArray"><![CDATA[数组异常]]></tr>
     <tr id="Error.SetStrToInt"><![CDATA[尝试将字符串赋值给非字符串变量"{0}"]]></tr>
     <tr id="Error.SetIntToStr"><![CDATA[尝试将整数赋值给非整数型变量"{0}"]]></tr>
+    <tr id="Error.SetStrToFloat"><![CDATA[尝试将字符串赋值给浮点型变量"{0}"]]></tr>
+    <tr id="Error.SetFloatToInt"><![CDATA[尝试将浮点型赋值给整型变量"{0}"]]></tr>
 	<tr id="Error.InvalidRegexArg"><![CDATA[函数{0}: 第{1}参数无法解析为正则表达式: {2}]]></tr>
 	<tr id="Error.XmlParseError"><![CDATA[函数{0}:"{1}"解析错误:{2}]]></tr>
 	<tr id="Error.XmlXPathParseError"><![CDATA[函数{0}:XPath"{1}"解析错误:{2}]]></tr>
@@ -565,7 +567,10 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
     <tr id="Error.AbnormalContinue"><![CDATA[异常的CONTINUE]]></tr>
     <tr id="Error.CanNotUseReturnf"><![CDATA[RETURNF不能在没有定义#FUNCTION(S)属性的函数中使用]]></tr>
     <tr id="Error.ReturnfStrInIntFunc"><![CDATA[#FUNCTION属性的函数返回了字符串类型]]></tr>
+    <tr id="Error.ReturnfFloatInIntFunc"><![CDATA[#FUNCTION属性的函数返回了浮点类型]]></tr>
     <tr id="Error.ReturnfIntInStrFunc"><![CDATA[#FUNCTIONS属性的函数返回了数值类型]]></tr>
+    <tr id="Error.ReturnfFloatInStrFunc"><![CDATA[#FUNCTIONS属性的函数返回了浮点类型]]></tr>
+    <tr id="Error.CanNotConvertFloatToInt"><![CDATA[不能将"@{0}"的第{1}个参数从浮点型转换为整型]]></tr>
     <tr id="Error.CanNotUseCallevent"><![CDATA[禁止在EVENT函数中使用CALLEVENT命令]]></tr>
     <tr id="Error.NotDefinedLabelName"><![CDATA[当前函数中不存在指定的标签名"${0}"]]></tr>
     <tr id="Error.InvalidLabelName"><![CDATA[指定的标签名"${0}"无效]]></tr>
@@ -921,12 +926,15 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
 	<tr id="Error.InvalidArgType"><![CDATA[函数{0}: 第{1}个参数的类型不正确]]></tr>
 	<tr id="Error.ArgIsNotStr"><![CDATA[函数{0}: 第{1}个参数不是字符串]]></tr>
 	<tr id="Error.ArgIsNotInt"><![CDATA[函数{0}: 第{1}个参数不是整数]]></tr>
+	<tr id="Error.ArgIsNotFloat"><![CDATA[函数{0}: 第{1}个参数不是浮点数]]></tr>
 	<tr id="Error.ArgIsNotVar"><![CDATA[函数{0}: 第{1}个参数不是变量]]></tr>
 	<tr id="Error.ArgIsNotStrVar"><![CDATA[函数{0}: 第{1}个参数不是字符串型变量]]></tr>
 	<tr id="Error.ArgIsNotIntVar"><![CDATA[函数{0}: 第{1}个参数不是整型变量]]></tr>
+	<tr id="Error.ArgIsNotFloatVar"><![CDATA[函数{0}: 第{1}个参数不是浮点型变量]]></tr>
 	<tr id="Error.ArgIsNotArray"><![CDATA[函数{0}: 第{1}个参数不是数组变量]]></tr>
 	<tr id="Error.ArgIsNotStrArray"><![CDATA[函数{0}: 第{1}个参数不是字符串型数组变量]]></tr>
 	<tr id="Error.ArgIsNotIntArray"><![CDATA[函数{0}: 第{1}个参数不是整型数组变量]]></tr>
+	<tr id="Error.ArgIsNotFloatArray"><![CDATA[函数{0}: 第{1}个参数不是浮点型数组变量]]></tr>
 	<tr id="Error.ArgIsNotNDArray"><![CDATA[函数{0}: 第{1}个参数不是{2}维数组变量]]></tr>
 	<tr id="Error.ArgIsNotNDStrArray"><![CDATA[函数{0}: 第{1}个参数不是字符串型{2}维数组变量]]></tr>
 	<tr id="Error.ArgIsNotNDIntArray"><![CDATA[函数{0}: 第{1}个参数不是整型{2}维数组变量]]></tr>

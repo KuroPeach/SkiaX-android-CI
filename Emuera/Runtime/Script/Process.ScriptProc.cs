@@ -16,11 +16,20 @@ namespace MinorShift.Emuera.GameProc;
 
 internal sealed partial class Process
 {
+	/// <summary>
+	/// デバッグ変数監視からのGetValue呼び出し中はtrue。
+	/// WaitInput中でもrunScriptProcが関数を実行できるようにする。
+	/// </summary>
+	bool forceRunning;
+
 	private void runScriptProc()
 	{
 		while (true)
 		{
-			//bool sequential = state.Sequential;
+			// ScriptEndチェックをループ先頭に移動。
+			// ReturnF後にcurrentLineがnullでもNullReferenceExceptionを起こさない。
+			if ((!console.IsRunning && !forceRunning) || state.ScriptEnd)
+				return;
 			state.ShiftNextLine();
 			//WinmmTimerから時間を取得するのはそれ自体結構なコストがかかるので10000行に一回くらいで。
 			if (Config.InfiniteLoopAlertTime > 0 && (state.lineCount % 10000 == 0))
@@ -33,9 +42,6 @@ internal sealed partial class Process
 					return;
 				continue;
 			}
-			//これがNULLになる様な処理は現状ないはず
-			//if (line == null)
-			//	throw new ExeEE("Emuera.exeは次に実行する行を見失いました");
 			if (line.IsError)
 				throw new CodeEE(line.ErrMes);
 			else if (line is InstructionLine func)
@@ -91,8 +97,7 @@ internal sealed partial class Process
 			//現在そんなものはない
 			//else
 			//	throw new ExeEE("定義されていない種類の行です");
-			if (!console.IsRunning || state.ScriptEnd)
-				return;
+			// ScriptEndチェックはループ先頭に移動済み
 		}
 	}
 

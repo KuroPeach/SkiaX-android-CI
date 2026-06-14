@@ -554,7 +554,13 @@ internal sealed partial class Process(EmueraConsole view)
 		state.currentMin = state.functionCount;
 		udmt.Call.updateRetAddress(state.CurrentLine);
 		bool success = false;
+		bool scopeInCalled = udmt.Call.TopLabel.hasPrivDynamicVar;
 		var savedState = state.CaptureCallState();
+		// WaitInput中でもデバッグ変数監視のために関数を実行できるようにする
+		bool savedForceRunning = forceRunning;
+		forceRunning = true;
+		// 前回のReturnFの残留値をクリア
+		state.MethodReturnValue = null;
 		try
 		{
 			state.IntoFunction(udmt.Call, udmt.Argument, exm);
@@ -568,7 +574,7 @@ internal sealed partial class Process(EmueraConsole view)
 					udmt.Call.FunctionName, methodStack, state.FunctionList.Count, success));
 				if (success)
 				{
-					if (udmt.Call.TopLabel.hasPrivDynamicVar)
+					if (scopeInCalled)
 						udmt.Call.TopLabel.ScopeOut();
 					var popped = state.PopContext();
 					popped?.Dispose();
@@ -576,9 +582,15 @@ internal sealed partial class Process(EmueraConsole view)
 				}
 				else
 				{
+					// ReturnFが呼ばれた後に関数がfunctionListから削除されている場合、
+					// RollbackToStateはScopeOutを呼ばないため、ここで明示的に呼ぶ
+					bool explicitScopeOut = scopeInCalled && state.FunctionList.Count < savedState.funcCount;
+					if (explicitScopeOut)
+						udmt.Call.TopLabel.ScopeOut();
 					state.RollbackToState(savedState.funcCount, savedState.ctxCount, savedState.currentLine);
 				}
 				state.currentMin = temp_current;
+				forceRunning = savedForceRunning;
 				methodStack--;
 			}
 		return ret;

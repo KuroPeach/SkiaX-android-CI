@@ -3717,9 +3717,19 @@ internal sealed partial class FunctionIdentifier
 					if (label.MethodType != term.GetEraType())
 					{
 						if (label.MethodType == EraType.Integer)
-							ParserMediator.Warn(trerror.ReturnfStrInIntFunc.Text, func, 2, true, false);
+						{
+							if (term.GetEraType() == EraType.Float)
+								ParserMediator.Warn(trerror.ReturnfFloatInIntFunc.Text, func, 2, true, false);
+							else
+								ParserMediator.Warn(trerror.ReturnfStrInIntFunc.Text, func, 2, true, false);
+						}
 						else if (label.MethodType == EraType.String)
-							ParserMediator.Warn(trerror.ReturnfIntInStrFunc.Text, func, 2, true, false);
+						{
+							if (term.GetEraType() == EraType.Float)
+								ParserMediator.Warn(trerror.ReturnfFloatInStrFunc.Text, func, 2, true, false);
+							else
+								ParserMediator.Warn(trerror.ReturnfIntInStrFunc.Text, func, 2, true, false);
+						}
 						else if (label.MethodType == EraType.Float && term.GetEraType() == EraType.String)
 							ParserMediator.Warn(trerror.ReturnfStrInIntFunc.Text, func, 2, true, false);
 					}

@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using MinorShift.Emuera.Runtime.Script;
 
 namespace MinorShift.Emuera.Runtime.Script.Statements.Expression;
@@ -21,7 +21,7 @@ internal abstract class AExpression
 		};
 	}
 
-	public EraType GetEraType()
+	public virtual EraType GetEraType()
 	{
 		return eraType;
 	}
@@ -63,7 +63,7 @@ internal abstract class AExpression
 	{
 		get { return false; }
 	}
-	readonly EraType eraType;
+	protected readonly EraType eraType;
 
 	public virtual AExpression Restructure(ExpressionMediator exm)
 	{

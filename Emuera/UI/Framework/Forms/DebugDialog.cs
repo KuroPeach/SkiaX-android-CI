@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.GameProc;
+using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace MinorShift.Emuera.Forms
@@ -119,27 +120,38 @@ namespace MinorShift.Emuera.Forms
 
 		private void updateVarWatch()
 		{
+			var proc = GlobalStatic.Process;
+
 			GlobalStatic.Process.saveCurrentState(false);
-			for (int i = 0; i < listViewWatch.Items.Count - 1; i++)
-			{//無名のアイテムを削除
-				if (listViewWatch.Items[i].Text.Length == 0)
+
+			try
+			{
+				for (int i = 0; i < listViewWatch.Items.Count - 1; i++)
+				{//無名のアイテムを削除
+					if (listViewWatch.Items[i].Text.Length == 0)
+					{
+						listViewWatch.Items.RemoveAt(i);
+						i--;
+					}
+				}
+				if ((listViewWatch.Items.Count == 0) || (!string.IsNullOrEmpty(listViewWatch.Items[^1].Text)))
 				{
-					listViewWatch.Items.RemoveAt(i);
-					i--;
+					ListViewItem newLVI = new("");
+					newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, ""));
+					listViewWatch.Items.Add(newLVI);
+				}
+				foreach (ListViewItem lvi in listViewWatch.Items)
+				{
+					string expr = lvi.Text;
+					string val = getValueString(expr);
+					lvi.SubItems[1].Text = val;
 				}
 			}
-			if ((listViewWatch.Items.Count == 0) || (!string.IsNullOrEmpty(listViewWatch.Items[^1].Text)))
+			finally
 			{
-				ListViewItem newLVI = new("");
-				newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, ""));
-				listViewWatch.Items.Add(newLVI);
+				GlobalStatic.Process.clearMethodStack();
+				GlobalStatic.Process.loadPrevState();
 			}
-			foreach (ListViewItem lvi in listViewWatch.Items)
-			{
-				lvi.SubItems[1].Text = getValueString(lvi.Text);
-			}
-			GlobalStatic.Process.clearMethodStack();
-			GlobalStatic.Process.loadPrevState();
 			Update();
 		}
 		private string getValueString(string str)
@@ -155,6 +167,8 @@ namespace MinorShift.Emuera.Forms
 				WordCollection wc = LexicalAnalyzer.Analyse(st, LexEndWith.EoL, LexAnalyzeFlag.None);
 				AExpression term = ExpressionParser.ReduceExpressionTerm(wc, TermEndWith.EoL);
 				SingleTerm value = term.GetValue(GlobalStatic.EMediator);
+				if (value == null)
+					return "<null>";
 				return value.ToString();
 			}
 			catch (CodeEE e)

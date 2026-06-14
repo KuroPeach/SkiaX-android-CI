@@ -307,6 +307,8 @@ Settings apply only at start]]></tr>
     <tr id="Error.AbnormalArray"><![CDATA[Abnormal array]]></tr>
     <tr id="Error.SetStrToInt"><![CDATA[Attempted to set string to Non-string variable "{0}"]]></tr>
     <tr id="Error.SetIntToStr"><![CDATA[Attempted to set integer to Non-integer variable "{0}"]]></tr>
+    <tr id="Error.SetStrToFloat"><![CDATA[Attempted to set string to float variable "{0}"]]></tr>
+    <tr id="Error.SetFloatToInt"><![CDATA[Attempted to set float to integer variable "{0}"]]></tr>
     <tr id="Error.InvalidRegexArg"><![CDATA[{0}: The {1} argument regex is invalid: {2}]]></tr>
     <tr id="Error.XmlParseError"><![CDATA[{0}:Interpreted error of "{1}":{2}]]></tr>
     <tr id="Error.XmlXPathParseError"><![CDATA[{0}:Interpreted error of XPath"{1}":{2}]]></tr>
@@ -551,7 +553,10 @@ Settings apply only at start]]></tr>
     <tr id="Error.AbnormalContinue"><![CDATA[Abnormal CONTINUE]]></tr>
     <tr id="Error.CanNotUseReturnf"><![CDATA[RETURNF cannot be used outside of functions with set #FUNCTION(S)]]></tr>
     <tr id="Error.ReturnfStrInIntFunc"><![CDATA[A string type was specified in the return value of the function starting with #FUNCTION]]></tr>
+    <tr id="Error.ReturnfFloatInIntFunc"><![CDATA[A float type was specified in the return value of the function starting with #FUNCTION]]></tr>
     <tr id="Error.ReturnfIntInStrFunc"><![CDATA[A numeric type was specified in the return value of the function starting with #FUNCTIONS]]></tr>
+    <tr id="Error.ReturnfFloatInStrFunc"><![CDATA[A float type was specified in the return value of the function starting with #FUNCTIONS]]></tr>
+    <tr id="Error.CanNotConvertFloatToInt"><![CDATA[Cannot convert argument {1} of "@{0}" from float type to integer type]]></tr>
     <tr id="Error.CanNotUseCallevent"><![CDATA[CALLEVENT instruction is not allowed inside EVENT function]]></tr>
     <tr id="Error.NotDefinedLabelName"><![CDATA[Specified label name "${0}" does not exist in the current function]]></tr>
     <tr id="Error.InvalidLabelName"><![CDATA[Specified label name "${0}" is an invalid label name]]></tr>
@@ -906,12 +911,15 @@ Error.AttributeCanNotInterpretNum	<{0}> tag has a {1}" attribute with a value th
     <tr id="Error.InvalidArgType"><![CDATA[{0}: Argument number {1}: argument type is incorrect]]></tr>
     <tr id="Error.ArgIsNotStr"><![CDATA[{0}: The {1} argument is not string]]></tr>
     <tr id="Error.ArgIsNotInt"><![CDATA[{0}: The {1} argument is not integer]]></tr>
+    <tr id="Error.ArgIsNotFloat"><![CDATA[{0}: The {1} argument is not float]]></tr>
     <tr id="Error.ArgIsNotVar"><![CDATA[{0}: The {1} argument is not variable]]></tr>
     <tr id="Error.ArgIsNotStrVar"><![CDATA[{0}: The {1} argument is not string variable]]></tr>
     <tr id="Error.ArgIsNotIntVar"><![CDATA[{0}: The {1} argument is not integer variable]]></tr>
+    <tr id="Error.ArgIsNotFloatVar"><![CDATA[{0}: The {1} argument is not float variable]]></tr>
     <tr id="Error.ArgIsNotArray"><![CDATA[{0}: The {1} argument is not array variable]]></tr>
     <tr id="Error.ArgIsNotStrArray"><![CDATA[{0}: The {1} argument is not string array variable]]></tr>
     <tr id="Error.ArgIsNotIntArray"><![CDATA[{0}: The {1} argument is not integer array variable]]></tr>
+    <tr id="Error.ArgIsNotFloatArray"><![CDATA[{0}: The {1} argument is not float array variable]]></tr>
     <tr id="Error.ArgIsNotNDArray"><![CDATA[{0}: The {1} argument is not {2}-dimensional variable]]></tr>
     <tr id="Error.ArgIsNotNDStrArray"><![CDATA[{0}: The {1} argument is not string {2}-dimensional variable]]></tr>
     <tr id="Error.ArgIsNotNDIntArray"><![CDATA[{0}: The {1} argument is not integer {2}-dimensional variable]]></tr>

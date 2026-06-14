@@ -11,6 +11,12 @@ namespace MinorShift.Emuera.Runtime.Script.Statements.Function;
 internal abstract class FunctionMethod
 {
 	public EraType ReturnType { get; protected set; }
+	/// <summary>
+	/// 当函数可根据参数类型动态返回 Integer 或 Float 时为 true。
+	/// 编译期 FunctionMethodTerm.GetEraType() 会检查参数类型来决定返回类型。
+	/// 运行时 GetReturnValue() 根据 HasFloatArg 返回 SingleLongTerm 或 SingleFloatTerm。
+	/// </summary>
+	public bool CanReturnFloat { get; protected set; }
 	protected EraType[] argumentTypeArray;
 	protected string Name { get; private set; }
 	#region EM_私家版_Emuera多言語化改造
@@ -186,7 +192,8 @@ internal abstract class FunctionMethod
 								{
 									// 普通の場合
 									var err = rule.String ? trerror.ArgIsNotStrVar
-										: rule.Int ? trerror.ArgIsNotIntVar : trerror.ArgIsNotVar;
+										: rule.Int ? trerror.ArgIsNotIntVar
+										: rule.Float ? trerror.ArgIsNotFloatVar : trerror.ArgIsNotVar;
 									errText = string.Format(err.Text, name, i + 1);
 									break;
 								}
@@ -194,7 +201,8 @@ internal abstract class FunctionMethod
 								{
 									// 任意配列の場合
 									var err = rule.String ? trerror.ArgIsNotStrArray
-										: rule.Int ? trerror.ArgIsNotIntArray : trerror.ArgIsNotArray;
+										: rule.Int ? trerror.ArgIsNotIntArray
+										: rule.Float ? trerror.ArgIsNotFloatArray : trerror.ArgIsNotArray;
 									errText = string.Format(err.Text, name, i + 1);
 									break;
 								}
@@ -232,6 +240,7 @@ internal abstract class FunctionMethod
 						var eraType = rule.SameAsFirst ? arguments[0].GetEraType() : rule.EraType;
 						// 引数の型が違う
 						errMsg[idx] = eraType == EraType.String ? string.Format(trerror.ArgIsNotStr.Text, name, i + 1)
+							: eraType == EraType.Float ? string.Format(trerror.ArgIsNotFloat.Text, name, i + 1)
 							: string.Format(trerror.ArgIsNotInt.Text, name, i + 1);
 						break;
 					}
@@ -295,6 +304,7 @@ internal abstract class FunctionMethod
 				if (argumentTypeArray[i] != arguments[i].GetEraType())
 					// return string.Format(Properties.Resources.SyntaxErrMesMethodDefaultArgumentType0, name, i + 1);
 					return argumentTypeArray[i] == EraType.String ? string.Format(trerror.ArgIsNotStr.Text, name, i + 1)
+							: argumentTypeArray[i] == EraType.Float ? string.Format(trerror.ArgIsNotFloat.Text, name, i + 1)
 							: string.Format(trerror.ArgIsNotInt.Text, name, i + 1);
 			}
 		}
