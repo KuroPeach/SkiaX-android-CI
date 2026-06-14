@@ -1,5 +1,26 @@
 # Emuera.Xamarin 变更记录
 
+## [0.66.0] - 2026-06-14
+
+### Changed
+
+- **合并上游 develop-skiasharp v8.2.0**：调试窗口 WaitInput 状态下自定义函数求值修复 + CanReturnFloat 动态返回类型 + Float 类型错误消息完善
+  - 内核修复（`Runtime/`）通过 Core 项目自动编译，无需手动移植
+  - 冲突解决：`Process.ScriptProc.cs` 中 `currentLine==null` 处理保留 feature/xamarin 的安全 `continue` 逻辑（调试求值场景），而非上游的 `throw ExeEE` 逻辑
+
+### Fixed（上游 v8.2.0 内核修复，自动同步）
+
+- **调试窗口 WaitInput 状态下监视自定义函数返回错误值**：`console.IsRunning` 返回 `False`，`runScriptProc` 退出不执行函数体
+  - 修复：`Process.GetValue` 设置 `forceRunning=true`，`runScriptProc` 检查 `(!console.IsRunning && !forceRunning)`
+  - 修复：`state.MethodReturnValue = null` 清除残留值
+- **CanReturnFloat 动态返回类型**：`#FUNCTION`/`#FUNCTIONS` 函数的返回值类型由实际 `RETURNF` 值决定，不再强制 int/string
+- **Float 类型错误消息完善**：新增 `ReturnfFloatInIntFunc`/`ReturnfFloatInStrFunc`/`CanNotConvertFloatToInt`/`ArgIsNotFloat` 等错误消息
+
+### Note
+
+- `DebugDialog.cs`（Desktop 端 UI 层）不参与 Xamarin Core 编译，Xamarin 端使用简化版 `DesktopDebugDialog.cs`（无变量监视功能），不受调试窗口求值 Bug 影响
+- `emuera-eng.xml`/`emuera-zhs.xml` 语言资源不参与 Xamarin Core 编译，Xamarin 使用独立的 `ConfigsText.resx`/`StringsText.resx`
+
 ## [0.65.0] - 2026-06-11
 
 ### Fixed
