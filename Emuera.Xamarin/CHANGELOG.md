@@ -1,5 +1,14 @@
 # Emuera.Xamarin 变更记录
 
+## [0.67.0] - 2026-06-22
+
+### Fixed
+
+- **安卓端旋转屏幕后 HTML_PRINTC 单元格塌陷**：`ReflowDisplayLinesForCurrentScale` 通过 `DisplayLine2Html` → `Html2DisplayLine` 重排行，但 `DisplayLine2Html` 遗漏 `ConsoleDivPart` 分支，导致 `<div>` 在 HTML 往返中丢失
+  - 修复：为 `ConsoleDivPart` 补全序列化 — 输出 `AltHeadTag` 开标签 + 递归序列化 `Children` 子行 + `</div>` 闭标签
+  - `Html2DisplayLine` 已支持解析 `<div>`，因此无需修改解析端即可重建 div 结构
+  - 同时修复 Runtime 版与 Xamarin Stub 版 `ConsoleDivPart` 的接口一致性
+
 ## [0.66.0] - 2026-06-14
 
 ### Changed

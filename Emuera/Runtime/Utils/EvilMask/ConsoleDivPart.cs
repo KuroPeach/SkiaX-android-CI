@@ -124,6 +124,10 @@ class ConsoleDivPart : AConsoleDisplayNode
 	public bool IsRelative { get; private set; }
 	public DisplayMode Display { get; private set; }
 	public ConsoleDisplayLine[] Children { get { return children; } }
+	/// <summary>
+	/// div 开标签的 HTML 文本（含所有属性）。用于 DisplayLine2Html 序列化。
+	/// </summary>
+	public string AltHeadTag => altHeadTag;
 
 	public override bool CanDivide => false;
 	public ConsoleButtonString TestChildHitbox(int pointX, int pointY, int relPointY)

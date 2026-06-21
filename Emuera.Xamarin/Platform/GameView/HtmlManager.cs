@@ -353,15 +353,27 @@ namespace MinorShift.Emuera.GameView
 							b.Append(getClosingStyleStartingTag(css));
 						}
 						else if (parts[cssCounter] is ConsoleImagePart)
-						{
-							b.Append(parts[cssCounter].AltText);
-						}
-						else if (parts[cssCounter] is ConsoleShapePart)
-						{
-							b.Append(parts[cssCounter].AltText);
-						}
-
+					{
+						b.Append(parts[cssCounter].AltText);
 					}
+					else if (parts[cssCounter] is ConsoleShapePart)
+					{
+						b.Append(parts[cssCounter].AltText);
+					}
+					else if (parts[cssCounter] is ConsoleDivPart divPart)
+					{
+						// 序列化 div 开标签（含 xpos/ypos/width/height/color/margin/padding/border/radius/bcolor 属性）
+						b.Append(divPart.AltHeadTag);
+						// 递归序列化 div 的子行
+						if (divPart.Children != null && divPart.Children.Length > 0)
+						{
+							string childHtml = DisplayLine2Html(divPart.Children, true);
+							b.Append(childHtml);
+						}
+						b.Append("</div>");
+					}
+
+				}
 					if (hasTag)
 					{
 						if (buttons[buttonCounter].IsButton)

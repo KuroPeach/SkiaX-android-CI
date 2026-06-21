@@ -403,6 +403,7 @@ namespace MinorShift.Emuera.Runtime.Utils.EvilMask
 		public bool IsRelative { get; private set; }
 		public DisplayMode Display { get; private set; }
 		public ConsoleDisplayLine[] Children { get { return children; } }
+		public string AltHeadTag => altHeadTag;
 		public override bool CanDivide => false;
 
 		public ConsoleButtonString TestChildHitbox(int px, int py, int lineScreenY)
