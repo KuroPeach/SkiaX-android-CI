@@ -4,6 +4,21 @@
 
 ### Fixed
 
+- **安卓端 HTML `<font size='...'>` 属性不生效**
+  - 症状：`<font size='30px'>放大文字</font>` 在安卓端文字大小没有变化
+  - 根因：SkiaX 的 `ConsoleStyledString` 带 `fontSize` 的构造函数调用基构造函数 `: this(str, style)` 时已用 `Config.FontSize` 创建 `Font` 字段；后续只保存了 `FontSize` 属性，但**测量和渲染实际使用的 `Font` 仍是默认大小**
+  - 修复：带 `fontSize` 的构造函数改为独立初始化，使用 `FontFactory.GetFont(..., actualFontSize, ...)` 创建指定大小的 `SKFont` 并包装为 `Font`；`DivideAt` 分割时同步复制 `FontSize`/`RenderMode`/`FontEdging`/`FontHinting`
+  - 文件：`Emuera.Xamarin/Platform/GameView/ConsoleStyledString.cs`
+
+- **安卓端 `<font size>` 文字显示为方块（tofu）**
+  - 症状：修复 size 属性后，中文字符部分不显示的问题
+  - 根因：`FontFactory.CreateTypefaceWithFallback` 在 Android 上找不到系统字体时直接回退到 `SKTypeface.Default`（sans-serif），未检查 `FontModel.AllModels` 中的内嵌字体。导致 `Font.SKFont.Typeface`（sans-serif，用于渲染）与 `Font.FontModel.Typeface`（内嵌 MS Gothic，用于字形检查）不一致。`BuildFallbacks` 用 MS Gothic 检查字形认为中文字符存在（`_texts = null`），但 `DrawTo` 用 sans-serif 渲染导致缺字形
+  - 修复：
+    1. `FontFactory.CreateTypefaceWithFallback` 新增 `FontModel.AllModels` 查找，确保内嵌字体优先于 `SKTypeface.Default`
+    2. `ConsoleStyledString.BuildFallbacks` 改用 `Font.SKFont.Typeface` 进行字形检查，与渲染 typeface 一致
+    3. `ConsoleStyledString.DrawTo` 中 `paint.Typeface` 改用 `Font.SKFont?.Typeface`
+  - 文件：`Emuera.Xamarin/Platform/Stubs/FontFactory.cs`、`Emuera.Xamarin/Platform/GameView/ConsoleStyledString.cs`
+
 - **游戏列表页面语言选项崩溃**：点击汉堡菜单中的"语言"选项时应用直接弹回桌面（`TypeInitializationException`）
   - 根因：`MinorShift.Emuera.Config` 类的静态字段 `Encode`/`SaveEncode` 调用 `Encoding.GetEncoding("SHIFT-JIS", ...)`，Android 上 `SHIFT-JIS` 不在默认编码集，抛出 `ArgumentException`
   - 触发链：进入 `AndroidLanguagePage` 构造函数 → 访问 `Config.EmueraLang` → 触发 `Config` 类静态初始化 → `CodePagesEncodingProvider` 尚未注册

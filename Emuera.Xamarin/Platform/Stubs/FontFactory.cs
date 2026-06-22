@@ -149,6 +149,14 @@ internal static class FontFactory
 			}
 		}
 
+		// Check FontModel.AllModels for embedded fonts (Android doesn't have system MS Gothic etc.)
+		var modelFontModel = FontModel.GetFont(fontName);
+		if (modelFontModel?.Typeface != null)
+		{
+			FontDiag.Log($"CreateTypefaceWithFallback: request=\"{fontName}\" → FontModel family={modelFontModel.Typeface.FamilyName}");
+			return modelFontModel.Typeface;
+		}
+
 		FontDiag.Log($"CreateTypefaceWithFallback: request=\"{fontName}\" → Default");
 		return SKTypeface.Default;
 	}

@@ -45,13 +45,37 @@ namespace MinorShift.Emuera.GameView
 			BuildFallbacks();
 		}
 		public ConsoleStyledString(string str, StringStyle style, TextDrawingMode? renderMode, SkiaSharpFontEdging? fontEdging, SkiaSharpFontHinting? fontHinting, float? fontSize, FontVerticalAlign? verticalAlign)
-			: this(str, style)
 		{
+			this.Text = str;
+			this.StringStyle = style;
 			RenderMode = renderMode;
 			FontEdging = fontEdging;
 			FontHinting = fontHinting;
 			FontSize = fontSize;
 			VerticalAlign = verticalAlign;
+
+			var actualFontSize = fontSize ?? Config.FontSize;
+			var actualEdging = fontEdging ?? Config.FontEdging;
+			var actualHinting = fontHinting ?? Config.FontHinting;
+
+			var skFont = FontFactory.GetFont(style.Fontname, style.FontStyle, actualFontSize, actualEdging, actualHinting);
+			if (skFont == null)
+			{
+				Error = true;
+				return;
+			}
+			Font = new Font(skFont);
+			Font.Style = style.FontStyle;
+
+			Color = style.Color;
+			ButtonColor = style.ButtonColor;
+			colorChanged = style.ColorChanged;
+			if (!colorChanged && Color != Config.ForeColor)
+				colorChanged = true;
+			PointX = -1;
+			Width = -1;
+
+			BuildFallbacks();
 		}
 		public Font Font{ get; private set;}
 		public StringStyle StringStyle{ get; private set;}
@@ -68,10 +92,10 @@ namespace MinorShift.Emuera.GameView
 
 		private void BuildFallbacks()
 		{
-			if (Font?.FontModel?.Typeface == null)
+			if (Font?.SKFont?.Typeface == null)
 				return;
 
-			var typeface = Font.FontModel.Typeface;
+			var typeface = Font.SKFont.Typeface;
 
 			bool hasSurrogate = false;
 			for (int i = 0; i < Text.Length; i++)
@@ -162,6 +186,10 @@ namespace MinorShift.Emuera.GameView
 			ret.colorChanged = this.colorChanged;
 			ret.StringStyle = this.StringStyle;
 			ret.XsubPixel = this.XsubPixel;
+			ret.FontSize = this.FontSize;
+			ret.RenderMode = this.RenderMode;
+			ret.FontEdging = this.FontEdging;
+			ret.FontHinting = this.FontHinting;
 			ret.VerticalAlign = this.VerticalAlign;
 			ret._texts = null;
 			this._texts = null;
@@ -230,7 +258,7 @@ namespace MinorShift.Emuera.GameView
 
 			if (_texts == null)
 			{
-				paint.Typeface = Font.FontModel.Typeface;
+				paint.Typeface = Font.SKFont?.Typeface;
 				paint.TextSize = Font.Size;
 				paint.FakeBoldText = Font.Style.HasFlag(FontStyle.Bold);
 				paint.TextSkewX = Font.Style.HasFlag(FontStyle.Italic) ? -0.4f : 0;
@@ -253,14 +281,14 @@ namespace MinorShift.Emuera.GameView
 			{
 				float underlineY = baselineY + (Font.SKFont.Metrics.UnderlinePosition ?? 0);
 				paint.StrokeWidth = Font.SKFont.Metrics.UnderlineThickness ?? 1;
-				paint.Typeface = Font.FontModel.Typeface;
+				paint.Typeface = Font.SKFont?.Typeface;
 				graph.DrawLine(PointX, underlineY, PointX + Width, underlineY, paint);
 			}
 			if (StringStyle.HasStrikeout)
 			{
 				float strikeoutY = baselineY + (Font.SKFont.Metrics.StrikeoutPosition ?? 0);
 				paint.StrokeWidth = Font.SKFont.Metrics.StrikeoutThickness ?? 1;
-				paint.Typeface = Font.FontModel.Typeface;
+				paint.Typeface = Font.SKFont?.Typeface;
 				graph.DrawLine(PointX, strikeoutY, PointX + Width, strikeoutY, paint);
 			}
 		}
