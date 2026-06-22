@@ -61,6 +61,18 @@ alwaysApply: true
 
 **禁止**：不要改 `Sys.cs` 的 `EmueraVersionText`、不要改 `Program.cs` 的 `GetProductVersion` 委托——它们自动读取 csproj 的 `<InformationalVersion>`。
 
+## ERB 脚本编写规则
+
+> 编写任何 ERB/ERH 脚本前**必须激活 erabasic 技能**并查阅 [syntax-quickref.md](file:///d:/emuera/shared-trae/knowledge/erabasic/syntax-quickref.md)。
+> 以下为最低限度规则，完整检查清单见 erabasic SKILL.md 的 Pre-Write Checklist。
+
+- `#DIM` 是预处理指令，`#` 不可省略
+- 字符串字面量需用 `""` 包裹（如 `"pet_1"`），否则被当变量名
+- A-Z 单字母变量是引擎保留变量，不可用于 `#DIM`
+- `#FUNCTION`/`#FUNCTIONS` 必须紧跟函数标签行
+- HTML 标签（`<img>`, `<div>`, `<font>` 等）必须通过 `HTML_PRINT` 输出，`PRINT` 系列不解析 HTML
+- FORM 字符串中：`%变量%` 用于字符串插值，`{表达式}` 用于整数插值，不可混用
+
 ## 子规则
 
 - [内核修改分类](kernel/modification-classification.md) — A/B/C 类分类与回流策略
