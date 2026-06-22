@@ -21,6 +21,8 @@ using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 
 namespace MinorShift.Emuera.GameView
 {
+	internal enum FontVerticalAlign { Top, Middle, Bottom }
+
 	internal static class HtmlManager
 	{
 		#region EM_私家版_HtmlManager機能拡張
@@ -197,6 +199,7 @@ namespace MinorShift.Emuera.GameView
 			public TextDrawingMode? RenderMode = null;
 			public SkiaSharpFontEdging? FontEdging = null;
 			public SkiaSharpFontHinting? FontHinting = null;
+			public FontVerticalAlign? VerticalAlign = null;
 		}
 
 		private sealed class HtmlAnalzeStateButtonTag
@@ -280,6 +283,7 @@ namespace MinorShift.Emuera.GameView
 			public SkiaSharpFontEdging? FontEdging => FonttagList.Count > 0 ? FonttagList[FonttagList.Count - 1].FontEdging : null;
 			public SkiaSharpFontHinting? FontHinting => FonttagList.Count > 0 ? FonttagList[FonttagList.Count - 1].FontHinting : null;
 			public float? FontSize => FonttagList.Count > 0 ? FonttagList[FonttagList.Count - 1].FontSize : null;
+			public FontVerticalAlign? VerticalAlign => FonttagList.Count > 0 ? FonttagList[FonttagList.Count - 1].VerticalAlign : null;
 		}
 
 		public static string DisplayLine2Html(ConsoleDisplayLine[] lines, bool needPandN)
@@ -472,7 +476,7 @@ namespace MinorShift.Emuera.GameView
 				if (found < 0)
 				{
 					string txt = Unescape(st.Substring());
-					cssList.Add(new ConsoleStyledString(txt, state.GetSS(), state.RenderMode, state.FontEdging, state.FontHinting, state.FontSize));
+					cssList.Add(new ConsoleStyledString(txt, state.GetSS(), state.RenderMode, state.FontEdging, state.FontHinting, state.FontSize, state.VerticalAlign));
 					if (state.FlagPClosed)
 						throw new CodeEE(trerror.TextAfterP.Text);
 					if (state.FlagNobrClosed)
@@ -482,7 +486,7 @@ namespace MinorShift.Emuera.GameView
 				else if (found > 0)
 				{
 					string txt = Unescape(st.Substring(st.CurrentPosition, found));
-					cssList.Add(new ConsoleStyledString(txt, state.GetSS(), state.RenderMode, state.FontEdging, state.FontHinting, state.FontSize));
+					cssList.Add(new ConsoleStyledString(txt, state.GetSS(), state.RenderMode, state.FontEdging, state.FontHinting, state.FontSize, state.VerticalAlign));
 					state.LineHead = false;
 					st.CurrentPosition += found;
 				}
@@ -743,13 +747,14 @@ namespace MinorShift.Emuera.GameView
 		{
 			bool fontChanged = !((css.StringStyle.Fontname == null || css.StringStyle.Fontname == Config.FontName) && !css.StringStyle.ColorChanged && css.StringStyle.ButtonColor == Config.FocusColor);
 			bool sizeChanged = css.FontSize.HasValue;
+			bool valignChanged = css.VerticalAlign.HasValue;
 			bool renderChanged = css.RenderMode.HasValue && css.RenderMode.Value != Config.TextDrawingMode;
 			bool edgingChanged = css.FontEdging.HasValue && css.FontEdging.Value != Config.FontEdging;
 			bool hintingChanged = css.FontHinting.HasValue && css.FontHinting.Value != Config.FontHinting;
-			if (!fontChanged && css.StringStyle.FontStyle == FontStyle.Regular && !sizeChanged && !renderChanged && !edgingChanged && !hintingChanged)
+			if (!fontChanged && css.StringStyle.FontStyle == FontStyle.Regular && !sizeChanged && !valignChanged && !renderChanged && !edgingChanged && !hintingChanged)
 				return "";
 			StringBuilder b = new StringBuilder();
-			if (fontChanged || sizeChanged || renderChanged || edgingChanged || hintingChanged)
+			if (fontChanged || sizeChanged || valignChanged || renderChanged || edgingChanged || hintingChanged)
 			{
 				b.Append("<font");
 				if (css.StringStyle.Fontname != null && css.StringStyle.Fontname != Config.FontName)
@@ -776,6 +781,12 @@ namespace MinorShift.Emuera.GameView
 				{
 					b.Append(" size='");
 					b.Append(css.FontSize.Value);
+					b.Append("'");
+				}
+				if (valignChanged)
+				{
+					b.Append(" valign='");
+					b.Append(css.VerticalAlign.Value.ToString().ToLower());
 					b.Append("'");
 				}
 				if (renderChanged)
@@ -820,10 +831,11 @@ namespace MinorShift.Emuera.GameView
 			var style = css.StringStyle;
 			bool fontChanged = !((style.Fontname == null || style.Fontname == Config.FontName) && !style.ColorChanged && style.ButtonColor == Config.FocusColor);
 			bool sizeChanged = css.FontSize.HasValue;
+			bool valignChanged = css.VerticalAlign.HasValue;
 			bool renderChanged = css.RenderMode.HasValue && css.RenderMode.Value != Config.TextDrawingMode;
 			bool edgingChanged = css.FontEdging.HasValue && css.FontEdging.Value != Config.FontEdging;
 			bool hintingChanged = css.FontHinting.HasValue && css.FontHinting.Value != Config.FontHinting;
-			if (!fontChanged && style.FontStyle == FontStyle.Regular && !sizeChanged && !renderChanged && !edgingChanged && !hintingChanged)
+			if (!fontChanged && style.FontStyle == FontStyle.Regular && !sizeChanged && !valignChanged && !renderChanged && !edgingChanged && !hintingChanged)
 				return "";
 			StringBuilder b = new StringBuilder();
 			if (style.FontStyle != FontStyle.Regular)
@@ -837,7 +849,7 @@ namespace MinorShift.Emuera.GameView
 				if ((style.FontStyle & FontStyle.Strikeout) != FontStyle.Regular)
 					b.Append("</s>");
 			}
-			if (fontChanged || sizeChanged || renderChanged || edgingChanged || hintingChanged)
+			if (fontChanged || sizeChanged || valignChanged || renderChanged || edgingChanged || hintingChanged)
 				b.Append("</font>");
 			return b.ToString();
 		}
@@ -1436,6 +1448,18 @@ namespace MinorShift.Emuera.GameView
 										throw new CodeEE(string.Format(trerror.CanNotInterpretAttribute.Text, tag, word.Code));
 									font.FontSize = sizeValue;
 									break;
+								case "valign":
+									if (font.VerticalAlign != null)
+										throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
+									if (attrValue.Equals("top", StringComparison.OrdinalIgnoreCase))
+										font.VerticalAlign = FontVerticalAlign.Top;
+									else if (attrValue.Equals("middle", StringComparison.OrdinalIgnoreCase))
+										font.VerticalAlign = FontVerticalAlign.Middle;
+									else if (attrValue.Equals("bottom", StringComparison.OrdinalIgnoreCase))
+										font.VerticalAlign = FontVerticalAlign.Bottom;
+									else
+										throw new CodeEE(string.Format(trerror.CanNotInterpretAttribute.Text, tag, word.Code));
+									break;
 								default:
 									throw new CodeEE(string.Format(trerror.CanNotInterpretAttributeName.Text, tag, word.Code));
 							}
@@ -1457,6 +1481,8 @@ namespace MinorShift.Emuera.GameView
 								font.FontEdging = oldFont.FontEdging;
 							if (font.FontHinting == null)
 								font.FontHinting = oldFont.FontHinting;
+							if (font.VerticalAlign == null)
+								font.VerticalAlign = oldFont.VerticalAlign;
 						}
 						state.FonttagList.Add(font);
 						return null;

@@ -52,10 +52,12 @@ alwaysApply: true
 
 | 场景 | 改什么 | 示例 |
 |------|--------|------|
+| 功能版本发布 | `Skiav` 段 | `Skiav9` → `Skiav9.1` |
 | SkiaSharp NuGet 升级 | `Skiav` 段 | `Skiav5.1` → `Skiav6.0` |
 | 上游 EM+EE 同步 | `EMv`/`EEv` 段 | `EEv56` → `EEv57` |
-| 功能版本发布 | `v` 段 | `v24` → `v25` |
 | Android 版本 | `AndroidManifest.xml` 的 `versionCode`/`versionName` | 独立维护 |
+
+**历史段说明**：`1824`（Emuera 原版 1.824）与 `v24`（私家改编版）是历史版本号，不再递增；LazyLoading/Skia 变体的实际功能版本通过 `Skiav` 段表达。
 
 **禁止**：不要改 `Sys.cs` 的 `EmueraVersionText`、不要改 `Program.cs` 的 `GetProductVersion` 委托——它们自动读取 csproj 的 `<InformationalVersion>`。
 

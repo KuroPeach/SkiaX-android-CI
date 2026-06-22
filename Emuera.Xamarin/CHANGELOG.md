@@ -2,6 +2,15 @@
 
 ## [0.67.0] - 2026-06-22
 
+### Added
+
+- **STRFORMCHECK 函数**：上游 develop-skiasharp v9.1.0 内核新增，通过 Core 项目自动编译
+- **HTML_PRINT `<font>` valign 属性**：同步 Desktop 端 v9.1.0 的 `<font valign='top|middle|bottom'>` 扩展
+  - Xamarin 端 `HtmlManager.cs` 新增 `FontVerticalAlign` 枚举、`valign` 属性解析与继承逻辑
+  - Xamarin 端 `ConsoleStyledString.cs` 新增 `VerticalAlign` 属性，`DrawTo` 中根据 `valign` 调整 `baselineY` 偏移
+  - `DivideAt` 保留 `VerticalAlign` 属性
+  - `getStringStyleStartingTag`/`getClosingStyleStartingTag` 序列化 `valign` 属性
+
 ### Fixed
 
 - **安卓端旋转屏幕后 HTML_PRINTC 单元格塌陷**：`ReflowDisplayLinesForCurrentScale` 通过 `DisplayLine2Html` → `Html2DisplayLine` 重排行，但 `DisplayLine2Html` 遗漏 `ConsoleDivPart` 分支，导致 `<div>` 在 HTML 往返中丢失

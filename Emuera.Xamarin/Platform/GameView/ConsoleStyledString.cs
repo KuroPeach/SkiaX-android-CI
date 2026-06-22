@@ -44,13 +44,14 @@ namespace MinorShift.Emuera.GameView
 
 			BuildFallbacks();
 		}
-		public ConsoleStyledString(string str, StringStyle style, TextDrawingMode? renderMode, SkiaSharpFontEdging? fontEdging, SkiaSharpFontHinting? fontHinting, float? fontSize)
+		public ConsoleStyledString(string str, StringStyle style, TextDrawingMode? renderMode, SkiaSharpFontEdging? fontEdging, SkiaSharpFontHinting? fontHinting, float? fontSize, FontVerticalAlign? verticalAlign)
 			: this(str, style)
 		{
 			RenderMode = renderMode;
 			FontEdging = fontEdging;
 			FontHinting = fontHinting;
 			FontSize = fontSize;
+			VerticalAlign = verticalAlign;
 		}
 		public Font Font{ get; private set;}
 		public StringStyle StringStyle{ get; private set;}
@@ -58,6 +59,7 @@ namespace MinorShift.Emuera.GameView
 		public TextDrawingMode? RenderMode { get; private set; }
 		public SkiaSharpFontEdging? FontEdging { get; private set; }
 		public SkiaSharpFontHinting? FontHinting { get; private set; }
+		public FontVerticalAlign? VerticalAlign { get; private set; }
 		List<TextsWithFont> _texts;
 		public override bool CanDivide
 		{
@@ -160,6 +162,7 @@ namespace MinorShift.Emuera.GameView
 			ret.colorChanged = this.colorChanged;
 			ret.StringStyle = this.StringStyle;
 			ret.XsubPixel = this.XsubPixel;
+			ret.VerticalAlign = this.VerticalAlign;
 			ret._texts = null;
 			this._texts = null;
 			return ret;
@@ -213,6 +216,11 @@ namespace MinorShift.Emuera.GameView
 			var skColor = DisplayUtils.ToSKColor(color);
 			float x = PointX;
 			float baselineY = point.Y - Font.SKFont.Metrics.Ascent;
+			// valign 偏移：top 不偏移，middle/bottom 按行高偏移
+			if (VerticalAlign == FontVerticalAlign.Middle)
+				baselineY += (Config.LineHeight - Font.SKFont.Metrics.Descent + Font.SKFont.Metrics.Ascent) / 2f;
+			else if (VerticalAlign == FontVerticalAlign.Bottom)
+				baselineY += Config.LineHeight - Font.SKFont.Metrics.Descent + Font.SKFont.Metrics.Ascent;
 
 			using var paint = new SKPaint
 			{
