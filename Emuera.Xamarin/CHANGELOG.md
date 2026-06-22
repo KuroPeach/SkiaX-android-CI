@@ -1,5 +1,24 @@
 # Emuera.Xamarin 变更记录
 
+## [0.67.1] - 2026-06-22
+
+### Fixed
+
+- **游戏列表页面语言选项崩溃**：点击汉堡菜单中的"语言"选项时应用直接弹回桌面（`TypeInitializationException`）
+  - 根因：`MinorShift.Emuera.Config` 类的静态字段 `Encode`/`SaveEncode` 调用 `Encoding.GetEncoding("SHIFT-JIS", ...)`，Android 上 `SHIFT-JIS` 不在默认编码集，抛出 `ArgumentException`
+  - 触发链：进入 `AndroidLanguagePage` 构造函数 → 访问 `Config.EmueraLang` → 触发 `Config` 类静态初始化 → `CodePagesEncodingProvider` 尚未注册
+  - 修复：在 `MainActivity.OnCreate()` 中、`Xamarin.Forms.Forms.Init()` 之后注册 `System.Text.CodePagesEncodingProvider.Instance`，确保任何路径访问 `Config` 类时 `SHIFT-JIS` 已可用
+
+### Added
+
+- **调试模式开关（汉堡菜单）**：在游戏列表页面的汉堡菜单底部添加 `Switch` 控件
+  - 开启后，下一次启动游戏时引擎以 debug mode 运行（`Program.debugMode = true`）
+  - 关闭后，正常模式运行
+  - 状态通过 `Xamarin.Essentials.Preferences` 持久化（key=`emuera_debug_mode`），应用重启后保留
+  - 数据流：`AndroidMainMenuPage.IsDebugModeEnabled` → `AndroidHost.StartGame(gamePath, debugMode)` → 在 `Program.Init()` 之前设置 `MinorShift.Emuera.Program.debugMode`
+  - 日志输出：`Android.Util.Log.Info("EmueraHost", $"DebugMode = {debugMode}")` 便于 logcat 追踪
+  - 注意：Debug 构建中 `Program.Init()` 的 `#if DEBUG debugMode = true; #endif` 会覆盖开关设置（标准行为，Debug 构建始终启用调试模式）
+
 ## [0.67.0] - 2026-06-22
 
 ### Added

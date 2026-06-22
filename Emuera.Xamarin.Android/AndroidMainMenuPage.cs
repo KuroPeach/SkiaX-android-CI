@@ -9,6 +9,7 @@ namespace XEmuera.Droid
     internal class AndroidMainMenuPage : ContentPage
     {
         private readonly ObservableCollection<MainMenuItem> menuItems = new ObservableCollection<MainMenuItem>();
+        private Switch debugSwitch;
 
         public event Action RebootRequested;
         public event Action GotoTitleRequested;
@@ -16,6 +17,9 @@ namespace XEmuera.Droid
         public event Action LanguageRequested;
         public event Action ViewLogRequested;
         public event Action SaveLogRequested;
+        public event Action DebugModeChanged;
+
+        public bool IsDebugModeEnabled => debugSwitch?.IsToggled ?? false;
 
         public AndroidMainMenuPage()
         {
@@ -41,7 +45,40 @@ namespace XEmuera.Droid
 
             listView.ItemSelected += OnItemSelected;
 
-            Content = new StackLayout { Children = { listView } };
+            // 调试模式开关
+            debugSwitch = new Switch
+            {
+                IsToggled = GameUtils.GetPreferences("emuera_debug_mode", "false") == "true",
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.Center,
+            };
+            debugSwitch.Toggled += (s, e) =>
+            {
+                GameUtils.SetPreferences("emuera_debug_mode", e.Value ? "true" : "false");
+                DebugModeChanged?.Invoke();
+            };
+
+            var debugLabel = new Label
+            {
+                Text = StringsText.Debug,
+                FontSize = 16,
+                TextColor = Color.Black,
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalOptions = LayoutOptions.StartAndExpand,
+                Margin = new Thickness(20, 10),
+            };
+
+            var debugLayout = new StackLayout
+            {
+                Orientation = StackOrientation.Horizontal,
+                Children = { debugLabel, debugSwitch },
+                Margin = new Thickness(0, 10, 20, 10),
+            };
+
+            Content = new StackLayout
+            {
+                Children = { listView, debugLayout }
+            };
 
             RefreshMenu(isInGame: false);
         }

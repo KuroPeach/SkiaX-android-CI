@@ -49,6 +49,10 @@ namespace XEmuera.Droid
             Xamarin.Essentials.Platform.Init(this, savedInstanceState);
             global::Xamarin.Forms.Forms.Init(this, savedInstanceState);
 
+            // 注册编码 Provider，确保 Config 类静态初始化时 SHIFT-JIS 可用
+            // 必须在任何访问 MinorShift.Emuera.Config 的代码之前执行（包括游戏列表页面的语言选项）
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
             if (!Init)
             {
                 Init = true;

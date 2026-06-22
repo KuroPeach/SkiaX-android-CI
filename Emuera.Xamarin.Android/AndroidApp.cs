@@ -44,7 +44,7 @@ namespace XEmuera.Droid
 
         private void OnGameSelected(string gamePath)
         {
-            host.StartGame(gamePath);
+            host.StartGame(gamePath, menuPage.IsDebugModeEnabled);
 
             var mainWindow = host.MainWindow as AndroidMainWindow;
             mainWindow.SetFlyoutPage(flyoutPage);

@@ -34,7 +34,7 @@ namespace XEmuera.Droid
             InitMainWindow();
         }
 
-        public void StartGame(string gamePath)
+        public void StartGame(string gamePath, bool debugMode = false)
         {
             if (engineInitialized)
             {
@@ -55,6 +55,10 @@ namespace XEmuera.Droid
             if (context == null) return;
 
             Android.Util.Log.Debug("EmueraHost", $"StartGame: path={gamePath}");
+
+            // 在 Program.Init() 之前设置 debugMode
+            MinorShift.Emuera.Program.debugMode = debugMode;
+            Android.Util.Log.Info("EmueraHost", $"DebugMode = {debugMode}");
 
             GlobalStatic.PathProvider = new AndroidPathProvider(context, gamePath);
             Android.Util.Log.Debug("EmueraHost", $"PathProvider set: ExeDir={GlobalStatic.PathProvider.ExeDir}");
