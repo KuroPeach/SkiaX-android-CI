@@ -16,6 +16,8 @@ using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
 namespace MinorShift.Emuera.UI.Game;
 
+internal enum FontVerticalAlign { Top, Middle, Bottom }
+
 //TODO:1810～
 /* Emuera用Htmlもどきが実装すべき要素
  * (できるだけhtmlとConsoleDisplayLineとの1:1対応を目指す。<b>と<strong>とか同じ結果になるタグを重複して実装しない)
@@ -224,6 +226,7 @@ internal static class HtmlManager
 	}
 	static readonly char[] rep = ['&', '>', '<', '\"', '\''];
 	static readonly Dictionary<char, string> repDic = [];
+
 	private sealed class HtmlAnalzeStateFontTag
 	{
 		public int Color = int.MinValue;
@@ -233,6 +236,7 @@ internal static class HtmlManager
 		public TextDrawingMode? RenderMode = null;
 		public SkiaSharpFontEdging? FontEdging = null;
 		public SkiaSharpFontHinting? FontHinting = null;
+		public FontVerticalAlign? VerticalAlign = null;
 		//public int PointX = 0;
 		//public bool PointXisLocked = false;
 	}
@@ -329,6 +333,7 @@ internal static class HtmlManager
 		public SkiaSharpFontEdging? FontEdging => FonttagList.Count > 0 ? FonttagList[^1].FontEdging : null;
 		public SkiaSharpFontHinting? FontHinting => FonttagList.Count > 0 ? FonttagList[^1].FontHinting : null;
 		public float? FontSize => FonttagList.Count > 0 ? FonttagList[^1].FontSize : null;
+		public FontVerticalAlign? VerticalAlign => FonttagList.Count > 0 ? FonttagList[^1].VerticalAlign : null;
 	}
 
 	/// <summary>
@@ -535,17 +540,17 @@ internal static class HtmlManager
 			if (found < 0)
 			{
 				string txt = Unescape(st.Substring());
-				cssList.Add(new ConsoleStyledString(txt, state.GetSS(), state.RenderMode, state.FontEdging, state.FontHinting, state.FontSize));
-				if (state.FlagPClosed)
-					throw new CodeEE(trerror.TextAfterP.Text);
-				if (state.FlagNobrClosed)
-					throw new CodeEE(trerror.TextAfterNobr.Text);
-				break;
-			}
-			else if (found > 0)
-			{
-				string txt = Unescape(st.Substring(st.CurrentPosition, found));
-				cssList.Add(new ConsoleStyledString(txt, state.GetSS(), state.RenderMode, state.FontEdging, state.FontHinting, state.FontSize));
+				cssList.Add(new ConsoleStyledString(txt, state.GetSS(), state.RenderMode, state.FontEdging, state.FontHinting, state.FontSize, state.VerticalAlign));
+			if (state.FlagPClosed)
+				throw new CodeEE(trerror.TextAfterP.Text);
+			if (state.FlagNobrClosed)
+				throw new CodeEE(trerror.TextAfterNobr.Text);
+			break;
+		}
+		else if (found > 0)
+		{
+			string txt = Unescape(st.Substring(st.CurrentPosition, found));
+			cssList.Add(new ConsoleStyledString(txt, state.GetSS(), state.RenderMode, state.FontEdging, state.FontHinting, state.FontSize, state.VerticalAlign));
 				state.LineHead = false;
 				st.CurrentPosition += found;
 			}
@@ -834,13 +839,14 @@ internal static class HtmlManager
 	{
 		bool fontChanged = !((css.StringStyle.Fontname == null || css.StringStyle.Fontname == Config.FontName) && !css.StringStyle.ColorChanged && css.StringStyle.ButtonColor == Config.FocusColor);
 		bool sizeChanged = css.FontSize.HasValue;
+		bool valignChanged = css.VerticalAlign.HasValue;
 		bool renderChanged = css.RenderMode.HasValue && css.RenderMode.Value != Config.TextDrawingMode;
 		bool edgingChanged = css.FontEdging.HasValue && css.FontEdging.Value != Config.FontEdging;
 		bool hintingChanged = css.FontHinting.HasValue && css.FontHinting.Value != Config.FontHinting;
-		if (!fontChanged && css.StringStyle.FontStyle == FontStyle.Regular && !sizeChanged && !renderChanged && !edgingChanged && !hintingChanged)
+		if (!fontChanged && css.StringStyle.FontStyle == FontStyle.Regular && !sizeChanged && !valignChanged && !renderChanged && !edgingChanged && !hintingChanged)
 			return "";
 		StringBuilder b = new();
-		if (fontChanged || sizeChanged || renderChanged || edgingChanged || hintingChanged)
+		if (fontChanged || sizeChanged || valignChanged || renderChanged || edgingChanged || hintingChanged)
 		{
 			b.Append("<font");
 			if (css.StringStyle.Fontname != null && css.StringStyle.Fontname != Config.FontName)
@@ -867,6 +873,12 @@ internal static class HtmlManager
 			{
 				b.Append(" size='");
 				b.Append(css.FontSize.Value);
+				b.Append('\'');
+			}
+			if (valignChanged)
+			{
+				b.Append(" valign='");
+				b.Append(css.VerticalAlign.Value.ToString().ToLower());
 				b.Append('\'');
 			}
 			if (renderChanged)
@@ -911,10 +923,11 @@ internal static class HtmlManager
 		var style = css.StringStyle;
 		bool fontChanged = !((style.Fontname == null || style.Fontname == Config.FontName) && !style.ColorChanged && style.ButtonColor == Config.FocusColor);
 		bool sizeChanged = css.FontSize.HasValue;
+		bool valignChanged = css.VerticalAlign.HasValue;
 		bool renderChanged = css.RenderMode.HasValue && css.RenderMode.Value != Config.TextDrawingMode;
 		bool edgingChanged = css.FontEdging.HasValue && css.FontEdging.Value != Config.FontEdging;
 		bool hintingChanged = css.FontHinting.HasValue && css.FontHinting.Value != Config.FontHinting;
-		if (!fontChanged && style.FontStyle == FontStyle.Regular && !sizeChanged && !renderChanged && !edgingChanged && !hintingChanged)
+		if (!fontChanged && style.FontStyle == FontStyle.Regular && !sizeChanged && !valignChanged && !renderChanged && !edgingChanged && !hintingChanged)
 			return "";
 		StringBuilder b = new();
 		if (style.FontStyle != FontStyle.Regular)
@@ -928,7 +941,7 @@ internal static class HtmlManager
 			if ((style.FontStyle & FontStyle.Strikeout) != FontStyle.Regular)
 				b.Append("</s>");
 		}
-		if (fontChanged || sizeChanged || renderChanged || edgingChanged || hintingChanged)
+		if (fontChanged || sizeChanged || valignChanged || renderChanged || edgingChanged || hintingChanged)
 			b.Append("</font>");
 		return b.ToString();
 	}
@@ -1577,6 +1590,18 @@ internal static class HtmlManager
 									throw new CodeEE(string.Format(trerror.CanNotInterpretAttribute.Text, tag, word.Code));
 								font.FontSize = sizeValue;
 								break;
+							case "valign":
+								if (font.VerticalAlign != null)
+									throw new CodeEE(string.Format(trerror.DuplicateAttribute.Text, tag, word.Code));
+								if (attrValue.Equals("top", StringComparison.OrdinalIgnoreCase))
+									font.VerticalAlign = FontVerticalAlign.Top;
+								else if (attrValue.Equals("middle", StringComparison.OrdinalIgnoreCase))
+									font.VerticalAlign = FontVerticalAlign.Middle;
+								else if (attrValue.Equals("bottom", StringComparison.OrdinalIgnoreCase))
+									font.VerticalAlign = FontVerticalAlign.Bottom;
+								else
+									throw new CodeEE(string.Format(trerror.CanNotInterpretAttribute.Text, tag, word.Code));
+								break;
 							//case "pos":
 							//	{
 							//		//throw new NotImplCodeEE();
@@ -1611,6 +1636,8 @@ internal static class HtmlManager
 							font.FontEdging = oldFont.FontEdging;
 						if (font.FontHinting == null)
 							font.FontHinting = oldFont.FontHinting;
+						if (font.VerticalAlign == null)
+							font.VerticalAlign = oldFont.VerticalAlign;
 					}
 					state.FonttagList.Add(font);
 					return null;

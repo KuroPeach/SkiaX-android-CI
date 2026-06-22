@@ -159,6 +159,7 @@ internal static partial class FunctionMethodCreator
 			["CHARATU"] = new CharAtMethod(),
 			["GETLINESTR"] = new GetLineStrMethod(),
 			["STRFORM"] = new StrFormMethod(),
+			["STRFORMCHECK"] = new StrFormCheckMethod(),
 			["STRJOIN"] = new JoinMethod(),
 
 			["GETCONFIG"] = new GetConfigMethod(true),

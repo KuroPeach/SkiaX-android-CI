@@ -262,7 +262,21 @@ namespace MinorShift.Emuera.Forms
 		private void RenderConsole(SKCanvas canvas)
 		{
 			if (console == null) return;
-			console.OnPaint(canvas);
+			// F11 全屏比例缩放：在画布入口处应用一次 Scale 变换，
+			// 所有后续绘制操作（文字/图片/shape/div/ImageLayer/CBG）自动按比例放大。
+			// 不修改 Config 值、不重排显示行，避免 HTML 往返 bug。
+			if (isFullScreen && fullscreenScale != 1.0f)
+			{
+				using (new SKAutoCanvasRestore(canvas, true))
+				{
+					canvas.Scale(fullscreenScale);
+					console.OnPaint(canvas);
+				}
+			}
+			else
+			{
+				console.OnPaint(canvas);
+			}
 		}
 		private ToolStripMenuItem[] macroMenuItems = new ToolStripMenuItem[KeyMacro.MaxFkey];
 		//private System.Diagnostics.FileVersionInfo emueraVer = System.Diagnostics.FileVersionInfo.GetVersionInfo(System.Reflection.Assembly.GetExecutingAssembly().Location);
@@ -279,17 +293,65 @@ namespace MinorShift.Emuera.Forms
 		private Rectangle savedBounds;
 		private bool savedMenuVisible;
 		private bool savedTopMost;
+		// F11 全屏比例缩放：按配置宽度比例缩放所有内容（字体/图片/shape/div 等）
+		private float fullscreenScale = 1.0f;
+		private Font savedRichTextBoxFont;
+		private int savedRichTextBoxHeight;
+		private Size savedMaximumSize;
+		private Size savedMinimumSize;
+
+		/// <summary>
+		/// 逻辑渲染宽度。全屏时返回 Config.WindowX（逻辑尺寸），非全屏时返回 mainPicBox 物理宽度。
+		/// EmueraConsole.OnPaint 使用此值进行布局计算，使全屏时布局基于逻辑尺寸而非物理尺寸。
+		/// </summary>
+		public int RenderWidth => isFullScreen ? Config.WindowX : mainPicBox.Width;
+
+		/// <summary>
+		/// 逻辑渲染高度。全屏时按 mainPicBox 实际高度反推逻辑高度（使缩放后恰好填满画布），
+		/// 非全屏时返回 mainPicBox 物理高度。
+		/// </summary>
+		public int RenderHeight => isFullScreen
+			? (int)(mainPicBox.Height / fullscreenScale)
+			: mainPicBox.Height;
+
+		/// <summary>
+		/// 将物理鼠标坐标转换为逻辑坐标。全屏时除以缩放因子，非全屏时原样返回。
+		/// </summary>
+		private Point ToLogicalPoint(Point physical)
+		{
+			if (isFullScreen && fullscreenScale != 1.0f)
+				return new Point((int)(physical.X / fullscreenScale), (int)(physical.Y / fullscreenScale));
+			return physical;
+		}
 
 		public void ToggleFullScreen()
 		{
 			if (isFullScreen)
 			{
 				FormBorderStyle = savedFormBorderStyle;
-				WindowState = savedWindowState;
-				Bounds = savedBounds;
-				menuStrip.Visible = savedMenuVisible;
+			WindowState = savedWindowState;
+			Bounds = savedBounds;
+			// 恢复窗口尺寸约束
+			MaximumSize = savedMaximumSize;
+			MinimumSize = savedMinimumSize;
+			menuStrip.Visible = savedMenuVisible;
 				vScrollBar.Visible = true;
 				TopMost = savedTopMost;
+				// 恢复输入框字体和高度
+			if (savedRichTextBoxFont != null)
+			{
+				richTextBox1.Font = savedRichTextBoxFont;
+				richTextBox1.Height = savedRichTextBoxHeight;
+				savedRichTextBoxFont = null;
+			}
+			// 恢复 mainPicBox 位置和尺寸（全屏时被显式修改，Anchor 不会自动恢复 Location.Y）
+			int restoredMenuHeight = savedMenuVisible ? menuStrip.Height : 0;
+			int restoredTextBoxHeight = Config.LineHeight + 4;
+			mainPicBox.Location = new Point(0, restoredMenuHeight);
+			mainPicBox.Size = new Size(Config.WindowX, ClientSize.Height - restoredMenuHeight - restoredTextBoxHeight);
+			richTextBox1.Location = new Point(0, ClientSize.Height - restoredTextBoxHeight);
+			richTextBox1.Size = new Size(Config.WindowX, restoredTextBoxHeight);
+			fullscreenScale = 1.0f;
 				isFullScreen = false;
 			}
 			else
@@ -299,12 +361,30 @@ namespace MinorShift.Emuera.Forms
 				savedBounds = Bounds;
 				savedMenuVisible = menuStrip.Visible;
 				savedTopMost = TopMost;
+				savedMaximumSize = MaximumSize;
+				savedMinimumSize = MinimumSize;
+				// 计算缩放因子：按配置宽度比例缩放，填满当前屏幕
+				var screen = Screen.FromControl(this);
+				fullscreenScale = (float)screen.Bounds.Width / Config.WindowX;
+				// 重置窗口尺寸约束（MaximumSize 会阻止窗口填满屏幕）
+				MaximumSize = new Size(0, 0);
+				MinimumSize = new Size(0, 0);
 				FormBorderStyle = FormBorderStyle.None;
 				WindowState = FormWindowState.Normal;
-				Bounds = Screen.PrimaryScreen.Bounds;
+				Bounds = screen.Bounds;
 				TopMost = true;
 				menuStrip.Visible = false;
 				vScrollBar.Visible = false;
+				// 缩放输入框字体和高度（WinForms 控件不参与画布缩放，需单独处理）
+				savedRichTextBoxFont = richTextBox1.Font;
+				savedRichTextBoxHeight = richTextBox1.Height;
+				richTextBox1.Font = new Font(savedRichTextBoxFont.FontFamily,
+					savedRichTextBoxFont.Size * fullscreenScale, savedRichTextBoxFont.Style);
+				richTextBox1.Height = (int)(savedRichTextBoxHeight * fullscreenScale);
+				// 显式设置 mainPicBox 尺寸（Anchor 不感知 richTextBox1 高度变化，需手动调整）
+				mainPicBox.Location = new Point(0, 0);
+				mainPicBox.Size = new Size(screen.Bounds.Width,
+					screen.Bounds.Height - richTextBox1.Height);
 				isFullScreen = true;
 			}
 		}
@@ -322,11 +402,20 @@ namespace MinorShift.Emuera.Forms
 			if (clientY < 10 && !menuStrip.Visible)
 			{
 				menuStrip.Visible = true;
+				// mainPicBox 是 SKGLControl（OpenGL 控件），会覆盖 Z-order 中的 WinForms 控件。
+				// 菜单显示时需下移 mainPicBox 并缩减高度，否则 menuStrip 会被 OpenGL 渲染覆盖。
+				int menuHeight = menuStrip.Height;
+				mainPicBox.Location = new Point(0, menuHeight);
+				mainPicBox.Size = new Size(mainPicBox.Width, mainPicBox.Height - menuHeight);
 			}
 			// 当鼠标离开顶部（大于菜单高度+10像素的缓冲带）且菜单已显示时，隐藏菜单
 			else if (clientY > menuStrip.Height + 10 && menuStrip.Visible)
 			{
 				menuStrip.Visible = false;
+				// 菜单隐藏时恢复 mainPicBox 到顶部，填满整个可用空间
+				int menuHeight = menuStrip.Height;
+				mainPicBox.Location = new Point(0, 0);
+				mainPicBox.Size = new Size(mainPicBox.Width, mainPicBox.Height + menuHeight);
 			}
 		}
 
@@ -804,7 +893,7 @@ namespace MinorShift.Emuera.Forms
 				return;
 			if (console == null)
 				return;
-			if (console.MoveMouse(e.Location))
+			if (console.MoveMouse(ToLogicalPoint(e.Location)))
 				console.RefreshStrings(true);
 		}
 		#region EE_AnchorのCB機能移植
@@ -842,10 +931,11 @@ namespace MinorShift.Emuera.Forms
 			if (console.IsWaitingPrimitive)
 			//			if (console.IsWaitingPrimitiveMouse)
 			{
-				console.MouseDown(e.Location, e.Button);
+				var logicalPoint = ToLogicalPoint(e.Location);
+				console.MouseDown(logicalPoint, e.Button);
 				#region EM_私家版_INPUT系機能拡張
 				if (vScrollBar.Value == vScrollBar.Maximum && console.SelectingButton != null)
-					GlobalStatic.Process.InputInteger(6, console.SelectingButton.GetMappedColor(e.X, e.Y));
+					GlobalStatic.Process.InputInteger(6, console.SelectingButton.GetMappedColor(logicalPoint.X, logicalPoint.Y));
 				#endregion
 				return;
 			}
@@ -1340,7 +1430,7 @@ namespace MinorShift.Emuera.Forms
 			if (console.IsWaitingPrimitive)
 			//			if (console.IsWaitingPrimitiveMouse)
 			{
-				console.MouseWheel(mainPicBox.PointToClient(MousePosition), e.Delta);
+				console.MouseWheel(ToLogicalPoint(mainPicBox.PointToClient(MousePosition)), e.Delta);
 				return;
 			}
 			//e.Deltaには大きな値が入っているので符号のみ採用する
@@ -1370,7 +1460,7 @@ namespace MinorShift.Emuera.Forms
 
 			//ボタンとの関係をチェック
 			if (Config.UseMouse)
-				force_refresh = console.MoveMouse(mainPicBox.PointToClient(MousePosition)) || force_refresh;
+				force_refresh = console.MoveMouse(ToLogicalPoint(mainPicBox.PointToClient(MousePosition))) || force_refresh;
 			//上端でも下端でもなくボタン選択状態のアップデートも必要ないなら描画を控えめに。
 			console.RefreshStrings(force_refresh);
 		}

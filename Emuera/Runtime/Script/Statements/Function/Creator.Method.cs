@@ -6702,6 +6702,31 @@ internal static partial class FunctionMethodCreator
 		}
 	}
 
+	public sealed class StrFormCheckMethod : FunctionMethod
+	{
+		public StrFormCheckMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArray = [EraType.String];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			string str = arguments[0].GetStrValue(exm);
+			try
+			{
+				StrFormWord wt = LexicalAnalyzer.AnalyseFormattedString(new CharStream(str), FormStrEndWith.EoL, false);
+				StrForm strForm = StrForm.FromWordToken(wt);
+				strForm.GetString(exm);
+				return 1;
+			}
+			catch
+			{
+				return 0;
+			}
+		}
+	}
+
 	public sealed class JoinMethod : FunctionMethod
 	{
 		public JoinMethod()

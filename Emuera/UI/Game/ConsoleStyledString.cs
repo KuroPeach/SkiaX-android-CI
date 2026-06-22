@@ -47,6 +47,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 	public SkiaSharpFontEdging? FontEdging { get; private set; }
 	public SkiaSharpFontHinting? FontHinting { get; private set; }
 	public float? FontSize { get; private set; }
+	public FontVerticalAlign? VerticalAlign { get; private set; }
 
 	public ConsoleStyledString(string str, StringStyle style)
 	{
@@ -123,7 +124,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		Width = -1;
 	}
 
-	public ConsoleStyledString(string str, StringStyle style, TextDrawingMode? renderMode, SkiaSharpFontEdging? edging, SkiaSharpFontHinting? hinting, float? fontSize)
+	public ConsoleStyledString(string str, StringStyle style, TextDrawingMode? renderMode, SkiaSharpFontEdging? edging, SkiaSharpFontHinting? hinting, float? fontSize, FontVerticalAlign? verticalAlign)
 	{
 		Text = str;
 		StringStyle = style;
@@ -131,6 +132,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		FontEdging = edging;
 		FontHinting = hinting;
 		FontSize = fontSize;
+		VerticalAlign = verticalAlign;
 
 		var actualEdging = edging ?? Config.FontEdging;
 		var actualHinting = hinting ?? Config.FontHinting;
@@ -301,7 +303,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 
 		BuildFallbacks();
 
-		ConsoleStyledString ret = new ConsoleStyledString(str, this.StringStyle, this.RenderMode, this.FontEdging, this.FontHinting, this.FontSize)
+		ConsoleStyledString ret = new ConsoleStyledString(str, this.StringStyle, this.RenderMode, this.FontEdging, this.FontHinting, this.FontSize, this.VerticalAlign)
 		{
 			XsubPixel = this.XsubPixel
 		};
@@ -437,6 +439,11 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 	};
 
 	var point = new SKPoint(PointX + Config.DrawingParam_ShapePositionShift, origin.Y);
+	// valign 偏移：top 不偏移，middle/bottom 按行高偏移
+	if (VerticalAlign == FontVerticalAlign.Middle)
+		point.Offset(0, (Config.LineHeight - Font.Metrics.Descent + Font.Metrics.Ascent) / 2f);
+	else if (VerticalAlign == FontVerticalAlign.Bottom)
+		point.Offset(0, Config.LineHeight - Font.Metrics.Descent + Font.Metrics.Ascent);
 	if (origin.X == -1)//旧来の位置決め方式
 	{
 		point.X = PointX + Config.DrawingParam_ShapePositionShift;

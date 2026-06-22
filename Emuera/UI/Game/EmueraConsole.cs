@@ -269,8 +269,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		cbgList.Sort();
 		return true;
 	}
-	public int ClientWidth { get { return window.MainPicBox.Width; } }
-	public int ClientHeight { get { return window.MainPicBox.Height; } }
+	public int ClientWidth { get { return window.RenderWidth; } }
+	public int ClientHeight { get { return window.RenderHeight; } }
 
 	public void CBGSetImage(string spriteName)
 	{
@@ -1833,7 +1833,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	#region EM_私家版_imgマースク
 	public int GetLinePointY(int lineNo)
 	{
-		int pointY = window.MainPicBox.Height - Config.LineHeight;
+		int pointY = window.RenderHeight - Config.LineHeight;
 		int bottomLineNo = window.ScrollBar.Value - 1;
 		if (displayLineList.Count - 1 < bottomLineNo)
 			bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
@@ -1863,7 +1863,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		_frameDeltaTimer.Restart();
 
 		bool isBackLog = window.ScrollBar.Value != window.ScrollBar.Maximum;
-		int pointY = window.MainPicBox.Height - Config.LineHeight;
+		int pointY = window.RenderHeight - Config.LineHeight;
 
 
 		int bottomLineNo = window.ScrollBar.Value - 1;
@@ -1931,7 +1931,7 @@ internal sealed partial class EmueraConsole : IDisposable
 						{
 							int destW = cbg.width > 0 ? cbg.width : img.DestBaseSize.Width;
 							int destH = cbg.height > 0 ? cbg.height : img.DestBaseSize.Height;
-							var destRect = new Rectangle(cbg.x, cbg.y + window.MainPicBox.Height - destH, destW, destH);
+							var destRect = new Rectangle(cbg.x, cbg.y + window.RenderHeight - destH, destW, destH);
 							SKColorFilter filter = null;
 							if (cbg.ColorMatrix != null && cbg.ColorMatrix.Length == 20)
 								filter = SKColorFilter.CreateColorMatrix(cbg.ColorMatrix);
@@ -2003,10 +2003,10 @@ internal sealed partial class EmueraConsole : IDisposable
 			//		img = cbgList[j].ImgB;
 			//	if (img == null || !img.IsCreated)
 			//		continue;
-			//	img.GraphicsDraw(graph, new Point(cbgList[j].x, cbgList[j].y + window.MainPicBox.Height - img.DestBaseSize.Height));
+			//	img.GraphicsDraw(graph, new Point(cbgList[j].x, cbgList[j].y + window.RenderHeight - img.DestBaseSize.Height));
 			//	//Bitmap bmp = img.Bitmap;
 			//	//graph.DrawImage(bmp,
-			//	//	new Rectangle(cbgList[j].x + img.DestBasePosition.X, window.MainPicBox.Height - img.SrcRectangle.Height + cbgList[j].y + img.DestBasePosition.Y, img.SrcRectangle.Width, img.SrcRectangle.Height),
+			//	//	new Rectangle(cbgList[j].x + img.DestBasePosition.X, window.RenderHeight - img.SrcRectangle.Height + cbgList[j].y + img.DestBasePosition.Y, img.SrcRectangle.Width, img.SrcRectangle.Height),
 			//	//	img.SrcRectangle, GraphicsUnit.Pixel);
 			//}
 
@@ -2016,7 +2016,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		{
 			try
 			{
-				rikaichan.OnPaint(graph, stringMeasure, window.MainPicBox.Width);
+				rikaichan.OnPaint(graph, stringMeasure, window.RenderWidth);
 			}
 			catch
 			{
@@ -2541,10 +2541,10 @@ internal sealed partial class EmueraConsole : IDisposable
 		int bottomLineNo = window.ScrollBar.Value - 1;
 		if (displayLineList.Count - 1 < bottomLineNo)
 			bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
-		int topLineNo = bottomLineNo - (window.MainPicBox.Height / Config.LineHeight);
+		int topLineNo = bottomLineNo - (window.RenderHeight / Config.LineHeight);
 		if (topLineNo < 0)
 			topLineNo = 0;
-		int relPointY = pointY - window.MainPicBox.Height;
+		int relPointY = pointY - window.RenderHeight;
 		//下から上へ探索し発見次第打ち切り
 		#region EM_私家版_描画拡張
 		if (ConsoleEscapedParts.Changed || !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
@@ -2556,7 +2556,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		Array.Sort(edepth);
 		int eidx = 0;
 		bool zeroTested = false;
-		var bottomLineBase = window.MainPicBox.Height - Config.LineHeight;
+		var bottomLineBase = window.RenderHeight - Config.LineHeight;
 		while (eidx < edepth.Length)
 		{
 			var depth = edepth[eidx];
@@ -2590,7 +2590,7 @@ internal sealed partial class EmueraConsole : IDisposable
 								if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
 									&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
 								{
-									curLineY = window.MainPicBox.Height - Config.LineHeight * (bottomLineNo - i + 1);
+									curLineY = window.RenderHeight - Config.LineHeight * (bottomLineNo - i + 1);
 									if (!firstPointngSelected)
 										pointing = button;
 									if (button.IsButton)
@@ -2653,7 +2653,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	#endregion
 
 
-	//int posy_bottom2up = window.MainPicBox.Height - pointY;
+	//int posy_bottom2up = window.RenderHeight - pointY;
 	//int logNum = window.ScrollBar.Maximum - window.ScrollBar.Value;
 	////表示中の一番下の行番号
 	//int curBottomLineNo = displayLineList.Count - logNum;
