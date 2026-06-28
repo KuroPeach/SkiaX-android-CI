@@ -1,5 +1,18 @@
 # Emuera.Xamarin 变更记录
 
+## [0.68.0] - 2026-06-28
+
+### Fixed
+
+- **安卓端 GDRAWCIMG/GDRAWG 颜色矩阵导致图片渲染为黑白**
+  - 症状：eratw 背景图片（含 RGB 分离的颜色矩阵）在安卓端渲染为黑白图，WinForms 桌面端正常
+  - 根因：`GraphicsImage.GDrawCImg(ASprite, Rectangle, float[][])` 和 `GDrawG(GraphicsImage, Rectangle, Rectangle, float[][])` 中将 ERB 传入的二维颜色矩阵 `cm[i][j]` 展平为 SkiaSharp 所需的一维 20 元素数组时，矩阵维度和索引公式错误：
+    - 原代码按 `5×4` 矩阵遍历（`i<5, j<4`）配合 `i*4+j` 索引
+    - SkiaSharp 颜色矩阵实际为 `4×5`（RGBA 4 行 × RGBA+Offset 5 列），正确索引应为 `i*5+j`
+    - 错位导致 G/B/A 通道全部取到了红色通道值，图像丧失色彩变成黑白
+  - 修复：将两个方法的矩阵维度改为 `4×5`，索引公式改为 `i*5+j`
+  - 文件：`Emuera.Xamarin/Platform/Content/GraphicsImage.cs`
+
 ## [0.67.1] - 2026-06-22
 
 ### Fixed

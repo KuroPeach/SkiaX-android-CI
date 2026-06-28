@@ -213,10 +213,11 @@ namespace MinorShift.Emuera.Content
 
 		public void GDrawCImg(ASprite img, Rectangle destRect, float[][] cm)
 		{
+			// SkiaSharp color matrix is 4 rows (RGBA) × 5 columns (RGBA + Offset)
 			float[] flat = new float[20];
-			for (int i = 0; i < cm.Length && i < 5; i++)
-				for (int j = 0; j < cm[i].Length && j < 4; j++)
-					flat[i * 4 + j] = cm[i][j];
+			for (int i = 0; i < cm.Length && i < 4; i++)
+				for (int j = 0; j < cm[i].Length && j < 5; j++)
+					flat[i * 5 + j] = cm[i][j];
 			GDrawCImg(img, destRect, flat);
 		}
 
@@ -257,10 +258,11 @@ namespace MinorShift.Emuera.Content
 
 		public void GDrawG(GraphicsImage srcGra, Rectangle destRect, Rectangle srcRect, float[][] cm)
 		{
+			// SkiaSharp color matrix is 4 rows (RGBA) × 5 columns (RGBA + Offset)
 			float[] flat = new float[20];
-			for (int i = 0; i < cm.Length && i < 5; i++)
-				for (int j = 0; j < cm[i].Length && j < 4; j++)
-					flat[i * 4 + j] = cm[i][j];
+			for (int i = 0; i < cm.Length && i < 4; i++)
+				for (int j = 0; j < cm[i].Length && j < 5; j++)
+					flat[i * 5 + j] = cm[i][j];
 			GDrawG(srcGra, destRect, srcRect, flat);
 		}
 
