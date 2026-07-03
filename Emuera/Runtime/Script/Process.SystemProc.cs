@@ -113,6 +113,11 @@ internal sealed partial class Process
 	public bool flowinputForceSkip = false;
 	#endregion
 
+	#region 尊尼获加_SEQUENCEINPUT
+	public string sequenceInputValue = null;
+	public bool hasSequenceInput = false;
+	#endregion
+
 	void setWaitInput()
 	{
 		InputRequest req = new();

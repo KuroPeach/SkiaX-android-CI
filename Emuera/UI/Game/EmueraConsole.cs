@@ -694,8 +694,31 @@ internal sealed partial class EmueraConsole : IDisposable
 		state = ConsoleState.Running;
 	}
 
+	#region 尊尼获加_SEQUENCEINPUT
+	// 把 SEQUENCEINPUT 排队的整段字符串作为一次"用户按 Enter"提交，调用 PressEnterKey。
+	// PressEnterKey 内部会做 parseInput 宏展开、\n 拆分、\e MesSkip 等全部处理。
+	// for 循环会同步处理所有展开后的片段，每段喂入一个 ERB WaitInput。
+	// 行为与 textbox 路径类似。
+	private void SimulatePressEnter(InputRequest req)
+	{
+		string raw = process.sequenceInputValue ?? "";
+		process.hasSequenceInput = false;
+		process.sequenceInputValue = null;
+		inputReq = req;
+		state = ConsoleState.WaitInput;
+		PressEnterKey(false, raw, false);
+	}
+	#endregion
+
 	public void WaitInput(InputRequest req)
 	{
+		#region 尊尼获加_SEQUENCEINPUT
+		if (process.hasSequenceInput)
+		{
+			SimulatePressEnter(req);
+			return;
+		}
+		#endregion
 		#region EE_AnchorのCB機能移植
 		if (Config.CBUseClipboard)
 			CBProc.Check(ClipboardProcessor.CBTriggers.InputWait);
@@ -753,6 +776,13 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public void WaitInputNoFocus(InputRequest req)
 	{
+		#region 尊尼获加_SEQUENCEINPUT
+		if (process.hasSequenceInput)
+		{
+			SimulatePressEnter(req);
+			return;
+		}
+		#endregion
 		if (Config.CBUseClipboard)
 			CBProc.Check(ClipboardProcessor.CBTriggers.InputWait);
 		// 尊尼获加：NF 上滚状态管理

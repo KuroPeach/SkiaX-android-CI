@@ -377,6 +377,10 @@ internal static partial class FunctionMethodCreator
 
 			#endregion
 
+			#region 尊尼获加_SEQUENCEINPUT
+			["SEQUENCEINPUT"] = new SequenceInputMethod(),
+			#endregion
+
 			#region daughter-patch追加
 			["GETMETH"] = new GetMethMethod(),
 			["GETMETHF"] = new GetMethFMethod(),

@@ -9685,6 +9685,24 @@ internal static partial class FunctionMethodCreator
 	}
 	#endregion
 
+	#region 尊尼获加_SEQUENCEINPUT
+	private sealed class SequenceInputMethod : FunctionMethod
+	{
+		public SequenceInputMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArray = [EraType.String];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			exm.Process.sequenceInputValue = arguments[0].GetStrValue(exm);
+			exm.Process.hasSequenceInput = true;
+			return 0;
+		}
+	}
+	#endregion
+
 	#region daughter-patch追加
 	private sealed class GetMethMethod : FunctionMethod
 	{

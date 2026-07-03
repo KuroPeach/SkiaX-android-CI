@@ -536,6 +536,7 @@ internal static partial class LexicalAnalyzer
 							case 'S': buffer.Append('　'); break;
 							case 't': buffer.Append('\t'); break;
 							case 'n': buffer.Append('\n'); break;
+							case 'e': buffer.Append('\\'); buffer.Append('e'); break;// 尊尼获加_SEQUENCEINPUT: \e 保留为 2 字符，让 SEQUENCEINPUT 路径能识别为 MesSkip
 							default: buffer.Append(st.Current); break;
 						}
 						st.ShiftNext();//\の次の文字を読み飛ばす
