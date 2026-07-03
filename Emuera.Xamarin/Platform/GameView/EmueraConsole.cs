@@ -614,11 +614,34 @@ namespace MinorShift.Emuera.GameView
 			}
 
 			state = ConsoleState.Running;
-		}
+	}
 
-		public void WaitInput(InputRequest req)
+	#region 尊尼获加_SEQUENCEINPUT
+	// 把 SEQUENCEINPUT 排队的整段字符串作为一次"用户按 Enter"提交，调用 PressEnterKey。
+	// PressEnterKey 内部会做 parseInput 宏展开、\n 拆分、\e MesSkip 等全部处理。
+	// for 循环会同步处理所有展开后的片段，每段喂入一个 ERB WaitInput。
+	// 行为与 textbox 路径类似。
+	private void SimulatePressEnter(InputRequest req)
+	{
+		string raw = emuera.sequenceInputValue ?? "";
+		emuera.hasSequenceInput = false;
+		emuera.sequenceInputValue = null;
+		inputReq = req;
+		state = ConsoleState.WaitInput;
+		PressEnterKey(false, raw, false);
+	}
+	#endregion
+
+	public void WaitInput(InputRequest req)
+	{
+		#region 尊尼获加_SEQUENCEINPUT
+		if (emuera.hasSequenceInput)
 		{
-			// 进入普通 WaitInput 时清除 NF 上滚状态
+			SimulatePressEnter(req);
+			return;
+		}
+		#endregion
+		// 进入普通 WaitInput 时清除 NF 上滚状态
 			nfUserScrolledBack = false;
 			nfScrollOffsetFromBottom = 0;
 			state = ConsoleState.WaitInput;
@@ -653,8 +676,15 @@ namespace MinorShift.Emuera.GameView
 		}
 
 		public void WaitInputNoFocus(InputRequest req)
+	{
+		#region 尊尼获加_SEQUENCEINPUT
+		if (emuera.hasSequenceInput)
 		{
-			// NF 上滚状态管理
+			SimulatePressEnter(req);
+			return;
+		}
+		#endregion
+		// NF 上滚状态管理
 			// 只有从上一个 WaitInputNoFocus 继承的 nfBack 才保留（动态地图循环场景）
 			// 如果是从其他状态（Running/WaitInput）进入，清除 nfBack（demo 退出场景）
 			if (nfUserScrolledBack)
