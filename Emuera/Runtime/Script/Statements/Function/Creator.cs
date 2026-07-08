@@ -377,10 +377,6 @@ internal static partial class FunctionMethodCreator
 
 			#endregion
 
-			#region 尊尼获加_SEQUENCEINPUT
-			["SEQUENCEINPUT"] = new SequenceInputMethod(),
-			#endregion
-
 			#region daughter-patch追加
 			["GETMETH"] = new GetMethMethod(),
 			["GETMETHF"] = new GetMethFMethod(),
@@ -442,6 +438,13 @@ internal static partial class FunctionMethodCreator
 			["GETPLATFORM"] = new GetPlatformMethod(),
 
 			#endregion
+
+			#region Dominare追加
+			["SEQUENCEINPUT"] = new SequenceInputMethod(),
+			["DISABLE_INPUT_MACRO"] = new DisableInputMacroMethod(),
+			["ENABLE_INPUT_MACRO"] = new EnableInputMacroMethod(),
+			#endregion
+
 		};
 
 

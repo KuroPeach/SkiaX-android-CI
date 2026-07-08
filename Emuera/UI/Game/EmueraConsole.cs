@@ -1446,7 +1446,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		try
 		{
 			string[] text;
-			if (changedByMouse)//1823 マウスによって入力されたならマクロ解析を行わない
+			if (changedByMouse || !process.inputMacroEnabled)//EE_SEQUENCEINPUT: inputMacroEnabled=false 时按字面整段喂入，不解析宏也不按 \n 拆分
 			{ text = [input]; }
 			else
 			{
@@ -1462,58 +1462,67 @@ internal sealed partial class EmueraConsole : IDisposable
 						(inputReq.InputType == InputType.AnyKey || inputReq.InputType == InputType.EnterKey))
 					stopTimer();
 				//if((inputReq.InputType == InputType.IntValue || inputReq.InputType == InputType.StrValue)
-				if (input.Contains('(', StringComparison.Ordinal))
+				if (input.Contains('(', StringComparison.Ordinal) && process.inputMacroEnabled)
 					input = parseInput(new CharStream(input), false);
 				text = input.Split(spliter, StringSplitOptions.None);
 			}
 
 			inProcess = true;
-			for (int i = 0; i < text.Length; i++)
+			//EE_SEQUENCEINPUT: inputMacroEnabled=false 时整段 1 段喂入，不解析宏、不按 \n 拆分、不处理 \e MesSkip
+			if (!process.inputMacroEnabled)
 			{
-				string inputs = text[i];
-				if (inputs.Contains("\\e", StringComparison.Ordinal))
-				{
-					inputs = inputs.Replace("\\e", "", StringComparison.Ordinal);//\eの除去
-					MesSkip = true;
-				}
-
-				if (inputReq.OneInput && (!Config.AllowLongInputByMouse || !changedByMouse) && inputs.Length > 1)
-					inputs = inputs.Remove(1);
-				//1819 TODO:入力無効系（強制待ちTWAIT）でスキップとマクロを止めるかそのままか
-				//現在はそのまま。強制待ち中はスキップの開始もできないのにスキップ中なら飛ばせる。
-				if (inputReq.InputType == InputType.Void)
-				{
-					i--;
-					inputs = "";
-				}
-				RunEmueraProgram(inputs);
+				RunEmueraProgram(input);
 				RefreshStrings(false);
-				while (MesSkip && IsWaitInputState)
+			}
+			else
+			{
+				for (int i = 0; i < text.Length; i++)
 				{
-					//TODO:入力無効を通していいか？スキップ停止をマクロでは飛ばせていいのか？
-					if (inputReq.NeedValue)
-						break;
-					if (inputReq.StopMesskip)
-						break;
-					RunEmueraProgram("");
+					string inputs = text[i];
+					if (inputs.Contains("\\e", StringComparison.Ordinal))
+					{
+						inputs = inputs.Replace("\\e", "", StringComparison.Ordinal);//\eの除去
+						MesSkip = true;
+					}
+
+					if (inputReq.OneInput && (!Config.AllowLongInputByMouse || !changedByMouse) && inputs.Length > 1)
+						inputs = inputs.Remove(1);
+					//1819 TODO:入力無効系（強制待ちTWAIT）でスキップとマクロを止めるかそのままか
+					//現在はそのまま。強制待ち中はスキップの開始もできないのにスキップ中なら飛ばせる。
+					if (inputReq.InputType == InputType.Void)
+					{
+						i--;
+						inputs = "";
+					}
+					RunEmueraProgram(inputs);
 					RefreshStrings(false);
-					//EscがマクロストップかつEscがスキップ開始だからEscでスキップを止められても即開始しちゃったりするからあんまり意味ないよね
-					//if (KillMacro)
-					//	goto endMacro;
-				}
-				MesSkip = false;
-				if (!IsWaitInputState)
-					break;
-				//マクロループ時は待ち処理が起こらないのでここでシステムキューを捌く
-				PlatformInterop.DoEvents();
+					while (MesSkip && IsWaitInputState)
+					{
+						//TODO:入力無効を通していいか？スキップ停止をマクロでは飛ばせていいのか？
+						if (inputReq.NeedValue)
+							break;
+						if (inputReq.StopMesskip)
+							break;
+						RunEmueraProgram("");
+						RefreshStrings(false);
+						//EscがマクロストップかつEscがスキップ開始だからEscでスキップを止められても即開始しちゃったりするからあんまり意味ないよね
+						//if (KillMacro)
+						//	goto endMacro;
+					}
+					MesSkip = false;
+					if (!IsWaitInputState)
+						break;
+					//マクロループ時は待ち処理が起こらないのでここでシステムキューを捌く
+					PlatformInterop.DoEvents();
 #if DEBUG
-				if (!IsWaitInputState || inputReq == null)
-					throw new ExeEE("");
+					if (!IsWaitInputState || inputReq == null)
+						throw new ExeEE("");
 #endif
-				if (KillMacro)
-				{
-					endMacro();
-					return;
+					if (KillMacro)
+					{
+						endMacro();
+						return;
+					}
 				}
 			}
 		}

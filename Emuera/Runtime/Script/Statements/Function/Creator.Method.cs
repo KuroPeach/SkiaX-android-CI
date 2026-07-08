@@ -9701,6 +9701,38 @@ internal static partial class FunctionMethodCreator
 			return 0;
 		}
 	}
+	// 关闭所有输入（textbox + SEQUENCEINPUT）的宏解析。
+	// 关闭后，PressEnterKey 不再调 parseInput，输入按字面多段（按真换行 \n 拆分）喂入。
+	// ( ) 重复宏和 \e MesSkip 都不再被处理。
+	private sealed class DisableInputMacroMethod : FunctionMethod
+	{
+		public DisableInputMacroMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArray = [];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			exm.Process.inputMacroEnabled = false;
+			return 0;
+		}
+	}
+	// 恢复宏解析（默认行为，与原版 PressEnterKey 一致）。
+	private sealed class EnableInputMacroMethod : FunctionMethod
+	{
+		public EnableInputMacroMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArray = [];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			exm.Process.inputMacroEnabled = true;
+			return 0;
+		}
+	}
 	#endregion
 
 	#region daughter-patch追加

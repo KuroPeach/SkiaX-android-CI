@@ -116,6 +116,9 @@ internal sealed partial class Process
 	#region 尊尼获加_SEQUENCEINPUT
 	public string sequenceInputValue = null;
 	public bool hasSequenceInput = false;
+	// 全局开关：控制所有输入（textbox + SEQUENCEINPUT）是否调用 parseInput 解析宏。
+	// 默认 true（与原版 PressEnterKey 行为一致）。可通过 DISABLE_INPUT_MACRO / ENABLE_INPUT_MACRO 动态控制。
+	public bool inputMacroEnabled = true;
 	#endregion
 
 	void setWaitInput()

@@ -4,6 +4,24 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [10.1.0] — 输入宏开关
+
+### Added
+
+- **DISABLE_INPUT_MACRO 函数**：关闭所有输入（textbox + SEQUENCEINPUT）的宏解析
+  - 调用后，输入按字面整段喂入，不再解析 `(...)` 重复宏
+  - 不再按 `\n` 拆分输入，也不再处理 `\e` MesSkip
+  - 返回值始终为 `0`
+- **ENABLE_INPUT_MACRO 函数**：恢复输入宏解析（默认行为）
+  - 与原版 PressEnterKey 行为一致
+  - 返回值始终为 `0`
+
+### Changed
+
+- **版本签名**：`Skiav10` → `Skiav10.1`（`1824+v24+EMv18+EEv56+Skiav10.1`）
+
+***
+
 ## [10.0.0] — SEQUENCEINPUT 函数
 
 ### Added
