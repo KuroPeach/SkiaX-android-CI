@@ -1124,28 +1124,36 @@ namespace MinorShift.Emuera.GameView
 			try
 			{
 				string[] text;
-				if(changedByMouse)//1823 マウスによって入力されたならマクロ解析を行わない
-				{ text = new string[] { str }; }
-				else
+			if(changedByMouse || !emuera.inputMacroEnabled)//EE_SEQUENCEINPUT: inputMacroEnabled=false 时按字面整段喂入，不解析宏也不按 \n 拆分
+			{ text = new string[] { str }; }
+			else
+			{
+				if (str.StartsWith("@") && !inputReq.OneInput)
 				{
-					if (str.StartsWith("@") && !inputReq.OneInput)
-					{
-						doSystemCommand(str);
-						return;
-					}
-					if (inputReq.InputType == InputType.Void)
-						return;
-					if (timer.Enabled &&
-						(inputReq.InputType == InputType.AnyKey || inputReq.InputType == InputType.EnterKey))
-						stopTimer();
-					//if((inputReq.InputType == InputType.IntValue || inputReq.InputType == InputType.StrValue)
-					if (str.Contains("("))
-						str = parseInput(new StringStream(str), false);
-					text = str.Split(spliter, StringSplitOptions.None);
+					doSystemCommand(str);
+					return;
 				}
-				
-				inProcess = true;
-				for (int i = 0; i < text.Length; i++)
+				if (inputReq.InputType == InputType.Void)
+					return;
+				if (timer.Enabled &&
+					(inputReq.InputType == InputType.AnyKey || inputReq.InputType == InputType.EnterKey))
+					stopTimer();
+				//if((inputReq.InputType == InputType.IntValue || inputReq.InputType == InputType.StrValue)
+				if (str.Contains("(") && emuera.inputMacroEnabled)
+					str = parseInput(new StringStream(str), false);
+				text = str.Split(spliter, StringSplitOptions.None);
+			}
+			
+			inProcess = true;
+			//EE_SEQUENCEINPUT: inputMacroEnabled=false 时整段 1 段喂入，不解析宏、不按 \n 拆分、不处理 \e MesSkip
+			if (!emuera.inputMacroEnabled)
+			{
+				callEmueraProgram(str);
+				RefreshStrings(false);
+			}
+			else
+			{
+			for (int i = 0; i < text.Length; i++)
 				{
 					string inputs = text[i];
 					if (inputs.IndexOf("\\e") >= 0)
@@ -1190,16 +1198,17 @@ namespace MinorShift.Emuera.GameView
 						throw new ExeEE("");
 #endif
 					if (KillMacro)
-						goto endMacro;
+					goto endMacro;
 				}
 			}
-			finally
-			{
-				inProcess = false;
+		}
+		finally
+		{
+			inProcess = false;
 
-				RefreshQuickButton();
-			}
-			endMacro:
+			RefreshQuickButton();
+		}
+		endMacro:
 			if(IsWaitInputState && inputReq.NeedValue)
 			{
 				Point point = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());

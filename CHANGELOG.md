@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - 调用后，输入按字面整段喂入，不再解析 `(...)` 重复宏
   - 不再按 `\n` 拆分输入，也不再处理 `\e` MesSkip
   - 返回值始终为 `0`
+  - Desktop 端实现于 `Emuera/UI/Game/EmueraConsole.cs`；SkiaX Xamarin 端实现于 `Emuera.Xamarin/Platform/GameView/EmueraConsole.cs`
 - **ENABLE_INPUT_MACRO 函数**：恢复输入宏解析（默认行为）
   - 与原版 PressEnterKey 行为一致
   - 返回值始终为 `0`
@@ -32,7 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - 字符串中的 `\e` 会被识别为 MesSkip（跳过等待），因为在 FORM 字符串解析中 `\e` 保留为 2 字符（`\` + `e`），让 SEQUENCEINPUT 路径能正确识别
   - 返回值始终为 `0`
   - 同时作用于 `WaitInput` 和 `WaitInputNoFocus`（NF 后缀指令）
-  - Desktop 端实现于 `EmueraConsole.cs`；SkiaX Xamarin 端需单独移植
+  - Desktop 端实现于 `Emuera/UI/Game/EmueraConsole.cs`；SkiaX Xamarin 端实现于 `Emuera.Xamarin/Platform/GameView/EmueraConsole.cs`
 
 ***
 
