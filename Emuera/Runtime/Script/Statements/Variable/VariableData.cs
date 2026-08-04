@@ -1557,6 +1557,106 @@ internal sealed partial class VariableData : IDisposable
 		}
 		return true;
 	}
+
+	/// <summary>
+	/// 诊断用：返回变量数据的内存统计
+	/// </summary>
+	public (long totalArrayBytes, long totalElements, int charCount, int userDefinedCount) GetDiagnosticStats()
+	{
+		long totalElements = 0;
+		long totalBytes = 0;
+
+		// Integer 1D arrays (sparse)
+		foreach (var sa in dataIntegerArray)
+		{
+			if (sa != null)
+			{
+				totalElements += sa.Length;
+				totalBytes += sa.Length * 8L;
+			}
+		}
+
+		// String 1D arrays
+		if (dataString != null)
+		{
+			totalElements += dataString.Length;
+			totalBytes += dataString.Length * 8L;
+		}
+		foreach (var sa in dataStringArray)
+		{
+			if (sa != null)
+			{
+				totalElements += sa.Length;
+				totalBytes += sa.Length * 8L;
+			}
+		}
+
+		// Integer 2D arrays (DENSE)
+		foreach (var arr in dataIntegerArray2D)
+		{
+			if (arr != null)
+			{
+				long elems = (long)arr.GetLength(0) * arr.GetLength(1);
+				totalElements += elems;
+				totalBytes += elems * 8L;
+			}
+		}
+
+		// String 2D arrays
+		foreach (var arr in dataStringArray2D)
+		{
+			if (arr != null)
+			{
+				long elems = (long)arr.GetLength(0) * arr.GetLength(1);
+				totalElements += elems;
+				totalBytes += elems * 8L;
+			}
+		}
+
+		// Integer 3D arrays
+		foreach (var arr in dataIntegerArray3D)
+		{
+			if (arr != null)
+			{
+				long elems = (long)arr.GetLength(0) * arr.GetLength(1) * arr.GetLength(2);
+				totalElements += elems;
+				totalBytes += elems * 8L;
+			}
+		}
+
+		// String 3D arrays
+		foreach (var arr in dataStringArray3D)
+		{
+			if (arr != null)
+			{
+				long elems = (long)arr.GetLength(0) * arr.GetLength(1) * arr.GetLength(2);
+				totalElements += elems;
+				totalBytes += elems * 8L;
+			}
+		}
+
+		// Character data
+		int charCount = characterList?.Count ?? 0;
+		foreach (var cd in characterList)
+		{
+			var (bytes, elems) = cd.GetDiagnosticStats();
+			totalBytes += bytes;
+			totalElements += elems;
+		}
+
+		// User-defined variables count
+		int userDefCount = 0;
+		if (userDefinedStaticVarList != null) userDefCount += userDefinedStaticVarList.Count;
+		if (userDefinedGlobalVarList != null) userDefCount += userDefinedGlobalVarList.Count;
+		foreach (var list in userDefinedSaveVarList)
+			if (list != null) userDefCount += list.Count;
+		foreach (var list in userDefinedGlobalSaveVarList)
+			if (list != null) userDefCount += list.Count;
+		if (UserDefinedCharaVarList != null) userDefCount += UserDefinedCharaVarList.Count;
+
+		return (totalBytes, totalElements, charCount, userDefCount);
+	}
+
 	#region IDisposable メンバ
 
 	public void Dispose()

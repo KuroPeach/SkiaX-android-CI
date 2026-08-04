@@ -15,7 +15,8 @@
         <AnalysisMode>Minimum</AnalysisMode>
 
         <TieredCompilation>false</TieredCompilation>
-        <ServerGarbageCollection>true</ServerGarbageCollection>
+        <!-- 内存诊断实验：ServerGC → WorkstationGC（A/B 验证内存占用与 GC 行为） -->
+        <ServerGarbageCollection>false</ServerGarbageCollection>
 
     </PropertyGroup>
 
@@ -25,7 +26,7 @@
         <RootNamespace>MinorShift.Emuera</RootNamespace>
         <ApplicationManifest>emuera.manifest</ApplicationManifest>
         <Version>1.824</Version>
-        <InformationalVersion>1824+v24+EMv18+EEv56+Skiav10.1</InformationalVersion>
+        <InformationalVersion>1824+v24+EMv18+EEv56+Skiav11</InformationalVersion>
         <Copyright>Copyright (C) 2008- MinorShift, 妊）|дﾟ)の中の人</Copyright>
     </PropertyGroup>
 

@@ -33,6 +33,55 @@ internal sealed class LabelDictionary
 	public int Count { get { return count; } }
 
 	/// <summary>
+	/// 诊断用：返回标签字典的详细统计
+	/// </summary>
+	public (int totalLabels, int eventLabels, int nonEventLabels, int loadedFiles, long statementLines, int jumpTables, long estBytes, int privateVarCount) GetDiagnosticStats()
+	{
+		int eventCount = 0;
+		foreach (var kvp in eventLabelDic)
+			foreach (var list in kvp.Value)
+				eventCount += list.Count;
+
+		// 遍历编译后的语句链表，统计实际语句行数 / SELECTCASE 跳转表 / 私有变量
+		long statementLines = 0;
+		int jumpTables = 0;
+		int privateVarCount = 0;
+		var visited = new HashSet<LogicalLine>();
+
+		foreach (var labelList in labelAtDic.Values)
+		{
+			foreach (var label in labelList)
+			{
+				privateVarCount += label.PrivateVarCount;
+				var line = label.NextLine;
+				while (line != null && !visited.Add(line))
+					line = line.NextLine;
+				// 从标签的下一条语句开始沿链遍历到文件末尾或下一个标签
+				while (line != null)
+				{
+					visited.Add(line);
+					if (line is InstructionLine instr)
+					{
+						statementLines++;
+						if (instr.SelectCaseJumpTable != null)
+							jumpTables++;
+					}
+					// 遇到下一个函数标签或文件末端（NullLine）即停止
+					if (line is FunctionLabelLine || line is NullLine)
+						break;
+					line = line.NextLine;
+				}
+			}
+		}
+
+		// 估算：语句行对象（含 Argument 表达式树）平均约 250 字节
+		long estBytes = statementLines * 250L
+			+ (long)count * 200L          // FunctionLabelLine 对象
+			+ (long)privateVarCount * 120L; // 私有变量 token
+		return (count, eventCount, noneventLabelDic.Count, loadedFileSet.Count, statementLines, jumpTables, estBytes, privateVarCount);
+	}
+
+	/// <summary>
 	/// これがfalseである間は式中関数は呼べない
 	/// （つまり関数宣言の初期値として式中関数は使えない）
 	/// </summary>

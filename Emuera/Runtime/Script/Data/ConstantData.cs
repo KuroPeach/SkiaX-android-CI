@@ -77,6 +77,20 @@ internal sealed class ConstantData
 
 
 	public int[] MaxDataList = new int[countNameCsv];
+	/// <summary>
+	/// 诊断用：返回 CSV 数据统计
+	/// </summary>
+	public (int[] maxDataList, int characterCount, long totalArrayElements) GetDiagnosticStats()
+	{
+		int charCount = CharacterTmplList?.Count ?? 0;
+		long totalElements = 0;
+		foreach (var size in MaxDataList)
+			totalElements += size;
+		// 加上 ItemPrice 数组
+		if (ItemPrice != null)
+			totalElements += ItemPrice.Length;
+		return (MaxDataList, charCount, totalElements);
+	}
 	readonly HashSet<VariableCode> changedCode = [];
 
 	public int[] VariableIntArrayLength;

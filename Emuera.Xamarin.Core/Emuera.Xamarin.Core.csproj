@@ -85,6 +85,8 @@
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.NAudio.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\NAudio_LoopStream.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\SoundTouch_byMarkHeath\**" />
+    <!-- 内存诊断：Desktop 专用（引用 UI.FontFactory/AppContents/Program.ExeDir，Xamarin 端无这些类型） -->
+    <Compile Remove="..\Emuera\Runtime\Utils\MemoryDiagnostic.cs" />
   </ItemGroup>
 
   <!-- LazyLoading 主项目入口（平台特定） -->

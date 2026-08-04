@@ -421,4 +421,22 @@ static class AppContents
 	}
 
 	private static ConcurrentDictionary<string, ASprite> activeSprites = new(Config.StrComper);
+
+	public static (int activeSprites, int graphicsImages, int tempConstImages, int tempGraphicsImages, int metaRowCount) GetDiagnosticStats()
+	{
+		int tc, tg;
+		lock (tempLoadedConstImages)
+			tc = tempLoadedConstImages.Count;
+		lock (tempLoadedGraphicsImages)
+			tg = tempLoadedGraphicsImages.Count;
+		int metaRows = 0;
+		try
+		{
+			using var cmd = metaDb.CreateCommand();
+			cmd.CommandText = "SELECT COUNT(*) FROM SpriteMeta";
+			metaRows = Convert.ToInt32(cmd.ExecuteScalar());
+		}
+		catch { }
+		return (activeSprites.Count, gList.Count, tc, tg, metaRows);
+	}
 }

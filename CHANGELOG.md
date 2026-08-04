@@ -4,6 +4,35 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [11.0.0] — GC 配置回退 + 内存诊断门控
+
+### Changed — GC 配置回退
+
+- **ServerGC → WorkstationGC**：回退 [3.0.0] 上游同步（commit `4432ee9d`）引入的 `<ServerGarbageCollection>true</ServerGarbageCollection>`
+  - 桌面 GUI 程序（单窗口、单线程交互）适合 WorkstationGC：内存占用低、及时归还 OS
+  - 文字游戏对 GC 单次回收暂停不敏感，WorkstationGC 的回收更频繁但更短
+
+### Added — 内存诊断工具（门控）
+
+- **MemoryDiagnostic 工具门控化**：新增配置项 `MemoryDiagnosticEnabled`（默认 `false`），关闭时引擎不输出 `memory_diagnostic.log`
+  - 该工具为临时诊断用途：关闭引擎时将内存快照（进程内存 / GC 堆细分 / 编译后脚本 / VariableData / FontFactory 缓存 / SQLite 连接等）写入游戏主目录
+  - 日后需要诊断内存问题时，在 `emuera.config` 中添加 `MEMORYDIAGNOSTICLOG:YES` 即可开启
+
+### Added — 诊断段落扩展
+
+- **GC 堆细分**：`GC.GetGCMemoryInfo()` 的 HeapSizeBytes / FragmentedBytes / Gen0-2 堆大小 / LOH 大小
+- **线程统计**：线程总数及 Running / Wait 状态分布
+- **FontFactory 缓存**：fontDic / fallbackTypefaceCache / fallbackTypefaceCodepointCache / gdiFontDic 条目数
+- **显示行缓存**：displayLineList 当前行数 / MaxLog
+
+### SkiaX Xamarin 端说明
+
+- **内存诊断不适用于 Xamarin 端**：MemoryDiagnostic.cs 引用桌面独有类型（UI.FontFactory / AppContents / Program.ExeDir），在 `Emuera.Xamarin.Core.csproj` 和 `Emuera.Xamarin.csproj` 中排除编译（Android/Xamarin 均不生成诊断日志）
+- **ServerGC 回退仅影响 Desktop**：Android 端 `<ServerGarbageCollection>` 属性保留（Mono/ART 运行时不受该属性控制，移动端内存模型不同）
+- **Android 版本**：`0.68.2` → `0.69.0`（versionCode 68 → 69，对应内核 Skiav11）
+
+***
+
 ## [10.1.0] — 输入宏开关
 
 ### Added

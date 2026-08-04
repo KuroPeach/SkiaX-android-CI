@@ -178,6 +178,9 @@ internal sealed class ConfigData
 		configArray.Add(new ConfigItem<int>(ConfigCode.CBScrollCount, "スクロールの行数", "Clipboard- Scrolled Lines per Key", 5));
 		configArray.Add(new ConfigItem<int>(ConfigCode.CBMinTimer, "クリップボードの更新間隔(ミリ秒)", "Clipboard- min time between pastes", 800));
 		#endregion
+		#region LL_内存诊断
+		configArray.Add(new ConfigItem<bool>(ConfigCode.MemoryDiagnosticEnabled, "MemoryDiagnosticLog", "MemoryDiagnosticLog", false));
+		#endregion
 		#region EmuEra-Rikaichan related settings
 		configArray.Add(new ConfigItem<bool>(ConfigCode.RikaiEnabled, "Rikaichanを使用する", "Rikai- Enabled", false));
 		configArray.Add(new ConfigItem<string>(ConfigCode.RikaiFilename, "Rikaichanのファイルパス", "Rikai- Dictionary Filename", "Emuera-Rikai-edict.txt-eucjp"));

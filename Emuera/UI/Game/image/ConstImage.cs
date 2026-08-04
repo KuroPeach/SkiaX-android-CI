@@ -106,6 +106,11 @@ public static class SharedBitmapCache
 		}
 	}
 
+	public static int Count
+	{
+		get { lock (cacheLock) { return cache.Count; } }
+	}
+
 	public static void Clear()
 	{
 		lock (cacheLock)

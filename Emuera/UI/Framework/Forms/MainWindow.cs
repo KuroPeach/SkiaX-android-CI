@@ -1397,6 +1397,10 @@ namespace MinorShift.Emuera.Forms
 				//ほっとしても勝手に閉じるが、その場合はDebugDialogのClosingイベントが発生しない
 				if (Program.DebugMode && (console.DebugDialog != null) && console.DebugDialog.Created)
 					console.DebugDialog.Close();
+
+				// 临时内存诊断：关闭引擎前写入内存快照到游戏主目录（console.Dispose 前调用）
+				MemoryDiagnostic.WriteDiagnosticLog(console);
+
 				console.Dispose();
 				console = null;
 			}

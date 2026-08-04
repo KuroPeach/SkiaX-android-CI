@@ -311,6 +311,14 @@ internal class FunctionLabelLine : LogicalLine, IComparable<FunctionLabelLine>
 	}
 
 	/// <summary>
+	/// 诊断用：私有变量数量
+	/// </summary>
+	public int PrivateVarCount
+	{
+		get { return privateVar.Count; }
+	}
+
+	/// <summary>
 	/// 引数の値の確定後、引数の代入より前に呼ぶこと
 	/// </summary>
 	internal void ScopeIn()

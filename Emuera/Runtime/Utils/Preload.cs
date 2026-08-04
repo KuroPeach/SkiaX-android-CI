@@ -128,4 +128,23 @@ static partial class Preload
     {
         files.Clear();
     }
+
+    /// <summary>
+    /// 诊断用：返回 Preload 缓存统计
+    /// </summary>
+    public static (int fileCount, long totalChars, int csvCount, int erbCount, int erhCount) GetDiagnosticStats()
+    {
+        int csv = 0, erb = 0, erh = 0;
+        long totalChars = 0;
+        foreach (var kvp in files)
+        {
+            totalChars += kvp.Value.Sum(line => line?.Length ?? 0);
+            var ext = Path.GetExtension(kvp.Key);
+            if (ext.Equals(".csv", StringComparison.OrdinalIgnoreCase)) csv++;
+            else if (ext.Equals(".erb", StringComparison.OrdinalIgnoreCase)) erb++;
+            else if (ext.Equals(".erh", StringComparison.OrdinalIgnoreCase)) erh++;
+        }
+        // 每行 string 对象开销约 20+ 字节，加上数组引用，估算总内存 ≈ totalChars * 2 + 行数 * 40
+        return (files.Count, totalChars, csv, erb, erh);
+    }
 }

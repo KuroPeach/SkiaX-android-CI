@@ -1004,6 +1004,120 @@ internal sealed class CharacterData : IDisposable
 				array[i, j] = value;
 	}
 
+	/// <summary>
+	/// 诊断用：返回该角色数据的内存统计
+	/// </summary>
+	public (long totalBytes, long totalElements) GetDiagnosticStats()
+	{
+		long totalBytes = 0;
+		long totalElements = 0;
+
+		// 1D arrays
+		if (dataInteger != null)
+		{
+			totalElements += dataInteger.Length;
+			totalBytes += dataInteger.Length * 8L;
+		}
+		if (dataString != null)
+		{
+			totalElements += dataString.Length;
+			totalBytes += dataString.Length * 8L;
+		}
+		if (dataFloat != null)
+		{
+			totalElements += dataFloat.Length;
+			totalBytes += dataFloat.Length * 8L;
+		}
+
+		// Sparse 1D arrays (count capacity)
+		foreach (var sa in dataIntegerArray)
+		{
+			if (sa != null)
+			{
+				totalElements += sa.Length;
+				totalBytes += sa.Length * 8L;
+			}
+		}
+		foreach (var sa in dataStringArray)
+		{
+			if (sa != null)
+			{
+				totalElements += sa.Length;
+				totalBytes += sa.Length * 8L;
+			}
+		}
+		foreach (var sa in dataFloatArray)
+		{
+			if (sa != null)
+			{
+				totalElements += sa.Length;
+				totalBytes += sa.Length * 8L;
+			}
+		}
+
+		// DENSE 2D arrays
+		foreach (var arr in dataIntegerArray2D)
+		{
+			if (arr != null)
+			{
+				long elems = (long)arr.GetLength(0) * arr.GetLength(1);
+				totalElements += elems;
+				totalBytes += elems * 8L;
+			}
+		}
+		foreach (var arr in dataStringArray2D)
+		{
+			if (arr != null)
+			{
+				long elems = (long)arr.GetLength(0) * arr.GetLength(1);
+				totalElements += elems;
+				totalBytes += elems * 8L;
+			}
+		}
+		foreach (var arr in dataFloatArray2D)
+		{
+			if (arr != null)
+			{
+				long elems = (long)arr.GetLength(0) * arr.GetLength(1);
+				totalElements += elems;
+				totalBytes += elems * 8L;
+			}
+		}
+
+		// User-defined variables
+		if (UserDefCVarDataList != null)
+		{
+			foreach (var obj in UserDefCVarDataList)
+			{
+				if (obj is Array arr)
+				{
+					long elems = 1;
+					for (int d = 0; d < arr.Rank; d++)
+						elems *= arr.GetLength(d);
+					totalElements += elems;
+					totalBytes += elems * 8L;
+				}
+				else if (obj is SparseArray<long> sal)
+				{
+					totalElements += sal.Length;
+					totalBytes += sal.Length * 8L;
+				}
+				else if (obj is SparseArray<string> sas)
+				{
+					totalElements += sas.Length;
+					totalBytes += sas.Length * 8L;
+				}
+				else if (obj is SparseArray<double> sad)
+				{
+					totalElements += sad.Length;
+					totalBytes += sad.Length * 8L;
+				}
+			}
+		}
+
+		return (totalBytes, totalElements);
+	}
+
 	#region IDisposable メンバ
 
 	public void Dispose()

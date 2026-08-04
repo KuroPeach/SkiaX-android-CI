@@ -38,6 +38,15 @@ internal static class FontFactory
 		return rasterFontNames.Contains(fontName);
 	}
 
+	/// <summary>
+	/// 诊断用：返回 FontFactory 各缓存字典的条目数
+	/// </summary>
+	internal static (int fontCount, int fallbackCount, int fallbackCpCount, int gdiCount) GetDiagnosticStats()
+	{
+		lock (fontDic)
+			return (fontDic.Count, fallbackTypefaceCache.Count, fallbackTypefaceCodepointCache.Count, gdiFontDic.Count);
+	}
+
 	public static Font GetGdiFont(string requestFontName, FontStyle style, float fontSize)
 	{
 		string fn = requestFontName;

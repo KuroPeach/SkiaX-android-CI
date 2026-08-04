@@ -255,4 +255,8 @@ internal enum ConfigCode
 	LongPressSkip,
 	LongPressSkipTime,
 	#endregion
+
+	#region LL_内存诊断
+	MemoryDiagnosticEnabled,
+	#endregion
 }

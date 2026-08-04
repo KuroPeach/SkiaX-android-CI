@@ -610,6 +610,11 @@ internal sealed class AnimSpriteCache
 		}
 	}
 
+	public static int Count
+	{
+		get { lock (lockObj) { return lruOrder.Count; } }
+	}
+
 	public static void Evict(string filepath)
 	{
 		lock (lockObj)
