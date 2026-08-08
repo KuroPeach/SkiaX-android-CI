@@ -2108,33 +2108,40 @@ internal sealed partial class EmueraConsole : IDisposable
 				else
 				{
 				System.Threading.SynchronizationContext context = System.Threading.SynchronizationContext.Current;
-				Task.Run(async () =>
+				if (context != null)
 				{
-					ConsoleButtonString savedPointingString = pointingString;
-					if (window.ToolTip.InitialDelay != 0)
-						await Task.Delay(window.ToolTip.InitialDelay);
-					context.Post((state) =>
+					Task.Run(async () =>
 					{
-						MoveMouse(GetMousePosition());
-						if (lastPointingString == savedPointingString)
+						ConsoleButtonString savedPointingString = pointingString;
+						if (window.ToolTip.InitialDelay != 0)
+							await Task.Delay(window.ToolTip.InitialDelay);
+						context.Post((state) =>
 						{
-							Point mousePos = window.MainPicBox.PointToClient(Control.MousePosition);
-							Point p = new Point(mousePos.X + 2, mousePos.Y + Cursor.Current.Size.Height / 2);
-							Point absoluteP = Cursor.Position;
-							Size screen = Screen.FromPoint(mousePos).WorkingArea.Size;
-							if (absoluteP.Y + tooltip_size.Height > screen.Height)
-								p.Y -= Cursor.Current.Size.Height * 2;
-							if (p.Y < 0)
-								p.Y = 0;
-							if (p.Y + tooltip_size.Height > screen.Height)
-								tooltip_size = new Size(tooltip_size.Width, screen.Height - p.Y);
-							if (tooltip_duration == 0)
-								window.ToolTip.Show(title, window.MainPicBox, p);
-							else
-								window.ToolTip.Show(title, window.MainPicBox, p, tooltip_duration);
-						}
-					}, null);
-				});
+							if (window == null || window.IsDisposed || window.MainPicBox == null || window.MainPicBox.IsDisposed)
+								return;
+
+							MoveMouse(GetMousePosition());
+							if (lastPointingString == savedPointingString)
+							{
+								Point mousePos = window.MainPicBox.PointToClient(Control.MousePosition);
+								int cursorHeight = Cursor.Current != null ? Cursor.Current.Size.Height : 32;
+								Point p = new Point(mousePos.X + 2, mousePos.Y + cursorHeight / 2);
+								Point absoluteP = Cursor.Position;
+								Size screen = Screen.FromPoint(absoluteP).WorkingArea.Size;
+								if (absoluteP.Y + tooltip_size.Height > screen.Height)
+									p.Y -= cursorHeight * 2;
+								if (p.Y < 0)
+									p.Y = 0;
+								if (p.Y + tooltip_size.Height > screen.Height)
+									tooltip_size = new Size(tooltip_size.Width, screen.Height - p.Y);
+								if (tooltip_duration == 0)
+									window.ToolTip.Show(title, window.MainPicBox, p);
+								else
+									window.ToolTip.Show(title, window.MainPicBox, p, tooltip_duration);
+							}
+						}, null);
+					});
+				}
 				}
 				tooltipUsed = true;
 			}

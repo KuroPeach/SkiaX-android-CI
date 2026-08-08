@@ -1,5 +1,17 @@
 # Emuera.Xamarin 变更记录
 
+## [0.70.0] - 2026-08-08
+
+### Fixed
+
+- **安卓端 ToolTip 异步回调空引用崩溃（同步内核 Skiav11.1 修复）**
+  - 症状：`EmueraConsole` OnPaint ToolTip 块 `context.Post` 回调在窗口销毁/控件重建间隙访问已释放控件，触发 `NullReferenceException`
+  - 根因：`Task.Delay(InitialDelay)` 延迟期间窗口生命周期变化，回调内直接访问 `window.MainPicBox`/`window.ToolTip` 未判空；`SynchronizationContext.Current` 为 null 时 `context.Post` 直接崩溃
+  - 修复：`Emuera.Xamarin/Platform/GameView/EmueraConsole.cs` ToolTip 块增加 `context` 判空 + `window.MainPicBox` 生命周期检查，异常状态直接放弃 ToolTip 显示
+- **Android 版本**：`0.69.0` → `0.70.0`（versionCode 69 → 70，对应内核 Skiav11.1）
+
+***
+
 ## [0.68.0] - 2026-06-28
 
 ### Fixed

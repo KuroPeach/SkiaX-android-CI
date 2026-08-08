@@ -1748,20 +1748,26 @@ namespace MinorShift.Emuera.GameView
 						else
 						{
 							System.Threading.SynchronizationContext context = System.Threading.SynchronizationContext.Current;
-							System.Threading.Tasks.Task.Run(async () =>
+							if (context != null)
 							{
-								ConsoleButtonString savedPointingString = pointingString;
-								await System.Threading.Tasks.Task.Delay(window.ToolTip.InitialDelay);
-								context.Post((state) =>
+								System.Threading.Tasks.Task.Run(async () =>
 								{
-									MoveMouse(GetMousePosition());
-									if (lastPointingString == savedPointingString)
+									ConsoleButtonString savedPointingString = pointingString;
+									await System.Threading.Tasks.Task.Delay(window.ToolTip.InitialDelay);
+									context.Post((state) =>
 									{
-										Point mousePos = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
-										window.ToolTip.Show(title, window.MainPicBox, new Point(mousePos.X, mousePos.Y + 18), tooltip_duration);
-									}
-								}, null);
-							});
+										// 防御：窗口销毁/控件重建间隙直接放弃 ToolTip
+										if (window == null || window.MainPicBox == null)
+											return;
+										MoveMouse(GetMousePosition());
+										if (lastPointingString == savedPointingString)
+										{
+											Point mousePos = window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
+											window.ToolTip.Show(title, window.MainPicBox, new Point(mousePos.X, mousePos.Y + 18), tooltip_duration);
+										}
+									}, null);
+								});
+							}
 						}
 					}
 					tooltipUsed = true;

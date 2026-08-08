@@ -4,6 +4,28 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [11.1.0] — ToolTip 异步回调 NRE 防御
+
+### Fixed — OnPaint ToolTip 异步回调空引用崩溃
+
+- **`context.Post` 回调空引用加固**（`EmueraConsole.cs` OnPaint ToolTip 块）：
+  - `SynchronizationContext.Current` 判空：`context` 为 `null` 时跳过 ToolTip 调度，避免 `context.Post` 空引用崩溃
+  - 窗口生命周期检查：回调内先检查 `window == null || window.IsDisposed || window.MainPicBox == null || window.MainPicBox.IsDisposed`，窗口销毁/控件重建间隙直接返回，放弃显示 ToolTip
+  - `Cursor.Current` 判空：鼠标移出窗口后 `Cursor.Current` 为 `null`，原代码直接访问 `Cursor.Current.Size.Height` 触发 `NullReferenceException`；改为安全获取，缺失时回退默认高度 32px
+  - **`Screen.FromPoint` 参数修正**：原代码传入 `mousePos`（窗口局部坐标），`Screen.FromPoint` 需要屏幕绝对坐标，改为传入 `absoluteP`（`Cursor.Position`），修正 ToolTip 在多显示器/缩放场景下的定位错误
+- **影响场景**：鼠标悬停 ToolTip 延迟显示期间（`Task.Delay(InitialDelay)`），若玩家移开鼠标、关闭窗口或触发画面重建，高概率触发该崩溃；宴会等多人同屏场景按钮密集，复现频繁
+
+### SkiaX Xamarin 端说明
+
+- **Xamarin 端同步防御**：`Emuera.Xamarin/Platform/GameView/EmueraConsole.cs` ToolTip 块同步加 `context` 判空 + `window.MainPicBox` 生命周期检查（移动端无 `Cursor.Current`/`Screen.FromPoint`，无对应项）
+- **Android 版本**：`0.69.0` → `0.70.0`（versionCode 69 → 70，对应内核 Skiav11.1）
+
+### Changed
+
+- **版本签名**：`Skiav11` → `Skiav11.1`（`1824+v24+EMv18+EEv56+Skiav11.1`）
+
+***
+
 ## [11.0.0] — GC 配置回退 + 内存诊断门控
 
 ### Changed — GC 配置回退
