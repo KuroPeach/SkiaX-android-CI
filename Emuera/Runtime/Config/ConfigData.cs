@@ -193,7 +193,7 @@ internal sealed class ConfigData
 
 		debugArray.Add(new ConfigItem<bool>(ConfigCode.DebugShowWindow, "起動時にデバッグウインドウを表示する", "Show debug window on startup", true));
 		debugArray.Add(new ConfigItem<bool>(ConfigCode.DebugWindowTopMost, "デバッグウインドウを最前面に表示する", "Debug window always on top", true));
-		debugArray.Add(new ConfigItem<int>(ConfigCode.DebugWindowWidth, "デバッグウィンドウ幅", "Debug window width", 400));
+		debugArray.Add(new ConfigItem<int>(ConfigCode.DebugWindowWidth, "デバッグウィンドウ幅", "Debug window width", 520));
 		debugArray.Add(new ConfigItem<int>(ConfigCode.DebugWindowHeight, "デバッグウィンドウ高さ", "Debug window height", 300));
 		debugArray.Add(new ConfigItem<bool>(ConfigCode.DebugSetWindowPos, "デバッグウィンドウ位置を指定する", "Fixed debug window starting position", false));
 		debugArray.Add(new ConfigItem<int>(ConfigCode.DebugWindowPosX, "デバッグウィンドウ位置X", "Debug window X position", 0));
@@ -317,7 +317,7 @@ internal sealed class ConfigData
 		i = 0;
 		debugArray[i++] = new ConfigItem<bool>(ConfigCode.DebugShowWindow, "起動時にデバッグウインドウを表示する", true);
 		debugArray[i++] = new ConfigItem<bool>(ConfigCode.DebugWindowTopMost, "デバッグウインドウを最前面に表示する", true);
-		debugArray[i++] = new ConfigItem<int>(ConfigCode.DebugWindowWidth, "デバッグウィンドウ幅", 400);
+		debugArray[i++] = new ConfigItem<int>(ConfigCode.DebugWindowWidth, "デバッグウィンドウ幅", 520);
 		debugArray[i++] = new ConfigItem<int>(ConfigCode.DebugWindowHeight, "デバッグウィンドウ高さ", 300);
 		debugArray[i++] = new ConfigItem<bool>(ConfigCode.DebugSetWindowPos, "デバッグウィンドウ位置を指定する", false);
 		debugArray[i++] = new ConfigItem<int>(ConfigCode.DebugWindowPosX, "デバッグウィンドウ位置X", 0);

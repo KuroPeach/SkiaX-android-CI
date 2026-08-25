@@ -1,6 +1,7 @@
 using MinorShift.Emuera.GameProc;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
@@ -19,7 +20,6 @@ namespace MinorShift.Emuera.Forms
 		public DebugDialog()
 		{
 			InitializeComponent();
-			listViewWatch.AfterLabelEdit += new LabelEditEventHandler(listViewWatch_AfterLabelEdit);
 
 			TopMost = Config.DebugWindowTopMost;
 			int width = Math.Max(MinimumSize.Width, Config.DebugWindowWidth);
@@ -30,8 +30,21 @@ namespace MinorShift.Emuera.Forms
 				StartPosition = FormStartPosition.Manual;
 				Location = new Point(Config.DebugWindowPosX, Config.DebugWindowPosY);
 			}
-			updateSize();
 			checkBoxTopMost.Checked = TopMost;
+			//锁定=持续赋值：CE 式周期重申（每200ms在安全时机写回锁定值）
+			//注意：本窗体 Designer 未初始化 components 容器，定时器不能挂到容器上，改为关闭时显式释放
+			holdTimer = new System.Windows.Forms.Timer { Interval = 200 };
+			holdTimer.Tick += holdTimer_Tick;
+			holdTimer.Start();
+			FormClosed += (s, e) =>
+			{
+				if (holdTimer != null)
+				{
+					holdTimer.Stop();
+					holdTimer.Dispose();
+					holdTimer = null;
+				}
+			};
 			loadWatchList();
 		}
 		private Process emuera;
@@ -56,6 +69,7 @@ namespace MinorShift.Emuera.Forms
 			設定ToolStripMenuItem1.Text = Lang.UI.DebugDialog.Setting.Config.Text;
 
 			tabPageWatch.Text = Lang.UI.DebugDialog.VariableWatch.Text;
+			columnHeaderLock.Text = Lang.UI.DebugDialog.VariableWatch.Lock.Text;
 			columnHeader1.Text = Lang.UI.DebugDialog.VariableWatch.Object.Text;
 			columnHeader3.Text = Lang.UI.DebugDialog.VariableWatch.Value.Text;
 
@@ -97,7 +111,6 @@ namespace MinorShift.Emuera.Forms
 		private void tabControlMain_Selected(object sender, TabControlEventArgs e)
 		{
 			UpdateData();
-			updateSize();
 		}
 
 		private void updateTrace()
@@ -127,24 +140,34 @@ namespace MinorShift.Emuera.Forms
 			try
 			{
 				for (int i = 0; i < listViewWatch.Items.Count - 1; i++)
-				{//無名のアイテムを削除
-					if (listViewWatch.Items[i].Text.Length == 0)
+				{//無名のアイテムを削除（編集中の行は対象外）
+					if ((listViewWatch.Items[i] != editingItem) && (listViewWatch.Items[i].SubItems[1].Text.Length == 0))
 					{
 						listViewWatch.Items.RemoveAt(i);
 						i--;
 					}
 				}
-				if ((listViewWatch.Items.Count == 0) || (!string.IsNullOrEmpty(listViewWatch.Items[^1].Text)))
+				if ((listViewWatch.Items.Count == 0) || ((listViewWatch.Items[^1] != editingItem) && (!string.IsNullOrEmpty(listViewWatch.Items[^1].SubItems[1].Text))))
 				{
 					ListViewItem newLVI = new("");
+					newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, ""));
 					newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, ""));
 					listViewWatch.Items.Add(newLVI);
 				}
 				foreach (ListViewItem lvi in listViewWatch.Items)
 				{
-					string expr = lvi.Text;
+					string expr = lvi.SubItems[1].Text;
+					if (string.IsNullOrEmpty(expr))
+						continue;
+					if (lvi.Checked)
+					{
+						//锁定=持续赋值：把值单元格中的冻结值写回变量（仅安全时机），防止其漂移
+						if (!mainConsole.IsInProcess && lvi.SubItems[2].Text.Length > 0)
+							TryHoldWrite(lvi);//失败→值单元格显示错误并自动解锁
+						continue;
+					}
 					string val = getValueString(expr);
-					lvi.SubItems[1].Text = val;
+					lvi.SubItems[2].Text = val;
 				}
 			}
 			finally
@@ -156,52 +179,324 @@ namespace MinorShift.Emuera.Forms
 		}
 		private string getValueString(string str)
 		{
+			TryEvalValue(str, out string val, out _);
+			return val ?? "";
+		}
+
+		//求值表达式：成功返回true；失败时 value=错误信息。isString=表达式类型为字符串
+		private bool TryEvalValue(string str, out string value, out bool isString)
+		{
+			value = null;
+			isString = false;
 			if ((emuera == null) || (GlobalStatic.EMediator == null))
-				return "";
+				return false;
 			if (string.IsNullOrEmpty(str))
-				return "";
+			{
+				value = "";
+				return false;
+			}
 			mainConsole.RunERBFromMemory = true;
 			try
 			{
 				CharStream st = new(str);
 				WordCollection wc = LexicalAnalyzer.Analyse(st, LexEndWith.EoL, LexAnalyzeFlag.None);
 				AExpression term = ExpressionParser.ReduceExpressionTerm(wc, TermEndWith.EoL);
-				SingleTerm value = term.GetValue(GlobalStatic.EMediator);
-				if (value == null)
-					return "<null>";
-				return value.ToString();
+				SingleTerm v = term.GetValue(GlobalStatic.EMediator);
+				if (v == null)
+				{
+					value = "<null>";
+					return false;
+				}
+				value = v.ToString();
+				isString = term.GetEraType() == EraType.String;
+				return true;
 			}
 			catch (CodeEE e)
 			{
-				return e.Message;
+				value = e.Message;
+				return false;
 			}
 			catch (Exception e)
 			{
-				return e.GetType().ToString() + ":" + e.Message;
+				value = e.GetType().ToString() + ":" + e.Message;
+				return false;
 			}
 			finally
 			{
 				mainConsole.RunERBFromMemory = false;
 			}
-
 		}
-		private void listViewWatch_AfterLabelEdit(object sender, LabelEditEventArgs e)
+
+		//锁定=持续赋值：把值单元格中的冻结值立即写回变量（与调试控制台同一执行管线）
+		//成功返回true；失败（不可赋值对象/只读变量等）→ 值单元格显示错误并自动解锁
+		private bool TryHoldWrite(ListViewItem item)
 		{
-			if (string.IsNullOrEmpty(e.Label))
-			{
-				//	if (e.Item != listViewWatch.Items.Count - 1)
-				//		listViewWatch.Items.RemoveAt(e.Item);
-			}
-			else
-			{
-				listViewWatch.Items[e.Item].SubItems[1].Text = getValueString(e.Label);
-				if (e.Item == listViewWatch.Items.Count - 1)
+			string expr = item.SubItems[1].Text;
+			if (string.IsNullOrEmpty(expr))
+				return false;
+			string held = item.SubItems[2].Text;
+			if (string.IsNullOrEmpty(held))
+			{//值格为空（如锁定后改过表达式）：重新捕获当前值后再写回
+				if (!EvalGuarded(expr, out string v))
 				{
-					ListViewItem newLVI = new("");
-					newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, ""));
-					listViewWatch.Items.Add(newLVI);
+					item.SubItems[2].Text = v;
+					item.Checked = false;
+					return false;
+				}
+				item.SubItems[2].Text = v;
+				held = v;
+			}
+			//字符串类型需要构造为字符串字面量（含引号时无法安全构造，按原样尝试）
+			TryEvalValue(expr, out _, out bool isString);
+			string rhs = held;
+			if (isString && rhs.IndexOf('"') < 0)
+				rhs = "\"" + rhs + "\"";
+			int before = mainConsole.DebugConsoleLog.Length;
+			mainConsole.DebugCommand(expr + " = " + rhs, false, true);
+			string tail = mainConsole.DebugConsoleLog.Substring(before).Trim();
+			if (tail.Length > 0)
+			{
+				item.SubItems[2].Text = tail;
+				item.Checked = false;//自动解锁，恢复实时刷新
+				return false;
+			}
+			return true;
+		}
+		private TextBox watchEditBox;
+		private ListViewItem editingItem;
+		private int editingSubIndex = 1;//1=对象(表达式) 2=值(赋值)
+		private System.Windows.Forms.Timer holdTimer;
+
+		private void BeginEditWatchItem(ListViewItem item, int subIndex)
+		{
+			if (item == null || subIndex < 1 || subIndex >= item.SubItems.Count)
+				return;
+			if (watchEditBox == null)
+			{
+				watchEditBox = new TextBox();
+				watchEditBox.BorderStyle = BorderStyle.FixedSingle;
+				watchEditBox.Visible = false;
+				watchEditBox.KeyDown += watchEditBox_KeyDown;
+				watchEditBox.LostFocus += watchEditBox_LostFocus;
+				Controls.Add(watchEditBox);//覆盖在listView上的窗体级编辑框
+			}
+			item.EnsureVisible();
+			Rectangle cell = item.SubItems[subIndex].Bounds;
+			if (cell.IsEmpty)
+				return;
+			Point p = listViewWatch.PointToScreen(cell.Location);
+			p = PointToClient(p);
+			watchEditBox.Font = listViewWatch.Font;
+			watchEditBox.SetBounds(p.X, p.Y, cell.Width, cell.Height);
+			watchEditBox.Text = item.SubItems[subIndex].Text;
+			editingSubIndex = subIndex;
+			editingItem = item;
+			watchEditBox.Visible = true;
+			watchEditBox.BringToFront();
+			watchEditBox.Focus();
+			watchEditBox.SelectAll();
+		}
+
+		private void watchEditBox_KeyDown(object sender, KeyEventArgs e)
+		{
+			if (e.KeyCode == Keys.Enter)
+			{
+				e.SuppressKeyPress = true;
+				EndEditWatchItem(true);
+			}
+			else if (e.KeyCode == Keys.Escape)
+			{
+				e.SuppressKeyPress = true;
+				EndEditWatchItem(false);
+			}
+		}
+
+		private void watchEditBox_LostFocus(object sender, EventArgs e)
+		{
+			if (editingItem != null)
+				EndEditWatchItem(true);
+		}
+
+		private void EndEditWatchItem(bool commit)
+		{
+			ListViewItem item = editingItem;
+			editingItem = null;
+			if (watchEditBox != null)
+				watchEditBox.Visible = false;
+			if (item == null || !commit)
+				return;
+			string label = watchEditBox.Text;
+			if (editingSubIndex == 2)
+			{//「值」单元格：赋值（与调试控制台同一执行管线，仅可赋值变量有效）
+				if (string.IsNullOrEmpty(label))
+					return;//空输入=取消
+				string expr = item.SubItems[1].Text;
+				if (string.IsNullOrEmpty(expr))
+					return;
+				if (mainConsole.IsInProcess)
+				{//与调试控制台一致：游戏执行中不执行赋值——给出可见反馈而非静默拒绝
+					item.SubItems[2].Text = Lang.UI.DebugDialog.CannotAssignWhileRunning.Text;
+					listViewWatch.Focus();
+					return;
+				}
+				int before = mainConsole.DebugConsoleLog.Length;
+				mainConsole.DebugCommand(expr + " = " + label, false, true);
+				string tail = mainConsole.DebugConsoleLog.Substring(before).Trim();
+				if (tail.Length > 0)
+					item.SubItems[2].Text = tail;//赋值失败：错误信息显示在值单元格
+				else
+					item.SubItems[2].Text = getValueString(expr);//成功：显示赋值后的实际值
+				listViewWatch.Focus();
+				return;
+			}
+			//「对象」单元格：表达式编辑
+			if (string.IsNullOrEmpty(label))
+			{//清空对象=删除该行（更新循环在实际刷新时移除空行，与原始行为一致）
+				item.SubItems[1].Text = "";
+				return;
+			}
+			item.SubItems[1].Text = label;
+			if (item.Checked)
+				item.SubItems[2].Text = "";//锁定行：表达式已变，旧冻结值作废，待解锁后刷新
+			else
+				item.SubItems[2].Text = getValueString(label);
+			if (item.Index == listViewWatch.Items.Count - 1)
+			{
+				ListViewItem newLVI = new("");
+				newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, ""));
+				newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, ""));
+				listViewWatch.Items.Add(newLVI);
+			}
+			listViewWatch.Focus();
+		}
+
+		private void listViewWatch_KeyUp(object sender, KeyEventArgs e)
+		{
+			//F2キーで名前の変更。
+			if (e.KeyCode == Keys.F2 && listViewWatch.FocusedItem != null)
+			{
+				BeginEditWatchItem(listViewWatch.FocusedItem, 1);
+			}
+		}
+
+		private void listViewWatch_MouseUp(object sender, MouseEventArgs e)
+		{
+			if (e.Button != MouseButtons.Left)
+				return;
+			ListViewItem item = listViewWatch.GetItemAt(e.X, e.Y);
+			if (item == null)
+				return;
+			item.Selected = true;
+			//单击「对象」=编辑表达式；单击「值」=赋值（Y 由 GetItemAt 保证在行上，按列 X 区间命中；锁定列勾选框除外）
+			for (int i = 1; i < item.SubItems.Count; i++)
+			{
+				Rectangle cell = item.SubItems[i].Bounds;
+				if (!cell.IsEmpty && e.X >= cell.Left && e.X < cell.Right)
+				{
+					BeginEditWatchItem(item, i);
+					return;
 				}
 			}
+		}
+
+		private void listViewWatch_MouseDoubleClick(object sender, MouseEventArgs e)
+		{
+			if (e.Button != MouseButtons.Left)
+				return;
+			ListViewItem item = listViewWatch.GetItemAt(e.X, e.Y);
+			if (item == null || item.SubItems.Count <= 1)
+				return;
+			for (int i = 1; i < item.SubItems.Count; i++)
+			{
+				Rectangle cell = item.SubItems[i].Bounds;
+				if (!cell.IsEmpty && e.X >= cell.Left && e.X < cell.Right)
+				{
+					BeginEditWatchItem(item, i);
+					return;
+				}
+			}
+		}
+
+		//带状态保护的求值（与刷新循环相同机制，任意时刻可安全调用）
+		private bool EvalGuarded(string expr, out string value)
+		{
+			GlobalStatic.Process.saveCurrentState(false);
+			try
+			{
+				return TryEvalValue(expr, out value, out _);
+			}
+			finally
+			{
+				GlobalStatic.Process.clearMethodStack();
+				GlobalStatic.Process.loadPrevState();
+			}
+		}
+
+		private void listViewWatch_ItemChecked(object sender, ItemCheckedEventArgs e)
+		{
+			ListViewItem item = e.Item;
+			if (!item.Checked)
+				return;
+			try
+			{
+				string expr = (item.SubItems.Count > 1) ? item.SubItems[1].Text : "";
+				if (string.IsNullOrEmpty(expr))
+				{//空行（模板行）不允许锁定
+					item.Checked = false;
+					return;
+				}
+				//勾选=锁定：先用与赋值相同的求值路径捕获当前值；可赋值对象立即落实一次写回，失败即报错并解锁
+				if (!EvalGuarded(expr, out string captured))
+				{//表达式本身求值出错：显示错误且不锁定（与赋值的错误显示一致）
+					item.SubItems[2].Text = captured;
+					item.Checked = false;
+					return;
+				}
+				item.SubItems[2].Text = captured;
+				RestartHoldTimer();
+				if (!mainConsole.IsInProcess)
+					TryHoldWrite(item);//写入失败时内部显示错误并自动解锁
+			}
+			catch (Exception ex)
+			{//崩溃加固：异常时显示错误并解除锁定，避免勾选框表现为"无反应"
+				item.SubItems[2].Text = ex.GetType().ToString() + ":" + ex.Message;
+				item.Checked = false;
+			}
+		}
+
+		//锁定=持续赋值：CE 式周期重申——每隔200ms在安全时机把锁定行的冻结值写回变量
+		private void holdTimer_Tick(object sender, EventArgs e)
+		{
+			try
+			{
+				if ((mainConsole == null) || mainConsole.IsInProcess)
+					return;
+				if ((watchEditBox != null) && watchEditBox.Visible)
+					return;//正在编辑单元格时不打扰
+				bool hasLocked = false;
+				foreach (ListViewItem lvi in listViewWatch.Items)
+				{
+					if (!lvi.Checked)
+						continue;
+					if (lvi.SubItems.Count < 3 || string.IsNullOrEmpty(lvi.SubItems[1].Text))
+						continue;
+					hasLocked = true;
+					TryHoldWrite(lvi);//失败→值单元格显示错误并自动解锁
+				}
+				if (!hasLocked)
+					holdTimer.Stop();//无锁定行时停止计时器（下次勾选时重启）
+			}
+			catch
+			{
+				holdTimer.Stop();//计时器出现异常时停止，避免弹窗刷屏
+			}
+		}
+
+		//勾选成功时重启周期重申计时器
+		private void RestartHoldTimer()
+		{
+			if ((holdTimer != null) && !holdTimer.Enabled)
+				holdTimer.Start();
 		}
 
 		private void checkBoxTopMost_CheckedChanged(object sender, EventArgs e)
@@ -280,8 +575,13 @@ namespace MinorShift.Emuera.Forms
 			{
 				writer = new StreamWriter(watchFilepath, false, Config.Encode);
 				foreach (ListViewItem lvi in listViewWatch.Items)
-					if (!string.IsNullOrEmpty(lvi.Text))
-						writer.WriteLine(lvi.Text);
+				{
+					string expr = lvi.SubItems[1].Text;
+					if (string.IsNullOrEmpty(expr))
+						continue;
+					//最原始格式：一行一个表达式（锁定状态是会话内状态，不持久化）
+					writer.WriteLine(expr);
+				}
 			}
 			catch
 			{
@@ -326,7 +626,9 @@ namespace MinorShift.Emuera.Forms
 			{
 				if (!string.IsNullOrEmpty(str))
 				{
-					ListViewItem newLVI = new(str);
+					//最原始格式：整行即表达式；锁定状态不持久化，加载后一律未锁定，随刷新自然求值
+					ListViewItem newLVI = new("");
+					newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, str));
 					newLVI.SubItems.Add(new ListViewItem.ListViewSubItem(newLVI, ""));
 					listViewWatch.Items.Add(newLVI);
 				}
@@ -339,52 +641,9 @@ namespace MinorShift.Emuera.Forms
 		}
 
 
-		private void updateSize()
-		{
-			if (WindowState == FormWindowState.Minimized)
-				return;
-
-			if (tabControlMain.SelectedTab == tabPageConsole)
-			{//タブ切り替え直後の時点ではtabPageConsole.Heightは更新されていないのでtabControlMain.Heightより推定するしかない
-			 //textBoxConsole.Height = tabPageConsole.Height - textBoxCommand.Height - 9;
-				textBoxConsole.Height = tabControlMain.Height - 26 - textBoxCommand.Height - 9;
-			}
-		}
-
-		private void DebugDialog_Resize(object sender, EventArgs e)
-		{
-			if (WindowState == FormWindowState.Minimized)
-				return;
-			//環境依存かもしれない。誰かに指摘されたら考えよう。
-			tabControlMain.Height = Size.Height - 103;
-			updateSize();
-
-		}
-
-		private void listViewWatch_KeyUp(object sender, KeyEventArgs e)
-		{
-			//F2キーで名前の変更。
-			if (e.KeyCode == Keys.F2 && listViewWatch.FocusedItem != null)
-			{
-				listViewWatch.FocusedItem.BeginEdit();
-			}
-		}
-
 		private void DebugDialog_FormClosing(object sender, FormClosingEventArgs e)
 		{
 			saveData();
-		}
-
-
-		private void listViewWatch_MouseUp(object sender, MouseEventArgs e)
-		{
-			ListViewItem item = listViewWatch.GetItemAt(e.X, e.Y);
-			if (item != null)
-			{
-				item.Selected = true;
-				item.BeginEdit();
-			}
-
 		}
 
 		private void button2_Click(object sender, EventArgs e)

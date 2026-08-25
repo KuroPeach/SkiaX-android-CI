@@ -4,6 +4,25 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [12.0.0] — 调试窗口：变量监视「锁定」与直接赋值
+
+### Added
+
+- **变量监视新增「锁定」列**：勾选后固定该变量的值，并每 200ms 在安全时机自动写回，防止其被脚本改动；表达式、函数、常量、只读变量等不可赋值对象无法锁定
+- **「值」单元格可直接赋值**：点击编辑并确认即可赋值，与调试控制台语义一致
+- 锁定状态为会话内状态，不持久化
+
+### Fixed
+
+- **调试窗口 UI 布局**：修复高 DPI 下底部按钮与面板重叠、按钮文字被裁切的问题
+
+### Changed
+
+- 变量监视改为「锁定 / 对象 / 值」三列布局，默认窗口宽度加大
+- **版本签名**：`Skiav11.2` → `Skiav12`（`1824+v24+EMv18+EEv56+Skiav12`）
+
+***
+
 ## [11.1.0] — ToolTip 异步回调 NRE 防御
 
 ### Fixed — OnPaint ToolTip 异步回调空引用崩溃

@@ -415,12 +415,14 @@ internal sealed partial class Lang
 				public static string Text { get { return trClass[typeof(VariableWatch)].Text; } }
 				[Managed] public static TranslatableString Object { get; } = new TranslatableString("対象");
 				[Managed] public static TranslatableString Value { get; } = new TranslatableString("値");
+				[Managed] public static TranslatableString Lock { get; } = new TranslatableString("ロック");
 			}
 			[Managed] public static TranslatableString StackTrace { get; } = new TranslatableString("スタックトレース");
 			[Managed] public static TranslatableString Console { get; } = new TranslatableString("コンソール");
 			[Managed] public static TranslatableString StayOnTop { get; } = new TranslatableString("最前面に表示");
 			[Managed] public static TranslatableString UpdateData { get; } = new TranslatableString("データ更新");
 			[Managed] public static TranslatableString Close { get; } = new TranslatableString("閉じる");
+			[Managed] public static TranslatableString CannotAssignWhileRunning { get; } = new TranslatableString("実行中は代入できません");
 		}
 	}
 

@@ -194,6 +194,7 @@ Settings apply only at start]]></tr>
     <tr id="UI.DebugDialog.StayOnTop"><![CDATA[Stay On Top]]></tr>
     <tr id="UI.DebugDialog.UpdateData"><![CDATA[Update data]]></tr>
     <tr id="UI.DebugDialog.Close"><![CDATA[Close]]></tr>
+    <tr id="UI.DebugDialog.CannotAssignWhileRunning"><![CDATA[Cannot assign while the game is running]]></tr>
     <tr id="UI.DebugDialog.File.SaveWatchList"><![CDATA[Save watch list]]></tr>
     <tr id="UI.DebugDialog.File.LoadWatchList"><![CDATA[Load watch list]]></tr>
     <tr id="UI.DebugDialog.Setting"><![CDATA[Settings(&C)]]></tr>
@@ -201,6 +202,7 @@ Settings apply only at start]]></tr>
     <tr id="UI.DebugDialog.VariableWatch"><![CDATA[Variable Watch]]></tr>
     <tr id="UI.DebugDialog.VariableWatch.Object"><![CDATA[Object]]></tr>
     <tr id="UI.DebugDialog.VariableWatch.Value"><![CDATA[Value]]></tr>
+    <tr id="UI.DebugDialog.VariableWatch.Lock"><![CDATA[Lock]]></tr>
     <tr id="Error.WarnPrefix"><![CDATA[Warn: {0} at line :{1}: {2}]]></tr>
     <tr id="Error.FuncPrefix"><![CDATA[{0} function: {1}]]></tr>
     <tr id="Error.NotExistColorSpecifier"><![CDATA[Value cannot be interpreted as Color specifier]]></tr>

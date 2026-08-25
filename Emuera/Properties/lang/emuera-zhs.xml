@@ -208,6 +208,7 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
     <tr id="UI.DebugDialog.StayOnTop"><![CDATA[总在最前面]]></tr>
     <tr id="UI.DebugDialog.UpdateData"><![CDATA[更新数据]]></tr>
     <tr id="UI.DebugDialog.Close"><![CDATA[关闭]]></tr>
+    <tr id="UI.DebugDialog.CannotAssignWhileRunning"><![CDATA[游戏执行中无法赋值]]></tr>
     <tr id="UI.DebugDialog.File.SaveWatchList"><![CDATA[保存监视列表]]></tr>
     <tr id="UI.DebugDialog.File.LoadWatchList"><![CDATA[读取监视列表]]></tr>
     <tr id="UI.DebugDialog.Setting"><![CDATA[选项(&C)]]></tr>
@@ -215,6 +216,7 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
     <tr id="UI.DebugDialog.VariableWatch"><![CDATA[变量监视]]></tr>
     <tr id="UI.DebugDialog.VariableWatch.Object"><![CDATA[对象]]></tr>
     <tr id="UI.DebugDialog.VariableWatch.Value"><![CDATA[值]]></tr>
+    <tr id="UI.DebugDialog.VariableWatch.Lock"><![CDATA[锁定]]></tr>
     <tr id="Error.WarnPrefix"><![CDATA[注意: {0}的第{1}行: {2}]]></tr>
 	<tr id="Error.FuncPrefix"><![CDATA[函数{0}: {1}]]></tr>
     <tr id="Error.NotExistColorSpecifier"><![CDATA[无法被解析为颜色名的值]]></tr>
