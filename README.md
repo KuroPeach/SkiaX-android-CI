@@ -1,6 +1,6 @@
 # Emuera-SKIA
 
-> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav9
+> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav12.1
 
 [![Base](https://img.shields.io/badge/base-Emuera%201.824%20%2B%20EEv56-blue)](#)
 [![Lang](https://img.shields.io/badge/lang-C%23%20%2F%20ERABASIC-green)](#)
@@ -11,7 +11,7 @@
 
 ## 新增功能
 
-> 完整函数与规格变更清单请参阅 [Emuera Skia 文档站](https://emuera-sk-doc-705c3d.gitgud.site/zh/Skia/Skia_Summary.html)。
+> 完整函数与规格变更清单请参阅 [Emuera Skia 文档站](https://qirchen421.github.io/emuera.sk.doc/zh/Skia/Skia_Summary.html)。
 
 | 类别 | 功能 |
 |:---|:---|
@@ -25,10 +25,11 @@
 | **动态调用** | `EVAL`/`EVALS` 表达式求值、`CALLSTR`/`JUMPSTR`/`TRYCALLSTR` 动态函数名调用、函数调用三层安全性修复 |
 | **像素制表** | `HTML_PRINTC`/`HTML_PRINTLC` 右/左对齐输出；`PRINTC`/`PRINTFORMC` 像素制表重构（跨平台 CJK 列对齐） |
 | **SQL 系统** | 参数化查询（`SQL_P_EXECUTE_*`）、XML 导入导出（`SQL_IMPORT_XML_CUSTOM`）、连接便利函数（`SQL_CONNECTION_OPEN`） |
-| **输入系统** | `TINPUTNF`/`TINPUTSNF`/`TONEINPUTNF`/`TONEINPUTSNF` 不强制回底、自由滚动、`HOVER_PAUSE` 悬停暂停、用户上滚意图保留 |
+| **输入系统** | `TINPUTNF`/`TINPUTSNF`/`TONEINPUTNF`/`TONEINPUTSNF` 不强制回底、自由滚动、`HOVER_PAUSE` 悬停暂停、用户上滚意图保留、`SEQUENCEINPUT` 输入排程、`DISABLE_INPUT_MACRO`/`ENABLE_INPUT_MACRO` 输入宏开关 |
 | **显示控制** | F11 全屏比例缩放、`GETDISPLAYLINE` 负数倒数索引（-1=最后一行）、`STRICT_FONT_FALLBACK` 严格字体回退、`TEXT_BGC_ON/OFF` 文本背景色 |
 | **错误处理** | `BEFORE_THROW`/`BEFORE_ERROR` 事件函数、`DisableBeforeErrorThrow` 配置项、8 条 Float 错误消息修正、调试窗口调用栈保留 |
-| **诊断工具** | 调试窗口 `LOCAL@FUNCNAME` 监视、当前函数栈保留、`ProcessState.ContextStackCount` 计数 |
+| **编码与存档** | 非日文编码（GBK 等）下 CJK 文本长度/子串计算修正（`GetStrlenLang`/`GetUFTIndex`/`GetSubStringLang`）；`CHKDATA` 返回存档版本信息 |
+| **诊断工具** | 调试窗口 `LOCAL@FUNCNAME` 监视、变量监视「锁定」列与直接赋值、当前函数栈保留、`ProcessState.ContextStackCount` 计数 |
 | **性能优化** | `SELECTCASE` 编译期跳转表（O(1) 查找）、SQL 图片缓存、SharedBitmapCache 池（max 200）、AnimSpriteCache LRU（max 6）、DIV 渲染 O(1) 命中测试 |
 | **跨平台** | SkiaX — LazyLoading 仓库内的 Xamarin.Android 移植端（`feature/xamarin` 分支），直接编译内核，详见 [Emuera.Xamarin/](Emuera.Xamarin/) |
 | **平台检测** | `GETPLATFORM()` 返回平台编码（0=Windows / 1=Android / 2=iOS / 3=macOS / 4=Linux / 5=Unknown） |
@@ -47,7 +48,7 @@
 
 | 文档 | 说明 |
 |:---|:---|
-| [Emuera Skia 文档站](https://emuera-sk-doc-705c3d.gitgud.site/zh/index.html) | 在线帮助手册（教程 + 指令参考 + 规格变更） |
+| [Emuera Skia 文档站](https://qirchen421.github.io/emuera.sk.doc/zh/index.html) | 在线帮助手册（教程 + 指令参考 + 规格变更） |
 | [CHANGELOG.md](CHANGELOG.md) | 版本更新日志（Release Notes） |
 | [Readme/画蛇又添足版自改emuera相关说明.txt](Readme/画蛇又添足版自改emuera相关说明.txt) | 原始开发日志（历史参考） |
 
@@ -79,4 +80,4 @@
 
 ---
 
-> 版本 V9.1.0
+> 版本 V12.1.0
