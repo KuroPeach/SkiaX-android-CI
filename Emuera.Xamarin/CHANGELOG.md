@@ -5,15 +5,17 @@
 ### Fixed
 
 - **安卓端 BINPUT/BINPUTS 按钮交互失效：点击不激活、无法映射画廊 QuickButton/虚拟手柄，只能靠输入框输入**
-  - 症状：BINPUT 等待期间屏幕上的整数/字符串按钮（`BUTTON`/`PRINTBUTTON` 渲染）触摸点击只高亮不激活；画廊 QuickButton 快捷按钮面板不显示对应按钮；虚拟手柄「确定/Enter」选中按钮后无响应；仅输入框/数字键盘能生效
-  - 根因：SkiaX 移植 EE_BINPUT（`InputType.IntButton/StrButton`）时遗漏三处支持：
+  - 症状：BINPUT 等待期间屏幕上的整数/字符串按钮（`BUTTON`/`PRINTBUTTON`/`[数字]` 自动按钮化渲染）触摸点击不生效；画廊 QuickButton 快捷按钮面板不显示对应按钮；虚拟手柄「确定/Enter」选中按钮后无响应；输入按钮值后等待无法结束
+  - 根因：SkiaX 移植 EE_BINPUT（`InputType.IntButton/StrButton`）时遗漏四处支持：
     1. `EmueraConsole.SelectedString` 无 `IntButton/StrButton` 分支 → 触摸释放路径 `MouseReleased` 与虚拟手柄 `ExecuteVirtualSelectedButton` 拿到 `null` → 点击无动作（LazyLoading 桌面版有 EE_BINPUT 分支，Windows 正常）
     2. `RefreshQuickButtonAsync` 输入类型白名单只有 `IntValue/StrValue` → BINPUT 期间画廊快捷按钮面板不收集任何按钮
     3. `CollectVisibleSelectionCandidates` 只遍历 `displayLineList` 行按钮，不遍历 `ConsoleEscapedParts` 的 `<div>` 子按钮 → div 布局菜单（COM_OPTION 弹窗等）无法被虚拟手柄候选收集
+    4. `EmueraConsole.doInputToEmueraProgram` 的 `switch` 缺 `IntButton/StrButton` 分支 → 喂入的按钮值走不到按钮匹配逻辑，被当作文本 `PRINT`，BINPUT 等待永不结束（桌面版有完整匹配循环）
   - 修复：
     1. `SelectedString` 补 `EE_BINPUT` 分支：`IntValue|IntButton && IsInteger → Input.ToString()`、`StrValue|StrButton → Inputs`（与 LazyLoading 桌面版对齐）
     2. `RefreshQuickButtonAsync` 输入类型白名单加入 `IntButton/StrButton`
     3. `CollectVisibleSelectionCandidates` 补充 div/escapedParts 子按钮遍历（坐标基准与 MoveMouse 一致：`topPointY + (baseLineNo - topLineNo) * LineHeight`）
+    4. `doInputToEmueraProgram` 补齐 `IntButton/StrButton` 分支（与桌面版一致：逆序扫描最新代按钮匹配 `Input`/`Inputs` 后 `InputInteger`/`InputString`，含 div 子按钮）
   - 文件：`Emuera.Xamarin/Platform/GameView/EmueraConsole.cs`、`Emuera.Xamarin/Platform/GameView/EmueraConsole.ex.cs`
 
 - **Android 版本**：`0.70.0` → `0.71.0`（versionCode 70 → 71，对应内核 Skiav12.1）

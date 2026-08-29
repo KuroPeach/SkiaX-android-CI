@@ -962,6 +962,55 @@ namespace MinorShift.Emuera.GameView
 						else
 							emuera.InputInteger(inputValue);
 						break;
+					#region EE_BINPUT
+					case InputType.IntButton:
+						if (string.IsNullOrEmpty(str) && inputReq.HasDefValue && !IsRunningTimer)
+						{
+							inputValue = inputReq.DefIntValue;
+							str = inputValue.ToString();
+						}
+						else if (!Int64.TryParse(str, out inputValue))
+							return false;
+						//与 LazyLoading 桌面版一致：输入值必须匹配屏幕上最新一代的整数按钮
+						foreach (ConsoleDisplayLine line in Enumerable.Reverse(displayLineList).ToList())
+						{
+							foreach (ConsoleButtonString button in line.Buttons)
+							{
+								if (button.IsInteger && button.Generation == lastButtonGeneration && button.Input == inputValue)
+								{
+									emuera.InputInteger(inputValue);
+									goto loopendint;
+								}
+								//後ろから回してるので世代が違うボタンに到達したらもう無い
+								else if (button.Generation != 0 && button.Generation != lastButtonGeneration)
+									goto loopepint;
+							}
+						}
+					loopepint:
+						foreach (var value in EscapedParts)
+						{
+							foreach (var part in value.Value)
+							{
+								if (part is ConsoleDivPart div)
+								{
+									foreach (ConsoleDisplayLine line in Enumerable.Reverse(div.Children).ToList())
+									{
+										foreach (ConsoleButtonString button in line.Buttons)
+										{
+											if (button.IsInteger && button.Input == inputValue)
+											{
+												emuera.InputInteger(inputValue);
+												goto loopendint;
+											}
+										}
+									}
+								}
+							}
+						}
+						return false;
+					loopendint:
+						break;
+					#endregion
 					case InputType.StrValue:
 						if (string.IsNullOrEmpty(str) && inputReq.HasDefValue && !IsRunningTimer)
 							str = inputReq.DefStrValue;
@@ -970,6 +1019,53 @@ namespace MinorShift.Emuera.GameView
 							str = "";
 						emuera.InputString(str);
 						break;
+					#region EE_BINPUT
+					case InputType.StrButton:
+						if (string.IsNullOrEmpty(str) && inputReq.HasDefValue && !IsRunningTimer)
+							str = inputReq.DefStrValue;
+						//空入力と時間切れ
+						if (str == null)
+							str = "";
+						//与 LazyLoading 桌面版一致：输入值必须匹配屏幕上最新代的按钮
+						foreach (ConsoleDisplayLine line in Enumerable.Reverse(displayLineList).ToList())
+						{
+							foreach (ConsoleButtonString button in line.Buttons)
+							{
+								if (button.Generation == lastButtonGeneration && (button.Input.ToString() == str || button.Inputs == str))
+								{
+									emuera.InputString(str);
+									goto loopendstr;
+								}
+								//後ろから回してるので世代が違うボタンに到達したらもう無い
+								else if (button.Generation != 0 && button.Generation != lastButtonGeneration)
+									goto loopepstr;
+							}
+						}
+					loopepstr:
+						foreach (var value in EscapedParts)
+						{
+							foreach (var part in value.Value)
+							{
+								if (part is ConsoleDivPart div)
+								{
+									foreach (ConsoleDisplayLine line in Enumerable.Reverse(div.Children).ToList())
+									{
+										foreach (ConsoleButtonString button in line.Buttons)
+										{
+											if ((button.IsInteger && button.Input.ToString() == str) || button.Inputs == str)
+											{
+												emuera.InputString(str);
+												goto loopendstr;
+											}
+										}
+									}
+								}
+							}
+						}
+						return false;
+					loopendstr:
+						break;
+					#endregion
                     #region EE_INPUTANY
                     case InputType.AnyValue:
 						if (Int64.TryParse(str, out inputValue))
