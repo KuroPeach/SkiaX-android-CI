@@ -16,7 +16,7 @@
     3. `CollectVisibleSelectionCandidates` 补充 div/escapedParts 子按钮遍历（坐标基准与 MoveMouse 一致：`topPointY + (baseLineNo - topLineNo) * LineHeight`）
   - 文件：`Emuera.Xamarin/Platform/GameView/EmueraConsole.cs`、`Emuera.Xamarin/Platform/GameView/EmueraConsole.ex.cs`
 
-- **Android 版本**：`0.70.0` → `0.71.0`（versionCode 70 → 71，对应内核 Skiav12）
+- **Android 版本**：`0.70.0` → `0.71.0`（versionCode 70 → 71，对应内核 Skiav12.1）
 
 ***
 
