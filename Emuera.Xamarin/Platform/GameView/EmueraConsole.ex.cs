@@ -50,7 +50,10 @@ namespace MinorShift.Emuera.GameView
 			if (state != ConsoleState.WaitInput)
 				return;
 
-			if (inputReq.InputType != Runtime.InputType.IntValue && inputReq.InputType != Runtime.InputType.StrValue)
+			//EE_BINPUT: BINPUT/BINPUTS(IntButton/StrButton) 等待时也要收集快捷按钮，
+			//否则 BINPUT 菜单按钮无法映射到画廊 QuickButton 面板
+			if (inputReq.InputType != Runtime.InputType.IntValue && inputReq.InputType != Runtime.InputType.StrValue
+				&& inputReq.InputType != Runtime.InputType.IntButton && inputReq.InputType != Runtime.InputType.StrButton)
 				return;
 
 			bool lockTaken = false;

@@ -392,11 +392,15 @@ namespace MinorShift.Emuera.GameView
 					return selectingButton.Inputs;
 				if (!IsWaitInputState)
 					return null;
-				if (inputReq.InputType == InputType.IntValue && (selectingButton.IsInteger))
+				#region EE_BINPUT
+				//BINPUT/BINPUTS(IntButton/StrButton) 等待时点击按钮必须能取到按钮值，
+				//否则点击只高亮不激活（与 LazyLoading 桌面版 SelectedString 对齐）
+				if ((inputReq.InputType == InputType.IntValue || inputReq.InputType == InputType.IntButton) && (selectingButton.IsInteger))
 					return selectingButton.Input.ToString();
-				if (inputReq.InputType == InputType.StrValue)
+				if (inputReq.InputType == InputType.StrValue || inputReq.InputType == InputType.StrButton)
 					return selectingButton.Inputs;
-                #region EE_INPUTANY
+                #endregion
+				#region EE_INPUTANY
                 if (inputReq.InputType == InputType.AnyValue && (selectingButton.IsInteger))
 					return selectingButton.Input.ToString();
 				if (inputReq.InputType == InputType.AnyValue)
@@ -2800,6 +2804,7 @@ namespace MinorShift.Emuera.GameView
 			if (topLineNo < 0)
 				topLineNo = 0;
 			pointY -= (bottomLineNo - topLineNo) * Config.LineHeight;
+			int topPointY = pointY;
 
 			for (int i = topLineNo; i <= bottomLineNo; i++)
 			{
@@ -2841,6 +2846,66 @@ namespace MinorShift.Emuera.GameView
 					});
 				}
 				pointY += Config.LineHeight;
+			}
+
+			// --- 补充：<div>/escapedParts 布局内的子按钮（BINPUT/HTML 菜单）---
+			// 原实现只遍历 displayLineList 行按钮（IsSelectableNavigationButton 收集不到 div 内按钮），
+			// 导致 div 布局菜单（如 eratw COM_OPTION 弹窗、BINPUT 菜单）无法被虚拟手柄/画廊映射选中
+			var escapedParts = EscapedParts;
+			if (ConsoleEscapedParts.Changed || !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
+				ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
+			if (escapedParts != null && escapedParts.Count > 0)
+			{
+				var correction = GetLineNo > Config.MaxLog ? GetLineNo - Config.MaxLog : 0;
+				foreach (var kvp in escapedParts)
+				{
+					foreach (var part in kvp.Value)
+					{
+						if (!(part is ConsoleDivPart div))
+							continue;
+						int baseLineNo = div.Parent?.ParentLine?.LineNo ?? 0;
+						if (correction > 0) baseLineNo -= correction;
+						int lineScreenY = topPointY + (baseLineNo - topLineNo) * Config.LineHeight;
+						foreach (ConsoleDisplayLine line in div.Children)
+						{
+							if (line == null) continue;
+							foreach (ConsoleButtonString button in line.Buttons)
+							{
+								if (button == null || !IsSelectableNavigationButton(button))
+									continue;
+								int minTop = int.MaxValue;
+								int maxBottom = int.MinValue;
+								if (button.StrArray != null)
+								{
+									foreach (AConsoleDisplayNode node in button.StrArray)
+									{
+										if (node == null) continue;
+										if (node.Top < minTop) minTop = node.Top;
+										if (node.Bottom > maxBottom) maxBottom = node.Bottom;
+									}
+								}
+								if (minTop == int.MaxValue || maxBottom == int.MinValue)
+								{
+									minTop = 0;
+									maxBottom = Config.FontSize;
+								}
+								candidates.Add(new VirtualSelectionCandidate
+								{
+									Button = button,
+									LineNo = baseLineNo,
+									Left = button.PointX,
+									Right = button.PointX + button.Width,
+									Top = lineScreenY + minTop,
+									Bottom = lineScreenY + maxBottom,
+									AnchorX = button.PointX,
+									AnchorY = lineScreenY + (minTop + maxBottom) / 2,
+									CenterX = button.PointX + button.Width / 2,
+									CenterY = lineScreenY + (minTop + maxBottom) / 2,
+								});
+							}
+						}
+					}
+				}
 			}
 			return candidates;
 		}
