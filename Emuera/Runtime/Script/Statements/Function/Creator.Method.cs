@@ -276,7 +276,18 @@ internal static partial class FunctionMethodCreator
 			var dir = Utils.GetValidPath(arguments[0].GetStrValue(exm));
 			if (dir == null) return -1;
 			dir = Path.Combine(Program.ExeDir, dir);
-			if (!Directory.Exists(dir)) return -1;
+			if (!Directory.Exists(dir))
+			{
+				// Android/Linux 文件系统大小写敏感：ERB 常用全大写目录名（如 "RESOURCES/..."），
+				// 而实际磁盘目录可能是 "resources/..."。按组件做大小写不敏感解析；
+				// Windows 大小写不敏感，通常不会走到这里。
+				dir = ResolveDirectoryIgnoreCase(dir);
+				if (dir == null)
+					// 目录确实不存在（如空目录被拷贝工具跳过）→ 视作"无匹配文件"返回 0。
+					// era 脚本普遍以 ENUMFILES 作"匹配文件数"使用（IF ENUMFILES/!ENUMFILES），
+					// 返回 -1 会被当真值走错分支；Windows 上游戏随包带目录所以不触发。
+					return 0;
+			}
 			var pattern = arguments.Count > 1 ? arguments[1].GetStrValue(exm) : "*";
 			var option = arguments.Count > 2
 				? (arguments[2].GetIntValue(exm) == 0 ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories)
@@ -295,7 +306,10 @@ internal static partial class FunctionMethodCreator
 			// Aligned with upstream ee+em a4d3665 + 1c495b5
 			for (int i = 0; i < files.Length; i++)
 			{
-				files[i] = Path.GetRelativePath(Program.ExeDir, files[i]);
+				// emcircle/Windows 惯例：ENUMFILES 结果统一用反斜杠连接。
+				// 桌面端 GetRelativePath 天然产生反斜杠；Android 端强制替换，
+				// 保证 ERB 脚本的 SPLIT "\\" + 路径前缀拼接写法跨平台一致（对齐上游 XEmuera）。
+				files[i] = Path.GetRelativePath(Program.ExeDir, files[i]).Replace('/', '\\');
 			}
 			int ret;
 			if (arguments.Count == 4)
@@ -322,6 +336,44 @@ internal static partial class FunctionMethodCreator
 					output[i] = files[i];
 			}
 			return ret;
+		}
+
+		/// <summary>
+		/// 组件级大小写不敏感目录解析。
+		/// Android/Linux 文件系统大小写敏感，ERB 里常见 "RESOURCES/..." 全大写写法，
+		/// 而磁盘上是 "resources/..."。逐段用 OrdinalIgnoreCase 匹配实际目录。
+		/// Windows 大小写不敏感，正常情况不会调用（Directory.Exists 已命中）。
+		/// </summary>
+		private static string ResolveDirectoryIgnoreCase(string path)
+		{
+			if (Directory.Exists(path)) return path;
+			string root = Path.GetPathRoot(path);
+			if (string.IsNullOrEmpty(root)) return null;
+			string[] parts = path.Substring(root.Length)
+				.Split([Path.DirectorySeparatorChar, '/'], StringSplitOptions.RemoveEmptyEntries);
+			string current = root;
+			foreach (string part in parts)
+			{
+				string next = Path.Combine(current, part);
+				if (Directory.Exists(next))
+				{
+					current = next;
+					continue;
+				}
+				string match = null;
+				try
+				{
+					match = Directory.GetDirectories(current)
+						.FirstOrDefault(d => string.Equals(Path.GetFileName(d), part, StringComparison.OrdinalIgnoreCase));
+				}
+				catch
+				{
+					return null;
+				}
+				if (match == null) return null;
+				current = match;
+			}
+			return current;
 		}
 	}
 	private sealed class GetVarMethod : FunctionMethod
@@ -7892,6 +7944,9 @@ internal static partial class FunctionMethodCreator
 					else
 						filepath = Program.ContentDir + filename;
 				}
+				// Android/Linux 下 ENUMFILES 结果按反斜杠惯例返回，可能被脚本直接拼进文件名，
+				// 统一把反斜杠归一化为平台分隔符再访问文件系统（Windows 上为无操作）。
+				filepath = filepath.Replace('\\', Path.DirectorySeparatorChar);
 				if (!File.Exists(filepath))
 					return 0;
 				#region EM_私家版_webp
@@ -8093,6 +8148,9 @@ internal static partial class FunctionMethodCreator
 					else
 						filepath = Program.ContentDir + filename;
 				}
+				// Android/Linux 下 ENUMFILES 结果按反斜杠惯例返回，可能被脚本直接拼进文件名，
+				// 统一把反斜杠归一化为平台分隔符再访问文件系统（Windows 上为无操作）。
+				filepath = filepath.Replace('\\', Path.DirectorySeparatorChar);
 				if (!File.Exists(filepath))
 					return 0;
 

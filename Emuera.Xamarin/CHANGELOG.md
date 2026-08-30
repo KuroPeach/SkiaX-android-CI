@@ -1,5 +1,18 @@
 # Emuera.Xamarin 变更记录
 
+## [0.72.0] - 2026-08-31
+
+### Fixed
+
+- **ENUMFILES 目录解析跨平台对齐（大小写敏感文件系统 + 目录缺失语义）**
+  - `EnumFilesMethod`：`Directory.Exists` 判存失败时，按组件级 `OrdinalIgnoreCase` 解析真实目录（新增 `ResolveDirectoryIgnoreCase`），适配 Android/Linux 大小写敏感文件系统；目录确实不存在时返回 **0**（"无匹配文件"）而非 **-1**，避免 -1 作为真值翻转脚本 `IF ENUMFILES(...)` / `!ENUMFILES(...)` 的分支选择
+  - `EnumFilesMethod`：结果统一 `.Replace('/', '\\')`，保持 emcircle/Windows 反斜杠路径惯例，兼容脚本 `SPLIT "\\"` + 目录前缀拼接写法（对齐上游 XEmuera）
+  - `GCREATEFROMFILE` / `SPRITECREATEFROMFILE`：访问文件系统前将文件名中的 `\` 归一化为平台分隔符，兼容脚本将 ENUMFILES 结果直接拼入文件路径的写法
+  - 文件：`Emuera/Runtime/Script/Statements/Function/Creator.Method.cs`
+- **Android 版本**：`0.71.0` → `0.72.0`（versionCode 71 → 72，对应内核 Skiav12.1）
+
+***
+
 ## [0.71.0] - 2026-08-29
 
 ### Fixed
