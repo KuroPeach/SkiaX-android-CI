@@ -1,5 +1,18 @@
 # Emuera.Xamarin 变更记录
 
+## [0.73.0] - 2026-09-03
+
+### Fixed
+
+- **画廊 QuickButton 面板未捕获 div 布局内的活跃按钮**
+  - 症状：BINPUT/BINPUTS 等待且按钮位于 `<div>` 布局内（COM_OPTION 弹窗、div 包裹菜单等）时，画廊快捷按钮面板不显示 div 内按钮；触摸点击与虚拟手柄均正常，仅画廊遗漏
+  - 根因：`RefreshQuickButtonAsync` 只遍历 `displayLineList` 行级按钮，未遍历 `ConsoleEscapedParts` 的 `<div>` 子按钮（0.71.0 修复 BINPUT 时只补了输入类型白名单 `IntButton/StrButton`，漏了 div 遍历；`CollectVisibleSelectionCandidates` 与 `doInputToEmueraProgram` 均已补）
+  - 修复：`RefreshQuickButtonAsync` 主循环后补充 div/escapedParts 子按钮遍历（`GetPartsInRange` → 遍历 `ConsoleDivPart.Children` 行按钮，过滤条件与行级一致，含 `Generation == lastButtonGeneration`），文本构建额外跳过 `ConsoleDivPart` 节点；每 div 子行一个横向 layout，row/column 计数与主循环一致
+  - 文件：`Emuera.Xamarin/Platform/GameView/EmueraConsole.ex.cs`
+- **Android 版本**：`0.72.0` → `0.73.0`（versionCode 72 → 73，对应内核 Skiav12.1）
+
+***
+
 ## [0.72.0] - 2026-08-31
 
 ### Fixed

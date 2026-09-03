@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using SkiaSharp.Views.Desktop;
 using Xamarin.Forms;
+using MinorShift.Emuera.Runtime.Utils.EvilMask;
 
 namespace MinorShift.Emuera.GameView
 {
@@ -140,7 +141,85 @@ namespace MinorShift.Emuera.GameView
 					column++;
 			}
 
-			
+			// --- 补充：<div>/escapedParts 布局内的子按钮（与 CollectVisibleSelectionCandidates 对齐）---
+			// 主循环只遍历 displayLineList 行级按钮，div 布局内的按钮（BINPUT 菜单、
+			// COM_OPTION 弹窗等）不挂在行级 Buttons 上，需从 ConsoleEscapedParts 单独收集
+			var escapedParts = EscapedParts;
+			if (ConsoleEscapedParts.Changed || !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
+				ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
+			if (escapedParts != null && escapedParts.Count > 0)
+			{
+				foreach (var kvp in escapedParts)
+				{
+					foreach (var part in kvp.Value)
+					{
+						if (!(part is ConsoleDivPart div))
+							continue;
+						foreach (ConsoleDisplayLine line in div.Children)
+						{
+							if (line == null) continue;
+
+							// 镜像主循环：每个 div 子行一个横向 layout，row/column 计数一致
+							row = 0;
+							layout = new StackLayout
+							{
+								Orientation = StackOrientation.Horizontal,
+								Spacing = Config.QuickButtonSpacing,
+								HorizontalOptions = LayoutOptions.Start,
+							};
+
+							foreach (ConsoleButtonString divButton in line.Buttons)
+							{
+								if (divButton == null || !divButton.IsButton)
+									continue;
+								if (divButton.StrArray == null || divButton.StrArray.Length == 0)
+									continue;
+								if (divButton.Generation != lastButtonGeneration)
+									continue;
+
+								coloredPart = divButton.StrArray[divButton.StrArray.Length - 1] as AConsoleColoredPart;
+								color = coloredPart?.Color ?? Config.ForeColor;
+
+								bgcolor = Math.Abs(color.R - 0x7f) <= 0x10 && Math.Abs(color.G - 0x7f) <= 0x10 && Math.Abs(color.B - 0x7f) <= 0x10
+									? Config.BackColor : color;
+
+								// Build display text, skipping shape/image/div nodes that produce HTML tags
+								var divSb = new StringBuilder();
+								foreach (var node in divButton.StrArray)
+								{
+									if (node is ConsoleShapePart || node is ConsoleImagePart || node is ConsoleDivPart)
+										continue;
+									if (node.Text != null)
+										divSb.Append(node.Text);
+								}
+								var divDisplayText = divSb.ToString().Trim();
+
+								quickButton = new Button
+								{
+									BindingContext = divButton.Inputs,
+									Text = divDisplayText,
+									TextColor = color.ToFormsColor(),
+									BackgroundColor = Color.FromArgb(0xc0, Color.FromArgb(bgcolor.ToArgb() ^ 0xffffff)).ToFormsColor(),
+									FontSize = Config.QuickButtonFontSize,
+									WidthRequest = Config.QuickButtonWidth,
+									HeightRequest = Config.QuickButtonHeight,
+									Padding = Config.QuickButtonPadding,
+								};
+								quickButton.Clicked += window.quickButton_Clicked;
+
+								if (quickButtonGroup.Children.Count - 1 < column)
+									quickButtonGroup.Children.Add(layout);
+
+								layout.Children.Add(quickButton);
+
+								row++;
+							}
+							if (row > 0)
+								column++;
+						}
+					}
+				}
+			}
 
 			quickButtonGroup.ResolveLayoutChanges();
 			window.RefreshQuickButtonGroup();
