@@ -2,6 +2,7 @@
 .vs/*
 .vscode/*
 .idea/*
+.trae/
 
 # Build output
 **/bin/*
