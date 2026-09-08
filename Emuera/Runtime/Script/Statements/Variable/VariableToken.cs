@@ -1412,6 +1412,9 @@ internal sealed partial class VariableData
 
 	private sealed class RandToken : PseudoVariableToken
 	{
+		// RAND 入口安全保护（Skiav12.2）：参数 <= 0 时不再抛 CodeEE 弹窗中断，
+		// 钳制为返回 0（区间 [0,n) 为空 → 下界），并仅警告一次避免刷屏
+		private static bool clampedWarned;
 		public RandToken(VariableCode varCode, VariableData varData)
 			: base(varCode, varData)
 		{
@@ -1420,7 +1423,14 @@ internal sealed partial class VariableData
 		{
 			long i = arguments[0];
 			if (i <= 0)
-				throw new CodeEE(string.Format(trerror.RandArgIsNegative.Text, i.ToString()));
+			{
+				if (!clampedWarned)
+				{
+					clampedWarned = true;
+					exm.Console.PrintError(string.Format(trerror.RandArgIsNegative.Text, i.ToString()) + "（已钳制为 0，不再中断运行）");
+				}
+				return 0L;
+			}
 			return exm.VEvaluator.GetNextRand(i);
 		}
 	}

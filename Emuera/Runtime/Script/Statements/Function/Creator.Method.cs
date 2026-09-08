@@ -3849,6 +3849,9 @@ internal static partial class FunctionMethodCreator
 	#region 数学関数
 	private sealed class RandMethod : FunctionMethod
 	{
+		// RAND(min,max) 入口安全保护（Skiav12.2）：max <= min 时不再抛 CodeEE 弹窗中断，
+		// 钳制为返回下界 min（空区间 → 下界），并仅警告一次避免刷屏
+		private static bool clampedWarned;
 		public RandMethod()
 		{
 			ReturnType = EraType.Integer;
@@ -3872,10 +3875,12 @@ internal static partial class FunctionMethodCreator
 			}
 			if (max <= min)
 			{
-				if (min == 0)
-					throw new CodeEE(string.Format(trerror.NegativeMaximum.Text, Name, max));
-				else
-					throw new CodeEE(string.Format(trerror.MaximumLowerThanMinimum.Text, Name, max));
+				if (!clampedWarned)
+				{
+					clampedWarned = true;
+					exm.Console.PrintError(string.Format(trerror.MaximumLowerThanMinimum.Text, Name, max) + "（已钳制为下界，不再中断运行）");
+				}
+				return min;
 			}
 			return exm.VEvaluator.GetNextRand(max - min) + min;
 		}
@@ -3894,10 +3899,12 @@ internal static partial class FunctionMethodCreator
 			}
 			if (max <= min)
 			{
-				if (min == 0.0)
-					throw new CodeEE(string.Format(trerror.NegativeMaximum.Text, Name, max));
-				else
-					throw new CodeEE(string.Format(trerror.MaximumLowerThanMinimum.Text, Name, max));
+				if (!clampedWarned)
+				{
+					clampedWarned = true;
+					exm.Console.PrintError(string.Format(trerror.MaximumLowerThanMinimum.Text, Name, max) + "（已钳制为下界，不再中断运行）");
+				}
+				return min;
 			}
 			return exm.VEvaluator.GetNextRandDouble() * (max - min) + min;
 		}
