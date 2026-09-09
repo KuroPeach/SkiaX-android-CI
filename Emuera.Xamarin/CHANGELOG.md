@@ -1,5 +1,18 @@
 # Emuera.Xamarin 变更记录
 
+## [0.74.0] - 2026-09-09
+
+### Changed
+
+- **同步桌面内核预设变量 ERD 扩展（Skiav13）**
+  - ERB 目录下与预设变量同名的 `.erd` 文件可扩展对应预设变量名表（CSV 优先，ERD 补空位；ITEM 支持第三列价格）
+  - 新增 `EXIST_IN_CSV` / `EXIST_IN_ERD` 来源探针（`EXIST_IN_CSV("ITEM", 6)`）
+  - 合并发现层使用大小写不敏感枚举 + 路径排序，适配 Android 大小写敏感文件系统
+  - 文件：`Emuera/Runtime/Script/Data/ConstantData.cs`、`Creator.Method.cs`、`Creator.cs`（内核共享，Xamarin 侧直接受益，无移植端改动）
+- **Android 版本**：`0.73.0` → `0.74.0`（versionCode 73 → 74，对应内核 Skiav13）
+
+***
+
 ## [0.73.0] - 2026-09-03
 
 ### Fixed
