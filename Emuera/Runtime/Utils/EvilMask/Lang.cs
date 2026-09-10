@@ -439,6 +439,9 @@ internal sealed partial class Lang
 		[Managed] public static TranslatableString TooManyCdflagElements { get; } = new TranslatableString("CDFLAGの要素数が多すぎます（CDFLAGNAME1とCDFLAGNAME2の要素数の積が100万を超えています）");
 		[Managed] public static TranslatableString DuplicateErdKey { get; } = new TranslatableString("変数\"{0}\"の置き換え名前\"{1}\"の定義が重複しています。（ファイル1 - {2}）（ファイル2 - {3}）");
 		[Managed] public static TranslatableString DuplicateVariableDefine { get; } = new TranslatableString("変数{0}の定義が重複しています。");
+		[Managed] public static TranslatableString PresetErdConflictWithCsv { get; } = new TranslatableString("プリセット変数ERDの拡張({0})で、インデックス{1}の名前がCSVと異なります(CSV=\"{2}\", ERD=\"{3}\");CSVを優先します");
+		[Managed] public static TranslatableString PresetErdPriceConflictWithCsv { get; } = new TranslatableString("プリセット変数ERDの拡張({0})で、インデックス{1}の価格がCSVと異なります(CSV={2}, ERD={3});CSVを優先します");
+		[Managed] public static TranslatableString PresetErdDuplicateName { get; } = new TranslatableString("プリセット変数ERDの拡張({0})で、インデックス{1}の名前\"{2}\"は既に他のスロットに存在します;スキップします");
 		[Managed] public static TranslatableString NotDefinedErdKey { get; } = new TranslatableString("変数\"{0}\"には\"{1}\"の定義がありません");
 		[Managed] public static TranslatableString KeywordsCannotBeEmpty { get; } = new TranslatableString("キーワードを空には出来ません");
 		[Managed] public static TranslatableString InvalidProhibitedVar { get; } = new TranslatableString("CanForbidでない変数\"{0}\"にIsForbidがついている");

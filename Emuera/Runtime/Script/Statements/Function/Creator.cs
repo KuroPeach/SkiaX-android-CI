@@ -126,6 +126,10 @@ internal static partial class FunctionMethodCreator
 			["INRANGEARRAY"] = new InRangeArrayMethod(),
 			["INRANGECARRAY"] = new InRangeArrayMethod(true),
 			["GETNUMB"] = new GetnumBMethod(),
+			#region 尊尼获加_ERD_PRESET
+			["EXIST_IN_CSV"] = new ExistInCsvMethod(),
+			["EXIST_IN_ERD"] = new ExistInErdMethod(),
+			#endregion
 
 			["MATCHALL"] = new MatchAllMethod(false),
 			["MATCHALLEX"] = new MatchAllMethod(true),

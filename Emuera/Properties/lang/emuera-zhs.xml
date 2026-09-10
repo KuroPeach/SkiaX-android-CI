@@ -226,6 +226,9 @@ Emuera的历史版本有效的内容变得无效等等现象而设置的。
     <tr id="Error.TooManyCdflagElements"><![CDATA[CDFLAG数组大小过大（CDFLAGNAME1与CDFLAGNAME2的数组大小的成绩超过100）]]></tr>
     <tr id="Error.DuplicateErdKey"><![CDATA[变量"{0}"的替换名"{1}"的定义重复。（文件1 - {2}）（文件2 - {3}）]]></tr>
     <tr id="Error.DuplicateVariableDefine"><![CDATA[变量{0}的定义重复]]></tr>
+    <tr id="Error.PresetErdConflictWithCsv"><![CDATA[预设变量ERD扩展({0})的第{1}个元素名称与CSV中已有名称不同(CSV="{2}", ERD="{3}");以CSV为准]]></tr>
+    <tr id="Error.PresetErdPriceConflictWithCsv"><![CDATA[预设变量ERD扩展({0})的第{1}个元素价格与CSV中已有价格不同(CSV={2}, ERD={3});以CSV为准]]></tr>
+    <tr id="Error.PresetErdDuplicateName"><![CDATA[预设变量ERD扩展({0})的第{1}个元素名称"{2}"已存在于其他槽位;已跳过]]></tr>
     <tr id="Error.NotDefinedErdKey"><![CDATA[变量"{0}"没有"{1}"的定义]]></tr>
     <tr id="Error.KeywordsCannotBeEmpty"><![CDATA[关键字不能为空]]></tr>
     <tr id="Error.InvalidProhibitedVar"><![CDATA[非CanForbid的变量"{0}"被标记为IsForbid]]></tr>

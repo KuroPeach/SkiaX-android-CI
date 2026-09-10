@@ -5399,6 +5399,42 @@ internal static partial class FunctionMethodCreator
 		}
 	}
 
+	#region 尊尼获加_ERD_PRESET
+	/// <summary>
+	/// 探针:指定预设变量在指定索引的名字来源(合并后有效来源,非"谁申请过")。
+	/// 首参为字符串变量名(GETNUMB 风格,可反射拼接);第二参数只收整数索引,不做名字重载。
+	/// 不支持的变量名/越界索引返回 0(探针语义:答不出即"不是")。别名透明:查的是槽正名的来源。
+	/// </summary>
+	private abstract class PresetNameSourceMethod : FunctionMethod
+	{
+		protected PresetNameSourceMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArray = [EraType.String, EraType.Integer];
+			CanRestructure = true;
+		}
+		protected abstract bool Check(ConstantData constant, string varName, int index);
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			string varName = arguments[0].GetStrValue(exm);
+			long rawIndex = arguments[1].GetIntValue(exm);
+			if (rawIndex < 0 || rawIndex > int.MaxValue)
+				return 0;
+			return Check(exm.VEvaluator.Constant, varName, (int)rawIndex) ? 1 : 0;
+		}
+	}
+	private sealed class ExistInCsvMethod : PresetNameSourceMethod
+	{
+		protected override bool Check(ConstantData constant, string varName, int index)
+			=> constant.ExistPresetNameInCsv(varName, index);
+	}
+	private sealed class ExistInErdMethod : PresetNameSourceMethod
+	{
+		protected override bool Check(ConstantData constant, string varName, int index)
+			=> constant.ExistPresetNameInErd(varName, index);
+	}
+	#endregion
+
 	private sealed class GetPalamLVMethod : FunctionMethod
 	{
 		public GetPalamLVMethod()
