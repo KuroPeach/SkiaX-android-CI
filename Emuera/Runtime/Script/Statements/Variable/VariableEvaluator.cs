@@ -126,6 +126,7 @@ internal sealed class VariableEvaluator : IDisposable
 				p.Identifier.CheckElement([p.Index1, p.Index2, p.Index3]);
 			}
 			p.Identifier.SetValueAll(srcValue, start, end, (int)p.Index1);
+			VarWriteWatch.OnWriteAll(p, srcValue.ToString(), start, end);
 			return;
 		}
 	}
@@ -162,6 +163,7 @@ internal sealed class VariableEvaluator : IDisposable
 				p.Identifier.CheckElement([p.Index1, p.Index2, p.Index3]);
 			}
 			p.Identifier.SetValueAll(srcValue, start, end, (int)p.Index1);
+			VarWriteWatch.OnWriteAll(p, srcValue, start, end);
 			return;
 		}
 	}
@@ -184,6 +186,7 @@ internal sealed class VariableEvaluator : IDisposable
 				p.Identifier.CheckElement([p.Index1, p.Index2, p.Index3]);
 			}
 			p.Identifier.SetValueAll(srcValue, start, end, (int)p.Index1);
+			VarWriteWatch.OnWriteAll(p, srcValue.ToString(), start, end);
 			return;
 		}
 	}
@@ -228,6 +231,7 @@ internal sealed class VariableEvaluator : IDisposable
 		{
 			p.Identifier.SetValue(srcValue, [i, indexNum]);
 		}
+		VarWriteWatch.OnWriteEachChara(p, indexNum, srcValue.ToString(), start, end);
 	}
 
 	public void SetValueAllEachChara(FixedVariableTerm p, SingleTerm index, string srcValue, int start, int end)
@@ -276,6 +280,7 @@ internal sealed class VariableEvaluator : IDisposable
 		{
 			p.Identifier.SetValue(srcValue, [i, indexNum]);
 		}
+		VarWriteWatch.OnWriteEachChara(p, indexNum, srcValue, start, end);
 	}
 
 	public void SetValueAllEachChara(FixedVariableTerm p, SingleTerm index, double srcValue, int start, int end)
@@ -313,6 +318,7 @@ internal sealed class VariableEvaluator : IDisposable
 		{
 			p.Identifier.SetValue(srcValue, [i, indexNum]);
 		}
+		VarWriteWatch.OnWriteEachChara(p, indexNum, srcValue.ToString(), start, end);
 	}
 
 	public static long GetArraySum(FixedVariableTerm p, long index1, long index2)

@@ -105,6 +105,7 @@ internal class VariableTerm : AExpression
 				for (int i = 0; i < arguments.Length; i++)
 					transporter[i] = arguments[i].GetIntValue(exm);
 			Identifier.SetValue(value, transporter);
+			VarWriteWatch.OnWrite(this, value.ToString(), exm);
 		}
 		catch (Exception e)
 		{
@@ -121,6 +122,7 @@ internal class VariableTerm : AExpression
 				for (int i = 0; i < arguments.Length; i++)
 					transporter[i] = arguments[i].GetIntValue(exm);
 			Identifier.SetValue(value, transporter);
+			VarWriteWatch.OnWrite(this, value, exm);
 		}
 		catch (Exception e)
 		{
@@ -138,6 +140,7 @@ internal class VariableTerm : AExpression
 				for (int i = 0; i < arguments.Length; i++)
 					transporter[i] = arguments[i].GetIntValue(exm);
 			Identifier.SetValue(value, transporter);
+			VarWriteWatch.OnWrite(this, value.ToString(), exm);
 		}
 		catch (Exception e)
 		{
@@ -213,7 +216,9 @@ internal class VariableTerm : AExpression
 			if (!allArgIsConst)
 				for (int i = 0; i < arguments.Length; i++)
 					transporter[i] = arguments[i].GetIntValue(exm);
-			return Identifier.PlusValue(value, transporter);
+			long result = Identifier.PlusValue(value, transporter);
+			VarWriteWatch.OnWrite(this, result.ToString(), exm);
+			return result;
 		}
 		catch (Exception e)
 		{
@@ -229,7 +234,9 @@ internal class VariableTerm : AExpression
 			if (!allArgIsConst)
 				for (int i = 0; i < arguments.Length; i++)
 					transporter[i] = arguments[i].GetIntValue(exm);
-			return Identifier.PlusValue(value, transporter);
+			double result = Identifier.PlusValue(value, transporter);
+			VarWriteWatch.OnWrite(this, result.ToString(), exm);
+			return result;
 		}
 		catch (Exception e)
 		{
@@ -427,6 +434,7 @@ internal sealed class FixedVariableTerm : VariableTerm
 		try
 		{
 			Identifier.SetValue(value, transporter);
+			VarWriteWatch.OnWrite(this, value.ToString(), exm);
 		}
 		catch (Exception e)
 		{
@@ -440,6 +448,7 @@ internal sealed class FixedVariableTerm : VariableTerm
 		try
 		{
 			Identifier.SetValue(value, transporter);
+			VarWriteWatch.OnWrite(this, value, exm);
 		}
 		catch (Exception e)
 		{
@@ -453,7 +462,9 @@ internal sealed class FixedVariableTerm : VariableTerm
 	{
 		try
 		{
-			return Identifier.PlusValue(value, transporter);
+			long result = Identifier.PlusValue(value, transporter);
+			VarWriteWatch.OnWrite(this, result.ToString(), exm);
+			return result;
 		}
 		catch (Exception e)
 		{
