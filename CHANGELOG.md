@@ -4,6 +4,18 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [14.0.0] — 变量写入监视
+
+### Added
+
+- **变量写入监视（调试窗口）**：变量监视页新增"开始监视 / 停止监视并打印报告"按钮，以监视列表中的变量为对象集，记录监视期间每次 ERB 脚本写入的变量、新值、所在函数与文件行号，明细写入 `debug\var_write.log`（超 10 万条后仅统计），停止时在控制台打印汇总报告。单点赋值（`=` / `+=` 等）、`VARSET` / `CVARSET`、数组字面量赋值均覆盖；调试窗口自身的写入（锁定写回/值单元格赋值/控制台手动赋值）自动排除；关联数组与字符串下标暂不支持，开始监视时明确提示跳过原因。涉及 `VarWriteWatch.cs`（新）/ `VariableTerm.cs` / `VariableEvaluator.cs` / `DebugDialog.cs`
+
+### Changed
+
+- **版本签名**：`Skiav13` → `Skiav14`（`1824+v24+EMv18+EEv56+Skiav14`）
+
+***
+
 ## [13.0.0] — 预设变量 ERD 扩展
 
 ### Added

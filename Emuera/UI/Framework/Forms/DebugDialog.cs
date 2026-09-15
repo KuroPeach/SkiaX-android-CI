@@ -4,6 +4,7 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
+using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using System;
@@ -464,6 +465,109 @@ namespace MinorShift.Emuera.Forms
 			}
 		}
 
+		#region 变量写入监视(开始监视/停止监视并打印报告)
+		private readonly string writeWatchFilepath = Program.DebugDir + "var_write.log";
+
+		private void buttonStartWriteWatch_Click(object sender, EventArgs e)
+		{
+			StartWriteWatch();
+		}
+
+		private void buttonStopWriteWatch_Click(object sender, EventArgs e)
+		{
+			StopWriteWatch();
+		}
+
+		/// <summary>开始监视变量列表中"可赋值变量"的写入情况。</summary>
+		private void StartWriteWatch()
+		{
+			List<string> keys = [];
+			List<string> skipped = [];
+			List<string> unsupported = [];
+			foreach (ListViewItem lvi in listViewWatch.Items)
+			{
+				string expr = (lvi.SubItems.Count > 1) ? lvi.SubItems[1].Text : "";
+				if (string.IsNullOrEmpty(expr) || skipped.Contains(expr) || unsupported.Contains(expr))
+					continue;
+				string key = TryBuildWriteKey(expr, out bool isVariable);
+				if (string.IsNullOrEmpty(key))
+				{
+					(isVariable ? unsupported : skipped).Add(expr);
+					continue;
+				}
+				if (!keys.Contains(key))
+					keys.Add(key);
+			}
+			if (keys.Count == 0)
+			{
+				MessageBox.Show("变量列表里没有可监视的变量。\n请在「対象」列填写变量(如 ITEM:6、CFLAG:MASTER:100)。", "变量写入监视");
+				return;
+			}
+			VarWriteWatch.Start(writeWatchFilepath, keys);
+			buttonStartWriteWatch.Enabled = false;
+			buttonStopWriteWatch.Enabled = true;
+			mainConsole.DebugPrint(string.Format("变量写入监视开始: {0} 个对象 → {1}", keys.Count, writeWatchFilepath));
+			mainConsole.DebugNewLine();
+			if (skipped.Count > 0)
+			{
+				mainConsole.DebugPrint("以下表达式不是可监视的变量,已跳过: " + string.Join(", ", skipped));
+				mainConsole.DebugNewLine();
+			}
+			if (unsupported.Count > 0)
+			{
+				mainConsole.DebugPrint("以下变量暂不支持监视(关联数组/字符串下标/数组整体形式),已跳过: " + string.Join(", ", unsupported));
+				mainConsole.DebugNewLine();
+			}
+			updateConsole();
+		}
+
+		/// <summary>停止监视,把报告打印到调试窗口控制台(同时已写入日志文件)。</summary>
+		private void StopWriteWatch()
+		{
+			string report = VarWriteWatch.Stop();
+			buttonStartWriteWatch.Enabled = true;
+			buttonStopWriteWatch.Enabled = false;
+			if (string.IsNullOrEmpty(report))
+				return;
+			mainConsole.DebugPrint(report);
+			mainConsole.DebugNewLine();
+			tabControlMain.SelectedTab = tabPageConsole;
+			updateConsole();
+		}
+
+		/// <summary>
+		/// 把变量列表里的表达式解析成变量标识(如 ITEM:6)。不是变量(纯表达式/算式)或解析失败时返回 null。
+		/// 使用与变量监视相同的解析路径,保证与实际写入时的标识一致。
+		/// isVariable 为 true 表示解析出了变量但暂不支持监视(关联数组/字符串下标/无下标的数组整体形式)。
+		/// </summary>
+		private string TryBuildWriteKey(string expr, out bool isVariable)
+		{
+			isVariable = false;
+			if ((emuera == null) || (GlobalStatic.EMediator == null))
+				return null;
+			mainConsole.RunERBFromMemory = true;
+			try
+			{
+				CharStream st = new(expr);
+				WordCollection wc = LexicalAnalyzer.Analyse(st, LexEndWith.EoL, LexAnalyzeFlag.None);
+				AExpression term = ExpressionParser.ReduceExpressionTerm(wc, TermEndWith.EoL);
+				if (term is not VariableTerm varTerm)
+					return null;
+				isVariable = true;
+				string key = VarWriteWatch.BuildKey(varTerm, GlobalStatic.EMediator);
+				return string.IsNullOrEmpty(key) ? null : key;
+			}
+			catch
+			{
+				return null;
+			}
+			finally
+			{
+				mainConsole.RunERBFromMemory = false;
+			}
+		}
+		#endregion
+
 		//锁定=持续赋值：CE 式周期重申——每隔200ms在安全时机把锁定行的冻结值写回变量
 		private void holdTimer_Tick(object sender, EventArgs e)
 		{
@@ -643,6 +747,8 @@ namespace MinorShift.Emuera.Forms
 
 		private void DebugDialog_FormClosing(object sender, FormClosingEventArgs e)
 		{
+			if (VarWriteWatch.IsEnabled)
+				VarWriteWatch.Stop();
 			saveData();
 		}
 

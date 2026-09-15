@@ -41,6 +41,9 @@ namespace MinorShift.Emuera.Forms
 			this.columnHeaderLock = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
 			this.columnHeader1 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
 			this.columnHeader3 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+			this.panelWatchControl = new System.Windows.Forms.Panel();
+			this.buttonStartWriteWatch = new System.Windows.Forms.Button();
+			this.buttonStopWriteWatch = new System.Windows.Forms.Button();
 			this.panelBottom = new System.Windows.Forms.Panel();
 			this.tabPageTrace = new System.Windows.Forms.TabPage();
 			this.textBoxTrace = new System.Windows.Forms.TextBox();
@@ -55,6 +58,7 @@ namespace MinorShift.Emuera.Forms
 			this.tabPageWatch.SuspendLayout();
 			this.tabPageTrace.SuspendLayout();
 			this.tabPageConsole.SuspendLayout();
+			this.panelWatchControl.SuspendLayout();
 			this.panelBottom.SuspendLayout();
 			this.SuspendLayout();
 			// 
@@ -130,6 +134,7 @@ namespace MinorShift.Emuera.Forms
 			// tabPageWatch
 			// 
 			this.tabPageWatch.Controls.Add(this.listViewWatch);
+			this.tabPageWatch.Controls.Add(this.panelWatchControl);
 			this.tabPageWatch.Location = new System.Drawing.Point(4, 22);
 			this.tabPageWatch.Name = "tabPageWatch";
 			this.tabPageWatch.Padding = new System.Windows.Forms.Padding(3);
@@ -176,6 +181,37 @@ namespace MinorShift.Emuera.Forms
 			this.columnHeader3.Text = "値";
 			this.columnHeader3.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
 			this.columnHeader3.Width = 130;
+			// 
+			// panelWatchControl
+			// 
+			this.panelWatchControl.Controls.Add(this.buttonStartWriteWatch);
+			this.panelWatchControl.Controls.Add(this.buttonStopWriteWatch);
+			this.panelWatchControl.Dock = System.Windows.Forms.DockStyle.Bottom;
+			this.panelWatchControl.Location = new System.Drawing.Point(3, 140);
+			this.panelWatchControl.Name = "panelWatchControl";
+			this.panelWatchControl.Size = new System.Drawing.Size(370, 28);
+			this.panelWatchControl.TabIndex = 1;
+			// 
+			// buttonStartWriteWatch
+			// 
+			this.buttonStartWriteWatch.Location = new System.Drawing.Point(3, 3);
+			this.buttonStartWriteWatch.Name = "buttonStartWriteWatch";
+			this.buttonStartWriteWatch.Size = new System.Drawing.Size(90, 23);
+			this.buttonStartWriteWatch.TabIndex = 0;
+			this.buttonStartWriteWatch.Text = "开始监视";
+			this.buttonStartWriteWatch.UseVisualStyleBackColor = true;
+			this.buttonStartWriteWatch.Click += new System.EventHandler(this.buttonStartWriteWatch_Click);
+			// 
+			// buttonStopWriteWatch
+			// 
+			this.buttonStopWriteWatch.Enabled = false;
+			this.buttonStopWriteWatch.Location = new System.Drawing.Point(98, 3);
+			this.buttonStopWriteWatch.Name = "buttonStopWriteWatch";
+			this.buttonStopWriteWatch.Size = new System.Drawing.Size(170, 23);
+			this.buttonStopWriteWatch.TabIndex = 1;
+			this.buttonStopWriteWatch.Text = "停止监视并打印报告";
+			this.buttonStopWriteWatch.UseVisualStyleBackColor = true;
+			this.buttonStopWriteWatch.Click += new System.EventHandler(this.buttonStopWriteWatch_Click);
 			// 
 			// tabPageTrace
 			// 
@@ -310,6 +346,7 @@ namespace MinorShift.Emuera.Forms
 			this.tabPageTrace.PerformLayout();
 			this.tabPageConsole.ResumeLayout(false);
 			this.tabPageConsole.PerformLayout();
+			this.panelWatchControl.ResumeLayout(false);
 			this.panelBottom.ResumeLayout(false);
 			this.panelBottom.PerformLayout();
 			this.ResumeLayout(false);
@@ -333,6 +370,9 @@ namespace MinorShift.Emuera.Forms
 		private System.Windows.Forms.ColumnHeader columnHeaderLock;
 		private System.Windows.Forms.ColumnHeader columnHeader1;
 		private System.Windows.Forms.ColumnHeader columnHeader3;
+		private System.Windows.Forms.Panel panelWatchControl;
+		private System.Windows.Forms.Button buttonStartWriteWatch;
+		private System.Windows.Forms.Button buttonStopWriteWatch;
 		private System.Windows.Forms.Panel panelBottom;
 		private System.Windows.Forms.TextBox textBoxTrace;
 		private System.Windows.Forms.TabPage tabPageConsole;
