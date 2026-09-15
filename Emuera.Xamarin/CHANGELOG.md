@@ -1,5 +1,17 @@
 # Emuera.Xamarin 变更记录
 
+## [0.75.0] - 2026-09-15
+
+### Changed
+
+- **同步桌面内核变量写入监视（Skiav14）**
+  - 调试窗口变量监视页新增"开始监视 / 停止监视并打印报告"按钮，记录监视期间 ERB 脚本写入的变量、新值、函数与文件行号，明细写入 `debug\var_write.log`，停止时打印汇总报告
+  - 批量枚举与令牌实际写入范围对齐（角色 0D/2D、非角色 2D/3D）；新增数组字面量赋值钩子；关联数组暂不支持并明确提示
+  - 文件：`Emuera/Runtime/Utils/VarWriteWatch.cs`（新）、`VariableTerm.cs`、`VariableEvaluator.cs`、`DebugDialog.cs`（内核共享，Xamarin 侧直接受益，无移植端改动）
+- **Android 版本**：`0.74.0` → `0.75.0`（versionCode 74 → 75，对应内核 Skiav14）
+
+***
+
 ## [0.74.0] - 2026-09-09
 
 ### Changed
