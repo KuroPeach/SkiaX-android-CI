@@ -158,6 +158,8 @@ internal class VariableTerm : AExpression
 				for (int i = 0; i < arguments.Length; i++)
 					transporter[i] = arguments[i].GetIntValue(exm);
 			Identifier.SetValue(array, transporter);
+			if (VarWriteWatch.IsEnabled)
+				VarWriteWatch.OnWriteArray(this, array, exm);
 		}
 		catch (Exception e)
 		{
@@ -177,6 +179,8 @@ internal class VariableTerm : AExpression
 				for (int i = 0; i < arguments.Length; i++)
 					transporter[i] = arguments[i].GetIntValue(exm);
 			Identifier.SetValue(array, transporter);
+			if (VarWriteWatch.IsEnabled)
+				VarWriteWatch.OnWriteArray(this, array, exm);
 		}
 		catch (Exception e)
 		{
@@ -197,6 +201,8 @@ internal class VariableTerm : AExpression
 				for (int i = 0; i < arguments.Length; i++)
 					transporter[i] = arguments[i].GetIntValue(exm);
 			Identifier.SetValue(array, transporter);
+			if (VarWriteWatch.IsEnabled)
+				VarWriteWatch.OnWriteArray(this, array, exm);
 		}
 		catch (Exception e)
 		{

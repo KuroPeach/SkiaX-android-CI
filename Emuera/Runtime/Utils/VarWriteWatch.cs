@@ -12,6 +12,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 	/// 变量写入监视(调试用)。只记录"开始监视时变量监视列表里的变量"被 ERB 脚本写入的情况。
 	/// 记录内容:变量 + 新值 + 当前函数 + 文件:行号,逐条写入独立日志文件;停止时生成汇总报告。
 	/// 未开始监视时开销仅为一次静态 bool 判断。
+	/// 线程约束:仅脚本主线程(写入钩子)与 UI 线程(开始/停止按钮、关闭窗口)调用,内部无锁。
 	/// </summary>
 	internal static class VarWriteWatch
 	{
@@ -143,6 +144,12 @@ namespace MinorShift.Emuera.Runtime.Utils
 				}
 				if (dims == 1)
 				{
+					if (token.IsCharacterData)
+					{
+						//角色0D:令牌的 SetValueAll 只写 Index1 指定的单个角色,忽略 start/end
+						RecordWrite(token.Name + ":" + term.Index1, valueText);
+						return;
+					}
 					//非角色1D:索引按 [start,end) 写入
 					string prefix = token.Name + ":";
 					for (int i = start; i < end; i++)
@@ -158,21 +165,36 @@ namespace MinorShift.Emuera.Runtime.Utils
 					return;
 				}
 				//2D/3D:引擎会写整个数组(角色变量只写该角色)
-				long head = dims == 3 ? term.Index1 : 0;
+				if (dims == 3 && token.IsCharacterData)
+				{
+					//角色2D:令牌的 SetValueAll 写该角色的整个 [sizes0, sizes1](sizes 只有两维,不可取 GetLength(2))
+					string head = token.Name + ":" + term.Index1 + ":";
+					for (long i = 0; i < token.GetLength(0); i++)
+						for (long j = 0; j < token.GetLength(1); j++)
+							RecordWrite(head + i + ":" + j, valueText);
+					return;
+				}
+				if (dims == 3)
+				{
+					//非角色3D:令牌的 SetValueAll 写整个数组(忽略 Index1,不能只枚举该切片)
+					for (long h = 0; h < token.GetLength(0); h++)
+					{
+						string prefix0 = token.Name + ":" + h + ":";
+						for (long i = 0; i < token.GetLength(1); i++)
+						{
+							string prefix1 = prefix0 + i + ":";
+							for (long k = 0; k < token.GetLength(2); k++)
+								RecordWrite(prefix1 + k, valueText);
+						}
+					}
+					return;
+				}
+				//非角色2D:令牌的 SetValueAll 写整个数组
 				for (long i = 0; i < token.GetLength(0); i++)
 				{
-					string prefix1 = dims == 3 ? token.Name + ":" + head + ":" + i + ":" : token.Name + ":" + i + ":";
+					string prefix1 = token.Name + ":" + i + ":";
 					for (long j = 0; j < token.GetLength(1); j++)
-					{
-						if (dims == 2)
-						{
-							RecordWrite(prefix1 + j, valueText);
-							continue;
-						}
-						string prefix2 = prefix1 + j + ":";
-						for (long k = 0; k < token.GetLength(2); k++)
-							RecordWrite(prefix2 + k, valueText);
-					}
+						RecordWrite(prefix1 + j, valueText);
 				}
 			}
 			catch
@@ -208,6 +230,72 @@ namespace MinorShift.Emuera.Runtime.Utils
 			{
 				//监视本身绝不能影响脚本执行
 			}
+		}
+
+		/// <summary>
+		/// 数组整体赋值钩子(ERB 数组字面量赋值,如 HOGE:0 = 1,2,3)。
+		/// 令牌从"除最后一维外的下标"定位起点,向最后一维连续写 values.Length 个元素。
+		/// 调用方需先判断 IsEnabled 再调用,避免非监视时构造字符串的开销。
+		/// </summary>
+		public static void OnWriteArray(VariableTerm term, long[] values, ExpressionMediator exm)
+		{
+			OnWriteArrayCore(term, values.Length, exm, static (values, i) => values[i].ToString(), values);
+		}
+
+		/// <inheritdoc cref="OnWriteArray(VariableTerm, long[], ExpressionMediator)"/>
+		public static void OnWriteArray(VariableTerm term, string[] values, ExpressionMediator exm)
+		{
+			OnWriteArrayCore(term, values.Length, exm, static (values, i) => values[i], values);
+		}
+
+		/// <inheritdoc cref="OnWriteArray(VariableTerm, long[], ExpressionMediator)"/>
+		public static void OnWriteArray(VariableTerm term, double[] values, ExpressionMediator exm)
+		{
+			OnWriteArrayCore(term, values.Length, exm, static (values, i) => values[i].ToString(), values);
+		}
+
+		private static void OnWriteArrayCore<T>(VariableTerm term, int length, ExpressionMediator exm, Func<T, int, string> getText, T values)
+		{
+			if (!IsEnabled || term?.Identifier == null)
+				return;
+			try
+			{
+				var token = term.Identifier;
+				if (!targetNames.Contains(token.Name))
+					return;
+				int dims = GetDimCount(token);
+				if (dims == 0)
+				{
+					RecordWrite(token.Name, length > 0 ? getText(values, 0) : "");
+					return;
+				}
+				if (dims == 1 && token.IsCharacterData)
+				{
+					//角色0D:整体赋值的实际语义由令牌决定,此处只记被定位到的角色
+					RecordWrite(token.Name + ":" + GetBaseIndex(term, 0, exm), length > 0 ? getText(values, 0) : "");
+					return;
+				}
+				var sb = new StringBuilder(token.Name);
+				for (int i = 0; i < dims - 1; i++)
+					sb.Append(':').Append(GetBaseIndex(term, i, exm));
+				sb.Append(':');
+				string prefix = sb.ToString();
+				long start = GetBaseIndex(term, dims - 1, exm);
+				for (int k = 0; k < length; k++)
+					RecordWrite(prefix + (start + k), getText(values, k));
+			}
+			catch
+			{
+				//监视本身绝不能影响脚本执行
+			}
+		}
+
+		/// <summary>取变量第 dim 维的定位下标(FixedVariableTerm 用缓存的 Index,普通 VariableTerm 实时求值)。</summary>
+		private static long GetBaseIndex(VariableTerm term, int dim, ExpressionMediator exm)
+		{
+			if (term is FixedVariableTerm fixedTerm)
+				return dim == 0 ? fixedTerm.Index1 : dim == 1 ? fixedTerm.Index2 : fixedTerm.Index3;
+			return term.GetElementInt(dim, exm);
 		}
 
 		/// <summary>命中监视对象时记录一条(变量+新值+函数+行号)。</summary>

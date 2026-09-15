@@ -483,15 +483,16 @@ namespace MinorShift.Emuera.Forms
 		{
 			List<string> keys = [];
 			List<string> skipped = [];
+			List<string> unsupported = [];
 			foreach (ListViewItem lvi in listViewWatch.Items)
 			{
 				string expr = (lvi.SubItems.Count > 1) ? lvi.SubItems[1].Text : "";
-				if (string.IsNullOrEmpty(expr) || skipped.Contains(expr))
+				if (string.IsNullOrEmpty(expr) || skipped.Contains(expr) || unsupported.Contains(expr))
 					continue;
-				string key = TryBuildWriteKey(expr);
+				string key = TryBuildWriteKey(expr, out bool isVariable);
 				if (string.IsNullOrEmpty(key))
 				{
-					skipped.Add(expr);
+					(isVariable ? unsupported : skipped).Add(expr);
 					continue;
 				}
 				if (!keys.Contains(key))
@@ -512,6 +513,11 @@ namespace MinorShift.Emuera.Forms
 				mainConsole.DebugPrint("以下表达式不是可监视的变量,已跳过: " + string.Join(", ", skipped));
 				mainConsole.DebugNewLine();
 			}
+			if (unsupported.Count > 0)
+			{
+				mainConsole.DebugPrint("以下变量暂不支持监视(关联数组/字符串下标/数组整体形式),已跳过: " + string.Join(", ", unsupported));
+				mainConsole.DebugNewLine();
+			}
 			updateConsole();
 		}
 
@@ -530,11 +536,13 @@ namespace MinorShift.Emuera.Forms
 		}
 
 		/// <summary>
-		/// 把变量列表里的表达式解析成变量标识(如 ITEM:6)。不是变量(纯表达式/算式)时返回 null。
+		/// 把变量列表里的表达式解析成变量标识(如 ITEM:6)。不是变量(纯表达式/算式)或解析失败时返回 null。
 		/// 使用与变量监视相同的解析路径,保证与实际写入时的标识一致。
+		/// isVariable 为 true 表示解析出了变量但暂不支持监视(关联数组/字符串下标/无下标的数组整体形式)。
 		/// </summary>
-		private string TryBuildWriteKey(string expr)
+		private string TryBuildWriteKey(string expr, out bool isVariable)
 		{
+			isVariable = false;
 			if ((emuera == null) || (GlobalStatic.EMediator == null))
 				return null;
 			mainConsole.RunERBFromMemory = true;
@@ -545,6 +553,7 @@ namespace MinorShift.Emuera.Forms
 				AExpression term = ExpressionParser.ReduceExpressionTerm(wc, TermEndWith.EoL);
 				if (term is not VariableTerm varTerm)
 					return null;
+				isVariable = true;
 				string key = VarWriteWatch.BuildKey(varTerm, GlobalStatic.EMediator);
 				return string.IsNullOrEmpty(key) ? null : key;
 			}
