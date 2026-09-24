@@ -333,6 +333,8 @@ internal sealed partial class EmueraConsole : IDisposable
 					break;
 			}
 			_state = value;
+			if (value == ConsoleState.Quit || value == ConsoleState.Error)
+				CliTerminalStateEntered?.Invoke();
 		}
 	}
 	#endregion
@@ -742,6 +744,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			presetTimer();
 			//				setTimer();
 		}
+		CliWaitInputEntered?.Invoke();
 		//updateMousePosition();
 		//Point point = window.MainPicBox.PointToClient(Control.MousePosition);
 		//if (window.MainPicBox.ClientRectangle.Contains(point))
@@ -822,6 +825,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				window.update_lastinput();
 			presetTimer();
 		}
+		CliWaitInputEntered?.Invoke();
 	}
 	#endregion
 
@@ -840,6 +844,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		inputReq = req;
 		state = ConsoleState.WaitInput;
 		process.NeedWaitToEventComEnd = false;
+		CliWaitInputEntered?.Invoke();
 	}
 
 
@@ -3135,6 +3140,76 @@ internal sealed partial class EmueraConsole : IDisposable
 			redraw = ConsoleRedraw.None;
 		*/
 	}
+
+	#region CLI_Debug（--CliDebug モード用フック）
+	// 设计文档: shared-trae/plans/plan-cli-debug-mode.md
+	// 全部为新增并行订阅点：无订阅者时零开销，GUI 行为不变。
+
+	/// <summary>新显示行产生时触发（addDisplayLine 内，与 CBProc.AddLine 同挂点）。</summary>
+	public event Action<ConsoleDisplayLine> CliLineAdded;
+	/// <summary>进入输入等待（WaitInput / WaitInputNoFocus / ReadAnyKey）时触发。</summary>
+	public event Action CliWaitInputEntered;
+	/// <summary>进入 Error / Quit 终态时触发。</summary>
+	public event Action CliTerminalStateEntered;
+
+	/// <summary>当前状态名（CLI 协议用；避开 enum.ToString 的混淆约束，手写映射）。</summary>
+	internal string CliStateName => state switch
+	{
+		ConsoleState.Initializing => "Initializing",
+		ConsoleState.Quit => "Quit",
+		ConsoleState.Error => "Error",
+		ConsoleState.Running => "Running",
+		ConsoleState.WaitInput => "WaitInput",
+		ConsoleState.WaitInputNoFocus => "WaitInputNoFocus",
+		ConsoleState.Sleep => "Sleep",
+		_ => "Unknown",
+	};
+
+	/// <summary>
+	/// 当前输入等待世代可选的按钮列表（显示文本 / 提交值 / 是否整数），无则返回空列表。
+	/// 筛选逻辑移植自 SkiaX RefreshQuickButtonAsync（EmueraConsole.ex.cs）：
+	/// 仅值输入系（IntValue/StrValue/AnyValue/IntButton/StrButton）收集；
+	/// 自底向上回溯，遇到旧世代按钮（Generation != 0 且 != lastButtonGeneration）即停止——
+	/// 与 PressEnterKey 的 IntButton/StrButton 验证分支同规则。
+	/// </summary>
+	public List<(string Text, string Value, bool IsInteger)> GetSelectableButtons()
+	{
+		var result = new List<(string Text, string Value, bool IsInteger)>();
+		if (!IsWaitInputState || inputReq == null)
+			return result;
+		switch (inputReq.InputType)
+		{
+			case InputType.IntValue:
+			case InputType.StrValue:
+			case InputType.AnyValue:
+			case InputType.IntButton:
+			case InputType.StrButton:
+				break;
+			default:
+				return result;
+		}
+		for (int i = displayLineList.Count - 1; i >= 0; i--)
+		{
+			foreach (ConsoleButtonString button in displayLineList[i].Buttons)
+			{
+				if (button == null || !button.IsButton)
+					continue;
+				if (button.Generation != lastButtonGeneration)
+				{
+					if (button.Generation != 0)
+						goto Done;
+					continue;
+				}
+				result.Add((ClipboardProcessor.StripHTML(button.ToString()).Trim(),
+					button.IsInteger ? button.Input.ToString() : button.Inputs,
+					button.IsInteger));
+			}
+		}
+	Done:
+		result.Reverse();
+		return result;
+	}
+	#endregion
 
 	public void Dispose()
 	{

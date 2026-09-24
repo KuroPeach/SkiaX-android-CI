@@ -4,6 +4,23 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [15.0.0] — CLI 调试模式
+
+### Added
+
+- **`--CliDebug` CLI 调试模式**（私家版新增，设计文档 `shared-trae/plans/plan-cli-debug-mode.md`）：stdin/stdout JSON Lines 协议，供 AI agent 等外部程序驱动解释器调试。隐含 `-Debug`；保留 WinForms 消息循环与渲染管线，仅最小化隐藏窗口。stdin 线程读取命令并经 `MainWindow.Invoke` 派发到 UI 线程执行；stdout 推送事件流。
+  - 事件：`hello` / `ready` / `out`（新显示行，与 `ClipboardProcessor.AddLine` 同挂点，`StripHTML` 纯文本）/ `wait`（进入输入等待，含 `inputType`、`timeoutMs`、默认值、当世代可选 `buttons` 列表）/ `state`（Error/Quit 终态）/ `dialog`（模态对话框替代事件）/ `exit`。
+  - 命令：`input` / `click`（按钮世代校验 + 鼠标点击语义字面提交）/ `key`（enter/skip）/ `debug`（等价调试窗口控制台，返回 `DebugConsoleLog` 增量）/ `watch`（变量写入监视 start/stop/status，直驱 `VarWriteWatch`）/ `trace` / `screen` / `state` / `buttons` / `log` / `quit` / `help`；另支持 `!表达式` 便捷输入。
+  - 模态对话框（`PlatformInterop.ShowMessage`/`ShowQuestion` 等）在 CLI 模式下全部替换为 stdout 事件，避免无人值守卡死。
+  - 内核新增并行订阅钩子：`EmueraConsole.CliLineAdded` / `CliWaitInputEntered` / `CliTerminalStateEntered` 事件与 `GetSelectableButtons()`（按钮筛选逻辑移植自 SkiaX `RefreshQuickButtonAsync`，与 `PressEnterKey` 世代校验同规则）。无订阅者时零开销，GUI 行为不变。
+  - 涉及 `CliDebugHost.cs`（新）、`Program.cs`、`EmueraConsole.cs` / `EmueraConsole.Print.cs`
+
+### Changed
+
+- **版本签名**：`Skiav14` → `Skiav15`（`1824+v24+EMv18+EEv56+Skiav15`）
+
+***
+
 ## [14.0.0] — 变量写入监视
 
 ### Added

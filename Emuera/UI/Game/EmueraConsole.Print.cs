@@ -174,6 +174,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (Config.CBUseClipboard)
 			CBProc.AddLine(line, force_LEFT);
 		#endregion
+		CliLineAdded?.Invoke(line);
 		if (LastLineIsTemporary)
 			deleteLine(1);
 		//不適正なFontのチェック
