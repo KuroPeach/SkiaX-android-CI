@@ -15,6 +15,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - 内核新增并行订阅钩子：`EmueraConsole.CliLineAdded` / `CliWaitInputEntered` / `CliTerminalStateEntered` 事件与 `GetSelectableButtons()`（按钮筛选逻辑移植自 SkiaX `RefreshQuickButtonAsync`，与 `PressEnterKey` 世代校验同规则）。无订阅者时零开销，GUI 行为不变。
   - 涉及 `CliDebugHost.cs`（新）、`Program.cs`、`EmueraConsole.cs` / `EmueraConsole.Print.cs`
 
+### Fixed
+
+- **CLI `screen` 在 div 画面上返回空数组**：原实现调用 `GetDisplayLines(lines)`，其参数是「逻辑行」计数语义（无对应逻辑行时返回 `null`），而 div 类画面每轮 `CLEARLINE` + 重绘，逻辑行数远小于请求值 → 恒为空。新增 `EmueraConsole.GetCliTailLines(count)` 按物理行自底向上读取（`GetDisplayLines` 不动，GUI 无影响）。
+- **div（HTML `rect` 覆盖层）内容无法读取**：div 内文字不进入 `displayLineList`，而是注册在静态 `ConsoleEscapedParts`。`screen` 结果新增 `divs` 字段（`[{top, lines[]}]`，画面位置自上而下），由 `EmueraConsole.GetCliDivContents()` + `ConsoleEscapedParts.CollectDivParts()` 提供。
+- **div 内按钮无法枚举/点击**：`GetSelectableButtons()` 只遍历 `displayLineList`，而 div 按钮经 `ConsoleEscapedParts → ConsoleDivPart.Children` 注册（与 `BINPUT` / `IntButton`/`StrButton` 验证路径同源）→ `buttons` 恒为空、`click` 无从下手。现按同一路径补充收集（不加世代过滤，与 `BINPUT` 一致）。
+- **CLI 首条 stdin 命令偶发 `invalid JSON`**：PowerShell 驱动偶发在流首写入 UTF-8 BOM 前导（`EF BB BF`），且 `Console.In` 在无控制台 WinExe 下回退到系统 ANSI 代码页（936）解码 → 首行变成 `鑘縁…` 杂字符、id 丢失。现锁定 stdin 为显式 UTF-8（含 BOM 自动侦测/剥离）读取，与协议约定（UTF-8 JSON Lines）一致；另对首尾 BOM/空白杂字符剥离重试，彻底失败时把原始行内容回显进错误消息便于诊断。
+- 涉及 `EmueraConsole.cs` / `EmueraConsole.Print.cs`（无改动，仅复用）/ `ConsoleEscapedParts.cs` / `ConsoleDivPart.cs`（`CliPointY` 暴露 protected `PointY`）/ `CliDebugHost.cs`（stdin 读取 + 容错诊断）
+
+### Verified
+
+- 发布版（`发布.bat` → `Release-NAudio win-x64`）+ div 样例（`カラム機能(div).ERB`）双向交互全流程实测（`pub9`）：
+  - `state` / `screen`（框+divs）/ `buttons`（div 与框内按钮同列）/ `click`（ div 按钮 `11` → `FLAG:0=11` 读回；框按钮 `101` 切第 2 列；列内 `21` → `FLAG:0=21`；`100` 切回第 1 列且值保持）/ `input 12`（`PRINT_IMG` 渲染进 `screen.lines`）/
+  - `input 12` 触发 `PRINTFORMW` 链期间进入 `EnterKey` 无按钮 wait —— 用 `key enter` 逐个推进直到回到 `IntValue` 有按钮，再 `click 99`（`FLAG:0=12` 读回）→ 样例循环退出 → ERB `QUIT` → 进程自行退出（`state Quit` + 无 Emuera 残留，无需再发 `quit`）。
+
+
 ### Changed
 
 - **版本签名**：`Skiav14` → `Skiav15`（`1824+v24+EMv18+EEv56+Skiav15`）

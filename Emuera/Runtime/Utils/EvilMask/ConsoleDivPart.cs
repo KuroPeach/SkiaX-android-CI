@@ -118,6 +118,11 @@ class ConsoleDivPart : AConsoleDisplayNode
 	Color backgroundColor;
 	string altHeadTag;
 	readonly ConsoleDisplayLine[] children;
+
+	#region CLI_Debug（--CliDebug モード用）
+	/// <summary>CLI 用: 画面 Y 位置（基底の PointY は protected のため公開）</summary>
+	internal int CliPointY { get { return PointY; } }
+	#endregion
 	public bool IsEscaped { get; set; }
 	public override int Top { get { return PointY; } }
 	public override int Bottom { get { return PointY + Height; } }

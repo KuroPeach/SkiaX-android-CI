@@ -112,10 +112,17 @@ internal sealed class CliDebugHost
 		if (running)
 			Subscribe();
 		Emit("{\"type\":\"ready\"}");
+		// Explicit UTF-8 stdin reader: Console.In may fall back to the system ANSI codepage
+		// (e.g. GBK/936) when WinExe has no console, and a stray UTF-8 BOM preamble from the
+		// host writer would then decode into garbage chars on the first line. Lock stdin to
+		// UTF-8 with BOM auto-detect/strip; protocol mandates UTF-8 JSON Lines.
+		StreamReader stdinReader;
+		try { stdinReader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true); }
+		catch { stdinReader = null; }
 		while (running)
 		{
 			string line;
-			try { line = Console.In.ReadLine(); }
+			try { line = stdinReader != null ? stdinReader.ReadLine() : Console.In.ReadLine(); }
 			catch { break; }
 			if (line == null)
 			{
@@ -192,9 +199,25 @@ internal sealed class CliDebugHost
 			Dispatch(null, console => DoDebug(console, null, line[1..]));
 			return;
 		}
-		JsonDocument doc;
+		// stdin 偶发在首行混入 BOM/空白杂字节：先按原样解析，失败则剥除首尾杂字符重试；
+		// 恢复成功时回显原始行（无 id），彻底失败时错误消息带原始行内容，便于诊断。
+		JsonDocument doc = null;
 		try { doc = JsonDocument.Parse(line); }
-		catch { EmitError(null, "invalid JSON"); return; }
+		catch
+		{
+			var recovered = line.Trim(' ', '\t', '\r', '\n', '\uFEFF');
+			if (recovered.Length != line.Length)
+			{
+				try { doc = JsonDocument.Parse(recovered); }
+				catch { doc = null; }
+			}
+			if (doc == null)
+			{
+				EmitError(null, "invalid JSON: " + J(line.Length > 200 ? line.Substring(0, 200) : line));
+				return;
+			}
+			EmitError(null, "recovered malformed line: " + J(line.Length > 200 ? line.Substring(0, 200) : line));
+		}
 		using (doc)
 		{
 			var root = doc.RootElement;
@@ -368,7 +391,9 @@ internal sealed class CliDebugHost
 		int lines = 30;
 		if (root.TryGetProperty("lines", out var l) && l.TryGetInt32(out var n) && n > 0)
 			lines = n;
-		var displayLines = console.GetDisplayLines(lines);
+		// 物理行语义：div 类画面每轮 CLEARLINE + 重绘，逻辑行数远小于请求值，
+		// 用 GetDisplayLines 会得到 null（空数组）
+		var displayLines = console.GetCliTailLines(lines);
 		var sb = new StringBuilder(256);
 		sb.Append("\"lines\":[");
 		if (displayLines != null)
@@ -376,8 +401,25 @@ internal sealed class CliDebugHost
 			{
 				if (i > 0)
 					sb.Append(',');
-				sb.Append(J(ClipboardProcessor.StripHTML(displayLines[i].ToString())));
+				sb.Append(J(displayLines[i]));
 			}
+		sb.Append(']');
+		// div 覆盖层内容（div 内文字不在显示行里，单独给）
+		sb.Append(",\"divs\":[");
+		var divs = console.GetCliDivContents();
+		for (int i = 0; i < divs.Count; i++)
+		{
+			if (i > 0)
+				sb.Append(',');
+			sb.Append("{\"top\":").Append(divs[i].Top).Append(",\"lines\":[");
+			for (int j = 0; j < divs[i].Lines.Length; j++)
+			{
+				if (j > 0)
+					sb.Append(',');
+				sb.Append(J(divs[i].Lines[j]));
+			}
+			sb.Append("]}");
+		}
 		sb.Append(']');
 		EmitResult(id, sb.ToString());
 	}

@@ -71,6 +71,26 @@ internal sealed class ConsoleEscapedParts
 		if (removed > 0) Changed = true;
 	}
 
+	#region CLI_Debug（--CliDebug モード用）
+	/// <summary>
+	/// 現在登録されている div 部件を画面位置順（上→下）で返す。
+	/// CLI の screen / buttons / click が div 内の文字とボタンを扱えるようにするため
+	/// （描画用の GetPartsInRange は行範囲・深度フィルタ付きで、全画面読みには使えない）。
+	/// </summary>
+	public static List<AConsoleDisplayNode> CollectDivParts()
+	{
+		var tmp = new List<EscapedPartRecord>();
+		foreach (var r in records)
+			if (r.Part is ConsoleDivPart)
+				tmp.Add(r);
+		tmp.Sort((a, b) => a.Top != b.Top ? a.Top.CompareTo(b.Top) : a.Line.CompareTo(b.Line));
+		var list = new List<AConsoleDisplayNode>(tmp.Count);
+		foreach (var r in tmp)
+			list.Add(r.Part);
+		return list;
+	}
+	#endregion
+
 	public static void GetPartsInRange(int top, int bottom, int gen, Dictionary<int, List<AConsoleDisplayNode>> rmap)
 	{
 		if (GlobalStatic.Console?.GetLineNo > Config.Config.MaxLog)
