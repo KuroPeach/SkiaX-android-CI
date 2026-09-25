@@ -2,6 +2,7 @@ using MinorShift.Emuera.Runtime.Script.Statements;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace MinorShift.Emuera.Runtime.Utils
@@ -208,7 +209,8 @@ namespace MinorShift.Emuera.Runtime.Utils
 				startTime.ToString("yyyy-MM-dd HH:mm:ss"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
 			sb.AppendLine(string.Format("总输出条数: {0}", totalCount));
 			sb.AppendLine("--- 按打印位置统计(位置 | 次数) ---");
-			foreach (var pair in stats)
+			//Dictionary 遍历无序:按次数降序输出,保证同一份数据每次报告顺序一致
+			foreach (var pair in stats.OrderByDescending(p => p.Value).ThenBy(p => p.Key, StringComparer.Ordinal))
 				sb.AppendLine(string.Format("{0} | {1} 次", pair.Key, pair.Value));
 			if (totalCount == 0)
 				sb.AppendLine("(期间内没有任何打印)");
