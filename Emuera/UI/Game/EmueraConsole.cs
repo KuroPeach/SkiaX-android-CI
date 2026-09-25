@@ -333,6 +333,8 @@ internal sealed partial class EmueraConsole : IDisposable
 					break;
 			}
 			_state = value;
+			if (value == ConsoleState.Quit || value == ConsoleState.Error)
+				CliTerminalStateEntered?.Invoke();
 		}
 	}
 	#endregion
@@ -742,6 +744,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			presetTimer();
 			//				setTimer();
 		}
+		CliWaitInputEntered?.Invoke();
 		//updateMousePosition();
 		//Point point = window.MainPicBox.PointToClient(Control.MousePosition);
 		//if (window.MainPicBox.ClientRectangle.Contains(point))
@@ -824,6 +827,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				window.update_lastinput();
 			presetTimer();
 		}
+		CliWaitInputEntered?.Invoke();
 	}
 	#endregion
 
@@ -842,6 +846,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		inputReq = req;
 		state = ConsoleState.WaitInput;
 		process.NeedWaitToEventComEnd = false;
+		CliWaitInputEntered?.Invoke();
 	}
 
 
@@ -3137,6 +3142,135 @@ internal sealed partial class EmueraConsole : IDisposable
 			redraw = ConsoleRedraw.None;
 		*/
 	}
+
+	#region CLI_Debug（--CliDebug モード用フック）
+	// 设计文档: shared-trae/plans/plan-cli-debug-mode.md
+	// 全部为新增并行订阅点：无订阅者时零开销，GUI 行为不变。
+
+	/// <summary>新显示行产生时触发（addDisplayLine 内，与 CBProc.AddLine 同挂点）。</summary>
+	public event Action<ConsoleDisplayLine> CliLineAdded;
+	/// <summary>进入输入等待（WaitInput / WaitInputNoFocus / ReadAnyKey）时触发。</summary>
+	public event Action CliWaitInputEntered;
+	/// <summary>进入 Error / Quit 终态时触发。</summary>
+	public event Action CliTerminalStateEntered;
+
+	/// <summary>当前状态名（CLI 协议用；避开 enum.ToString 的混淆约束，手写映射）。</summary>
+	internal string CliStateName => state switch
+	{
+		ConsoleState.Initializing => "Initializing",
+		ConsoleState.Quit => "Quit",
+		ConsoleState.Error => "Error",
+		ConsoleState.Running => "Running",
+		ConsoleState.WaitInput => "WaitInput",
+		ConsoleState.WaitInputNoFocus => "WaitInputNoFocus",
+		ConsoleState.Sleep => "Sleep",
+		_ => "Unknown",
+	};
+
+	/// <summary>
+	/// 当前输入等待世代可选的按钮列表（显示文本 / 提交值 / 是否整数），无则返回空列表。
+	/// 筛选逻辑移植自 SkiaX RefreshQuickButtonAsync（EmueraConsole.ex.cs）：
+	/// 仅值输入系（IntValue/StrValue/AnyValue/IntButton/StrButton）收集；
+	/// 自底向上回溯，遇到旧世代按钮（Generation != 0 且 != lastButtonGeneration）即停止——
+	/// 与 PressEnterKey 的 IntButton/StrButton 验证分支同规则。
+	/// </summary>
+	public List<(string Text, string Value, bool IsInteger)> GetSelectableButtons()
+	{
+		var result = new List<(string Text, string Value, bool IsInteger)>();
+		if (!IsWaitInputState || inputReq == null)
+			return result;
+		switch (inputReq.InputType)
+		{
+			case InputType.IntValue:
+			case InputType.StrValue:
+			case InputType.AnyValue:
+			case InputType.IntButton:
+			case InputType.StrButton:
+				break;
+			default:
+				return result;
+		}
+		for (int i = displayLineList.Count - 1; i >= 0; i--)
+		{
+			foreach (ConsoleButtonString button in displayLineList[i].Buttons)
+			{
+				if (button == null || !button.IsButton)
+					continue;
+				if (button.Generation != lastButtonGeneration)
+				{
+					if (button.Generation != 0)
+						goto Done;
+					continue;
+				}
+				result.Add((ClipboardProcessor.StripHTML(button.ToString()).Trim(),
+					button.IsInteger ? button.Input.ToString() : button.Inputs,
+					button.IsInteger));
+			}
+		}
+	Done:
+		// div（HTML rect 覆盖层）内のボタンは displayLineList ではなく
+		// ConsoleEscapedParts に登録される（BINPUT / *Button の検証経路と同じ）。
+		// 本体側は下→上に集めて最後に反転する流儀なので、div も画面位置の下から積む。
+		var divParts = ConsoleEscapedParts.CollectDivParts();
+		for (int i = divParts.Count - 1; i >= 0; i--)
+		{
+			if (divParts[i] is not ConsoleDivPart div)
+				continue;
+			var children = div.Children;
+			for (int j = children.Length - 1; j >= 0; j--)
+			{
+				foreach (ConsoleButtonString button in children[j].Buttons)
+				{
+					if (button == null || !button.IsButton)
+						continue;
+					result.Add((ClipboardProcessor.StripHTML(button.ToString()).Trim(),
+						button.IsInteger ? button.Input.ToString() : button.Inputs,
+						button.IsInteger));
+				}
+			}
+		}
+		result.Reverse();
+		return result;
+	}
+
+	/// <summary>
+	/// div（HTML rect 覆盖层）の内容行（CLI screen 用）。
+	/// div 内の文字は displayLineList に積まれないため、これが無いと div 画面が読めない。
+	/// 返り値は画面位置順（上→下）で、各 div の PointY と物理行テキストを持つ。
+	/// </summary>
+	internal List<(int Top, string[] Lines)> GetCliDivContents()
+	{
+		var result = new List<(int, string[])>();
+		foreach (var part in ConsoleEscapedParts.CollectDivParts())
+		{
+			if (part is not ConsoleDivPart div)
+				continue;
+			var children = div.Children;
+			string[] lines = new string[children.Length];
+			for (int i = 0; i < children.Length; i++)
+				lines[i] = ClipboardProcessor.StripHTML(children[i].ToString());
+			result.Add((div.CliPointY, lines));
+		}
+		return result;
+	}
+
+	/// <summary>
+	/// 末尾 count 条物理显示行（CLI screen 命令用）。
+	/// GetDisplayLines 的参数是「逻辑行」计数语义（且无对应逻辑行时返回 null），
+	/// 与整屏读取需求不符——div 类画面每轮 CLEARLINE + 重绘，逻辑行数远小于请求值。
+	/// 这里按物理行自底向上取，保持屏幕自上而下的顺序。
+	/// </summary>
+	internal string[] GetCliTailLines(int count)
+	{
+		if (count <= 0)
+			return [];
+		var list = new List<string>(Math.Min(count, displayLineList.Count));
+		for (int i = displayLineList.Count - 1; i >= 0 && list.Count < count; i--)
+			list.Add(ClipboardProcessor.StripHTML(displayLineList[i].ToString()));
+		list.Reverse();
+		return [.. list];
+	}
+	#endregion
 
 	public void Dispose()
 	{

@@ -37,6 +37,9 @@ namespace MinorShift.Emuera.Forms
 			holdTimer = new System.Windows.Forms.Timer { Interval = 200 };
 			holdTimer.Tick += holdTimer_Tick;
 			holdTimer.Start();
+			//打印监视的实时视图刷新(仅在监视期间运行)
+			printTimer = new System.Windows.Forms.Timer { Interval = 300 };
+			printTimer.Tick += printTimer_Tick;
 			FormClosed += (s, e) =>
 			{
 				if (holdTimer != null)
@@ -45,11 +48,18 @@ namespace MinorShift.Emuera.Forms
 					holdTimer.Dispose();
 					holdTimer = null;
 				}
+				if (printTimer != null)
+				{
+					printTimer.Stop();
+					printTimer.Dispose();
+					printTimer = null;
+				}
 			};
 			loadWatchList();
 		}
 		private Process emuera;
 		private EmueraConsole mainConsole;
+		private System.Windows.Forms.Timer printTimer;
 
 		internal void SetParent(EmueraConsole console, Process process)
 		{
@@ -105,6 +115,8 @@ namespace MinorShift.Emuera.Forms
 				updateVarWatch();
 			else if (tabControlMain.SelectedTab == tabPageTrace)
 				updateTrace();
+			else if (tabControlMain.SelectedTab == tabPagePrintWatch)
+				updatePrintLog();
 			else if (tabControlMain.SelectedTab == tabPageConsole)
 				updateConsole();
 		}
@@ -130,6 +142,38 @@ namespace MinorShift.Emuera.Forms
 			//textBoxConsole.SelectionStart = textBoxConsole.Text.Length;
 			//textBoxConsole.Focus();
 			//textBoxConsole.ScrollToCaret();
+		}
+
+		/// <summary>刷新「打印监视」页签的实时输出视图(内容与日志文件一致)。</summary>
+		private void updatePrintLog()
+		{
+			if (printLogVersion == PrintWatch.LiveVersion)
+				return;
+			printLogVersion = PrintWatch.LiveVersion;
+			string text = PrintWatch.LiveLog ?? "";
+			textBoxPrintLog.Text = text;
+			textBoxPrintLog.SelectionStart = textBoxPrintLog.TextLength;
+			textBoxPrintLog.ScrollToCaret();
+		}
+		private int printLogVersion = -1;
+
+		private void printTimer_Tick(object sender, EventArgs e)
+		{
+			try
+			{
+				if (!PrintWatch.IsEnabled)
+				{
+					printTimer.Stop();//监视已停止(或被关闭),停止刷新
+					return;
+				}
+				if (tabControlMain.SelectedTab != tabPagePrintWatch)
+					return;//只看当前页签,避免无谓刷新
+				updatePrintLog();
+			}
+			catch
+			{
+				printTimer.Stop();
+			}
 		}
 
 		private void updateVarWatch()
@@ -568,6 +612,57 @@ namespace MinorShift.Emuera.Forms
 		}
 		#endregion
 
+		#region 打印监视(开始打印监视/停止打印监视并报告)
+		private readonly string printWatchFilepath = Program.DebugDir + "print_trace.log";
+
+		private void buttonStartPrintWatch_Click(object sender, EventArgs e)
+		{
+			StartPrintWatch();
+		}
+
+		private void buttonStopPrintWatch_Click(object sender, EventArgs e)
+		{
+			StopPrintWatch();
+		}
+
+		/// <summary>勾选=打印记录附加完整调用栈(只影响打印监视)。</summary>
+		private void checkBoxPrintCallStack_CheckedChanged(object sender, EventArgs e)
+		{
+			PrintWatch.IncludeCallStack = checkBoxPrintCallStack.Checked;
+		}
+
+		/// <summary>开始监视控制台文本输出(记录每一次打印的文本+函数+文件:行号)。</summary>
+		private void StartPrintWatch()
+		{
+			PrintWatch.IncludeCallStack = checkBoxPrintCallStack.Checked;
+			PrintWatch.Start(printWatchFilepath);
+			buttonStartPrintWatch.Enabled = false;
+			buttonStopPrintWatch.Enabled = true;
+			printTimer.Start();
+			tabControlMain.SelectedTab = tabPagePrintWatch;
+			updatePrintLog();
+			mainConsole.DebugPrint(string.Format("打印监视开始{0} → {1}",
+				PrintWatch.IncludeCallStack ? "(含调用栈)" : "", printWatchFilepath));
+			mainConsole.DebugNewLine();
+			updateConsole();
+		}
+
+		/// <summary>停止打印监视,把报告打印到调试窗口控制台(同时已写入日志文件)。</summary>
+		private void StopPrintWatch()
+		{
+			string report = PrintWatch.Stop();
+			buttonStartPrintWatch.Enabled = true;
+			buttonStopPrintWatch.Enabled = false;
+			printTimer.Stop();
+			updatePrintLog();//把最终报告也显示到实时视图
+			if (string.IsNullOrEmpty(report))
+				return;
+			mainConsole.DebugPrint(report);
+			mainConsole.DebugNewLine();
+			updateConsole();
+		}
+		#endregion
+
 		//锁定=持续赋值：CE 式周期重申——每隔200ms在安全时机把锁定行的冻结值写回变量
 		private void holdTimer_Tick(object sender, EventArgs e)
 		{
@@ -749,6 +844,8 @@ namespace MinorShift.Emuera.Forms
 		{
 			if (VarWriteWatch.IsEnabled)
 				VarWriteWatch.Stop();
+			if (PrintWatch.IsEnabled)
+				PrintWatch.Stop();
 			saveData();
 		}
 

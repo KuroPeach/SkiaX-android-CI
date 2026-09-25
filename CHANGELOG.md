@@ -4,6 +4,39 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [15.0.0] — CLI 调试模式 + 打印监视
+
+### Added
+
+- **`--CliDebug` CLI 调试模式**（私家版新增，设计文档 `shared-trae/plans/plan-cli-debug-mode.md`）：stdin/stdout JSON Lines 协议，供 AI agent 等外部程序驱动解释器调试。隐含 `-Debug`；保留 WinForms 消息循环与渲染管线，仅最小化隐藏窗口。stdin 线程读取命令并经 `MainWindow.Invoke` 派发到 UI 线程执行；stdout 推送事件流。
+  - 事件：`hello` / `ready` / `out`（新显示行，与 `ClipboardProcessor.AddLine` 同挂点，`StripHTML` 纯文本）/ `wait`（进入输入等待，含 `inputType`、`timeoutMs`、默认值、当世代可选 `buttons` 列表）/ `state`（Error/Quit 终态）/ `dialog`（模态对话框替代事件）/ `exit`。
+  - 命令：`input` / `click`（按钮世代校验 + 鼠标点击语义字面提交）/ `key`（enter/skip）/ `debug`（等价调试窗口控制台，返回 `DebugConsoleLog` 增量）/ `watch`（变量写入监视 start/stop/status，直驱 `VarWriteWatch`）/ `trace` / `screen` / `state` / `buttons` / `log` / `quit` / `help`；另支持 `!表达式` 便捷输入。
+  - 模态对话框（`PlatformInterop.ShowMessage`/`ShowQuestion` 等）在 CLI 模式下全部替换为 stdout 事件，避免无人值守卡死。
+  - 内核新增并行订阅钩子：`EmueraConsole.CliLineAdded` / `CliWaitInputEntered` / `CliTerminalStateEntered` 事件与 `GetSelectableButtons()`（按钮筛选逻辑移植自 SkiaX `RefreshQuickButtonAsync`，与 `PressEnterKey` 世代校验同规则）。无订阅者时零开销，GUI 行为不变。
+  - 涉及 `CliDebugHost.cs`（新）、`Program.cs`、`EmueraConsole.cs` / `EmueraConsole.Print.cs`
+- **打印监视（调试窗口，MR-17）**：调试窗口新增「打印监视」页签（开始 / 停止并报告 / 记录调用栈勾选），记录每一次送往游戏控制台的文本输出及其触发位置（函数 + 文件:行号），明细写入 `debug\print_trace.log`（超 10 万条后仅统计），页签内 300ms 实时视图，停止时在控制台打印按位置统计的汇总报告（次数降序）。可选附加最多 20 帧的内联调用栈（由内到外，各层取调用点行）。常规 PRINT 族（`PrintStringBuffer` 各入口）、HTML_PRINT / HTML_PRINTC、系统单行输出与错误按钮均覆盖；调试窗口自身 ERB 执行的输出自动排除。未开启时每次打印仅多一次静态 bool 判断，零行为影响。涉及 `PrintWatch.cs`（新）/ `PrintStringBuffer.cs` / `EmueraConsole.Print.cs` / `DebugDialog.cs`
+
+### Fixed
+
+- **CLI `screen` 在 div 画面上返回空数组**：原实现调用 `GetDisplayLines(lines)`，其参数是「逻辑行」计数语义（无对应逻辑行时返回 `null`），而 div 类画面每轮 `CLEARLINE` + 重绘，逻辑行数远小于请求值 → 恒为空。新增 `EmueraConsole.GetCliTailLines(count)` 按物理行自底向上读取（`GetDisplayLines` 不动，GUI 无影响）。
+- **div（HTML `rect` 覆盖层）内容无法读取**：div 内文字不进入 `displayLineList`，而是注册在静态 `ConsoleEscapedParts`。`screen` 结果新增 `divs` 字段（`[{top, lines[]}]`，画面位置自上而下），由 `EmueraConsole.GetCliDivContents()` + `ConsoleEscapedParts.CollectDivParts()` 提供。
+- **div 内按钮无法枚举/点击**：`GetSelectableButtons()` 只遍历 `displayLineList`，而 div 按钮经 `ConsoleEscapedParts → ConsoleDivPart.Children` 注册（与 `BINPUT` / `IntButton`/`StrButton` 验证路径同源）→ `buttons` 恒为空、`click` 无从下手。现按同一路径补充收集（不加世代过滤，与 `BINPUT` 一致）。
+- **CLI 首条 stdin 命令偶发 `invalid JSON`**：PowerShell 驱动偶发在流首写入 UTF-8 BOM 前导（`EF BB BF`），且 `Console.In` 在无控制台 WinExe 下回退到系统 ANSI 代码页（936）解码 → 首行变成 `鑘縁…` 杂字符、id 丢失。现锁定 stdin 为显式 UTF-8（含 BOM 自动侦测/剥离）读取，与协议约定（UTF-8 JSON Lines）一致；另对首尾 BOM/空白杂字符剥离重试，彻底失败时把原始行内容回显进错误消息便于诊断。
+- 涉及 `EmueraConsole.cs` / `EmueraConsole.Print.cs`（无改动，仅复用）/ `ConsoleEscapedParts.cs` / `ConsoleDivPart.cs`（`CliPointY` 暴露 protected `PointY`）/ `CliDebugHost.cs`（stdin 读取 + 容错诊断）
+
+### Verified
+
+- 发布版（`发布.bat` → `Release-NAudio win-x64`）+ div 样例（`カラム機能(div).ERB`）双向交互全流程实测（`pub9`）：
+  - `state` / `screen`（框+divs）/ `buttons`（div 与框内按钮同列）/ `click`（ div 按钮 `11` → `FLAG:0=11` 读回；框按钮 `101` 切第 2 列；列内 `21` → `FLAG:0=21`；`100` 切回第 1 列且值保持）/ `input 12`（`PRINT_IMG` 渲染进 `screen.lines`）/
+  - `input 12` 触发 `PRINTFORMW` 链期间进入 `EnterKey` 无按钮 wait —— 用 `key enter` 逐个推进直到回到 `IntValue` 有按钮，再 `click 99`（`FLAG:0=12` 读回）→ 样例循环退出 → ERB `QUIT` → 进程自行退出（`state Quit` + 无 Emuera 残留，无需再发 `quit`）。
+
+
+### Changed
+
+- **版本签名**：`Skiav14` → `Skiav15`（`1824+v24+EMv18+EEv56+Skiav15`）
+
+***
+
 ## [14.0.0] — 变量写入监视
 
 ### Added

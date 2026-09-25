@@ -174,6 +174,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (Config.CBUseClipboard)
 			CBProc.AddLine(line, force_LEFT);
 		#endregion
+		CliLineAdded?.Invoke(line);
 		if (LastLineIsTemporary)
 			deleteLine(1);
 		//不適正なFontのチェック
@@ -501,6 +502,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			return;
 		if (!Enabled)
 			return;
+		PrintWatch.OnPrint(str);
 		if (toPrintBuffer)
 		{
 			foreach (var button in HtmlManager.Html2ButtonList(str, stringMeasure, this))
@@ -524,6 +526,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			return;
 		if (!Enabled)
 			return;
+		PrintWatch.OnPrint(str);
 		if (cellWidthPx <= 0)
 			cellWidthPx = Config.PrintCLength * Config.FontSize / 2;
 

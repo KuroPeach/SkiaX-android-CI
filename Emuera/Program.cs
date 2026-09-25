@@ -81,6 +81,12 @@ static partial class Program
 			description: "言語ファイルテンプレ生成"
 		);
 		rootCommand.AddOption(genLangOption);
+		var cliDebugOption = new Option<bool>(
+			name: "--CliDebug",
+			description: "CLI 调试模式：stdin/stdout JSON Lines 协议，供 agent 驱动调试（隐含 -Debug）"
+		);
+		cliDebugOption.AddAlias("-CliDebug");
+		rootCommand.AddOption(cliDebugOption);
 
 		var filesArg = new Argument<string[]>(
 					"解析するファイル"
@@ -104,6 +110,14 @@ static partial class Program
 
 		var debugMode = result.GetValueForOption(debugModeOption);
 		DebugMode = debugMode;
+		var cliDebugMode = result.GetValueForOption(cliDebugOption);
+		CliDebugMode = cliDebugMode;
+		if (cliDebugMode)
+		{
+			// CLI 调试隐含 -Debug（DebugConsoleLog / 变量监视等调试能力依赖 DebugMode）
+			DebugMode = true;
+			UI.CliDebug.CliDebugHost.InitIO();
+		}
 
 		var genLang = result.GetValueForOption(genLangOption);
 		if (genLang)
@@ -294,9 +308,23 @@ static partial class Program
 
 		// PlatformInterop 委托初始化（WinForms 实现）
 		PlatformInterop.DoEvents = () => Application.DoEvents();
-		PlatformInterop.ShowMessage = text => MessageBox.Show(text);
-		PlatformInterop.ShowMessageWithTitle = (text, title) => MessageBox.Show(text, title);
-		PlatformInterop.ShowQuestion = (text, title) => MessageBox.Show(text, title, MessageBoxButtons.YesNo) == DialogResult.Yes;
+		if (CliDebugMode)
+		{
+			// CLI 模式：模态对话框转为 stdout 事件，避免无人值守卡死（ShowQuestion 一律应答 No）
+			PlatformInterop.ShowMessage = text => UI.CliDebug.CliDebugHost.EmitDialogEvent("message", text, "");
+			PlatformInterop.ShowMessageWithTitle = (text, title) => UI.CliDebug.CliDebugHost.EmitDialogEvent("message", text, title);
+			PlatformInterop.ShowQuestion = (text, title) =>
+			{
+				UI.CliDebug.CliDebugHost.EmitDialogEvent("question", text, title);
+				return false;
+			};
+		}
+		else
+		{
+			PlatformInterop.ShowMessage = text => MessageBox.Show(text);
+			PlatformInterop.ShowMessageWithTitle = (text, title) => MessageBox.Show(text, title);
+			PlatformInterop.ShowQuestion = (text, title) => MessageBox.Show(text, title, MessageBoxButtons.YesNo) == DialogResult.Yes;
+		}
 		PlatformInterop.GetProductVersion = () => Application.ProductVersion;
 		PlatformInterop.GetMousePosition = () => Cursor.Position;
 		PlatformInterop.SetClipboardText = text => Clipboard.SetText(text);
@@ -329,7 +357,20 @@ static partial class Program
 				win.SetupIcon(icon);
 			#endregion
 
+			#region CLI_Debug
+			UI.CliDebug.CliDebugHost? cliHost = null;
+			if (CliDebugMode)
+			{
+				// 保留 WinForms 消息循环与渲染管线，仅最小化隐藏窗口（非 headless，见设计文档 §3）
+				win.ShowInTaskbar = false;
+				win.WindowState = FormWindowState.Minimized;
+				cliHost = new UI.CliDebug.CliDebugHost(win);
+				cliHost.Start();
+			}
+			#endregion
+
 			Application.Run(win);
+			cliHost?.NotifyProcessExit();
 			/* VVII版マージ前の起動処理
 			MainWindow win = null;
 			StartTime = WinmmTimer.TickCount;
@@ -476,6 +517,8 @@ static partial class Program
 	//public static bool debugMode = false;
 	//public static bool DebugMode { get { return debugMode; } }
 	public static bool DebugMode { get; private set; }
+	/// <summary>CLI 调试模式（--CliDebug）：stdin/stdout JSON Lines 协议，隐含 DebugMode。</summary>
+	public static bool CliDebugMode { get; private set; }
 
 	static Program()
 	{

@@ -44,6 +44,12 @@ namespace MinorShift.Emuera.Forms
 			this.panelWatchControl = new System.Windows.Forms.Panel();
 			this.buttonStartWriteWatch = new System.Windows.Forms.Button();
 			this.buttonStopWriteWatch = new System.Windows.Forms.Button();
+			this.tabPagePrintWatch = new System.Windows.Forms.TabPage();
+			this.textBoxPrintLog = new System.Windows.Forms.TextBox();
+			this.panelPrintControl = new System.Windows.Forms.FlowLayoutPanel();
+			this.checkBoxPrintCallStack = new System.Windows.Forms.CheckBox();
+			this.buttonStartPrintWatch = new System.Windows.Forms.Button();
+			this.buttonStopPrintWatch = new System.Windows.Forms.Button();
 			this.panelBottom = new System.Windows.Forms.Panel();
 			this.tabPageTrace = new System.Windows.Forms.TabPage();
 			this.textBoxTrace = new System.Windows.Forms.TextBox();
@@ -56,9 +62,11 @@ namespace MinorShift.Emuera.Forms
 			this.menuStrip1.SuspendLayout();
 			this.tabControlMain.SuspendLayout();
 			this.tabPageWatch.SuspendLayout();
+			this.tabPagePrintWatch.SuspendLayout();
 			this.tabPageTrace.SuspendLayout();
 			this.tabPageConsole.SuspendLayout();
 			this.panelWatchControl.SuspendLayout();
+			this.panelPrintControl.SuspendLayout();
 			this.panelBottom.SuspendLayout();
 			this.SuspendLayout();
 			// 
@@ -124,6 +132,7 @@ namespace MinorShift.Emuera.Forms
 			this.tabControlMain.Controls.Add(this.tabPageConsole);
 			this.tabControlMain.Controls.Add(this.tabPageWatch);
 			this.tabControlMain.Controls.Add(this.tabPageTrace);
+			this.tabControlMain.Controls.Add(this.tabPagePrintWatch);
 			this.tabControlMain.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.tabControlMain.Location = new System.Drawing.Point(0, 24);
 			this.tabControlMain.Name = "tabControlMain";
@@ -212,6 +221,85 @@ namespace MinorShift.Emuera.Forms
 			this.buttonStopWriteWatch.Text = "停止监视并打印报告";
 			this.buttonStopWriteWatch.UseVisualStyleBackColor = true;
 			this.buttonStopWriteWatch.Click += new System.EventHandler(this.buttonStopWriteWatch_Click);
+			// 
+			// tabPagePrintWatch
+			// 
+			this.tabPagePrintWatch.Controls.Add(this.textBoxPrintLog);
+			this.tabPagePrintWatch.Controls.Add(this.panelPrintControl);
+			this.tabPagePrintWatch.Location = new System.Drawing.Point(4, 22);
+			this.tabPagePrintWatch.Name = "tabPagePrintWatch";
+			this.tabPagePrintWatch.Padding = new System.Windows.Forms.Padding(3);
+			this.tabPagePrintWatch.Size = new System.Drawing.Size(376, 171);
+			this.tabPagePrintWatch.TabIndex = 3;
+			this.tabPagePrintWatch.Text = "打印监视";
+			this.tabPagePrintWatch.UseVisualStyleBackColor = true;
+			// 
+			// textBoxPrintLog
+			// 
+			this.textBoxPrintLog.Dock = System.Windows.Forms.DockStyle.Fill;
+			this.textBoxPrintLog.Font = new System.Drawing.Font("ＭＳ ゴシック", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(128)));
+			this.textBoxPrintLog.Location = new System.Drawing.Point(3, 3);
+			this.textBoxPrintLog.Multiline = true;
+			this.textBoxPrintLog.Name = "textBoxPrintLog";
+			this.textBoxPrintLog.ReadOnly = true;
+			this.textBoxPrintLog.ScrollBars = System.Windows.Forms.ScrollBars.Both;
+			this.textBoxPrintLog.Size = new System.Drawing.Size(370, 137);
+			this.textBoxPrintLog.TabIndex = 0;
+			this.textBoxPrintLog.WordWrap = false;
+			// 
+			// panelPrintControl
+			// 
+			// 流式布局 + 控件自动宽度:按文字实际占位排版,换字体/改文案都不会截字;窗口过窄时自动换行
+			this.panelPrintControl.AutoSize = true;
+			this.panelPrintControl.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+			this.panelPrintControl.Controls.Add(this.checkBoxPrintCallStack);
+			this.panelPrintControl.Controls.Add(this.buttonStartPrintWatch);
+			this.panelPrintControl.Controls.Add(this.buttonStopPrintWatch);
+			this.panelPrintControl.Dock = System.Windows.Forms.DockStyle.Bottom;
+			this.panelPrintControl.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+			this.panelPrintControl.Location = new System.Drawing.Point(3, 140);
+			this.panelPrintControl.Name = "panelPrintControl";
+			this.panelPrintControl.Padding = new System.Windows.Forms.Padding(3, 3, 3, 0);
+			this.panelPrintControl.Size = new System.Drawing.Size(370, 28);
+			this.panelPrintControl.TabIndex = 3;
+			this.panelPrintControl.WrapContents = true;
+			// 
+			// checkBoxPrintCallStack
+			// 
+			this.checkBoxPrintCallStack.AutoSize = true;
+			this.checkBoxPrintCallStack.Location = new System.Drawing.Point(6, 6);
+			this.checkBoxPrintCallStack.Margin = new System.Windows.Forms.Padding(3, 3, 10, 3);
+			this.checkBoxPrintCallStack.Name = "checkBoxPrintCallStack";
+			this.checkBoxPrintCallStack.Size = new System.Drawing.Size(94, 23);
+			this.checkBoxPrintCallStack.TabIndex = 0;
+			this.checkBoxPrintCallStack.Text = "记录调用栈";
+			this.checkBoxPrintCallStack.UseVisualStyleBackColor = true;
+			this.checkBoxPrintCallStack.CheckedChanged += new System.EventHandler(this.checkBoxPrintCallStack_CheckedChanged);
+			// 
+			// buttonStartPrintWatch
+			// 
+			this.buttonStartPrintWatch.AutoSize = true;
+			this.buttonStartPrintWatch.Location = new System.Drawing.Point(113, 6);
+			this.buttonStartPrintWatch.Margin = new System.Windows.Forms.Padding(3, 3, 10, 3);
+			this.buttonStartPrintWatch.Name = "buttonStartPrintWatch";
+			this.buttonStartPrintWatch.Size = new System.Drawing.Size(100, 23);
+			this.buttonStartPrintWatch.TabIndex = 1;
+			this.buttonStartPrintWatch.Text = "开始打印监视";
+			this.buttonStartPrintWatch.UseVisualStyleBackColor = true;
+			this.buttonStartPrintWatch.Click += new System.EventHandler(this.buttonStartPrintWatch_Click);
+			// 
+			// buttonStopPrintWatch
+			// 
+			this.buttonStopPrintWatch.AutoSize = true;
+			this.buttonStopPrintWatch.Enabled = false;
+			this.buttonStopPrintWatch.Location = new System.Drawing.Point(226, 6);
+			this.buttonStopPrintWatch.Margin = new System.Windows.Forms.Padding(3, 3, 3, 3);
+			this.buttonStopPrintWatch.Name = "buttonStopPrintWatch";
+			this.buttonStopPrintWatch.Size = new System.Drawing.Size(150, 23);
+			this.buttonStopPrintWatch.TabIndex = 2;
+			this.buttonStopPrintWatch.Text = "停止打印监视并报告";
+			this.buttonStopPrintWatch.UseVisualStyleBackColor = true;
+			this.buttonStopPrintWatch.Click += new System.EventHandler(this.buttonStopPrintWatch_Click);
 			// 
 			// tabPageTrace
 			// 
@@ -342,11 +430,15 @@ namespace MinorShift.Emuera.Forms
 			this.menuStrip1.PerformLayout();
 			this.tabControlMain.ResumeLayout(false);
 			this.tabPageWatch.ResumeLayout(false);
+			this.tabPagePrintWatch.ResumeLayout(false);
+			this.tabPagePrintWatch.PerformLayout();
 			this.tabPageTrace.ResumeLayout(false);
 			this.tabPageTrace.PerformLayout();
 			this.tabPageConsole.ResumeLayout(false);
 			this.tabPageConsole.PerformLayout();
 			this.panelWatchControl.ResumeLayout(false);
+			this.panelPrintControl.ResumeLayout(false);
+			this.panelPrintControl.PerformLayout();
 			this.panelBottom.ResumeLayout(false);
 			this.panelBottom.PerformLayout();
 			this.ResumeLayout(false);
@@ -373,6 +465,12 @@ namespace MinorShift.Emuera.Forms
 		private System.Windows.Forms.Panel panelWatchControl;
 		private System.Windows.Forms.Button buttonStartWriteWatch;
 		private System.Windows.Forms.Button buttonStopWriteWatch;
+		private System.Windows.Forms.Button buttonStartPrintWatch;
+		private System.Windows.Forms.Button buttonStopPrintWatch;
+		private System.Windows.Forms.CheckBox checkBoxPrintCallStack;
+		private System.Windows.Forms.TabPage tabPagePrintWatch;
+		private System.Windows.Forms.TextBox textBoxPrintLog;
+		private System.Windows.Forms.FlowLayoutPanel panelPrintControl;
 		private System.Windows.Forms.Panel panelBottom;
 		private System.Windows.Forms.TextBox textBoxTrace;
 		private System.Windows.Forms.TabPage tabPageConsole;

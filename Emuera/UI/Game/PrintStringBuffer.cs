@@ -62,6 +62,7 @@ internal sealed class PrintStringBuffer
 
 	public void Append(string str, StringStyle style, bool force_button = false, bool lineEnd = true)
 	{
+		PrintWatch.OnPrint(str);
 		isLastLineEnd = lineEnd;
 		if (BufferStrLength > 2000)
 			return;
@@ -89,6 +90,7 @@ internal sealed class PrintStringBuffer
 
 	public void AppendButton(string str, StringStyle style, string input)
 	{
+		PrintWatch.OnPrint(str);
 		fromCssToButton();
 		m_stringList.Add(new ConsoleStyledString(str, style));
 		if (m_stringList.Count == 0)
@@ -101,6 +103,7 @@ internal sealed class PrintStringBuffer
 
 	public void AppendButton(string str, StringStyle style, long input)
 	{
+		PrintWatch.OnPrint(str);
 		fromCssToButton();
 		m_stringList.Add(new ConsoleStyledString(str, style));
 		if (m_stringList.Count == 0)
@@ -111,6 +114,7 @@ internal sealed class PrintStringBuffer
 
 	public void AppendPlainText(string str, StringStyle style)
 	{
+		PrintWatch.OnPrint(str);
 		fromCssToButton();
 		m_stringList.Add(new ConsoleStyledString(str, style));
 		if (m_stringList.Count == 0)
@@ -162,6 +166,7 @@ internal sealed class PrintStringBuffer
 
 	public ConsoleDisplayLine AppendAndFlushErrButton(string str, StringStyle style, string input, ScriptPosition? pos, StringMeasure sm)
 	{
+		PrintWatch.OnPrint(str);
 		fromCssToButton();
 		m_stringList.Add(new ConsoleStyledString(str, style));
 		if (m_stringList.Count == 0)
