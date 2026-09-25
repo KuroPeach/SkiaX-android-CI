@@ -4,7 +4,7 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [15.0.0] — CLI 调试模式
+## [15.0.0] — CLI 调试模式 + 打印监视
 
 ### Added
 
@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - 模态对话框（`PlatformInterop.ShowMessage`/`ShowQuestion` 等）在 CLI 模式下全部替换为 stdout 事件，避免无人值守卡死。
   - 内核新增并行订阅钩子：`EmueraConsole.CliLineAdded` / `CliWaitInputEntered` / `CliTerminalStateEntered` 事件与 `GetSelectableButtons()`（按钮筛选逻辑移植自 SkiaX `RefreshQuickButtonAsync`，与 `PressEnterKey` 世代校验同规则）。无订阅者时零开销，GUI 行为不变。
   - 涉及 `CliDebugHost.cs`（新）、`Program.cs`、`EmueraConsole.cs` / `EmueraConsole.Print.cs`
+- **打印监视（调试窗口，MR-17）**：调试窗口新增「打印监视」页签（开始 / 停止并报告 / 记录调用栈勾选），记录每一次送往游戏控制台的文本输出及其触发位置（函数 + 文件:行号），明细写入 `debug\print_trace.log`（超 10 万条后仅统计），页签内 300ms 实时视图，停止时在控制台打印按位置统计的汇总报告（次数降序）。可选附加最多 20 帧的内联调用栈（由内到外，各层取调用点行）。常规 PRINT 族（`PrintStringBuffer` 各入口）、HTML_PRINT / HTML_PRINTC、系统单行输出与错误按钮均覆盖；调试窗口自身 ERB 执行的输出自动排除。未开启时每次打印仅多一次静态 bool 判断，零行为影响。涉及 `PrintWatch.cs`（新）/ `PrintStringBuffer.cs` / `EmueraConsole.Print.cs` / `DebugDialog.cs`
 
 ### Fixed
 
