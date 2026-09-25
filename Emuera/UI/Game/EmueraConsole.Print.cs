@@ -501,6 +501,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			return;
 		if (!Enabled)
 			return;
+		PrintWatch.OnPrint(str);
 		if (toPrintBuffer)
 		{
 			foreach (var button in HtmlManager.Html2ButtonList(str, stringMeasure, this))
@@ -524,6 +525,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			return;
 		if (!Enabled)
 			return;
+		PrintWatch.OnPrint(str);
 		if (cellWidthPx <= 0)
 			cellWidthPx = Config.PrintCLength * Config.FontSize / 2;
 

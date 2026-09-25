@@ -44,6 +44,8 @@ namespace MinorShift.Emuera.Forms
 			this.panelWatchControl = new System.Windows.Forms.Panel();
 			this.buttonStartWriteWatch = new System.Windows.Forms.Button();
 			this.buttonStopWriteWatch = new System.Windows.Forms.Button();
+			this.buttonStartPrintWatch = new System.Windows.Forms.Button();
+			this.buttonStopPrintWatch = new System.Windows.Forms.Button();
 			this.panelBottom = new System.Windows.Forms.Panel();
 			this.tabPageTrace = new System.Windows.Forms.TabPage();
 			this.textBoxTrace = new System.Windows.Forms.TextBox();
@@ -186,10 +188,12 @@ namespace MinorShift.Emuera.Forms
 			// 
 			this.panelWatchControl.Controls.Add(this.buttonStartWriteWatch);
 			this.panelWatchControl.Controls.Add(this.buttonStopWriteWatch);
+			this.panelWatchControl.Controls.Add(this.buttonStartPrintWatch);
+			this.panelWatchControl.Controls.Add(this.buttonStopPrintWatch);
 			this.panelWatchControl.Dock = System.Windows.Forms.DockStyle.Bottom;
-			this.panelWatchControl.Location = new System.Drawing.Point(3, 140);
+			this.panelWatchControl.Location = new System.Drawing.Point(3, 112);
 			this.panelWatchControl.Name = "panelWatchControl";
-			this.panelWatchControl.Size = new System.Drawing.Size(370, 28);
+			this.panelWatchControl.Size = new System.Drawing.Size(370, 56);
 			this.panelWatchControl.TabIndex = 1;
 			// 
 			// buttonStartWriteWatch
@@ -212,6 +216,27 @@ namespace MinorShift.Emuera.Forms
 			this.buttonStopWriteWatch.Text = "停止监视并打印报告";
 			this.buttonStopWriteWatch.UseVisualStyleBackColor = true;
 			this.buttonStopWriteWatch.Click += new System.EventHandler(this.buttonStopWriteWatch_Click);
+			// 
+			// buttonStartPrintWatch
+			// 
+			this.buttonStartPrintWatch.Location = new System.Drawing.Point(3, 30);
+			this.buttonStartPrintWatch.Name = "buttonStartPrintWatch";
+			this.buttonStartPrintWatch.Size = new System.Drawing.Size(110, 23);
+			this.buttonStartPrintWatch.TabIndex = 2;
+			this.buttonStartPrintWatch.Text = "开始打印监视";
+			this.buttonStartPrintWatch.UseVisualStyleBackColor = true;
+			this.buttonStartPrintWatch.Click += new System.EventHandler(this.buttonStartPrintWatch_Click);
+			// 
+			// buttonStopPrintWatch
+			// 
+			this.buttonStopPrintWatch.Enabled = false;
+			this.buttonStopPrintWatch.Location = new System.Drawing.Point(118, 30);
+			this.buttonStopPrintWatch.Name = "buttonStopPrintWatch";
+			this.buttonStopPrintWatch.Size = new System.Drawing.Size(150, 23);
+			this.buttonStopPrintWatch.TabIndex = 3;
+			this.buttonStopPrintWatch.Text = "停止打印监视并报告";
+			this.buttonStopPrintWatch.UseVisualStyleBackColor = true;
+			this.buttonStopPrintWatch.Click += new System.EventHandler(this.buttonStopPrintWatch_Click);
 			// 
 			// tabPageTrace
 			// 
@@ -373,6 +398,8 @@ namespace MinorShift.Emuera.Forms
 		private System.Windows.Forms.Panel panelWatchControl;
 		private System.Windows.Forms.Button buttonStartWriteWatch;
 		private System.Windows.Forms.Button buttonStopWriteWatch;
+		private System.Windows.Forms.Button buttonStartPrintWatch;
+		private System.Windows.Forms.Button buttonStopPrintWatch;
 		private System.Windows.Forms.Panel panelBottom;
 		private System.Windows.Forms.TextBox textBoxTrace;
 		private System.Windows.Forms.TabPage tabPageConsole;

@@ -568,6 +568,45 @@ namespace MinorShift.Emuera.Forms
 		}
 		#endregion
 
+		#region 打印监视(开始打印监视/停止打印监视并报告)
+		private readonly string printWatchFilepath = Program.DebugDir + "print_trace.log";
+
+		private void buttonStartPrintWatch_Click(object sender, EventArgs e)
+		{
+			StartPrintWatch();
+		}
+
+		private void buttonStopPrintWatch_Click(object sender, EventArgs e)
+		{
+			StopPrintWatch();
+		}
+
+		/// <summary>开始监视控制台文本输出(记录每一次打印的文本+函数+文件:行号)。</summary>
+		private void StartPrintWatch()
+		{
+			PrintWatch.Start(printWatchFilepath);
+			buttonStartPrintWatch.Enabled = false;
+			buttonStopPrintWatch.Enabled = true;
+			mainConsole.DebugPrint("打印监视开始 → " + printWatchFilepath);
+			mainConsole.DebugNewLine();
+			updateConsole();
+		}
+
+		/// <summary>停止打印监视,把报告打印到调试窗口控制台(同时已写入日志文件)。</summary>
+		private void StopPrintWatch()
+		{
+			string report = PrintWatch.Stop();
+			buttonStartPrintWatch.Enabled = true;
+			buttonStopPrintWatch.Enabled = false;
+			if (string.IsNullOrEmpty(report))
+				return;
+			mainConsole.DebugPrint(report);
+			mainConsole.DebugNewLine();
+			tabControlMain.SelectedTab = tabPageConsole;
+			updateConsole();
+		}
+		#endregion
+
 		//锁定=持续赋值：CE 式周期重申——每隔200ms在安全时机把锁定行的冻结值写回变量
 		private void holdTimer_Tick(object sender, EventArgs e)
 		{
@@ -749,6 +788,8 @@ namespace MinorShift.Emuera.Forms
 		{
 			if (VarWriteWatch.IsEnabled)
 				VarWriteWatch.Stop();
+			if (PrintWatch.IsEnabled)
+				PrintWatch.Stop();
 			saveData();
 		}
 
