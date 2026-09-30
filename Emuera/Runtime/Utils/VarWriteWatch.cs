@@ -4,6 +4,7 @@ using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace MinorShift.Emuera.Runtime.Utils
@@ -33,7 +34,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 			public string LastSite;
 		}
 
-		/// <summary>是否在记录中附加完整调用栈(由调试窗口的勾选项控制)。</summary>
+		/// <summary>是否在记录中附加完整调用栈(由调试窗口的勾选项或 CLI `watch` 的 stack 参数控制)。</summary>
 		public static bool IncludeCallStack { get; set; }
 
 		/// <summary>是否正在监视。</summary>
@@ -68,7 +69,8 @@ namespace MinorShift.Emuera.Runtime.Utils
 				if (!string.IsNullOrEmpty(dir))
 					Directory.CreateDirectory(dir);
 				writer = new StreamWriter(filePath, false) { AutoFlush = true };
-				writer.WriteLine("# 变量写入监视开始 " + startTime.ToString("yyyy-MM-dd HH:mm:ss"));
+				writer.WriteLine("# 变量写入监视开始 " + startTime.ToString("yyyy-MM-dd HH:mm:ss")
+					+ (IncludeCallStack ? "(含调用栈)" : ""));
 				writer.WriteLine("# 监视对象: " + string.Join(", ", targetKeys));
 			}
 			catch
@@ -375,7 +377,8 @@ namespace MinorShift.Emuera.Runtime.Utils
 				startTime.ToString("yyyy-MM-dd HH:mm:ss"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
 			sb.AppendLine(string.Format("总写入次数: {0}", totalCount));
 			sb.AppendLine("--- 按变量统计(变量 | 次数 | 最后一次写入) ---");
-			foreach (var pair in stats)
+			//Dictionary 遍历无序:按次数降序输出,保证同一份数据每次报告顺序一致(与打印监视同规则)
+			foreach (var pair in stats.OrderByDescending(p => p.Value.Count).ThenBy(p => p.Key, StringComparer.Ordinal))
 				sb.AppendLine(string.Format("{0} | {1} 次 | 值={2} @ {3}",
 					pair.Key, pair.Value.Count, Limit(pair.Value.LastValue, 80), pair.Value.LastSite));
 			if (totalCount == 0)

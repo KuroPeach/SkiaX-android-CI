@@ -5,6 +5,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 {
 	/// <summary>
 	/// 调试用的"当前位置 / 调用栈"格式化。打印监视与变量写入监视共用,保证两者格式一致。
+	/// 变量写入监视原先的脚本外兜底标记是 &lt;unknown&gt;,共用后统一为 &lt;system&gt;。
 	/// </summary>
 	internal static class CallStackFormatter
 	{
