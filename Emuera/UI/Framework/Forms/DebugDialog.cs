@@ -522,9 +522,16 @@ namespace MinorShift.Emuera.Forms
 			StopWriteWatch();
 		}
 
+		/// <summary>勾选=变量写入记录附加完整调用栈。</summary>
+		private void checkBoxWriteCallStack_CheckedChanged(object sender, EventArgs e)
+		{
+			VarWriteWatch.IncludeCallStack = checkBoxWriteCallStack.Checked;
+		}
+
 		/// <summary>开始监视变量列表中"可赋值变量"的写入情况。</summary>
 		private void StartWriteWatch()
 		{
+			VarWriteWatch.IncludeCallStack = checkBoxWriteCallStack.Checked;
 			List<string> keys = [];
 			List<string> skipped = [];
 			List<string> unsupported = [];
@@ -550,7 +557,8 @@ namespace MinorShift.Emuera.Forms
 			VarWriteWatch.Start(writeWatchFilepath, keys);
 			buttonStartWriteWatch.Enabled = false;
 			buttonStopWriteWatch.Enabled = true;
-			mainConsole.DebugPrint(string.Format("变量写入监视开始: {0} 个对象 → {1}", keys.Count, writeWatchFilepath));
+			mainConsole.DebugPrint(string.Format("变量写入监视开始{0}: {1} 个对象 → {2}",
+				VarWriteWatch.IncludeCallStack ? "(含调用栈)" : "", keys.Count, writeWatchFilepath));
 			mainConsole.DebugNewLine();
 			if (skipped.Count > 0)
 			{

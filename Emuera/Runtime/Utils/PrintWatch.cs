@@ -1,4 +1,3 @@
-using MinorShift.Emuera.Runtime.Script.Statements;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,9 +14,6 @@ namespace MinorShift.Emuera.Runtime.Utils
 	{
 		/// <summary>明细日志的最大条数(超过后只统计,防止日志无限膨胀)。</summary>
 		private const int MaxDetailRecords = 100000;
-
-		/// <summary>调用栈最多显示的层数。</summary>
-		private const int MaxStackFrames = 20;
 
 		/// <summary>实时视图保留的最大字符数(超出后丢弃前半段)。</summary>
 		private const int MaxLiveChars = 200000;
@@ -117,7 +113,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 					return;
 				//空行也记录(如 PRINTL 无内容、DRAWLINE 前的强制换行),文本显示为 (空行)
 				string shown = string.IsNullOrWhiteSpace(text) ? "(空行)" : Limit(text, 500);
-				string site = IncludeCallStack ? DescribeCallStack() : DescribeSite();
+				string site = IncludeCallStack ? CallStackFormatter.DescribeStack() : CallStackFormatter.DescribeSite();
 				totalCount++;
 				stats[site] = stats.TryGetValue(site, out int count) ? count + 1 : 1;
 				string line = string.Format("[{0}] {1}\t@ {2}",
@@ -148,57 +144,6 @@ namespace MinorShift.Emuera.Runtime.Utils
 			int cut = text.Length - MaxLiveChars / 2;
 			int nl = text.IndexOf('\n', cut);
 			live.Remove(0, nl >= 0 ? nl + 1 : cut);
-		}
-
-		/// <summary>当前执行位置:函数名 + 文件:行号。取不到时返回 &lt;system&gt;。</summary>
-		private static string DescribeSite()
-		{
-			LogicalLine line = GlobalStatic.Process?.getCurrentLine;
-			if (line == null)
-				return "<system>";
-			string func = line.ParentLabelLine?.LabelName ?? "<system>";
-			if (line.Position == null)
-				return func;
-			return string.Format("{0} ({1}:{2})", func, line.Position.Value.Filename, line.Position.Value.LineNo);
-		}
-
-		/// <summary>
-		/// 单行内联调用栈(由内到外):当前函数(文件:行) &lt;- 调用者(调用点文件:行) &lt;- ...
-		/// 每个外层帧取"它调用下一层的那一行"(ReturnAddress);取不到时退回该函数的定义位置。
-		/// </summary>
-		private static string DescribeCallStack()
-		{
-			var sb = new StringBuilder(DescribeSite());
-			var frames = GlobalStatic.Process?.State?.FunctionList;
-			if (frames == null)
-				return sb.ToString();
-			int shown = 0;
-			//frames[^1] 是当前函数(已由 DescribeSite 表示),从栈顶下面一帧开始
-			for (int i = frames.Count - 2; i >= 0; i--)
-			{
-				var caller = frames[i];
-				if (caller == null)
-					continue;
-				if (shown >= MaxStackFrames)
-				{
-					sb.Append(" <- ...");
-					break;
-				}
-				string where = FormatPosition(frames[i + 1]?.ReturnAddress) ?? FormatPosition(caller.CurrentLabel);
-				if (where == null)
-					continue;
-				sb.Append(" <- ").Append(caller.FunctionName).Append('(').Append(where).Append(')');
-				shown++;
-			}
-			return sb.ToString();
-		}
-
-		/// <summary>取某一行的"文件:行号",取不到返回 null。</summary>
-		private static string FormatPosition(LogicalLine line)
-		{
-			if (line?.Position == null)
-				return null;
-			return string.Format("{0}:{1}", line.Position.Value.Filename, line.Position.Value.LineNo);
 		}
 
 		private static string BuildReport()

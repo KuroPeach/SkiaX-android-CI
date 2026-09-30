@@ -41,7 +41,8 @@ namespace MinorShift.Emuera.Forms
 			this.columnHeaderLock = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
 			this.columnHeader1 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
 			this.columnHeader3 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-			this.panelWatchControl = new System.Windows.Forms.Panel();
+			this.panelWatchControl = new System.Windows.Forms.FlowLayoutPanel();
+			this.checkBoxWriteCallStack = new System.Windows.Forms.CheckBox();
 			this.buttonStartWriteWatch = new System.Windows.Forms.Button();
 			this.buttonStopWriteWatch = new System.Windows.Forms.Button();
 			this.tabPagePrintWatch = new System.Windows.Forms.TabPage();
@@ -193,31 +194,54 @@ namespace MinorShift.Emuera.Forms
 			// 
 			// panelWatchControl
 			// 
+			// 流式布局 + 控件自动宽度:按文字实际占位排版,换字体/改文案都不会截字;窗口过窄时自动换行
+			this.panelWatchControl.AutoSize = true;
+			this.panelWatchControl.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+			this.panelWatchControl.Controls.Add(this.checkBoxWriteCallStack);
 			this.panelWatchControl.Controls.Add(this.buttonStartWriteWatch);
 			this.panelWatchControl.Controls.Add(this.buttonStopWriteWatch);
 			this.panelWatchControl.Dock = System.Windows.Forms.DockStyle.Bottom;
+			this.panelWatchControl.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
 			this.panelWatchControl.Location = new System.Drawing.Point(3, 140);
 			this.panelWatchControl.Name = "panelWatchControl";
+			this.panelWatchControl.Padding = new System.Windows.Forms.Padding(3, 3, 3, 0);
 			this.panelWatchControl.Size = new System.Drawing.Size(370, 28);
 			this.panelWatchControl.TabIndex = 1;
+			this.panelWatchControl.WrapContents = true;
+			// 
+			// checkBoxWriteCallStack
+			// 
+			this.checkBoxWriteCallStack.AutoSize = true;
+			this.checkBoxWriteCallStack.Location = new System.Drawing.Point(6, 6);
+			this.checkBoxWriteCallStack.Margin = new System.Windows.Forms.Padding(3, 3, 10, 3);
+			this.checkBoxWriteCallStack.Name = "checkBoxWriteCallStack";
+			this.checkBoxWriteCallStack.Size = new System.Drawing.Size(94, 23);
+			this.checkBoxWriteCallStack.TabIndex = 0;
+			this.checkBoxWriteCallStack.Text = "记录调用栈";
+			this.checkBoxWriteCallStack.UseVisualStyleBackColor = true;
+			this.checkBoxWriteCallStack.CheckedChanged += new System.EventHandler(this.checkBoxWriteCallStack_CheckedChanged);
 			// 
 			// buttonStartWriteWatch
 			// 
-			this.buttonStartWriteWatch.Location = new System.Drawing.Point(3, 3);
+			this.buttonStartWriteWatch.AutoSize = true;
+			this.buttonStartWriteWatch.Location = new System.Drawing.Point(113, 6);
+			this.buttonStartWriteWatch.Margin = new System.Windows.Forms.Padding(3, 3, 10, 3);
 			this.buttonStartWriteWatch.Name = "buttonStartWriteWatch";
 			this.buttonStartWriteWatch.Size = new System.Drawing.Size(90, 23);
-			this.buttonStartWriteWatch.TabIndex = 0;
+			this.buttonStartWriteWatch.TabIndex = 1;
 			this.buttonStartWriteWatch.Text = "开始监视";
 			this.buttonStartWriteWatch.UseVisualStyleBackColor = true;
 			this.buttonStartWriteWatch.Click += new System.EventHandler(this.buttonStartWriteWatch_Click);
 			// 
 			// buttonStopWriteWatch
 			// 
+			this.buttonStopWriteWatch.AutoSize = true;
 			this.buttonStopWriteWatch.Enabled = false;
-			this.buttonStopWriteWatch.Location = new System.Drawing.Point(98, 3);
+			this.buttonStopWriteWatch.Location = new System.Drawing.Point(216, 6);
+			this.buttonStopWriteWatch.Margin = new System.Windows.Forms.Padding(3, 3, 3, 3);
 			this.buttonStopWriteWatch.Name = "buttonStopWriteWatch";
 			this.buttonStopWriteWatch.Size = new System.Drawing.Size(170, 23);
-			this.buttonStopWriteWatch.TabIndex = 1;
+			this.buttonStopWriteWatch.TabIndex = 2;
 			this.buttonStopWriteWatch.Text = "停止监视并打印报告";
 			this.buttonStopWriteWatch.UseVisualStyleBackColor = true;
 			this.buttonStopWriteWatch.Click += new System.EventHandler(this.buttonStopWriteWatch_Click);
@@ -437,6 +461,7 @@ namespace MinorShift.Emuera.Forms
 			this.tabPageConsole.ResumeLayout(false);
 			this.tabPageConsole.PerformLayout();
 			this.panelWatchControl.ResumeLayout(false);
+			this.panelWatchControl.PerformLayout();
 			this.panelPrintControl.ResumeLayout(false);
 			this.panelPrintControl.PerformLayout();
 			this.panelBottom.ResumeLayout(false);
@@ -462,7 +487,8 @@ namespace MinorShift.Emuera.Forms
 		private System.Windows.Forms.ColumnHeader columnHeaderLock;
 		private System.Windows.Forms.ColumnHeader columnHeader1;
 		private System.Windows.Forms.ColumnHeader columnHeader3;
-		private System.Windows.Forms.Panel panelWatchControl;
+		private System.Windows.Forms.FlowLayoutPanel panelWatchControl;
+		private System.Windows.Forms.CheckBox checkBoxWriteCallStack;
 		private System.Windows.Forms.Button buttonStartWriteWatch;
 		private System.Windows.Forms.Button buttonStopWriteWatch;
 		private System.Windows.Forms.Button buttonStartPrintWatch;

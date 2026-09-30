@@ -10,7 +10,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 {
 	/// <summary>
 	/// 变量写入监视(调试用)。只记录"开始监视时变量监视列表里的变量"被 ERB 脚本写入的情况。
-	/// 记录内容:变量 + 新值 + 当前函数 + 文件:行号,逐条写入独立日志文件;停止时生成汇总报告。
+	/// 记录内容:变量 + 新值 + 当前函数 + 文件:行号(可选完整调用栈),逐条写入独立日志文件;停止时生成汇总报告。
 	/// 未开始监视时开销仅为一次静态 bool 判断。
 	/// 线程约束:仅脚本主线程(写入钩子)与 UI 线程(开始/停止按钮、关闭窗口)调用,内部无锁。
 	/// </summary>
@@ -32,6 +32,9 @@ namespace MinorShift.Emuera.Runtime.Utils
 			public string LastValue;
 			public string LastSite;
 		}
+
+		/// <summary>是否在记录中附加完整调用栈(由调试窗口的勾选项控制)。</summary>
+		public static bool IncludeCallStack { get; set; }
 
 		/// <summary>是否正在监视。</summary>
 		public static bool IsEnabled { get; private set; }
@@ -309,7 +312,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 				return;
 
 			totalCount++;
-			string site = DescribeSite();
+			string site = IncludeCallStack ? CallStackFormatter.DescribeStack() : CallStackFormatter.DescribeSite();
 			if (!stats.TryGetValue(key, out WriteStat stat))
 				stats[key] = stat = new WriteStat();
 			stat.Count++;
@@ -362,17 +365,6 @@ namespace MinorShift.Emuera.Runtime.Utils
 			if (token.IsCharacterData)
 				return token.IsArray2D ? 3 : token.IsArray1D ? 2 : 1;
 			return token.IsArray3D ? 3 : token.IsArray2D ? 2 : token.IsArray1D ? 1 : 0;
-		}
-
-		private static string DescribeSite()
-		{
-			LogicalLine line = GlobalStatic.Process?.getCurrentLine;
-			if (line == null)
-				return "<unknown>";
-			string func = line.ParentLabelLine?.LabelName ?? "<unknown>";
-			if (line.Position == null)
-				return func;
-			return string.Format("{0} ({1}:{2})", func, line.Position.Value.Filename, line.Position.Value.LineNo);
 		}
 
 		private static string BuildReport()
