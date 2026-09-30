@@ -372,8 +372,12 @@ internal sealed class CliDebugHost
 					return;
 				}
 				string path = Program.DebugDir + "var_write.log";
+				//显式赋值:缺省 false,不继承调试窗口勾选项的残留状态
+				VarWriteWatch.IncludeCallStack = root.TryGetProperty("stack", out var stk) && stk.ValueKind == JsonValueKind.True;
 				VarWriteWatch.Start(path, vars);
-				EmitResult(id, "\"watching\":" + (VarWriteWatch.IsEnabled ? "true" : "false") + ",\"logPath\":" + J(path));
+				EmitResult(id, "\"watching\":" + (VarWriteWatch.IsEnabled ? "true" : "false")
+					+ ",\"stack\":" + (VarWriteWatch.IncludeCallStack ? "true" : "false")
+					+ ",\"logPath\":" + J(path));
 				break;
 			case "stop":
 				string report = VarWriteWatch.Stop();

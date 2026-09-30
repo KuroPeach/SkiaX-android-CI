@@ -4,6 +4,29 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [15.1.0] — 变量写入监视调用栈
+
+### Added
+
+- **变量写入监视可选记录完整调用栈（调试窗口，MR-18）**：「变量监视」页签的控制行改为流式布局（与「打印监视」页同款，按文字实际占位排版、窗口过窄自动换行），新增「记录调用栈」勾选项。勾选后每条写入记录的位置字段由「函数 (文件:行号)」扩展为由内到外最多 20 帧的内联调用栈，格式与打印监视统一——两者各自的 `DescribeSite` / `DescribeCallStack` 抽取为共用的 `CallStackFormatter.cs`。开始监视时控制台提示附带「(含调用栈)」，日志文件首行同步标记该状态。涉及 `CallStackFormatter.cs`（新）/ `PrintWatch.cs` / `VarWriteWatch.cs` / `DebugDialog.cs` / `DebugDialog.Designer.cs`
+- **CLI `watch` 命令的 `stack` 参数**：`{"cmd":"watch","action":"start","vars":[…],"stack":true}` 与调试窗口勾选项等价，结果事件回显 `"stack":true|false`。涉及 `CliDebugHost.cs`
+
+### Fixed
+
+- **CLI 启动变量写入监视时残留上一次调试窗口的勾选状态**：`IncludeCallStack` 为静态开关而 `watch start` 从不赋值它——先在 GUI 勾过「记录调用栈」再走 CLI 会静默按含调用栈记录（统计粒度不同），反之该新能力对 CLI 完全不可用。现按 `stack` 参数显式赋值，缺省 `false`。涉及 `CliDebugHost.cs`
+- **变量写入监视报告行序不确定**：「按变量统计」段按 `Dictionary` 遍历顺序输出，同一份数据两次报告的行序可能不同，不利于日志 diff。现按写入次数降序、同次数按变量名 Ordinal，与打印监视（15.0.0）同规则。涉及 `VarWriteWatch.cs`
+
+### Changed
+
+- **变量写入监视的「脚本外写入」位置标记由 `<unknown>` 统一为 `<system>`**：与打印监视共用格式化器的必然结果；跨版本的日志该字段不可直接混排统计。涉及 `VarWriteWatch.cs`
+- **版本签名**：`Skiav15` → `Skiav15.1`（`1824+v24+EMv18+EEv56+Skiav15.1`）
+
+### Verified
+
+- `dotnet build Emuera.sln -c Debug` 0 错误、无新增警告；勾选项与 CLI `stack` 参数的运行时表现待工作区实测点验。
+
+***
+
 ## [15.0.0] — CLI 调试模式 + 打印监视
 
 ### Added

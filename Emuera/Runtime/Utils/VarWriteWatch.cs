@@ -4,13 +4,14 @@ using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace MinorShift.Emuera.Runtime.Utils
 {
 	/// <summary>
 	/// 变量写入监视(调试用)。只记录"开始监视时变量监视列表里的变量"被 ERB 脚本写入的情况。
-	/// 记录内容:变量 + 新值 + 当前函数 + 文件:行号,逐条写入独立日志文件;停止时生成汇总报告。
+	/// 记录内容:变量 + 新值 + 当前函数 + 文件:行号(可选完整调用栈),逐条写入独立日志文件;停止时生成汇总报告。
 	/// 未开始监视时开销仅为一次静态 bool 判断。
 	/// 线程约束:仅脚本主线程(写入钩子)与 UI 线程(开始/停止按钮、关闭窗口)调用,内部无锁。
 	/// </summary>
@@ -32,6 +33,9 @@ namespace MinorShift.Emuera.Runtime.Utils
 			public string LastValue;
 			public string LastSite;
 		}
+
+		/// <summary>是否在记录中附加完整调用栈(由调试窗口的勾选项或 CLI `watch` 的 stack 参数控制)。</summary>
+		public static bool IncludeCallStack { get; set; }
 
 		/// <summary>是否正在监视。</summary>
 		public static bool IsEnabled { get; private set; }
@@ -65,7 +69,8 @@ namespace MinorShift.Emuera.Runtime.Utils
 				if (!string.IsNullOrEmpty(dir))
 					Directory.CreateDirectory(dir);
 				writer = new StreamWriter(filePath, false) { AutoFlush = true };
-				writer.WriteLine("# 变量写入监视开始 " + startTime.ToString("yyyy-MM-dd HH:mm:ss"));
+				writer.WriteLine("# 变量写入监视开始 " + startTime.ToString("yyyy-MM-dd HH:mm:ss")
+					+ (IncludeCallStack ? "(含调用栈)" : ""));
 				writer.WriteLine("# 监视对象: " + string.Join(", ", targetKeys));
 			}
 			catch
@@ -309,7 +314,7 @@ namespace MinorShift.Emuera.Runtime.Utils
 				return;
 
 			totalCount++;
-			string site = DescribeSite();
+			string site = IncludeCallStack ? CallStackFormatter.DescribeStack() : CallStackFormatter.DescribeSite();
 			if (!stats.TryGetValue(key, out WriteStat stat))
 				stats[key] = stat = new WriteStat();
 			stat.Count++;
@@ -364,17 +369,6 @@ namespace MinorShift.Emuera.Runtime.Utils
 			return token.IsArray3D ? 3 : token.IsArray2D ? 2 : token.IsArray1D ? 1 : 0;
 		}
 
-		private static string DescribeSite()
-		{
-			LogicalLine line = GlobalStatic.Process?.getCurrentLine;
-			if (line == null)
-				return "<unknown>";
-			string func = line.ParentLabelLine?.LabelName ?? "<unknown>";
-			if (line.Position == null)
-				return func;
-			return string.Format("{0} ({1}:{2})", func, line.Position.Value.Filename, line.Position.Value.LineNo);
-		}
-
 		private static string BuildReport()
 		{
 			var sb = new StringBuilder();
@@ -383,7 +377,8 @@ namespace MinorShift.Emuera.Runtime.Utils
 				startTime.ToString("yyyy-MM-dd HH:mm:ss"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
 			sb.AppendLine(string.Format("总写入次数: {0}", totalCount));
 			sb.AppendLine("--- 按变量统计(变量 | 次数 | 最后一次写入) ---");
-			foreach (var pair in stats)
+			//Dictionary 遍历无序:按次数降序输出,保证同一份数据每次报告顺序一致(与打印监视同规则)
+			foreach (var pair in stats.OrderByDescending(p => p.Value.Count).ThenBy(p => p.Key, StringComparer.Ordinal))
 				sb.AppendLine(string.Format("{0} | {1} 次 | 值={2} @ {3}",
 					pair.Key, pair.Value.Count, Limit(pair.Value.LastValue, 80), pair.Value.LastSite));
 			if (totalCount == 0)
