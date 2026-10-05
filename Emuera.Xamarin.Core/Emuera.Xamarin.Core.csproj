@@ -72,9 +72,9 @@
   </ItemGroup>
 
   <!-- 内核 Runtime/ 排除项 -->
+  <!-- 注意：PluginSystem 不再排除——Xamarin 端也要真实加载插件 DLL（CALLSHARP 依赖它） -->
   <ItemGroup>
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
-    <Compile Remove="..\Emuera\Runtime\Utils\PluginSystem\**" />
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Shape.cs" />
     <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Utils.cs" />

@@ -31,10 +31,49 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 
 		private PluginManager()
 		{
-
+			// 插件 DLL 是引用程序集名 "Emuera" 编译的。
+			// Windows 主程序集名就是 "Emuera"(默认绑定直接命中,不会走这里);
+			// Xamarin 端内核编译进 XEmuera.Core,必须把对 "Emuera" 的解析转发到内核程序集,
+			// 否则插件里的 PluginManifest/IPluginMethod 类型无法绑定,GetTypes() 直接抛 ReflectionTypeLoadException。
+			// 注意:必须挂 AppDomain.AssemblyResolve,不能用 AssemblyLoadContext.Default.Resolving ——
+			// 后者对"返回已加载程序集"这一场景的类型绑定会抛 0x80131509 (not legal in the current state)。
+			AppDomain.CurrentDomain.AssemblyResolve += resolvePluginAssembly;
 		}
 
 		static private PluginManager instance;
+
+		/// <summary>当前插件目录,用于解析插件自身的依赖 DLL(如 MathParser.org-mXparser.dll)</summary>
+		private string pluginDir;
+
+		private Assembly resolvePluginAssembly(object sender, ResolveEventArgs args)
+		{
+			AssemblyName assemblyName;
+			try
+			{
+				assemblyName = new AssemblyName(args.Name);
+			}
+			catch
+			{
+				return null;
+			}
+			if (string.IsNullOrEmpty(assemblyName.Name))
+				return null;
+			if (string.Equals(assemblyName.Name, "Emuera", StringComparison.OrdinalIgnoreCase))
+				return typeof(PluginManager).Assembly;
+			if (!string.IsNullOrEmpty(pluginDir))
+			{
+				try
+				{
+					string candidate = Path.Combine(pluginDir, assemblyName.Name + ".dll");
+					if (File.Exists(candidate))
+						return Assembly.LoadFrom(candidate);
+				}
+				catch
+				{
+				}
+			}
+			return null;
+		}
 
 		/// <summary>
 		/// Unsafe rudimentary method to execute ERB line of code from Plugin.
@@ -269,13 +308,15 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 		/// </summary>
 		public void LoadPlugins()
 		{
-			if (!Directory.Exists("Plugins"))
+			string dir = resolvePluginDirectory();
+			if (dir == null)
 			{
 				//フォルダを作らないようにする
 				return;
 				//Directory.CreateDirectory("Plugins");
 			}
-			string[] plugins = Config.Config.GetFilesCaseInsensitive("Plugins", "*.dll", SearchOption.TopDirectoryOnly);
+			pluginDir = dir;
+			string[] plugins = Config.Config.GetFilesCaseInsensitive(dir, "*.dll", SearchOption.TopDirectoryOnly);
 			//bool pluginsAware = File.Exists("pluginsAware.txt");
 			ClearMethods();
 
@@ -287,32 +328,74 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 
 			foreach (var pluginPath in plugins)
 			{
-				Assembly DLL = Assembly.LoadFrom(pluginPath);
-				var manifestType = DLL.GetTypes().Where((v) => v.Name == "PluginManifest").FirstOrDefault();
-				if (manifestType == null)
+				try
 				{
-					//TODO: throw warning
-					continue;
-				}
-				/*
-				if (!pluginsAware)
-				{
-					throw new ExeEE("This game comes prepackaged with plugins. This is a security check to make sure you're aware of that: Never run your EE under Administrator rights, Always get your games and Plugins from verified sources and If you're maintainer of the build and it should NOT come with plugins, Investigate immediately. If everything is okay, create file pluginsAware.txt at the root of the game distributive and restart");
-				}
-				*/
+					Assembly DLL = Assembly.LoadFrom(pluginPath);
+					var manifestType = DLL.GetTypes().Where((v) => v.Name == "PluginManifest").FirstOrDefault();
+					if (manifestType == null)
+					{
+						warnPlugin("No PluginManifest type found, skipped: " + Path.GetFileName(pluginPath));
+						continue;
+					}
+					/*
+					if (!pluginsAware)
+					{
+						throw new ExeEE("This game comes prepackaged with plugins. This is a security check to make sure you're aware of that: Never run your EE under Administrator rights, Always get your games and Plugins from verified sources and If you're maintainer of the build and it should NOT come with plugins, Investigate immediately. If everything is okay, create file pluginsAware.txt at the root of the game distributive and restart");
+					}
+					*/
 
-				PluginManifestAbstract manifest = (PluginManifestAbstract)Activator.CreateInstance(manifestType);
-				if (manifest == null)
-				{
-					//TODO: throw warning
-					continue;
-				}
+					PluginManifestAbstract manifest = (PluginManifestAbstract)Activator.CreateInstance(manifestType);
+					if (manifest == null)
+					{
+						continue;
+					}
 
-				var methods = manifest.GetPluginMethods();
-				foreach (var method in methods)
-				{
-					AddMethod(method);
+					var methods = manifest.GetPluginMethods();
+					foreach (var method in methods)
+					{
+						AddMethod(method);
+					}
 				}
+				catch (Exception ex)
+				{
+					//单个插件加载失败不应中断整个游戏初始化
+					warnPlugin("Plugin load failed: " + Path.GetFileName(pluginPath) + " - " + ex.Message);
+				}
+			}
+		}
+
+		/// <summary>
+		/// 解析插件目录:优先游戏(exe)目录下的 Plugins,大小写两种拼法都试;
+		/// 找不到再退回进程工作目录的相对路径(旧行为)。
+		/// Android/Desktop 端进程 CWD 不是游戏目录,必须用 Program.ExeDir。
+		/// </summary>
+		private static string resolvePluginDirectory()
+		{
+			foreach (string root in new[] { Program.ExeDir, "." })
+			{
+				if (string.IsNullOrEmpty(root))
+					continue;
+				foreach (string name in new[] { "Plugins", "plugins" })
+				{
+					string dir = Path.Combine(root, name);
+					if (Directory.Exists(dir))
+						return dir;
+				}
+			}
+			return null;
+		}
+
+		private void warnPlugin(string message)
+		{
+			try
+			{
+				if (expressionMediator?.Console != null)
+					expressionMediator.Console.PrintError(message);
+				else
+					System.Diagnostics.Debug.WriteLine("[PluginSystem] " + message);
+			}
+			catch
+			{
 			}
 		}
 

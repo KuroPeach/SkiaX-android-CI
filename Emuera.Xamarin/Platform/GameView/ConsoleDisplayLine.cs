@@ -132,8 +132,37 @@ namespace MinorShift.Emuera.GameView
 
 		public void DrawTo(SKCanvas graph, int pointY, bool isBackLog, bool force, TextDrawingMode mode)
 		{
-            foreach (ConsoleButtonString button in buttons)
-                button.DrawTo(graph, pointY, isBackLog, mode);
+			// 文字衬底(TEXT_BGC_ON/OFF):与 Windows 版 ConsoleDisplayLine.DrawTo 相同的逻辑
+			// 行内存在可见文本时,先铺一条整行宽度的底色矩形,再绘制文本
+			Color? bgColor = GlobalStatic.Console?.TextBackgroundColor;
+			if (bgColor.HasValue)
+			{
+				bool hasText = false;
+				foreach (ConsoleButtonString button in buttons)
+				{
+					if (button.StrArray == null) continue;
+					foreach (AConsoleDisplayNode node in button.StrArray)
+					{
+						if (node is ConsoleStyledString css && !string.IsNullOrWhiteSpace(css.Text))
+						{
+							hasText = true;
+							break;
+						}
+					}
+					if (hasText) break;
+				}
+				if (hasText)
+				{
+					int lineWidth = GlobalStatic.Console != null ? GlobalStatic.Console.ClientWidth : Config.WindowX;
+					var c = bgColor.Value;
+					using (var backPaint = new SKPaint { Color = new SKColor(c.R, c.G, c.B, c.A) })
+					{
+						graph.DrawRect(SKRect.Create(0, pointY, lineWidth, Config.LineHeight), backPaint);
+					}
+				}
+			}
+			foreach (ConsoleButtonString button in buttons)
+				button.DrawTo(graph, pointY, isBackLog, mode);
 		}
 		
 		//public void GDIDrawTo(int pointY, bool isBackLog)
