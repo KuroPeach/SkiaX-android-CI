@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="75" android:versionName="0.75.0" package="Emuera.SkiaX" android:installLocation="auto">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="76" android:versionName="0.76.0" package="Emuera.SkiaX" android:installLocation="auto">
 	<uses-sdk android:minSdkVersion="23" android:targetSdkVersion="34" />
-	<application android:label="Emuera skiaX" android:theme="@style/MainTheme" android:requestLegacyExternalStorage="true" android:icon="@mipmap/icon" android:largeHeap="true"></application>
+	<!-- usesCleartextTraffic:插件可自行配置 http 端点(如本地自建 API),targetSdk 28+ 默认禁止明文流量,需显式放开 -->
+	<application android:label="Emuera skiaX" android:theme="@style/MainTheme" android:requestLegacyExternalStorage="true" android:icon="@mipmap/icon" android:largeHeap="true" android:usesCleartextTraffic="true"></application>
+	<!-- INTERNET:插件与内核的网络访问。Debug 构建由工具链在 debuggable=true 时自动注入,Release 构建不会,必须显式声明 -->
+	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />

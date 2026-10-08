@@ -1,5 +1,29 @@
 # Emuera.Xamarin 变更记录
 
+## [0.76.0] - 2026-10-08
+
+### Fixed
+
+- **DLL 插件在 Android 真机（Release APK）无法联网**
+  - 症状：需要联网的插件（如 AI 对话补丁 `plugins\ChatCallSharp.dll`，默认请求 `https://api.deepseek.com/chat/completions`）在 Android 端调用 `HttpClient` 时连接失败；同一份插件在 Debug 构建与本机调试中正常，`ACCESS_NETWORK_STATE` 已声明也无法解释该差异
+  - 根因：`Properties\AndroidManifest.xml` 从未声明 `android.permission.INTERNET`。Debug 构建由 Android/Xamarin 工具链在 `debuggable=true` 时自动注入该权限（`obj\Debug\net8.0-android\AndroidManifest.xml` 可见），Release 构建不注入（`obj\Release\net8.0-android\AndroidManifest.xml` 及其变体均无），已发布的 `publish\Emuera.SkiaX-Signed.apk` 二进制清单亦无该权限——所有网络请求被系统直接拒绝
+  - 修复：清单显式声明 `android.permission.INTERNET`；同时为 `<application>` 增加 `android:usesCleartextTraffic="true"`，使插件可访问自建的明文 HTTP 端点（如本地部署的模型 API），targetSdk 28+ 默认禁止明文流量
+  - 文件：`Emuera.Xamarin.Android/Properties/AndroidManifest.xml`
+- **Android 版本**：`0.75.0` → `0.76.0`（versionCode 75 → 76，对应内核 Skiav15.1）
+- **引擎执行锁（`8a7768f`）复查与加固**（`Emuera.Xamarin/Platform/GameView/EmueraConsole.cs`）
+  - `Monitor` → `SemaphoreSlim(1,1)`：`Monitor` 可重入，同线程会静默嵌套执行解释器；`ReloadErb` 等 async 操作在 `await` 处会丢掉 `Monitor` 锁
+  - `ReloadErb` / `ReloadPartialErb` / `ReloadFolder`：改为 `async Task` 并真正 `await emuera.Reload*()`，锁持有到加载结束；拿不到锁时提示 `CanNotInputScriptRunning` 而非静默失败
+  - `endTimer`：原来在抢锁**之前**就 `stopTimer()` 并置 `isTimeout`，抢锁失败即永久丢失超时输入（TINPUT/TWAIT 卡死）；现在保持计时器运行，下一次 tick 自动重试，超时提示只打印一次；并加了过期回调检查，避免 Android 异步 `InvokeSync` 排队导致同一次超时被重复投递
+  - `@REBOOT` / 主菜单"返回标题"：原先引擎忙碌时请求被直接丢弃（点了没反应）；现在 `RequestReboot()` 只记标志，由后台循环 `RebootLoop()` 等引擎空闲后执行，`GotoTitle()` 顺带识别"锁已被自己持有"（ERB 里的 `@REBOOT`）而不再白等 3 秒
+  - `PressEnterKey` / `InputMouseKey` 返回 `bool`，宿主（Android/Desktop）据此把被拒绝的输入放回输入框，不再静默吞掉
+  - `tickTimer` 去掉 `#if DEBUG throw new ExeEE("")`——计时器线程抛异常会直接杀掉进程
+
+### Verified
+
+- `dotnet publish Emuera.Xamarin.Android -c Release -f net8.0-android -p:AndroidPackageFormat=apk` 通过，产物二进制清单已含 `android.permission.INTERNET`；联网插件在真机的实际连通性待点验。
+
+***
+
 ## [0.75.0] - 2026-09-15
 
 ### Changed
