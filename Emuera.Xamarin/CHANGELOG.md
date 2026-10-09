@@ -9,14 +9,12 @@
   - 根因：`Properties\AndroidManifest.xml` 从未声明 `android.permission.INTERNET`。Debug 构建由 Android/Xamarin 工具链在 `debuggable=true` 时自动注入该权限（`obj\Debug\net8.0-android\AndroidManifest.xml` 可见），Release 构建不注入（`obj\Release\net8.0-android\AndroidManifest.xml` 及其变体均无），已发布的 `publish\Emuera.SkiaX-Signed.apk` 二进制清单亦无该权限——所有网络请求被系统直接拒绝
   - 修复：清单显式声明 `android.permission.INTERNET`；同时为 `<application>` 增加 `android:usesCleartextTraffic="true"`，使插件可访问自建的明文 HTTP 端点（如本地部署的模型 API），targetSdk 28+ 默认禁止明文流量
   - 文件：`Emuera.Xamarin.Android/Properties/AndroidManifest.xml`
+- **Xamarin 端无法加载 DLL 插件（CALLSHARP 等）**
+  - 根因：插件 DLL 按引用程序集名 `Emuera` 编译，而 Xamarin 端内核被编进 `XEmuera.Core`，插件里的 `PluginManifest`/`IPluginMethod` 类型无法绑定，`Assembly.GetTypes()` 直接抛 `ReflectionTypeLoadException`；同时 `LoadPlugins` 只认进程工作目录下的 `Plugins`，而 Android/Desktop 的进程 CWD 不是游戏目录
+  - 修复：`PluginManager` 挂 `AppDomain.AssemblyResolve`，把对程序集 `Emuera` 的解析转发到内核程序集（并解析插件目录下的依赖 DLL）；插件目录改为优先 `Program.ExeDir` 下的 `Plugins`/`plugins`（大小写两种拼法），再退回进程 CWD 旧行为；单个插件加载失败不再中断整个初始化；同步删除 UI 工程里原先顶替用的空 `IPluginMethod` stub 及其 `PluginSystem` 编译排除
+  - 文件：`Emuera/Runtime/Utils/PluginSystem/PluginManager.cs`、`Emuera.Xamarin.Core/Emuera.Xamarin.Core.csproj`、`Emuera.Xamarin/Emuera.Xamarin.csproj`、`Emuera.Xamarin/Platform/Stubs/IPluginMethod.cs`（删除）
+  - 说明：本改动为 Xamarin 专属（不回流主仓）——Windows 主程序集名本就是 `Emuera`（默认绑定直接命中，无需 AssemblyResolve 转发），且进程 CWD 即游戏目录（原 `Plugins` 相对路径可用）；主仓 `PluginManager.cs` 不改、桌面行为零变化，故主仓 `CHANGELOG.md` 无对应条目
 - **Android 版本**：`0.75.0` → `0.76.0`（versionCode 75 → 76，对应内核 Skiav15.1）
-- **引擎执行锁（`8a7768f`）复查与加固**（`Emuera.Xamarin/Platform/GameView/EmueraConsole.cs`）
-  - `Monitor` → `SemaphoreSlim(1,1)`：`Monitor` 可重入，同线程会静默嵌套执行解释器；`ReloadErb` 等 async 操作在 `await` 处会丢掉 `Monitor` 锁
-  - `ReloadErb` / `ReloadPartialErb` / `ReloadFolder`：改为 `async Task` 并真正 `await emuera.Reload*()`，锁持有到加载结束；拿不到锁时提示 `CanNotInputScriptRunning` 而非静默失败
-  - `endTimer`：原来在抢锁**之前**就 `stopTimer()` 并置 `isTimeout`，抢锁失败即永久丢失超时输入（TINPUT/TWAIT 卡死）；现在保持计时器运行，下一次 tick 自动重试，超时提示只打印一次；并加了过期回调检查，避免 Android 异步 `InvokeSync` 排队导致同一次超时被重复投递
-  - `@REBOOT` / 主菜单"返回标题"：原先引擎忙碌时请求被直接丢弃（点了没反应）；现在 `RequestReboot()` 只记标志，由后台循环 `RebootLoop()` 等引擎空闲后执行，`GotoTitle()` 顺带识别"锁已被自己持有"（ERB 里的 `@REBOOT`）而不再白等 3 秒
-  - `PressEnterKey` / `InputMouseKey` 返回 `bool`，宿主（Android/Desktop）据此把被拒绝的输入放回输入框，不再静默吞掉
-  - `tickTimer` 去掉 `#if DEBUG throw new ExeEE("")`——计时器线程抛异常会直接杀掉进程
 
 ### Verified
 

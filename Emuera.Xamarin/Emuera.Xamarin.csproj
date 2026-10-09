@@ -71,8 +71,7 @@
     <!-- WinForms/Desktop 音频：NAudio 不可用于 Android -->
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.NAudio.cs" />
-    <!-- WinForms 插件系统 -->
-    <Compile Remove="..\Emuera\Runtime\Utils\PluginSystem\**" />
+    <!-- PluginSystem 不再排除——UI 端直接编译内核源码，同样需要真实加载插件 DLL（与 Core 工程对称） -->
     <!-- System.Drawing.Graphics / Drawing2D -->
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Shape.cs" />
     <!-- System.Windows.Forms -->
