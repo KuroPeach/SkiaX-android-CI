@@ -4,6 +4,27 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [15.2.0] — 稳定性与字体渲染修复
+
+### Changed
+
+- **版本签名**：`Skiav15.1` → `Skiav15.2`（`1824+v24+EMv18+EEv56+Skiav15.2`）
+
+### Fixed
+
+- **修复共享 `SKFont` 被提前释放导致的 use-after-free（coreclr 原生访问冲突根因）**：`GraphicsImage.GDispose()`（及其终结器路径）会对 `font` 字段调用 `Dispose()`，而该 `font` 是 `GSETFONT` 传入、由 `FontFactory.GetFont` 缓存并被**多方共享的同一 `SKFont` 包装实例**（`Config.DefaultFont`／其它 `GraphicsImage`／控制台复用同一对象）——一处释放即令其余持有者访问已释放的原生 Skia 对象，此后任意 `sk_font_get_typeface` 调用（如 `TEXTRENDERER` 模式下 `GDRAWTEXT` 走的 GDI 回退分支）都会命中空/悬垂句柄，触发 coreclr 原生访问冲突（`0xc0000005`）。修复：`GraphicsImage.GDispose()` 不再释放 `font`、仅置空引用（`GraphicsImage.cs`）；并收敛 `FontFactory.ClearFont()`，不再 `Dispose()` 可能被 `GlobalStatic.CustomTypefaces`（游戏自有字体）与 `SKTypeface.Default`（进程级静态）共享的缓存 typeface，改为仅清除引用、交由 GC／SkiaSharp 终结器回收（`FontFactory.cs`）。涉及 `GraphicsImage.cs` / `FontFactory.cs`
+- **私有字体（`font/` 目录，如 game-icons）在 Skia 与 GDI 两条链上均无法命中（F002）**：`font/` 下字体启动时已加载进 `GlobalStatic.CustomTypefaces`（Skia）与 `GlobalStatic.Pfc`（GDI PrivateFontCollection），但两条渲染链都拿不到它。**Skia 链**：`FontFactory.CreateTypefaceWithFallback` 先调 `SKTypeface.FromFamilyName(name)` 并 `if (typeface != null) return`——而该 API 对**未安装到系统的字体名不会返回 null，而是返回默认字体**（实测 `FromFamilyName("game-icons")` → `'Segoe UI'`、`FromFamilyName("NoSuchFont_ZZZ")` → `'Segoe UI'`），使后面的"自定义字体"分支成为**死代码**。**GDI 链**：`GetGdiFont` 用 `new Font(string)`，`Font` 构造同样解析不到私有字体（实测 `new Font("game-icons")` → `Microsoft Sans Serif`）。现 Skia 链改为**先按族名匹配 `GlobalStatic.CustomTypefaces`（精确族名优先，其后宽松包含匹配）**，未命中再退回系统字体；GDI 链改为**先在 `GlobalStatic.Pfc.Families` 中按名查 `FontFamily`**、命中即用它构造，否则退回系统字体、再退回配置字体。修复后 `<font face='game-icons'>`、`GSETFONT …,"game-icons"` 以及 token 图标（`GCREATE`→`GSETFONT "game-icons"`→`GDRAWTEXT %UNICODE(0xXXXX)%`→`SPRITECREATE "CC_ICON_TOKEN_*"`→`<img src='CC_ICON_TOKEN_*'>`）链路恢复。涉及 `FontFactory.cs`
+- **图形文本（GDRAWTEXT）对 BMP 以外字符（emoji 等代理对）无法回退 → 豆腐块/空白（F002）**：`GraphicsImage.GDrawStringSkia` 原按 `foreach (char c in text)` 逐 **UTF-16 码元**处理，代理对被拆成两个孤立代理项，`ContainsGlyph(char)` 与 `GetFallbackTypefaceForChar(char)` 均拿不到正确字形（实测 `GetFallbackTypefaceForChar('\uD83D')` → `'Segoe UI' glyph=0`）。现改为**代理对感知**：识别高/低代理组合、以 `char.ConvertToUtf32` 取得完整码位并走 `GetFallbackTypefaceForCodepoint`，且仅在回退字体确实含该字形时才切换（避免"无字形字体"画出豆腐块）。涉及 `GraphicsImage.cs`
+- **emoji/符号回退落到彩色字体，无法以黑白字符呈现（F002）**：`SKFontManager.Default.MatchCharacter` 对 `U+1F441` 等会返回**彩色**字体 `Segoe UI Emoji`（实测渲染 `distinctColors=63`，即显示为彩色图片）。现于回退链中、`MatchCharacter` **之前**新增「单色符号字体」优先层（`Segoe UI Symbol`，实测含该字形且渲染 `distinctColors=1` 为单色），命中即用；未命中才退回 `MatchCharacter`。经验证 `GetFallbackTypefaceForCodepoint(0x1F441)` 现返回 `Segoe UI Symbol`。三个入口 `GetFallbackFontForChar` / `GetFallbackTypefaceForChar` / `GetFallbackTypefaceForCodepoint` 统一处理，控制台与图形文本表现一致。涉及 `FontFactory.cs`
+
+### Verified
+
+- `dotnet build Emuera/Emuera.csproj -c Debug --no-restore` 0 错误（既有警告不变）。
+- **F002 字体探针实测对比（独立进程，含真实 `FontFactory` 调用）**：修复前 `GetFont("game-icons")` → `'Segoe UI'`、`GetGdiFont("game-icons")` → `'Microsoft Sans Serif'`；修复后 → 均返回 `'game-icons'`（`glyph(0xfc57)=3157`）。emoji 回退实测已由彩色 `'Segoe UI Emoji'` 改为单色 `'Segoe UI Symbol'`（`GetFallbackTypefaceForCodepoint(0x1F441)` → `Segoe UI Symbol`）。
+- 构建与发布：`dotnet build Emuera/Emuera.csproj -c Debug --no-restore` 0 错误；`dotnet publish Emuera/Emuera.csproj -c Release-NAudio -r win-x64 --self-contained false -o ../publish --no-restore` 0 错误；产物 `publish/Emuera.exe`（23,510,871 B，SHA256 `17c09185e04c937e1d4c64e02eedbda20ffc5d01c8896e9594217861fe9e56af`）。
+
+***
+
 ## [15.1.0] — 变量写入监视调用栈
 
 ### Added

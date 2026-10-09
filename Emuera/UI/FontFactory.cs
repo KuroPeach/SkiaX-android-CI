@@ -1,4 +1,4 @@
-using MinorShift.Emuera.Runtime.Config;
+﻿using MinorShift.Emuera.Runtime.Config;
 using System.Collections.Generic;
 using System.Drawing;
 using SkiaSharp;
@@ -31,6 +31,35 @@ internal static class FontFactory
 	static readonly Dictionary<(int, string), SKTypeface> fallbackTypefaceCodepointCache = [];
 	static readonly Dictionary<(string fontname, int fontSize, FontStyle font_style), Font> gdiFontDic = [];
 
+	/// <summary>
+	/// 供 emoji/符号使用的「单色」回退字体（按序）。
+	/// 目的：避免回退到 Segoe UI Emoji 等彩色字体，让 👁 / ☀ 等以黑白字符呈现。
+	/// 说明：SKFontManager.MatchCharacter 对 U+1F441 会返回彩色字体 'Segoe UI Emoji'，
+	/// 而 'Segoe UI Symbol' 同时含该字形且为单色（实测 distinctColors=1）。
+	/// </summary>
+	static readonly string[] monochromeSymbolFonts = {
+		"Segoe UI Symbol",
+	};
+
+	/// <summary>
+	/// 在单色符号字体中查找含指定码位字形的字体；找不到返回 null。
+	/// </summary>
+	private static SKTypeface GetMonochromeSymbolTypeface(int codepoint)
+	{
+		foreach (var name in monochromeSymbolFonts)
+		{
+			try
+			{
+				var tf = SKTypeface.FromFamilyName(name);
+				if (tf != null && tf.FamilyName.Equals(name, StringComparison.OrdinalIgnoreCase) && tf.GetGlyph(codepoint) != 0)
+					return tf;
+				tf?.Dispose();
+			}
+			catch { }
+		}
+		return null;
+	}
+
 	public static bool IsRasterFont(string fontName)
 	{
 		if (string.IsNullOrEmpty(fontName))
@@ -47,6 +76,25 @@ internal static class FontFactory
 			return (fontDic.Count, fallbackTypefaceCache.Count, fallbackTypefaceCodepointCache.Count, gdiFontDic.Count);
 	}
 
+	/// <summary>
+	/// 在 font/ 目录加载的私有字体集合（GlobalStatic.Pfc）中按族名查找 FontFamily。
+	/// 关键：new Font(string) 无法解析未安装到系统的私有字体（会静默回退到默认字体），
+	/// 必须用 FontFamily 才能命中 game-icons 之类的私有字体。
+	/// </summary>
+	private static FontFamily FindPrivateFontFamily(string name)
+	{
+		var pfc = GlobalStatic.Pfc;
+		if (pfc == null || string.IsNullOrEmpty(name))
+			return null;
+
+		foreach (FontFamily ff in pfc.Families)
+		{
+			if (ff != null && string.Equals(ff.Name, name, StringComparison.OrdinalIgnoreCase))
+				return ff;
+		}
+		return null;
+	}
+
 	public static Font GetGdiFont(string requestFontName, FontStyle style, float fontSize)
 	{
 		string fn = requestFontName;
@@ -61,14 +109,38 @@ internal static class FontFactory
 			return cachedFont;
 		}
 
-		Font font;
+		Font font = null;
+
+		// 1) 优先用私有字体（font/ 目录）：new Font(字体名) 找不到未安装的私有字体
 		try
 		{
-			font = new Font(fn, fontSizeInt, style, GraphicsUnit.Pixel);
+			var privateFamily = FindPrivateFontFamily(fn);
+			if (privateFamily != null)
+				font = new Font(privateFamily, fontSizeInt, style, GraphicsUnit.Pixel);
 		}
-		catch
+		catch { }
+
+		// 2) 系统已安装字体
+		if (font == null)
 		{
-			font = new Font(Config.FontName, fontSizeInt, style, GraphicsUnit.Pixel);
+			try
+			{
+				font = new Font(fn, fontSizeInt, style, GraphicsUnit.Pixel);
+			}
+			catch { }
+		}
+
+		// 3) 兜底到配置字体
+		if (font == null)
+		{
+			try
+			{
+				font = new Font(Config.FontName, fontSizeInt, style, GraphicsUnit.Pixel);
+			}
+			catch
+			{
+				font = new Font(FontFamily.GenericSansSerif, fontSizeInt, style, GraphicsUnit.Pixel);
+			}
 		}
 
 		gdiFontDic[key] = font;
@@ -112,21 +184,49 @@ internal static class FontFactory
 		}
 	}
 
+	/// <summary>
+	/// 在 font/ 目录加载的私有字体（GlobalStatic.CustomTypefaces）中按族名查找。
+	/// 精确族名优先，其次宽松包含匹配（兼容 "game-icons bold" 之类请求）。
+	/// </summary>
+	private static SKTypeface MatchCustomTypeface(string fontName)
+	{
+		var list = GlobalStatic.CustomTypefaces;
+		if (list == null || string.IsNullOrEmpty(fontName))
+			return null;
+
+		foreach (var ct in list)
+		{
+			if (ct != null && string.Equals(ct.FamilyName, fontName, StringComparison.OrdinalIgnoreCase))
+				return ct;
+		}
+		foreach (var ct in list)
+		{
+			if (ct != null && ct.FamilyName.Contains(fontName, StringComparison.OrdinalIgnoreCase))
+				return ct;
+		}
+		return null;
+	}
+
 	private static SKTypeface CreateTypefaceWithFallback(string fontName)
 	{
-		// 首先尝试从系统字体创建
-		SKTypeface typeface = SKTypeface.FromFamilyName(fontName);
+		if (string.IsNullOrEmpty(fontName))
+			return SKTypeface.Default;
+
+		// 1) 优先匹配游戏自带私有字体（font/ 目录）。
+		//    关键：SKTypeface.FromFamilyName 对"未安装的字体名"不会返回 null，
+		//    而是返回默认字体（如 'Segoe UI'）。若先调用它，后面的自定义字体分支
+		//    永远不可达（死代码），导致 <font face='game-icons'> / GSETFONT "game-icons"
+		//    这类私有字体全部失效。故必须先查自定义字体。
+		var custom = MatchCustomTypeface(fontName);
+		if (custom != null)
+			return custom;
+
+		// 2) 系统字体（含 黑体->SimHei 之类的本地化别名，保持原有行为）
+		var typeface = SKTypeface.FromFamilyName(fontName);
 		if (typeface != null)
 			return typeface;
-		
-		// 然后在自定义字体中查找，支持部分匹配
-		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
-		{
-			if (customTypeface != null && customTypeface.FamilyName.Contains(fontName, System.StringComparison.OrdinalIgnoreCase))
-				return customTypeface;
-		}
-		
-		// 最后回退到默认字体
+
+		// 3) 最后回退到默认字体
 		return SKTypeface.Default;
 	}
 
@@ -147,6 +247,17 @@ internal static class FontFactory
 					Edging = (SKFontEdging)Config.FontEdging
 				};
 			}
+		}
+
+		// 优先单色符号字体（避免 MatchCharacter 返回彩色 emoji 字体）
+		var symbolTypeface = GetMonochromeSymbolTypeface(c);
+		if (symbolTypeface != null)
+		{
+			return new SKFont(symbolTypeface, fontSize)
+			{
+				Hinting = (SKFontHinting)Config.FontHinting,
+				Edging = (SKFontEdging)Config.FontEdging
+			};
 		}
 
 		var matchTypeface = SKFontManager.Default.MatchCharacter(c);
@@ -223,6 +334,14 @@ internal static class FontFactory
 			safeTypeface?.Dispose();
 		}
 
+		// 优先单色符号字体（避免 MatchCharacter 返回彩色 emoji 字体）
+		var symbolTypeface = GetMonochromeSymbolTypeface(c);
+		if (symbolTypeface != null)
+		{
+			fallbackTypefaceCache[cacheKey] = symbolTypeface;
+			return symbolTypeface;
+		}
+
 		var matchTypeface = SKFontManager.Default.MatchCharacter(c);
 		if (matchTypeface != null)
 		{
@@ -249,6 +368,14 @@ internal static class FontFactory
 				fallbackTypefaceCodepointCache[cacheKey] = customTypeface;
 				return customTypeface;
 			}
+		}
+
+		// 优先单色符号字体（避免 MatchCharacter 返回彩色 emoji 字体）
+		var symbolTypeface = GetMonochromeSymbolTypeface(codepoint);
+		if (symbolTypeface != null)
+		{
+			fallbackTypefaceCodepointCache[cacheKey] = symbolTypeface;
+			return symbolTypeface;
 		}
 
 		var matchTypeface = SKFontManager.Default.MatchCharacter(codepoint);
@@ -278,26 +405,18 @@ internal static class FontFactory
 
 	public static void ClearFont()
 	{
+		// 重要：下列字典里保存的都是“共享”对象，绝不可在此手动 Dispose：
+		//  - fontDic / gdiFontDic：同一托管包装实例会被 Config.DefaultFont 以及所有
+		//    GraphicsImage / 控制台共同复用；Dispose 会让其余持有者访问已释放的原生对象。
+		//  - fallbackTypefaceCache / fallbackTypefaceCodepointCache：其值可能同时被
+		//    GlobalStatic.CustomTypefaces（游戏自有字体）与 SKTypeface.Default（进程级静态）
+		//    引用，Dispose 会连带销毁这些共享对象。
+		// 因此这里只清空引用，原生资源交由 GC / SkiaSharp 终结器统一 release。
 		fontDic.Clear();
-
-		int disposedCount = 0;
-		foreach (var typeface in fallbackTypefaceCache.Values)
-		{
-			typeface?.Dispose();
-		disposedCount++;
-		}
 		fallbackTypefaceCache.Clear();
-
-		foreach (var typeface in fallbackTypefaceCodepointCache.Values)
-		{
-			typeface?.Dispose();
-			disposedCount++;
-		}
 		fallbackTypefaceCodepointCache.Clear();
-
-		// 只清空字典引用，由 GC 自然回收
 		gdiFontDic.Clear();
 
-		Debug.WriteLine($"[FontFactory] 释放字体缓存: SKFont=0, SKTypeface={disposedCount}");
+		Debug.WriteLine("[FontFactory] 释放字体缓存（仅清除引用，交由 GC 回收）");
 	}
 }
