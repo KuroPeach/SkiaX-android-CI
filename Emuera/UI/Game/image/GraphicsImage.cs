@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using System;
