@@ -211,12 +211,13 @@ internal sealed class GraphicsImage : AbstractImage
 			bool isSurrogatePair = char.IsHighSurrogate(c) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]);
 			int codepoint = isSurrogatePair ? char.ConvertToUtf32(c, text[i + 1]) : c;
 
-			int glyph = isSurrogatePair ? charTypeface.GetGlyph(codepoint) : (charTypeface.ContainsGlyph(c) ? 1 : 0);
+			// 统一以 codepoint 判定字形存在，BMP 字符与代理对（emoji 等）共用同一回退路径
+			int glyph = charTypeface.GetGlyph(codepoint);
 			if (glyph == 0)
 			{
-				var fallback = isSurrogatePair
-					? FontFactory.GetFallbackTypefaceForCodepoint(codepoint, usingFont.Typeface?.FamilyName)
-					: FontFactory.GetFallbackTypefaceForChar(c);
+				// 统一继承当前渲染上下文的字体族名（GSETFONT 指定），无则兜底配置字体
+				string fontNameForFallback = usingFont.Typeface?.FamilyName ?? Config.FontName;
+				var fallback = FontFactory.GetFallbackTypefaceForCodepoint(codepoint, fontNameForFallback);
 				// 只有回退字体确实含有该字形才切换，避免用“无字形字体”画出豆腐块
 				if (fallback != null && fallback.GetGlyph(codepoint) != 0)
 					charTypeface = fallback;

@@ -237,33 +237,12 @@ internal static class FontFactory
 
 	public static SKFont GetFallbackFontForChar(char c, float fontSize, FontStyle style)
 	{
-		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
+		// 复用 Typeface 查找逻辑：与 GetFallbackTypefaceForChar 共享同一回退层级与缓存，
+		// 避免此处单独查找单色符号字体时每次新建 SKTypeface 且不入缓存
+		var fallbackTypeface = GetFallbackTypefaceForChar(c, Config.FontName);
+		if (fallbackTypeface != null && fallbackTypeface != SKTypeface.Default)
 		{
-			if (customTypeface != null && customTypeface.ContainsGlyph(c))
-			{
-				return new SKFont(customTypeface, fontSize)
-				{
-					Hinting = (SKFontHinting)Config.FontHinting,
-					Edging = (SKFontEdging)Config.FontEdging
-				};
-			}
-		}
-
-		// 优先单色符号字体（避免 MatchCharacter 返回彩色 emoji 字体）
-		var symbolTypeface = GetMonochromeSymbolTypeface(c);
-		if (symbolTypeface != null)
-		{
-			return new SKFont(symbolTypeface, fontSize)
-			{
-				Hinting = (SKFontHinting)Config.FontHinting,
-				Edging = (SKFontEdging)Config.FontEdging
-			};
-		}
-
-		var matchTypeface = SKFontManager.Default.MatchCharacter(c);
-		if (matchTypeface != null)
-		{
-			return new SKFont(matchTypeface, fontSize)
+			return new SKFont(fallbackTypeface, fontSize)
 			{
 				Hinting = (SKFontHinting)Config.FontHinting,
 				Edging = (SKFontEdging)Config.FontEdging
