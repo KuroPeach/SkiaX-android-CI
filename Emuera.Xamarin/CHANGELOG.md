@@ -1,6 +1,6 @@
 # Emuera.Xamarin 变更记录
 
-## [0.76.0] - 2026-10-08
+## [0.77.0] - 2026-10-10
 
 ### Fixed
 
@@ -13,12 +13,12 @@
   - 根因：插件 DLL 按引用程序集名 `Emuera` 编译，而 Xamarin 端内核被编进 `XEmuera.Core`，插件里的 `PluginManifest`/`IPluginMethod` 类型无法绑定，`Assembly.GetTypes()` 直接抛 `ReflectionTypeLoadException`；同时 `LoadPlugins` 只认进程工作目录下的 `Plugins`，而 Android/Desktop 的进程 CWD 不是游戏目录
   - 修复：`PluginManager` 挂 `AppDomain.AssemblyResolve`，把对程序集 `Emuera` 的解析转发到内核程序集（并解析插件目录下的依赖 DLL）；插件目录改为优先 `Program.ExeDir` 下的 `Plugins`/`plugins`（大小写两种拼法），再退回进程 CWD 旧行为；单个插件加载失败不再中断整个初始化；同步删除 UI 工程里原先顶替用的空 `IPluginMethod` stub 及其 `PluginSystem` 编译排除
   - 文件：`Emuera/Runtime/Utils/PluginSystem/PluginManager.cs`、`Emuera.Xamarin.Core/Emuera.Xamarin.Core.csproj`、`Emuera.Xamarin/Emuera.Xamarin.csproj`、`Emuera.Xamarin/Platform/Stubs/IPluginMethod.cs`（删除）
-  - 说明：本改动为 Xamarin 专属（不回流主仓）——Windows 主程序集名本就是 `Emuera`（默认绑定直接命中，无需 AssemblyResolve 转发），且进程 CWD 即游戏目录（原 `Plugins` 相对路径可用）；主仓 `PluginManager.cs` 不改、桌面行为零变化，故主仓 `CHANGELOG.md` 无对应条目
+  - 说明：内核侧改动已回流主仓 `develop-skiasharp`（Skiav16，含逐插件失败不中断与 ExeDir 目录解析两项桌面行为演进，详见主仓 `CHANGELOG.md` [16.0.0]）；`AssemblyResolve` 转发在 Windows 主程序集（名本就是 `Emuera`）上默认绑定直接命中，仅作兜底
 - **文字衬底（TEXT_BGC）在 Xamarin 端不显示**
   - 根因：Xamarin 端 `ConsoleDisplayLine.DrawTo` 只逐按钮绘制文本，漏了 Windows 版的行级底色逻辑——`TEXT_BGC_ON` 设置 `TextBackgroundColor` 后本应先在整行宽度铺一层底色矩形再绘制文本，移植端完全没有这一步，衬底始终不出现
-  - 修复：补齐行级底色绘制——行内存在可见文本且 `GlobalStatic.Console.TextBackgroundColor` 有值时，先按 `ClientWidth` × `Config.LineHeight` 用底色绘制整行矩形，再走原有按钮绘制流程，与 Windows 版 `ConsoleDisplayLine.DrawTo` 一致
+  - 修复：补齐行级底色绘制——行内存在可见内容且 `GlobalStatic.Console.TextBackgroundColor` 有值时，先按 `ClientWidth` × `Config.LineHeight` 用底色绘制整行矩形，再走原有按钮绘制流程，与 Windows 版 `ConsoleDisplayLine.DrawTo` 一致；内容判定同主仓 Skiav16 修复——非空字符串（允许全角/半角空格）或非文本节点（图片/形状/像素制表）均算有内容，修复空格行与图片/形状行丢失背景色
   - 文件：`Emuera.Xamarin/Platform/GameView/ConsoleDisplayLine.cs`
-- **Android 版本**：`0.75.0` → `0.76.0`（versionCode 75 → 76，对应内核 Skiav15.1）
+- **Android 版本**：`0.75.0` → `0.77.0`（versionCode 75 → 77，对应内核 Skiav16）
 
 ### Verified
 
