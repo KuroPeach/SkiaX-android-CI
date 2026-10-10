@@ -201,13 +201,26 @@ internal sealed class GraphicsImage : AbstractImage
 			}
 		}
 
-		foreach (char c in text)
+		for (int i = 0; i < text.Length; i++)
 		{
+			char c = text[i];
 			SKTypeface charTypeface = currentTypeface;
 
-			if (!charTypeface.ContainsGlyph(c))
+			// 代理对（emoji 等 BMP 以外字符）必须按完整码位处理：
+			// 单个 char 是孤立代理项，ContainsGlyph/MatchCharacter 都无法得到正确字形。
+			bool isSurrogatePair = char.IsHighSurrogate(c) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]);
+			int codepoint = isSurrogatePair ? char.ConvertToUtf32(c, text[i + 1]) : c;
+
+			// 统一以 codepoint 判定字形存在，BMP 字符与代理对（emoji 等）共用同一回退路径
+			int glyph = charTypeface.GetGlyph(codepoint);
+			if (glyph == 0)
 			{
-				charTypeface = FontFactory.GetFallbackTypefaceForChar(c) ?? usingFont.Typeface;
+				// 统一继承当前渲染上下文的字体族名（GSETFONT 指定），无则兜底配置字体
+				string fontNameForFallback = usingFont.Typeface?.FamilyName ?? Config.FontName;
+				var fallback = FontFactory.GetFallbackTypefaceForCodepoint(codepoint, fontNameForFallback);
+				// 只有回退字体确实含有该字形才切换，避免用“无字形字体”画出豆腐块
+				if (fallback != null && fallback.GetGlyph(codepoint) != 0)
+					charTypeface = fallback;
 			}
 
 			if (charTypeface != currentTypeface && currentText.Length > 0)
@@ -217,6 +230,11 @@ internal sealed class GraphicsImage : AbstractImage
 
 			currentTypeface = charTypeface;
 			currentText.Append(c);
+			if (isSurrogatePair)
+			{
+				currentText.Append(text[i + 1]);
+				i++;
+			}
 		}
 
 		DrawSegment();
@@ -769,8 +787,11 @@ internal sealed class GraphicsImage : AbstractImage
 			brush.Dispose();
 		if (pen != null)
 			pen.Dispose();
-		if (font != null)
-			font.Dispose();
+		// 重要：`font` 是通过 GSETFONT 传入的、由 FontFactory.GetFont 缓存并共享的
+		// SKFont 实例（Config.DefaultFont / 其它 GraphicsImage / 控制台复用同一个
+		// 托管包装对象）。本图并不拥有它，绝不能在此 Dispose——否则其余持有者的
+		// 原生 SkFont 会被提前释放，下一次 sk_font_get_typeface 即命中已释放内存，
+		// 引发 coreclr 原生 AV（0xc0000005 / ExecutionEngineException 0x80131506）。
 		canvas = null;
 		RealBitmap = null;
 		brush = null;
