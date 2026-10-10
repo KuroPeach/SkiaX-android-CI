@@ -334,7 +334,10 @@ namespace MinorShift.Emuera.Runtime.Utils.PluginSystem
 					var manifestType = DLL.GetTypes().Where((v) => v.Name == "PluginManifest").FirstOrDefault();
 					if (manifestType == null)
 					{
-						warnPlugin("No PluginManifest type found, skipped: " + Path.GetFileName(pluginPath));
+						// 非插件 DLL（如插件携带的依赖库 MathParser.org-mXparser.dll）落在 Plugins
+						// 目录是正常情况：静默跳过，待宿主插件需要时经 AssemblyResolve 兜底加载。
+						// 不走 warnPlugin——PrintError 会以红色错误刷给玩家造成误解。
+						System.Diagnostics.Debug.WriteLine("[PluginSystem] No PluginManifest, skipped (dependency library?): " + Path.GetFileName(pluginPath));
 						continue;
 					}
 					/*
