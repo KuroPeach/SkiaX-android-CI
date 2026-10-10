@@ -4,11 +4,13 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [15.2.0] — 稳定性与字体渲染修复
+## [16.0.0] — 稳定性、字体渲染与插件加载
 
 ### Changed
 
-- **版本签名**：`Skiav15.1` → `Skiav15.2`（`1824+v24+EMv18+EEv56+Skiav15.2`）
+- **版本签名**：`Skiav15.1` → `Skiav16`（`1824+v24+EMv18+EEv56+Skiav16`）
+- **插件系统加载健壮性（MR-19 内核改动回流）**：`PluginManager.LoadPlugins` 逐插件 try/catch，单个插件 DLL 加载失败改为经 `PluginManager.warnPlugin` 打印错误后继续（旧行为：任一插件异常中断整个游戏初始化）；插件目录解析改为 `Program.ExeDir` 下的 `Plugins`/`plugins` 优先、进程工作目录相对路径兜底（旧行为：仅 CWD 相对路径——以不同工作目录启动时插件将改从 exe 所在目录加载）；新增 `AppDomain.AssemblyResolve` 转发：插件引用的程序集名 `Emuera` 解析到内核程序集、插件依赖 DLL 从插件目录兜底加载（Windows 主程序集名本就是 `Emuera`，默认绑定命中，该转发实际仅作兜底）。涉及 `PluginManager.cs`
+- **`GetFallbackFontForChar` 委派复用 Typeface 查找**：与 `GetFallbackTypefaceForChar` 共享同一回退层级（含衬线判定安全回退表）与 `fallbackTypefaceCache` 缓存，消除原内联查找每次新建单色 `SKTypeface` 且不入缓存的问题；`GDrawStringSkia` 的 BMP 字符与代理对统一按 codepoint 走 `GetFallbackTypefaceForCodepoint`，回退上下文统一继承 `GSETFONT` 当前字体族（原 BMP 固定用 `Config.FontName`，丢失衬线/非衬线倾向）。涉及 `FontFactory.cs` / `GraphicsImage.cs`
 
 ### Fixed
 
@@ -16,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **私有字体（`font/` 目录，如 game-icons）在 Skia 与 GDI 两条链上均无法命中（F002）**：`font/` 下字体启动时已加载进 `GlobalStatic.CustomTypefaces`（Skia）与 `GlobalStatic.Pfc`（GDI PrivateFontCollection），但两条渲染链都拿不到它。**Skia 链**：`FontFactory.CreateTypefaceWithFallback` 先调 `SKTypeface.FromFamilyName(name)` 并 `if (typeface != null) return`——而该 API 对**未安装到系统的字体名不会返回 null，而是返回默认字体**（实测 `FromFamilyName("game-icons")` → `'Segoe UI'`、`FromFamilyName("NoSuchFont_ZZZ")` → `'Segoe UI'`），使后面的"自定义字体"分支成为**死代码**。**GDI 链**：`GetGdiFont` 用 `new Font(string)`，`Font` 构造同样解析不到私有字体（实测 `new Font("game-icons")` → `Microsoft Sans Serif`）。现 Skia 链改为**先按族名匹配 `GlobalStatic.CustomTypefaces`（精确族名优先，其后宽松包含匹配）**，未命中再退回系统字体；GDI 链改为**先在 `GlobalStatic.Pfc.Families` 中按名查 `FontFamily`**、命中即用它构造，否则退回系统字体、再退回配置字体。修复后 `<font face='game-icons'>`、`GSETFONT …,"game-icons"` 以及 token 图标（`GCREATE`→`GSETFONT "game-icons"`→`GDRAWTEXT %UNICODE(0xXXXX)%`→`SPRITECREATE "CC_ICON_TOKEN_*"`→`<img src='CC_ICON_TOKEN_*'>`）链路恢复。涉及 `FontFactory.cs`
 - **图形文本（GDRAWTEXT）对 BMP 以外字符（emoji 等代理对）无法回退 → 豆腐块/空白（F002）**：`GraphicsImage.GDrawStringSkia` 原按 `foreach (char c in text)` 逐 **UTF-16 码元**处理，代理对被拆成两个孤立代理项，`ContainsGlyph(char)` 与 `GetFallbackTypefaceForChar(char)` 均拿不到正确字形（实测 `GetFallbackTypefaceForChar('\uD83D')` → `'Segoe UI' glyph=0`）。现改为**代理对感知**：识别高/低代理组合、以 `char.ConvertToUtf32` 取得完整码位并走 `GetFallbackTypefaceForCodepoint`，且仅在回退字体确实含该字形时才切换（避免"无字形字体"画出豆腐块）。涉及 `GraphicsImage.cs`
 - **emoji/符号回退落到彩色字体，无法以黑白字符呈现（F002）**：`SKFontManager.Default.MatchCharacter` 对 `U+1F441` 等会返回**彩色**字体 `Segoe UI Emoji`（实测渲染 `distinctColors=63`，即显示为彩色图片）。现于回退链中、`MatchCharacter` **之前**新增「单色符号字体」优先层（`Segoe UI Symbol`，实测含该字形且渲染 `distinctColors=1` 为单色），命中即用；未命中才退回 `MatchCharacter`。经验证 `GetFallbackTypefaceForCodepoint(0x1F441)` 现返回 `Segoe UI Symbol`。三个入口 `GetFallbackFontForChar` / `GetFallbackTypefaceForChar` / `GetFallbackTypefaceForCodepoint` 统一处理，控制台与图形文本表现一致。涉及 `FontFactory.cs`
+- **TEXT_BGC_ON 背景色判定漏排空格行与图片/形状行**：`ConsoleDisplayLine.DrawTo` 原用 `string.IsNullOrWhiteSpace(css.Text)` 判定行内是否有可见内容——全角/半角空格（配合背景色的 UI 排版、进度条、占位）被判为空白导致整行**失去背景色**；整行仅由图片（`ConsoleImagePart`）/形状（`ConsoleShapePart`）/像素制表（`ConsoleSpacePart`）节点构成时同样漏判。现改为：文本节点非空字符串即算有内容（允许空格），非文本节点一律算有内容。涉及 `ConsoleDisplayLine.cs`（Xamarin 端同步修复）
 
 ### Verified
 

@@ -148,7 +148,17 @@ internal sealed class ConsoleDisplayLine
 				if (button.StrArray == null) continue;
 				foreach (AConsoleDisplayNode node in button.StrArray)
 				{
-					if (node is ConsoleStyledString css && !string.IsNullOrWhiteSpace(css.Text))
+					// 只要不是空字符串就视为有内容：全角/半角空格（配合 TEXT_BGC 的 UI 排版、
+					// 进度条）也需背景色；非文本节点（图片/形状/像素制表）同样算有内容
+					if (node is ConsoleStyledString css)
+					{
+						if (!string.IsNullOrEmpty(css.Text))
+						{
+							hasText = true;
+							break;
+						}
+					}
+					else
 					{
 						hasText = true;
 						break;
