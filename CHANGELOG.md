@@ -24,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `dotnet build Emuera/Emuera.csproj -c Debug --no-restore` 0 错误（既有警告不变）。
 - **F002 字体探针实测对比（独立进程，含真实 `FontFactory` 调用）**：修复前 `GetFont("game-icons")` → `'Segoe UI'`、`GetGdiFont("game-icons")` → `'Microsoft Sans Serif'`；修复后 → 均返回 `'game-icons'`（`glyph(0xfc57)=3157`）。emoji 回退实测已由彩色 `'Segoe UI Emoji'` 改为单色 `'Segoe UI Symbol'`（`GetFallbackTypefaceForCodepoint(0x1F441)` → `Segoe UI Symbol`）。
-- 构建与发布：`dotnet build Emuera/Emuera.csproj -c Debug --no-restore` 0 错误；`dotnet publish Emuera/Emuera.csproj -c Release-NAudio -r win-x64 --self-contained false -o ../publish --no-restore` 0 错误；产物 `publish/Emuera.exe`（23,510,871 B，SHA256 `17c09185e04c937e1d4c64e02eedbda20ffc5d01c8896e9594217861fe9e56af`）。
+- 构建与发布（最终 Skiav16 产物）：`dotnet build Emuera/Emuera.csproj -c Debug --no-incremental` 全量 927 警告 / 0 错误（与基线一致）；`dotnet publish Emuera/Emuera.csproj -c Release-NAudio -r win-x64 --self-contained false -o ../publish --no-restore` 0 错误；产物 `publish/Emuera.exe`（23,523,164 B，`VersionInfo.ProductVersion` = `1824+v24+EMv18+EEv56+Skiav16`，SHA256 `2ACC9092A197C386292937279A9A5C4142AEBAF76DD5EAA6812BD49E1DA56167`）；发布包 `Emuera_skiaV16_x64.zip`（9,001,224 B，SHA256 `B88130FCAF59E78192EDB19351BD2490A7F2963391BACE3EF48CDAB71C45DC12`，内含改名 `Emuera_skiaV16_x64.exe`）。
 
 ***
 
