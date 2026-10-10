@@ -16,7 +16,7 @@
   - 说明：内核侧改动已回流主仓 `develop-skiasharp`（Skiav16，含逐插件失败不中断与 ExeDir 目录解析两项桌面行为演进，详见主仓 `CHANGELOG.md` [16.0.0]）；`AssemblyResolve` 转发在 Windows 主程序集（名本就是 `Emuera`）上默认绑定直接命中，仅作兜底
 - **文字衬底（TEXT_BGC）在 Xamarin 端不显示**
   - 根因：Xamarin 端 `ConsoleDisplayLine.DrawTo` 只逐按钮绘制文本，漏了 Windows 版的行级底色逻辑——`TEXT_BGC_ON` 设置 `TextBackgroundColor` 后本应先在整行宽度铺一层底色矩形再绘制文本，移植端完全没有这一步，衬底始终不出现
-  - 修复：补齐行级底色绘制——行内存在可见内容且 `GlobalStatic.Console.TextBackgroundColor` 有值时，先按 `ClientWidth` × `Config.LineHeight` 用底色绘制整行矩形，再走原有按钮绘制流程，与 Windows 版 `ConsoleDisplayLine.DrawTo` 一致；内容判定同主仓 Skiav16 修复——非空字符串（允许全角/半角空格）或非文本节点（图片/形状/像素制表）均算有内容，修复空格行与图片/形状行丢失背景色
+  - 修复：补齐行级底色绘制——行内存在可见文本且 `GlobalStatic.Console.TextBackgroundColor` 有值时，先按 `ClientWidth` × `Config.LineHeight` 用底色绘制整行矩形，再走原有按钮绘制流程，与 Windows 版 `ConsoleDisplayLine.DrawTo` 一致；内容判定与 Windows 版一致（`IsNullOrWhiteSpace`）——空白行与图片/形状/像素制表行**不铺底色**（需求行为：衬底仅作用于文字）
   - 文件：`Emuera.Xamarin/Platform/GameView/ConsoleDisplayLine.cs`
 - **Android 版本**：`0.75.0` → `0.77.0`（versionCode 75 → 77，对应内核 Skiav16）
 

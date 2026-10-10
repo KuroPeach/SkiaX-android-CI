@@ -143,17 +143,9 @@ namespace MinorShift.Emuera.GameView
 					if (button.StrArray == null) continue;
 					foreach (AConsoleDisplayNode node in button.StrArray)
 					{
-						// 只要不是空字符串就视为有内容：全角/半角空格（配合 TEXT_BGC 的 UI 排版、
-						// 进度条）也需背景色；非文本节点（图片/形状/像素制表）同样算有内容
-						if (node is ConsoleStyledString css)
-						{
-							if (!string.IsNullOrEmpty(css.Text))
-							{
-								hasText = true;
-								break;
-							}
-						}
-						else
+						// 判定与 Windows 版一致：仅可见文本（非空白字符串）触发底色；
+						// 空白行与图片/形状/像素制表行不铺底色（需求行为）
+						if (node is ConsoleStyledString css && !string.IsNullOrWhiteSpace(css.Text))
 						{
 							hasText = true;
 							break;
