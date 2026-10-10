@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - **版本签名**：`Skiav15.1` → `Skiav16`（`1824+v24+EMv18+EEv56+Skiav16`）
-- **插件系统加载健壮性（MR-19 内核改动回流）**：`PluginManager.LoadPlugins` 逐插件 try/catch，单个插件 DLL 加载失败改为经 `PluginManager.warnPlugin` 打印错误后继续（旧行为：任一插件异常中断整个游戏初始化）；插件目录解析改为 `Program.ExeDir` 下的 `Plugins`/`plugins` 优先、进程工作目录相对路径兜底（旧行为：仅 CWD 相对路径——以不同工作目录启动时插件将改从 exe 所在目录加载）；新增 `AppDomain.AssemblyResolve` 转发：插件引用的程序集名 `Emuera` 解析到内核程序集、插件依赖 DLL 从插件目录兜底加载（Windows 主程序集名本就是 `Emuera`，默认绑定命中，该转发实际仅作兜底）。涉及 `PluginManager.cs`
+- **插件系统加载健壮性（MR-19 内核改动回流）**：`PluginManager.LoadPlugins` 逐插件 try/catch，单个插件 DLL 加载失败改为经 `PluginManager.warnPlugin` 打印错误后继续（旧行为：任一插件异常中断整个游戏初始化）；Plugins 目录中的**依赖 DLL（无 `PluginManifest`，如 `MathParser.org-mXparser.dll`）静默跳过**，待宿主插件需要时经 `AssemblyResolve` 兜底加载；插件目录解析改为 `Program.ExeDir` 下的 `Plugins`/`plugins` 优先、进程工作目录相对路径兜底（旧行为：仅 CWD 相对路径——以不同工作目录启动时插件将改从 exe 所在目录加载）；新增 `AppDomain.AssemblyResolve` 转发：插件引用的程序集名 `Emuera` 解析到内核程序集、插件依赖 DLL 从插件目录兜底加载（Windows 主程序集名本就是 `Emuera`，默认绑定命中，该转发实际仅作兜底）。涉及 `PluginManager.cs`
 - **`GetFallbackFontForChar` 委派复用 Typeface 查找**：与 `GetFallbackTypefaceForChar` 共享同一回退层级（含衬线判定安全回退表）与 `fallbackTypefaceCache` 缓存，消除原内联查找每次新建单色 `SKTypeface` 且不入缓存的问题；`GDrawStringSkia` 的 BMP 字符与代理对统一按 codepoint 走 `GetFallbackTypefaceForCodepoint`，回退上下文统一继承 `GSETFONT` 当前字体族（原 BMP 固定用 `Config.FontName`，丢失衬线/非衬线倾向）。涉及 `FontFactory.cs` / `GraphicsImage.cs`
 
 ### Fixed
@@ -24,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `dotnet build Emuera/Emuera.csproj -c Debug --no-restore` 0 错误（既有警告不变）。
 - **F002 字体探针实测对比（独立进程，含真实 `FontFactory` 调用）**：修复前 `GetFont("game-icons")` → `'Segoe UI'`、`GetGdiFont("game-icons")` → `'Microsoft Sans Serif'`；修复后 → 均返回 `'game-icons'`（`glyph(0xfc57)=3157`）。emoji 回退实测已由彩色 `'Segoe UI Emoji'` 改为单色 `'Segoe UI Symbol'`（`GetFallbackTypefaceForCodepoint(0x1F441)` → `Segoe UI Symbol`）。
-- 构建与发布（最终 Skiav16 产物）：`dotnet build Emuera/Emuera.csproj -c Debug --no-incremental` 全量 927 警告 / 0 错误（与基线一致）；`dotnet publish Emuera/Emuera.csproj -c Release-NAudio -r win-x64 --self-contained false -o ../publish --no-restore` 0 错误；产物 `publish/Emuera.exe`（23,523,164 B，`VersionInfo.ProductVersion` = `1824+v24+EMv18+EEv56+Skiav16`，SHA256 `2ACC9092A197C386292937279A9A5C4142AEBAF76DD5EAA6812BD49E1DA56167`）；发布包 `Emuera_skiaV16_x64.zip`（9,001,224 B，SHA256 `B88130FCAF59E78192EDB19351BD2490A7F2963391BACE3EF48CDAB71C45DC12`，内含改名 `Emuera_skiaV16_x64.exe`）。
+- 构建与发布（最终 Skiav16 产物）：`dotnet build Emuera/Emuera.csproj -c Debug --no-incremental` 全量 927 警告 / 0 错误（与基线一致）；`dotnet publish Emuera/Emuera.csproj -c Release-NAudio -r win-x64 --self-contained false -o ../publish --no-restore` 0 错误；产物 `publish/Emuera.exe`（23,523,164 B，`VersionInfo.ProductVersion` = `1824+v24+EMv18+EEv56+Skiav16`，SHA256 `B1672AF9C507075201869C3B01F5A5DB74E4322F7FB73E7176602B415A004274`）；发布包 `Emuera_skiaV16_x64.zip`（9,001,162 B，SHA256 `181106DD2E37C8B0C3C08CDD951E42562E3E9984ACCC5023E2D1F7D98EEB8F1D`，内含改名 `Emuera_skiaV16_x64.exe`）。
 
 ***
 
