@@ -2164,7 +2164,11 @@ internal sealed class ConstantData
 		}
 
 		var aliasPath = Path.Combine(Path.GetDirectoryName(csvPath), Path.GetFileNameWithoutExtension(csvPath) + ".als");
-		if (File.Exists(aliasPath))
+		// 用户定义变量（ERD_NAMES_INDEX）的 .als 由 UserDefineLoadData → loadAliasesForUserDefined
+		// 写入 per-variable 的 erdNameToIntDics[varname]；此处的 aliases[ERD_NAMES_INDEX] 全局表
+		// 在逆引字典构建时因 names[ERD_NAMES_INDEX] 已置空而不会被读取，只会在不同变量域
+		// 使用同名别名时刷「别名已被定义」Lv1 假警告。故用户变量不进入这张全局表。
+		if (targetIndex != ERD_NAMES_INDEX && File.Exists(aliasPath))
 		{
 			loadAliases(aliasPath, targetIndex);
 		}

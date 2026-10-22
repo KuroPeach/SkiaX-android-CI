@@ -1,6 +1,6 @@
 # Emuera-SKIA
 
-> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav16
+> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav16.1
 
 [![Base](https://img.shields.io/badge/base-Emuera%201.824%20%2B%20EEv56-blue)](#)
 [![Lang](https://img.shields.io/badge/lang-C%23%20%2F%20ERABASIC-green)](#)
@@ -20,7 +20,7 @@
 | **图像图层** | `SETIMAGELAYER` 独立图层系统（多精灵同层）、`SETIMAGELAYERL` 行相对定位、`GETLINEY` 物理 Y 坐标；`SPRITECREATE`/`SPRITECREATEFROMFILE` 偏移与目标尺寸；`CBGSETSPRITE` 缩放/透明度/颜色矩阵；视口裁剪、动图离窗暂停 |
 | **浮点类型** | `#DIMF` / `#FUNCTIONF` / `LOCALF` / `ARGF` / `RESULTF`；`TOSTRF` / `TOFLOAT` / `TOINT` 转换；POWER/SQRT/ABS 等函数根据参数动态返回 Integer/Float；存档双精度 |
 | **数学扩展** | 三角函数（`SIN`/`COS`/`TAN`/`ASIN`/`ACOS`/`ATAN`）、取整（`FLOOR`/`CEIL`/`ROUND`）、`UNCHECKED_*` 回环溢出 |
-| **变量系统** | ExecutionContext 栈式函数上下文（修复 ARG 递归覆写）、SparseArray 稀疏存储、SafeArithmetic 溢出保护、ERD 用户定义变量 `.als` 别名、ALS 多对一映射 |
+| **变量系统** | ExecutionContext 栈式函数上下文（修复 ARG 递归覆写）、SparseArray 稀疏存储、SafeArithmetic 溢出保护、ERD 用户定义变量 `.als` 别名（按变量域隔离）、ALS 多对一映射 |
 | **语法扩展** | `VARIADIC` 可变参数 + `ARGLEN()`、`#REF`/`#REFS` 元素引用、`OUT` 输出参数、`@FUNCNAME:LOCAL` 调试窗口函数名访问 |
 | **动态调用** | `EVAL`/`EVALS` 表达式求值、`CALLSTR`/`JUMPSTR`/`TRYCALLSTR` 动态函数名调用、函数调用三层安全性修复 |
 | **像素制表** | `HTML_PRINTC`/`HTML_PRINTLC` 右/左对齐输出；`PRINTC`/`PRINTFORMC` 像素制表重构（跨平台 CJK 列对齐） |
@@ -80,4 +80,4 @@
 
 ---
 
-> 版本 V16.0.0
+> 版本 V16.1.0
