@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - **版本签名**：`Skiav16` → `Skiav16.1`（`1824+v24+EMv18+EEv56+Skiav16.1`）
+- **Android 版本**：`0.77.0` → `0.77.1`（versionCode 77，对应内核 Skiav16.1）
 
 ***
 
