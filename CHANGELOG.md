@@ -4,6 +4,18 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.1.0] — 用户变量 ALS 别名按变量域隔离
+
+### Fixed
+
+- **不同用户变量域使用同一别名时误报「别名已被定义」（Lv1）**：用户定义变量的 CSV 由 `UserDefineLoadData` 借 `ERD_NAMES_INDEX` 槽位解析，`loadDataTo` 末尾无条件调 `loadAliases(aliasPath, ERD_NAMES_INDEX)`，把所有用户变量的 `.als` 灌进**同一张**只写不读的全局别名表；于是 `EI_BASE.als` / `EI_FLAG.als` 等共享旧名（如 `栄養`）时，后加载者逐条报重名。现 `loadDataTo` 跳过 `ERD_NAMES_INDEX` 的全局别名加载——用户变量别名本就由 `UserDefineLoadData → loadAliasesForUserDefined` 写入 per-variable 的 `erdNameToIntDics[varname]`，解析不受影响。实测 eratw-chs：11 条警告 → 0，2262 个文件加载与字典构建正常。涉及 `ConstantData.cs`
+
+### Changed
+
+- **版本签名**：`Skiav16` → `Skiav16.1`（`1824+v24+EMv18+EEv56+Skiav16.1`）
+
+***
+
 ## [16.0.0] — 稳定性、字体渲染与插件加载
 
 ### Changed
