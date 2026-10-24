@@ -141,10 +141,12 @@ internal sealed partial class EmueraConsole : IDisposable
 	public void PrintHTMLIsland(string html)
 	{
 		_htmlElementList.AddRange(HtmlManager.Html2DisplayLine(html, stringMeasure, this));
+		CliIslandPrinted?.Invoke(html);
 	}
 	public void ClearHTMLIsland()
 	{
 		_htmlElementList.Clear();
+		CliIslandCleared?.Invoke();
 	}
 
 

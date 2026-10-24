@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **信用窗背压（EWP §6.3）**：`EwpOut` 专用写手线程＋8192 有界队列（队列满时阻塞生产者＝脚本暂停），未 ack 帧数 ≥8 时 writer 暂停发送（5s 超时兜底＋`ackTimeouts` 计数，`frame.commit` 附 `pending` 积压数）——替换 `--CliDebug` 同步写 stdout 的管道反压死锁路径（知识库 cli-debug-automation §3.1 实证问题）
 - **`CliLinesRemoved` 内核事件**：`CLEARLINE` 删行后在 `deleteLine` 触发（参数＝请求删除的逻辑行数），无订阅者零开销；WireHost 据此发 `legacy.clear`（`fromLineId`+`count`，尾部裁剪）。涉及 `EmueraConsole.cs` / `EmueraConsole.Print.cs`
 - **B2 首批（eraWire）**：`hello.metrics` 网格保真基准（cellW/cellH/lineH/font，StringMeasure 同源测量）；FE 视口回传（`hello.ok.viewport` → 窗体尺寸，`CLIENTWIDTH()/CLIENTHEIGHT()` 随之生效，零内核改动）；`frame.commit` 附 `ackTimeouts`、信用超时以非致命 `error{ack_timeout}` 外显；结构化 `snapshot.full`（lineId+text 数组＋世代＋挂起输入，断线重连幂等重建）；TCP 传输模式（`--ewp-port`，单客户端，接入前事件在 EwpOut 队列缓冲）
+- **B2-3（eraWire）sprite/overlay 语义流**：内核新增 5 事件（`CliImageLayerSet/Cleared/ClearedAll`、`CliIslandPrinted/Cleared`，`ImageLayerManager.SetLayer` 改返真＝仅实际添加时通知；B2 内核账本第 2 笔）；WireHost 发 `sprite.set/clear`（depth/texture/geometry/opacity/follow，colormatrix 留 v1）与 `overlay.island(_clear)`（载荷＝原始 HTML 透传，v0 单实例）；snapshot 增 `sprites`/`island`。metrics 因字体时序改为 **`meta.metrics` 于字体就绪后补发**（Start 期测宽会在 FontFactory 初始化前触碰 SKFont，触发「不適正なフォント→強制終了」守卫——pixtest 实锤）
+- **`Dialog` 全量改走 `PlatformInterop` 委托**：GUI 模式行为不变（MessageBox 同参数）；`--ewp/--CliDebug` 模式下原生弹窗（字体错误/无限循环警告等 35 处调用点）转为 `dialog.request` 事件——根治无人值守测试被原生弹窗阻塞与值守屏幕刷窗。涉及 `UI/Dialog.cs`
 
 ### Changed
 

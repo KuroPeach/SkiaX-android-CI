@@ -283,17 +283,21 @@ internal sealed partial class EmueraConsole : IDisposable
 		int width, int height, int opacity, float[]? colorMatrix, bool followScroll)
 	{
 		int currentScrollY = window.ScrollBar.Value * Config.LineHeight;
-		_imageLayerManager.SetLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, followScroll, currentScrollY);
+		// EWP WireHost：仅在实际添加成功（sprite 存在）时通知；colormatrix 留 v1（A1-③）
+		if (_imageLayerManager.SetLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, followScroll, currentScrollY))
+			CliImageLayerSet?.Invoke(spriteName, depth, x, y, width, height, opacity, followScroll);
 	}
 
 	public void ClearImageLayer(long depth)
 	{
 		_imageLayerManager.ClearLayer(depth);
+		CliImageLayerCleared?.Invoke(depth);
 	}
 
 	public void ClearImageLayerAll()
 	{
 		_imageLayerManager.ClearAll();
+		CliImageLayersCleared?.Invoke();
 	}
 
 	public bool ExistsImageLayer(long depth)
@@ -3153,6 +3157,16 @@ internal sealed partial class EmueraConsole : IDisposable
 	public event Action CliTerminalStateEntered;
 	/// <summary>CLEARLINE 删除行后触发，参数＝请求删除的逻辑行数（WireHost 据此发 legacy.clear）。</summary>
 	public event Action<int> CliLinesRemoved;
+	/// <summary>EWP WireHost：SETIMAGELAYER(L) 实际添加图层后触发（spriteName,depth,x,y,w,h,opacity,followScroll；colormatrix 留 v1）。</summary>
+	public event Action<string, long, int, int, int, int, int, bool> CliImageLayerSet;
+	/// <summary>EWP WireHost：CLEARIMAGELAYER 后触发（参数＝深度）。</summary>
+	public event Action<long> CliImageLayerCleared;
+	/// <summary>EWP WireHost：CLEARIMAGELAYER_ALL 后触发。</summary>
+	public event Action CliImageLayersCleared;
+	/// <summary>EWP WireHost：HTML_PRINT_ISLAND 重绘后触发（参数＝原始 HTML 串）。</summary>
+	public event Action<string> CliIslandPrinted;
+	/// <summary>EWP WireHost：HTML_PRINT_ISLAND_CLEAR 后触发。</summary>
+	public event Action CliIslandCleared;
 
 	/// <summary>当前状态名（CLI 协议用；避开 enum.ToString 的混淆约束，手写映射）。</summary>
 	internal string CliStateName => state switch

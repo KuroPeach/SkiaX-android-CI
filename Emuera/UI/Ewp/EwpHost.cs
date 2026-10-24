@@ -188,6 +188,10 @@ internal sealed class EwpHost
     private long reqIdSeq;
     /// <summary>仍在缓冲里的行（lineId+文本；CLEARLINE 尾部裁剪；仅 UI/脚本线程访问）。结构化 snapshot 的数据源。</summary>
     private readonly List<(long Id, string Text)> liveLines = new();
+    /// <summary>活着的 sprite 图层（与引擎同语义：同深度可叠多层、按深度清）。snapshot 数据源。</summary>
+    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow)> liveSprites = new();
+    /// <summary>当前 island 的原始 HTML（null＝无 island）。v0 单实例（A1-④）。</summary>
+    private string liveIslandHtml;
     /// <summary>hello.ok 里 FE 上报的视口（窗体句柄未建时暂存，Subscribe 时经 UI 线程应用）。</summary>
     private int pendingVpW, pendingVpH;
     // currentReqId/currentGeneration are written on the UI thread (OnWaitInput) and
@@ -217,14 +221,8 @@ internal sealed class EwpHost
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\"],")
-            .Append("\"mode\":{\"semantic\":true,\"pixel\":false},")
-            .Append("\"metrics\":{\"cellW\":").Append(MeasureCellWidth())
-            .Append(",\"cellH\":").Append(Config.FontSize)
-            .Append(",\"lineH\":").Append(Config.LineHeight)
-            .Append(",\"font\":").Append(J(Config.FontName))
-            .Append(",\"fontSize\":").Append(Config.FontSize)
-            .Append("}}");
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\"],")
+            .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
         transportThread = new Thread(tcpPort > 0 ? AcceptLoop : StdinLoop)
@@ -232,11 +230,19 @@ internal sealed class EwpHost
         transportThread.Start();
     }
 
-    /// <summary>全角网格单元宽＝引擎自身测量基准（半角空格宽×2，与 PRINTC 同走 StringMeasure.GetDisplayLength）。</summary>
-    private static int MeasureCellWidth()
+    /// <summary>metrics 在字体系统就绪后（Subscribe 时）以 meta.metrics 补发——
+    /// Start 期测宽会在 FontFactory 初始化前触碰 SKFont，污染字体状态触发引擎
+    /// 「不適正なフォント→強制終了」守卫（2026-10-24 pixtest 实锤）。cellW 与
+    /// PRINTC 同走 StringMeasure.GetDisplayLength（半角空格×2）。</summary>
+    private void EmitMetrics()
     {
-        try { return StringMeasure.GetDisplayLength(" ", Config.DefaultFont) * 2; }
-        catch { return 0; }
+        int cellW = 0;
+        try { cellW = StringMeasure.GetDisplayLength(" ", Config.DefaultFont) * 2; } catch { }
+        EwpOut.Emit("{\"t\":\"meta.metrics\",\"metrics\":{\"cellW\":" + cellW
+            + ",\"cellH\":" + Config.FontSize
+            + ",\"lineH\":" + Config.LineHeight
+            + ",\"font\":" + J(Config.FontName)
+            + ",\"fontSize\":" + Config.FontSize + "}}");
     }
 
     private static string SafeVersion()
@@ -331,6 +337,12 @@ internal sealed class EwpHost
         console.CliWaitInputEntered += OnWaitInput;
         console.CliTerminalStateEntered += OnTerminalState;
         console.CliLinesRemoved += OnLinesRemoved;
+        console.CliImageLayerSet += OnImageLayerSet;
+        console.CliImageLayerCleared += OnImageLayerCleared;
+        console.CliImageLayersCleared += OnImageLayersCleared;
+        console.CliIslandPrinted += OnIslandPrinted;
+        console.CliIslandCleared += OnIslandCleared;
+        EmitMetrics();
     }
 
     /// <summary>应用 hello.ok 暂存的 FE 视口（UI 线程执行；ClientWidth/Height 是窗口活属性，改窗体即生效）。</summary>
@@ -407,6 +419,40 @@ internal sealed class EwpHost
     private void OnTerminalState()
     {
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":" + J(GameConsole?.CliStateName ?? "Unknown") + "}");
+    }
+
+    /// <summary>SETIMAGELAYER(L)→sprite.set（EWP §4.3；colormatrix 留 v1＝A1-③）。</summary>
+    private void OnImageLayerSet(string tex, long depth, int x, int y, int w, int h, int op, bool follow)
+    {
+        liveSprites.Add((depth, tex, x, y, w, h, op, follow));
+        EwpOut.Emit("{\"t\":\"sprite.set\",\"depth\":" + depth + ",\"texture\":" + J(tex)
+            + ",\"x\":" + x + ",\"y\":" + y + ",\"w\":" + w + ",\"h\":" + h
+            + ",\"opacity\":" + op + ",\"follow\":" + (follow ? "true" : "false") + "}");
+    }
+
+    private void OnImageLayerCleared(long depth)
+    {
+        liveSprites.RemoveAll(s => s.Depth == depth);
+        EwpOut.Emit("{\"t\":\"sprite.clear\",\"depth\":" + depth + "}");
+    }
+
+    private void OnImageLayersCleared()
+    {
+        liveSprites.Clear();
+        EwpOut.Emit("{\"t\":\"sprite.clear\",\"all\":true}");
+    }
+
+    /// <summary>HTML_PRINT_ISLAND→overlay.island（v0 载荷＝原始 HTML 透传，A1-④ 单实例）。</summary>
+    private void OnIslandPrinted(string html)
+    {
+        liveIslandHtml = html;
+        EwpOut.Emit("{\"t\":\"overlay.island\",\"html\":" + J(html) + "}");
+    }
+
+    private void OnIslandCleared()
+    {
+        liveIslandHtml = null;
+        EwpOut.Emit("{\"t\":\"overlay.island.clear\"}");
     }
 
     private static string InputTypeName(InputType t) => t switch
@@ -592,7 +638,19 @@ internal sealed class EwpHost
             sb.Append("{\"lineId\":").Append(liveLines[i].Id)
                 .Append(",\"text\":").Append(J(liveLines[i].Text)).Append('}');
         }
-        sb.Append("]}");
+        sb.Append("],\"sprites\":[");
+        for (int i = 0; i < liveSprites.Count; i++)
+        {
+            if (i > 0) sb.Append(',');
+            var s = liveSprites[i];
+            sb.Append("{\"depth\":").Append(s.Depth).Append(",\"texture\":").Append(J(s.Tex))
+                .Append(",\"x\":").Append(s.X).Append(",\"y\":").Append(s.Y)
+                .Append(",\"w\":").Append(s.W).Append(",\"h\":").Append(s.H)
+                .Append(",\"opacity\":").Append(s.Op)
+                .Append(",\"follow\":").Append(s.Follow ? "true" : "false").Append('}');
+        }
+        sb.Append("],\"island\":").Append(liveIslandHtml != null ? J(liveIslandHtml) : "null");
+        sb.Append("}");
         EwpOut.Emit(sb.ToString());
     }
 
