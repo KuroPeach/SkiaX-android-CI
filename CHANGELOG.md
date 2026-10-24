@@ -4,6 +4,20 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.5.0] — EWP v0.1 定稿：MessagePack 默认翻转（eraWire A2）
+
+### Changed
+
+- **`--ewp` 默认编码＝MessagePack**（spec §2 正本形态，A2 定稿）：4 字节大端长度前缀帧；`--ewp-json` 切 JSON-Lines（调试/抓包/哑前端零依赖形态）；`--ewp-msgpack` 保留为显式同义 no-op。B③ 过渡态（默认 JSON）终结
+- hello 升版 `proto:"EWP/0.1"`、impl `ewp-b3`→`ewp-b4`
+
+### 验收（2026-10-25）
+
+- dumbfe 默认 msgpack 全链 PASS（与 JSON 模式事件数完全一致）；三门禁（--ewp-json 调试形态）回归 PASS；godot headless msgpack 门禁 PASS（六 fixtures 双 codec 逐字符一致）；live_gate3 真机 msgpack 直连 PASS
+- 前置：C 轨 godot 侧 EwpMsgpack.gd 编解码落地（headless 自证全 PASS）
+
+***
+
 ## [16.4.0] — channel 语义流（eraWire B② 余量，D0 契约消费）
 
 ### Added

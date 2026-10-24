@@ -96,13 +96,13 @@ static partial class Program
 		rootCommand.AddOption(ewpPortOption);
 		var ewpJsonOption = new Option<bool>(
 			name: "--ewp-json",
-			description: "EWP 用 JSON-Lines 编码（默认即此；显式别名，spec §2 调试形态）"
+			description: "EWP 用 JSON-Lines 编码（调试/抓包形态；A2 起默认＝MessagePack，spec §2 正本）"
 		);
 		ewpJsonOption.AddAlias("-ewp-json");
 		rootCommand.AddOption(ewpJsonOption);
 		var ewpMsgpackOption = new Option<bool>(
 			name: "--ewp-msgpack",
-			description: "EWP 用 MessagePack 编码（B3；4 字节长度前缀帧，spec §2 正本形态）"
+			description: "EWP 用 MessagePack 编码（A2 起默认即此，显式同义；4 字节长度前缀帧）"
 		);
 		ewpMsgpackOption.AddAlias("-ewp-msgpack");
 		rootCommand.AddOption(ewpMsgpackOption);
@@ -140,7 +140,8 @@ static partial class Program
 		var ewpMode = result.GetValueForOption(ewpOption);
 		EwpMode = ewpMode;
 		EwpPort = result.GetValueForOption(ewpPortOption);
-		EwpMsgpack = result.GetValueForOption(ewpMsgpackOption) && !result.GetValueForOption(ewpJsonOption);
+		// A2（v0.1 定稿）：--ewp 默认＝MessagePack（spec §2 正本）；--ewp-json 调试/抓包形态
+		EwpMsgpack = !result.GetValueForOption(ewpJsonOption);
 		if (ewpMode)
 			UI.Ewp.EwpOut.InitIO(deferWriter: EwpPort > 0, msgpack: EwpMsgpack);
 
@@ -572,7 +573,7 @@ static partial class Program
 		public static bool EwpMode { get; private set; }
 		/// <summary>EWP TCP 模式端口（--ewp-port，0＝stdio）。</summary>
 		public static int EwpPort { get; private set; }
-		/// <summary>EWP MessagePack 编码（--ewp-msgpack；默认 JSON-Lines，A2 定稿时翻转默认）。</summary>
+		/// <summary>EWP MessagePack 编码。A2 起 --ewp 默认即 MessagePack；--ewp-json 切 JSON-Lines 调试形态。</summary>
 		public static bool EwpMsgpack { get; private set; }
 
 	static Program()
