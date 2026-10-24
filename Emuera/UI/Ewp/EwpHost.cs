@@ -3,32 +3,28 @@ using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 
-// eraWire B1: EWP/0 stdio text-level host (JSON-Lines framing).
+// eraWire B1/B2: EWP/0 text-level host (JSON-Lines framing; stdio or single TCP client).
 // Spec: $EMUERA_WS/emuera/eraWire/specs/EWP-v0-协议草案.md
-// Kernel hooks are the same three console events CliDebug uses (zero kernel change):
-//   CliLineAdded -> legacy.line   CliWaitInputEntered -> input.request
-//   CliTerminalStateEntered -> meta.state
-// Differences vs CliDebug (B1 rationale):
-//   1. Dedicated writer thread + bounded queue: producers block when the pipe consumer
-//      stalls (script pauses = EWP 6.3 backpressure), replacing the synchronous-write
-//      pipe deadlock documented in knowledge/erabasic/cli-debug-automation.md 3.1.
-//   2. Monotonic lineId per legacy.line (history virtualization key).
-//   3. input.request carries reqId/generation; input.submit is validated against them
-//      (stale clicks must never reach the game - EWP 6.2).
-//   4. frame.commit is synthesized by the writer per drained batch (Neovim-flush model).
-// B1 limitations (deferred to B2, see spec freeze list):
-//   - line-level button spans absent (buttons ride input.request only)
-//   - dialog.request is notify-only (ShowQuestion still auto-answers No like CliDebug)
-//   - snapshot.full is plain log text (structured snapshot in B2)
+// Kernel hooks: CliLineAdded/CliWaitInputEntered/CliTerminalStateEntered (CliDebug set)
+// plus CliLinesRemoved (B2 kernel ledger #1, +2 lines) for legacy.clear.
+// B2 additions in this file: hello.metrics (grid fidelity baseline), FE viewport
+// report via hello.ok -> window.ClientSize (ClientWidth/Height are live window reads,
+// so this needs no kernel change), ack_timeout observability, structured snapshot,
+// TCP transport (--ewp-port; events buffer in the queue until the client attaches).
+// Remaining B2 items: sprite/overlay semantic events (needs kernel hooks),
+// MessagePack framing (deferred with pixel stream), channel/node (waits D-track macros).
 namespace MinorShift.Emuera.UI.Ewp;
 
 /// <summary>Static stdio layer: utf-8 pipes, bounded queue, writer thread.</summary>
@@ -47,26 +43,38 @@ internal static class EwpOut
     private static readonly object ackGate = new();
     private static int pendingFrames;
     private static int ackTimeouts;
-    private static int droppedEvents;
 
     public static int AckTimeouts => Volatile.Read(ref ackTimeouts);
-    public static int DroppedEvents => Volatile.Read(ref droppedEvents);
     public static long FramesWritten => Interlocked.Read(ref frameSeq);
     public static long Acks => Interlocked.Read(ref ackCount);
     public static int PendingFrames => Volatile.Read(ref pendingFrames);
 
-    public static void InitIO()
+    /// <summary>deferWriter=true（TCP 模式）：只建队列，写手线程等 AttachStream 再启动，
+    /// 期间事件在队列中缓冲（boot 期 ~1.4k 行，远低于 8192 容量）。</summary>
+    public static void InitIO(bool deferWriter = false)
     {
         var utf8 = new UTF8Encoding(false);
         try { Console.InputEncoding = utf8; } catch { }
         try { Console.OutputEncoding = utf8; } catch { }
+        queue = new BlockingCollection<string>(new ConcurrentQueue<string>(), QueueCapacity);
+        if (deferWriter)
+            return;
         StreamWriter w = null;
         try { w = new StreamWriter(Console.OpenStandardOutput(), utf8) { AutoFlush = true }; }
         catch { /* no stdout handle: everything below becomes no-op */ }
         writer = w;
         if (w == null)
             return;
-        queue = new BlockingCollection<string>(new ConcurrentQueue<string>(), QueueCapacity);
+        writerThread = new Thread(Loop) { IsBackground = true, Name = "EwpOut writer" };
+        writerThread.Start();
+    }
+
+    /// <summary>TCP 客户端接入后挂载输出流并启动写手（只允许一次）。</summary>
+    public static void AttachStream(Stream stream)
+    {
+        if (writer != null || stream == null)
+            return;
+        writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
         writerThread = new Thread(Loop) { IsBackground = true, Name = "EwpOut writer" };
         writerThread.Start();
     }
@@ -123,6 +131,7 @@ internal static class EwpOut
                 sb.Append("{\"t\":\"frame.commit\",\"frameId\":").Append(++frameSeq)
                     .Append(",\"events\":").Append(count)
                     .Append(",\"pending\":").Append(Volatile.Read(ref pendingFrames) + 1)
+                    .Append(",\"ackTimeouts\":").Append(Volatile.Read(ref ackTimeouts))
                     .Append('}');
                 w.WriteLine(sb.ToString());
                 // 信用窗口：本帧未 ack 前最多积压 CreditWindow 帧
@@ -156,7 +165,9 @@ internal static class EwpOut
                 if (left <= 0)
                 {
                     Interlocked.Increment(ref ackTimeouts);
-                    // 放行：把窗口清零，让后续帧继续流出（宁可失控也不死锁）
+                    // 放行：把窗口清零，让后续帧继续流出（宁可失控也不死锁）。
+                    // 非致命 error 事件尽量外显（队列已满则丢弃——计数器才是真相）。
+                    queue?.TryAdd("{\"t\":\"error\",\"code\":\"ack_timeout\",\"fatal\":false,\"detail\":\"credit window timed out; releasing\"}", 0);
                     Volatile.Write(ref pendingFrames, 0);
                     break;
                 }
@@ -169,21 +180,25 @@ internal static class EwpOut
 internal sealed class EwpHost
 {
     private readonly MainWindow win;
-    private Thread stdinThread;
+    private readonly int tcpPort;
+    private Thread transportThread;
     private volatile bool running = true;
 
     private long lineIdSeq;
     private long reqIdSeq;
-    /// <summary>当前仍在缓冲里的 lineId（CLEARLINE 时按尾部裁剪，仅脚本线程访问）。</summary>
-    private readonly List<long> liveLineIds = new();
+    /// <summary>仍在缓冲里的行（lineId+文本；CLEARLINE 尾部裁剪；仅 UI/脚本线程访问）。结构化 snapshot 的数据源。</summary>
+    private readonly List<(long Id, string Text)> liveLines = new();
+    /// <summary>hello.ok 里 FE 上报的视口（窗体句柄未建时暂存，Subscribe 时经 UI 线程应用）。</summary>
+    private int pendingVpW, pendingVpH;
     // currentReqId/currentGeneration are written on the UI thread (OnWaitInput) and
     // read on the UI thread (dispatched input.submit) - no cross-thread races.
     private long currentReqId = -1;
     private int currentGeneration = -1;
 
-    public EwpHost(MainWindow window)
+    public EwpHost(MainWindow window, int tcpPort = 0)
     {
         win = window;
+        this.tcpPort = tcpPort;
     }
 
     // Program wires the dialog delegates after EwpOut.InitIO, so the queue already
@@ -196,18 +211,32 @@ internal sealed class EwpHost
 
     public void Start()
     {
-        var sb = new StringBuilder(256);
-        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0\",\"impl\":\"ewp-b1\",\"engine\":{")
+        var sb = new StringBuilder(320);
+        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0\",\"impl\":\"ewp-b2\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\"],")
-            .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\"],")
+            .Append("\"mode\":{\"semantic\":true,\"pixel\":false},")
+            .Append("\"metrics\":{\"cellW\":").Append(MeasureCellWidth())
+            .Append(",\"cellH\":").Append(Config.FontSize)
+            .Append(",\"lineH\":").Append(Config.LineHeight)
+            .Append(",\"font\":").Append(J(Config.FontName))
+            .Append(",\"fontSize\":").Append(Config.FontSize)
+            .Append("}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
-        stdinThread = new Thread(StdinLoop) { IsBackground = true, Name = "EwpHost stdin" };
-        stdinThread.Start();
+        transportThread = new Thread(tcpPort > 0 ? AcceptLoop : StdinLoop)
+        { IsBackground = true, Name = tcpPort > 0 ? "EwpHost tcp" : "EwpHost stdin" };
+        transportThread.Start();
+    }
+
+    /// <summary>全角网格单元宽＝引擎自身测量基准（半角空格宽×2，与 PRINTC 同走 StringMeasure.GetDisplayLength）。</summary>
+    private static int MeasureCellWidth()
+    {
+        try { return StringMeasure.GetDisplayLength(" ", Config.DefaultFont) * 2; }
+        catch { return 0; }
     }
 
     private static string SafeVersion()
@@ -246,6 +275,35 @@ internal sealed class EwpHost
         StreamReader reader;
         try { reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true); }
         catch { reader = null; }
+        CommandLoop(reader);
+    }
+
+    /// <summary>TCP 模式：单客户端；接入即挂输出流（期间事件在 EwpOut 队列缓冲），断开＝会话终结。</summary>
+    private void AcceptLoop()
+    {
+        TcpListener listener = null;
+        try
+        {
+            listener = new TcpListener(System.Net.IPAddress.Loopback, tcpPort);
+            listener.Start(1);
+            using var client = listener.AcceptTcpClient();
+            listener.Stop();
+            var stream = client.GetStream();
+            EwpOut.AttachStream(stream);
+            while (running && (!win.IsHandleCreated || GameConsole == null))
+                Thread.Sleep(50);
+            if (running)
+                Subscribe();
+            EwpOut.Emit("{\"t\":\"ready\"}");
+            using var reader = new StreamReader(stream, new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true);
+            CommandLoop(reader);
+        }
+        catch { DispatchQuit(); }
+        finally { try { listener?.Stop(); } catch { } }
+    }
+
+    private void CommandLoop(TextReader reader)
+    {
         while (running)
         {
             string line;
@@ -253,7 +311,7 @@ internal sealed class EwpHost
             catch { break; }
             if (line == null)
             {
-                // consumer closed stdin -> graceful quit
+                // consumer closed the transport -> graceful quit
                 DispatchQuit();
                 break;
             }
@@ -268,31 +326,43 @@ internal sealed class EwpHost
         var console = GameConsole;
         if (console == null)
             return;
+        ApplyPendingViewport();
         console.CliLineAdded += OnLineAdded;
         console.CliWaitInputEntered += OnWaitInput;
         console.CliTerminalStateEntered += OnTerminalState;
         console.CliLinesRemoved += OnLinesRemoved;
     }
 
+    /// <summary>应用 hello.ok 暂存的 FE 视口（UI 线程执行；ClientWidth/Height 是窗口活属性，改窗体即生效）。</summary>
+    private void ApplyPendingViewport()
+    {
+        int w = Volatile.Read(ref pendingVpW), h = Volatile.Read(ref pendingVpH);
+        if (w <= 0 || h <= 0)
+            return;
+        Volatile.Write(ref pendingVpW, 0);
+        try { win.Invoke(new Action(() => win.ClientSize = new Size(w, h))); } catch { }
+    }
+
     private void OnLineAdded(ConsoleDisplayLine line)
     {
-        // B1: text level; spans/line-level buttons deferred (spec freeze list).
+        // text level; spans/line-level buttons deferred (spec freeze list).
         var id = ++lineIdSeq;
-        liveLineIds.Add(id);
+        var text = ClipboardProcessor.StripHTML(line.ToString());
+        liveLines.Add((id, text));
         var json = "{\"t\":\"legacy.line\",\"lineId\":" + id
             + ",\"gen\":" + currentGeneration
-            + ",\"text\":" + J(ClipboardProcessor.StripHTML(line.ToString())) + "}";
+            + ",\"text\":" + J(text) + "}";
         EwpOut.Emit(json);
     }
 
-    /// <summary>CLEARLINE：按尾部裁剪并广播 legacy.clear（EWP §4.1，fromLineId + count，count&lt;0 表到末尾）。</summary>
+    /// <summary>CLEARLINE：按尾部裁剪并广播 legacy.clear（EWP §4.1，fromLineId + count）。</summary>
     private void OnLinesRemoved(int count)
     {
-        if (count <= 0 || liveLineIds.Count == 0)
+        if (count <= 0 || liveLines.Count == 0)
             return;
-        int removed = Math.Min(count, liveLineIds.Count);
-        long fromId = liveLineIds[liveLineIds.Count - removed];
-        liveLineIds.RemoveRange(liveLineIds.Count - removed, removed);
+        int removed = Math.Min(count, liveLines.Count);
+        long fromId = liveLines[liveLines.Count - removed].Id;
+        liveLines.RemoveRange(liveLines.Count - removed, removed);
         EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId
             + ",\"count\":" + removed + "}");
     }
@@ -382,6 +452,8 @@ internal sealed class EwpHost
                     EwpOut.NoteAck();
                     break;
                 case "hello.ok":
+                    DoHelloOk(root);
+                    break;
                 case "state":
                     Dispatch(() => DoState());
                     break;
@@ -459,6 +531,32 @@ internal sealed class EwpHost
         EmitResult(true, null, null);
     }
 
+    /// <summary>FE 视口上报（传输线程）：句柄已建则立即经 UI 线程应用，否则暂存到 Subscribe。</summary>
+    private void DoHelloOk(JsonElement root)
+    {
+        int w = 0, h = 0;
+        if (root.TryGetProperty("viewport", out var vp) && vp.ValueKind == JsonValueKind.Object)
+        {
+            if (vp.TryGetProperty("width", out var we) && we.ValueKind == JsonValueKind.Number && we.TryGetInt32(out w)) { }
+            if (vp.TryGetProperty("height", out var he) && he.ValueKind == JsonValueKind.Number && he.TryGetInt32(out h)) { }
+        }
+        if (w > 0 && h > 0)
+        {
+            if (win.IsHandleCreated)
+            {
+                try { win.Invoke(new Action(() => win.ClientSize = new Size(w, h))); } catch { }
+            }
+            else
+            {
+                Volatile.Write(ref pendingVpW, w);
+                Volatile.Write(ref pendingVpH, h);
+            }
+            EmitResult(true, null, "viewport " + w + "x" + h);
+        }
+        else
+            EmitResult(true, null, null);
+    }
+
     private void DoState()
     {
         var console = GameConsole;
@@ -466,18 +564,36 @@ internal sealed class EwpHost
             + ",\"waitInput\":" + (console.IsWaitInputState ? "true" : "false")
             + ",\"reqId\":" + currentReqId
             + ",\"generation\":" + currentGeneration
-            + ",\"lines\":" + liveLineIds.Count
+            + ",\"lines\":" + liveLines.Count
+            + ",\"client\":[" + console.ClientWidth + "," + console.ClientHeight + "]"
             + ",\"frames\":" + EwpOut.FramesWritten
             + ",\"acks\":" + EwpOut.Acks
             + ",\"pending\":" + EwpOut.PendingFrames
             + ",\"ackTimeouts\":" + EwpOut.AckTimeouts + "}");
     }
 
+    /// <summary>结构化快照（B2）：行数组（lineId+text）＋世代＋挂起输入；断线重连按此幂等重建。</summary>
     private void DoSnapshot()
     {
         var console = GameConsole;
-        // B1 snapshot = full log text (reconnect parity); structured snapshot in B2.
-        EwpOut.Emit("{\"t\":\"snapshot.full\",\"text\":" + J(console.GetLog(false)) + "}");
+        var sb = new StringBuilder(4096);
+        sb.Append("{\"t\":\"snapshot.full\",\"lineCount\":").Append(liveLines.Count)
+            .Append(",\"generation\":").Append(currentGeneration)
+            .Append(",\"pendingInput\":");
+        if (console.IsWaitInputState && console.inputReq != null)
+            sb.Append("{\"reqId\":").Append(currentReqId)
+                .Append(",\"type\":").Append(J(InputTypeName(console.inputReq.InputType))).Append('}');
+        else
+            sb.Append("null");
+        sb.Append(",\"lines\":[");
+        for (int i = 0; i < liveLines.Count; i++)
+        {
+            if (i > 0) sb.Append(',');
+            sb.Append("{\"lineId\":").Append(liveLines[i].Id)
+                .Append(",\"text\":").Append(J(liveLines[i].Text)).Append('}');
+        }
+        sb.Append("]}");
+        EwpOut.Emit(sb.ToString());
     }
 
     private void DispatchQuit()

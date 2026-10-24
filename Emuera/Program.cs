@@ -88,6 +88,12 @@ static partial class Program
 		);
 		ewpOption.AddAlias("-ewp");
 		rootCommand.AddOption(ewpOption);
+		var ewpPortOption = new Option<int>(
+			name: "--ewp-port",
+			description: "EWP TCP 模式端口（与 --ewp 连用；缺省 0＝stdio）"
+		);
+		ewpPortOption.AddAlias("-ewp-port");
+		rootCommand.AddOption(ewpPortOption);
 
 		var filesArg = new Argument<string[]>(
 					"解析するファイル"
@@ -121,8 +127,9 @@ static partial class Program
 		}
 		var ewpMode = result.GetValueForOption(ewpOption);
 		EwpMode = ewpMode;
+		EwpPort = result.GetValueForOption(ewpPortOption);
 		if (ewpMode)
-			UI.Ewp.EwpOut.InitIO();
+			UI.Ewp.EwpOut.InitIO(deferWriter: EwpPort > 0);
 
 		var genLang = result.GetValueForOption(genLangOption);
 		if (genLang)
@@ -392,7 +399,7 @@ static partial class Program
 				// 与 CliDebug 同法：保留消息循环，最小化窗口（非 headless）；B1 文本级 stdio 宿主
 				win.ShowInTaskbar = false;
 				win.WindowState = FormWindowState.Minimized;
-				ewpHost = new UI.Ewp.EwpHost(win);
+				ewpHost = new UI.Ewp.EwpHost(win, EwpPort);
 				ewpHost.Start();
 			}
 			#endregion
@@ -550,6 +557,8 @@ static partial class Program
 		public static bool CliDebugMode { get; private set; }
 		/// <summary>eraWire EWP/0 宿主（--ewp）：stdin/stdout JSON-Lines 事件流（EwpHost，B1 文本级）。</summary>
 		public static bool EwpMode { get; private set; }
+		/// <summary>EWP TCP 模式端口（--ewp-port，0＝stdio）。</summary>
+		public static int EwpPort { get; private set; }
 
 	static Program()
 	{

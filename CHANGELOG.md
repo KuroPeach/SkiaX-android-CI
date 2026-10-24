@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`--ewp` 启动模式**：eraWire EWP/0 stdio 宿主（新增 `UI/Ewp/EwpHost.cs`）。stdin/stdout JSON-Lines 事件流：事件＝`hello`/`ready`/`legacy.line`（行 ID 单调）/`legacy.clear`/`input.request`（reqId+generation+buttons，TINPUT 超时以 `timeoutMs` 透出）/`meta.state`/`dialog.request`/`frame.commit`/`snapshot.full`/`exit`；命令＝`input.submit`（text/button/enter/skip 四路，**stale 世代拒收**）/`view.ack`/`state`/`snapshot.req`/`sys.quit`。最小化窗口保消息循环（与 `--CliDebug` 同法，非 headless）。涉及 `Program.cs`
 - **信用窗背压（EWP §6.3）**：`EwpOut` 专用写手线程＋8192 有界队列（队列满时阻塞生产者＝脚本暂停），未 ack 帧数 ≥8 时 writer 暂停发送（5s 超时兜底＋`ackTimeouts` 计数，`frame.commit` 附 `pending` 积压数）——替换 `--CliDebug` 同步写 stdout 的管道反压死锁路径（知识库 cli-debug-automation §3.1 实证问题）
 - **`CliLinesRemoved` 内核事件**：`CLEARLINE` 删行后在 `deleteLine` 触发（参数＝请求删除的逻辑行数），无订阅者零开销；WireHost 据此发 `legacy.clear`（`fromLineId`+`count`，尾部裁剪）。涉及 `EmueraConsole.cs` / `EmueraConsole.Print.cs`
+- **B2 首批（eraWire）**：`hello.metrics` 网格保真基准（cellW/cellH/lineH/font，StringMeasure 同源测量）；FE 视口回传（`hello.ok.viewport` → 窗体尺寸，`CLIENTWIDTH()/CLIENTHEIGHT()` 随之生效，零内核改动）；`frame.commit` 附 `ackTimeouts`、信用超时以非致命 `error{ack_timeout}` 外显；结构化 `snapshot.full`（lineId+text 数组＋世代＋挂起输入，断线重连幂等重建）；TCP 传输模式（`--ewp-port`，单客户端，接入前事件在 EwpOut 队列缓冲）
 
 ### Changed
 
