@@ -4,6 +4,16 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.4.0] — channel 语义流（eraWire B② 余量，D0 契约消费）
+
+### Added
+
+- **channel 名挂钩（内核账本 #4，+2 行）**：`Process.State.IntoFunction` 末尾调 `UI.Ewp.EwpChannel.NotifyFunctionEntry`——`UI_CHANNEL_BEGIN/END/CLEAR` 三宏（eratw-chs `ERB/魔改内容/PRINT系/UI_CHANNEL.ERB`，D0 骨架）的**函数入口即通道边界**；实参从已绑定的形参变量读回；非 EWP 模式 Handler 为 null 立即短路，普通执行零语义零开销。事件（EWP §4.2）：`channel.create{id,kind,tier:"grid-locked"}`（id 首见）＋`channel.begin{id,rev}`（每次 BEGIN，rev 先递增）＋`channel.commit{id,rev}`（与配对 begin 同 rev 定稿）＋`channel.clear{id}`（清内容不清频道，rev 保持）；未配对 end/clear 静默忽略并计 `channelMismatch`（state 可观测）。新文件 `UI/Ewp/EwpChannel.cs`
+- **hello caps 增 `channel`**；`snapshot.full` 增 `channels[]`（id/kind/rev/open，幂等重建数据源）；`state` 增 `channels`/`channelMismatch`
+- **B② 至此收口**：余量仅 channel/node 词表的 node.* 部分（随 D1 包装面实测后定）与 colormatrix/followScroll（v1）
+
+***
+
 ## [16.3.0] — 像素流＋MessagePack 编码（eraWire B3）
 
 ### Added

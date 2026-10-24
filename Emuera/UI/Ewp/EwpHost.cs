@@ -253,6 +253,18 @@ internal sealed class EwpHost
     /// <summary>B3 离屏像素流（hello.ok mode.pixel=true 才启用；帧信号=CliFramePainted）。</summary>
     private readonly EwpPixelStreamer pixel;
 
+    /// <summary>B② 频道状态（EwpChannel 名挂钩维护；id → kind/rev/open）。
+    /// 脚本线程写（IntoFunction）、UI 线程读（snapshot/state）——lock 保护。</summary>
+    private sealed class ChannelState
+    {
+        public string Kind;
+        public long Rev;
+        public bool Open;
+    }
+    private readonly object channelGate = new();
+    private readonly Dictionary<string, ChannelState> channels = new();
+    private long channelMismatch;
+
     public EwpHost(MainWindow window, int tcpPort = 0)
     {
         win = window;
@@ -270,13 +282,14 @@ internal sealed class EwpHost
 
     public void Start()
     {
+        EwpChannel.Handler = OnChannelMacro;
         var sb = new StringBuilder(320);
         sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0\",\"impl\":\"ewp-b3\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -319,9 +332,58 @@ internal sealed class EwpHost
     public void NotifyProcessExit()
     {
         running = false;
+        EwpChannel.Handler = null;
         pixel.Dispose();
         EwpOut.Emit("{\"t\":\"exit\"}");
         EwpOut.Shutdown();
+    }
+
+    /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}；
+    /// end=commit{rev}（与配对 begin 同 rev 定稿）；clear=clear{id}（清内容不清频道，
+    /// rev 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。</summary>
+    private void OnChannelMacro(string macro, string id, string kind)
+    {
+        switch (macro)
+        {
+            case "begin":
+                if (string.IsNullOrEmpty(kind))
+                    kind = "log";
+                lock (channelGate)
+                {
+                    if (!channels.TryGetValue(id, out var st))
+                    {
+                        st = new ChannelState { Kind = kind };
+                        channels[id] = st;
+                        EwpOut.Emit("{\"t\":\"channel.create\",\"id\":" + J(id)
+                            + ",\"kind\":" + J(kind) + ",\"tier\":\"grid-locked\"}");
+                    }
+                    st.Rev++;
+                    st.Open = true;
+                    EwpOut.Emit("{\"t\":\"channel.begin\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
+                }
+                break;
+            case "end":
+                lock (channelGate)
+                {
+                    if (channels.TryGetValue(id, out var st) && st.Open)
+                    {
+                        st.Open = false;
+                        EwpOut.Emit("{\"t\":\"channel.commit\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
+                    }
+                    else
+                        channelMismatch++;
+                }
+                break;
+            case "clear":
+                lock (channelGate)
+                {
+                    if (channels.ContainsKey(id))
+                        EwpOut.Emit("{\"t\":\"channel.clear\",\"id\":" + J(id) + "}");
+                    else
+                        channelMismatch++;
+                }
+                break;
+        }
     }
 
     private EmueraConsole GameConsole => GlobalStatic.Console;
@@ -712,7 +774,9 @@ internal sealed class EwpHost
             + ",\"frames\":" + pixel.Frames
             + ",\"dropped\":" + pixel.Dropped
             + ",\"written\":" + EwpOut.PixelWritten
-            + ",\"writeDropped\":" + EwpOut.PixelDropped + "}}");
+            + ",\"writeDropped\":" + EwpOut.PixelDropped + "}"
+            + ",\"channels\":" + channels.Count
+            + ",\"channelMismatch\":" + channelMismatch + "}");
     }
 
     /// <summary>结构化快照（B2）：行数组（lineId+text）＋世代＋挂起输入；断线重连按此幂等重建。</summary>
@@ -747,7 +811,20 @@ internal sealed class EwpHost
                 .Append(",\"follow\":").Append(s.Follow ? "true" : "false").Append('}');
         }
         sb.Append("],\"island\":").Append(liveIslandHtml != null ? J(liveIslandHtml) : "null");
-        sb.Append("}");
+        sb.Append(",\"channels\":[");
+        lock (channelGate)
+        {
+            int ci = 0;
+            foreach (var kv in channels)
+            {
+                if (ci++ > 0) sb.Append(',');
+                sb.Append("{\"id\":").Append(J(kv.Key))
+                    .Append(",\"kind\":").Append(J(kv.Value.Kind))
+                    .Append(",\"rev\":").Append(kv.Value.Rev)
+                    .Append(",\"open\":").Append(kv.Value.Open ? "true" : "false").Append('}');
+            }
+        }
+        sb.Append("]}");
         EwpOut.Emit(sb.ToString());
     }
 
