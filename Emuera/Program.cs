@@ -82,6 +82,12 @@ static partial class Program
 		);
 		cliDebugOption.AddAlias("-CliDebug");
 		rootCommand.AddOption(cliDebugOption);
+		var ewpOption = new Option<bool>(
+			name: "--ewp",
+			description: "eraWire EWP/0 宿主：stdin/stdout JSON-Lines 事件流（hello/legacy.line/input.request/frame.commit），B1 文本级"
+		);
+		ewpOption.AddAlias("-ewp");
+		rootCommand.AddOption(ewpOption);
 
 		var filesArg = new Argument<string[]>(
 					"解析するファイル"
@@ -113,6 +119,10 @@ static partial class Program
 			DebugMode = true;
 			UI.CliDebug.CliDebugHost.InitIO();
 		}
+		var ewpMode = result.GetValueForOption(ewpOption);
+		EwpMode = ewpMode;
+		if (ewpMode)
+			UI.Ewp.EwpOut.InitIO();
 
 		var genLang = result.GetValueForOption(genLangOption);
 		if (genLang)
@@ -303,7 +313,18 @@ static partial class Program
 
 		// PlatformInterop 委托初始化（WinForms 实现）
 		PlatformInterop.DoEvents = () => Application.DoEvents();
-		if (CliDebugMode)
+		if (EwpMode)
+		{
+			// EWP 模式：模态对话框转 dialog.request 事件（ShowQuestion 一律应答 No，与 CliDebug 同策略）
+			PlatformInterop.ShowMessage = text => UI.Ewp.EwpHost.EmitDialogEvent("message", text, "");
+			PlatformInterop.ShowMessageWithTitle = (text, title) => UI.Ewp.EwpHost.EmitDialogEvent("message", text, title);
+			PlatformInterop.ShowQuestion = (text, title) =>
+			{
+				UI.Ewp.EwpHost.EmitDialogEvent("question", text, title);
+				return false;
+			};
+		}
+		else if (CliDebugMode)
 		{
 			// CLI 模式：模态对话框转为 stdout 事件，避免无人值守卡死（ShowQuestion 一律应答 No）
 			PlatformInterop.ShowMessage = text => UI.CliDebug.CliDebugHost.EmitDialogEvent("message", text, "");
@@ -364,8 +385,21 @@ static partial class Program
 			}
 			#endregion
 
+			#region EWP_eraWire
+			UI.Ewp.EwpHost ewpHost = null;
+			if (EwpMode)
+			{
+				// 与 CliDebug 同法：保留消息循环，最小化窗口（非 headless）；B1 文本级 stdio 宿主
+				win.ShowInTaskbar = false;
+				win.WindowState = FormWindowState.Minimized;
+				ewpHost = new UI.Ewp.EwpHost(win);
+				ewpHost.Start();
+			}
+			#endregion
+
 			Application.Run(win);
 			cliHost?.NotifyProcessExit();
+			ewpHost?.NotifyProcessExit();
 			/* VVII版マージ前の起動処理
 			MainWindow win = null;
 			StartTime = WinmmTimer.TickCount;
@@ -512,8 +546,10 @@ static partial class Program
 	//public static bool debugMode = false;
 	//public static bool DebugMode { get { return debugMode; } }
 	public static bool DebugMode { get; private set; }
-	/// <summary>CLI 调试模式（--CliDebug）：stdin/stdout JSON Lines 协议，隐含 DebugMode。</summary>
-	public static bool CliDebugMode { get; private set; }
+		/// <summary>CLI 调试模式（--CliDebug）：stdin/stdout JSON Lines 协议，隐含 DebugMode。</summary>
+		public static bool CliDebugMode { get; private set; }
+		/// <summary>eraWire EWP/0 宿主（--ewp）：stdin/stdout JSON-Lines 事件流（EwpHost，B1 文本级）。</summary>
+		public static bool EwpMode { get; private set; }
 
 	static Program()
 	{

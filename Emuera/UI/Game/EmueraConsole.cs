@@ -3151,6 +3151,8 @@ internal sealed partial class EmueraConsole : IDisposable
 	public event Action CliWaitInputEntered;
 	/// <summary>进入 Error / Quit 终态时触发。</summary>
 	public event Action CliTerminalStateEntered;
+	/// <summary>CLEARLINE 删除行后触发，参数＝请求删除的逻辑行数（WireHost 据此发 legacy.clear）。</summary>
+	public event Action<int> CliLinesRemoved;
 
 	/// <summary>当前状态名（CLI 协议用；避开 enum.ToString 的混淆约束，手写映射）。</summary>
 	internal string CliStateName => state switch
