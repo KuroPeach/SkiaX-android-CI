@@ -84,7 +84,7 @@ static partial class Program
 		rootCommand.AddOption(cliDebugOption);
 		var ewpOption = new Option<bool>(
 			name: "--ewp",
-			description: "eraWire EWP/0 宿主：stdin/stdout JSON-Lines 事件流（hello/legacy.line/input.request/frame.commit），B1 文本级"
+			description: "eraWire EWP/0 宿主：stdio/TCP 事件流（hello/legacy.line/input.request/frame.commit/pixel.frame），B3"
 		);
 		ewpOption.AddAlias("-ewp");
 		rootCommand.AddOption(ewpOption);
@@ -94,6 +94,18 @@ static partial class Program
 		);
 		ewpPortOption.AddAlias("-ewp-port");
 		rootCommand.AddOption(ewpPortOption);
+		var ewpJsonOption = new Option<bool>(
+			name: "--ewp-json",
+			description: "EWP 用 JSON-Lines 编码（默认即此；显式别名，spec §2 调试形态）"
+		);
+		ewpJsonOption.AddAlias("-ewp-json");
+		rootCommand.AddOption(ewpJsonOption);
+		var ewpMsgpackOption = new Option<bool>(
+			name: "--ewp-msgpack",
+			description: "EWP 用 MessagePack 编码（B3；4 字节长度前缀帧，spec §2 正本形态）"
+		);
+		ewpMsgpackOption.AddAlias("-ewp-msgpack");
+		rootCommand.AddOption(ewpMsgpackOption);
 
 		var filesArg = new Argument<string[]>(
 					"解析するファイル"
@@ -128,8 +140,9 @@ static partial class Program
 		var ewpMode = result.GetValueForOption(ewpOption);
 		EwpMode = ewpMode;
 		EwpPort = result.GetValueForOption(ewpPortOption);
+		EwpMsgpack = result.GetValueForOption(ewpMsgpackOption) && !result.GetValueForOption(ewpJsonOption);
 		if (ewpMode)
-			UI.Ewp.EwpOut.InitIO(deferWriter: EwpPort > 0);
+			UI.Ewp.EwpOut.InitIO(deferWriter: EwpPort > 0, msgpack: EwpMsgpack);
 
 		var genLang = result.GetValueForOption(genLangOption);
 		if (genLang)
@@ -555,10 +568,12 @@ static partial class Program
 	public static bool DebugMode { get; private set; }
 		/// <summary>CLI 调试模式（--CliDebug）：stdin/stdout JSON Lines 协议，隐含 DebugMode。</summary>
 		public static bool CliDebugMode { get; private set; }
-		/// <summary>eraWire EWP/0 宿主（--ewp）：stdin/stdout JSON-Lines 事件流（EwpHost，B1 文本级）。</summary>
+		/// <summary>eraWire EWP/0 宿主（--ewp）：stdio/TCP 事件流（EwpHost，B3 含像素流）。</summary>
 		public static bool EwpMode { get; private set; }
 		/// <summary>EWP TCP 模式端口（--ewp-port，0＝stdio）。</summary>
 		public static int EwpPort { get; private set; }
+		/// <summary>EWP MessagePack 编码（--ewp-msgpack；默认 JSON-Lines，A2 定稿时翻转默认）。</summary>
+		public static bool EwpMsgpack { get; private set; }
 
 	static Program()
 	{

@@ -1867,8 +1867,13 @@ internal sealed partial class EmueraConsole : IDisposable
 			verticalScrollBarUpdate();
 			window.Refresh();//OnPaint発行
 			//window.MainPicBox.Refresh();
+			// eraWire B3: 帧信号（EWP §8）——RefreshStrings 的有效通过点＝离屏像素流捕获点；订阅方自理异常
+			try { CliFramePainted?.Invoke(); } catch { }
 		});
 	}
+
+	/// <summary>eraWire B3: RefreshStrings 发出重绘时通知（UI 线程）。早退路径（redraw=None/无变化/帧限频）不会到达这里。</summary>
+	public event Action CliFramePainted;
 
 	#region EM_私家版_描画拡張
 	Dictionary<int, List<AConsoleDisplayNode>> escapedParts;

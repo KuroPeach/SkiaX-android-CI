@@ -4,6 +4,22 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.3.0] — 像素流＋MessagePack 编码（eraWire B3）
+
+### Added
+
+- **`pixel.frame` 像素流（EWP §4.4）**：`hello` caps 增 `pixel.frame`；FE 在 `hello.ok` 里 `mode.pixel=true` 即启用。管线＝内核新事件 `CliFramePainted`（`RefreshStrings` 有效通过点＝帧信号，内核账本第 3 笔，+7 行）→ UI 线程渲染离屏 raster `SKSurface`（尺寸＝`RenderWidth×RenderHeight`）直调 `console.OnPaint` → `ReadPixels` 拷贝 → 专用编码线程 PNG → `EwpOut` 独立像素队列写出。v0 整帧无 dirty-rect（A1-⑥）；过载策略＝捕获队列**丢旧保新**（cap 4）＋写出队列丢新计数（cap 8，EWP §6.3 像素流单独计数，与文本信用窗背压刻意不同——像素可丢、行不可丢）；载荷 `{frameId,w,h,fmt:"png",stats{dropped,encMs},data}`。新文件 `UI/Ewp/EwpPixel.cs`
+- **L0.5 编码抽象 `IEwpCodec`（EWP §2）**：JSON-Lines（默认，换行定界）与 MessagePack（`--ewp-msgpack`，4 字节大端长度前缀帧）。MessagePack 为手写子集编解码器（不引包依赖）：编码＝`JsonElement` 递归打包（nil/bool/int/float/str/map/array），`pixel.frame` 直构 map（`data` 为 bin 不经 JSON 往返）；解码＝FE 命令 msgpack→JSON 文本回灌既有 `HandleLine`（零侵入）。`--ewp-json` 为显式别名；**默认仍 JSON-Lines（过渡态）**——A2 v0.1 定稿时连同 C 轨 FE 一起翻正本默认。新文件 `UI/Ewp/EwpCodec.cs`
+- **`EwpOut` 双队列写手**：文本 8192 有界队列（满则阻塞生产者＝信用窗背压，B1 语义不变）＋像素小队列；写手 `TryTakeFromAny` 双路取件；`pixel.frame` 为独立帧型不计入 `frame.commit.events`（守恒口径：非 `frame.commit` 非 `pixel.frame` 的服务端事件 ⇔ Σ`frame.commit.events`）。`state` 命令增 `pixel{enabled,frames,dropped,written,writeDropped}` 观测块
+- **`hello` 增补**：caps 加 `pixel.frame`；impl `ewp-b2`→`ewp-b3`
+- **像素流防呆与观测**：①hello.ok 请求 pixel 但 `DRAWING INTERFACE:TEXTRENDERER` ⇒ 显性 `error{pixel_unavailable}`（该界面无 Skia 画布，不报则零帧静默——fixture 实锤）；②捕获遇 `render=0x0`（最小化窗口锚定布局未落地）一次性 `error{pixel_zero_size}` 诊断；③视口应用强制 `PerformLayout`＋微扰兜底（最小化窗 `ClientSize` 生效但 mainPicBox 恒 0 的 WinForms 行为，`render=0x0 client=1000x640` 实证）；④`state` 命令增 `winClient`/`winState` 字段
+
+### Changed
+
+- **版本签名**：`Skiav16.2` → `Skiav16.3`（`1824+v24+EMv18+EEv56+Skiav16.3`）
+
+***
+
 ## [16.2.0] — EWP/0 wire 宿主（eraWire B1）
 
 ### Added

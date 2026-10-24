@@ -15,55 +15,72 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 
-// eraWire B1/B2: EWP/0 text-level host (JSON-Lines framing; stdio or single TCP client).
+// eraWire B1/B2/B3: EWP/0 host (JSON-Lines default or MessagePack via --ewp-msgpack; stdio or single TCP client).
 // Spec: $EMUERA_WS/emuera/eraWire/specs/EWP-v0-协议草案.md
 // Kernel hooks: CliLineAdded/CliWaitInputEntered/CliTerminalStateEntered (CliDebug set)
-// plus CliLinesRemoved (B2 kernel ledger #1, +2 lines) for legacy.clear.
-// B2 additions in this file: hello.metrics (grid fidelity baseline), FE viewport
-// report via hello.ok -> window.ClientSize (ClientWidth/Height are live window reads,
-// so this needs no kernel change), ack_timeout observability, structured snapshot,
-// TCP transport (--ewp-port; events buffer in the queue until the client attaches).
-// Remaining B2 items: sprite/overlay semantic events (needs kernel hooks),
-// MessagePack framing (deferred with pixel stream), channel/node (waits D-track macros).
+// plus CliLinesRemoved (B2 kernel ledger #1) for legacy.clear, sprite/island 5 events (B2 #2),
+// and CliFramePainted (B3 #3, RefreshStrings 有效通过点) for pixel.frame.
+// B3 additions: pixel stream (offscreen SKSurface -> console.OnPaint -> PNG on encode thread),
+// codec abstraction (EwpCodec.cs), pixel negotiation via hello.ok mode.pixel.
+// Remaining: channel/node (waits D-track macros); colormatrix/followScroll (v1).
 namespace MinorShift.Emuera.UI.Ewp;
 
-/// <summary>Static stdio layer: utf-8 pipes, bounded queue, writer thread.</summary>
+/// <summary>Static output layer: text queue + pixel queue + codec + single writer thread (B3).
+/// 文本事件走 8192 有界队列（满则阻塞生产者＝信用窗背压）；像素事件走独立小队列
+/// （满则丢新帧计数，EWP §6.3 像素流单独计数——与文本背压刻意不同：像素流可丢，行不可丢）。</summary>
 internal static class EwpOut
 {
     private const int QueueCapacity = 8192;
+    private const int PixelQueueCapacity = 8;
     /// <summary>信用窗口（EWP §6.3）：未 ack 帧数达到此值时 writer 暂停发送。</summary>
     private const int CreditWindow = 8;
     /// <summary>ack 超时兜底：FE 不 ack 时最多等这么久再放行，避免死锁（闸门 4 要求无死锁）。</summary>
     private const int AckTimeoutMs = 5000;
-    private static BlockingCollection<string> queue;
-    private static StreamWriter writer;
+
+    private sealed class Payload
+    {
+        public string Json;           // 文本事件（完整 JSON 对象，无换行）
+        public EwpPixelPayload Pixel; // 像素事件（与 Json 互斥）
+    }
+
+    private static BlockingCollection<Payload> queue;
+    private static BlockingCollection<Payload> pixelQueue;
+    private static Stream outStream;
     private static Thread writerThread;
     private static long frameSeq;
     private static long ackCount;
     private static readonly object ackGate = new();
     private static int pendingFrames;
     private static int ackTimeouts;
+    private static long pixelWritten;
+    private static long pixelDropped;
+
+    /// <summary>L0.5 编码器（B3）：JSON-Lines（默认）或 MessagePack（--ewp-msgpack）。</summary>
+    public static IEwpCodec Codec { get; private set; } = new EwpJsonCodec();
 
     public static int AckTimeouts => Volatile.Read(ref ackTimeouts);
     public static long FramesWritten => Interlocked.Read(ref frameSeq);
     public static long Acks => Interlocked.Read(ref ackCount);
     public static int PendingFrames => Volatile.Read(ref pendingFrames);
+    public static long PixelWritten => Interlocked.Read(ref pixelWritten);
+    public static long PixelDropped => Interlocked.Read(ref pixelDropped);
 
     /// <summary>deferWriter=true（TCP 模式）：只建队列，写手线程等 AttachStream 再启动，
     /// 期间事件在队列中缓冲（boot 期 ~1.4k 行，远低于 8192 容量）。</summary>
-    public static void InitIO(bool deferWriter = false)
+    public static void InitIO(bool deferWriter = false, bool msgpack = false)
     {
+        Codec = msgpack ? new EwpMsgpackCodec() : new EwpJsonCodec();
         var utf8 = new UTF8Encoding(false);
         try { Console.InputEncoding = utf8; } catch { }
         try { Console.OutputEncoding = utf8; } catch { }
-        queue = new BlockingCollection<string>(new ConcurrentQueue<string>(), QueueCapacity);
+        queue = new BlockingCollection<Payload>(new ConcurrentQueue<Payload>(), QueueCapacity);
+        pixelQueue = new BlockingCollection<Payload>(new ConcurrentQueue<Payload>(), PixelQueueCapacity);
         if (deferWriter)
             return;
-        StreamWriter w = null;
-        try { w = new StreamWriter(Console.OpenStandardOutput(), utf8) { AutoFlush = true }; }
-        catch { /* no stdout handle: everything below becomes no-op */ }
-        writer = w;
-        if (w == null)
+        Stream s = null;
+        try { s = Console.OpenStandardOutput(); } catch { }
+        outStream = s;
+        if (s == null)
             return;
         writerThread = new Thread(Loop) { IsBackground = true, Name = "EwpOut writer" };
         writerThread.Start();
@@ -72,21 +89,40 @@ internal static class EwpOut
     /// <summary>TCP 客户端接入后挂载输出流并启动写手（只允许一次）。</summary>
     public static void AttachStream(Stream stream)
     {
-        if (writer != null || stream == null)
+        if (outStream != null || stream == null)
             return;
-        writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
+        outStream = stream;
         writerThread = new Thread(Loop) { IsBackground = true, Name = "EwpOut writer" };
         writerThread.Start();
     }
 
-    /// <summary>Enqueue one event line. Blocks (pausing the producer thread) when the
+    /// <summary>Enqueue one text event. Blocks (pausing the producer thread) when the
     /// consumer is slow and the queue is full - this is the credit-window backpressure.</summary>
     public static void Emit(string json)
     {
         var q = queue;
         if (q == null)
             return;
-        try { q.Add(json); } catch { }
+        try { q.Add(new Payload { Json = json }); } catch { }
+    }
+
+    /// <summary>像素事件：编码完成后投递写出队列（丢新计数；丢旧保新在 EwpPixelStreamer 捕获级）。</summary>
+    public static void EmitPixel(EwpPixelPayload px)
+    {
+        var q = pixelQueue;
+        if (q == null)
+            return;
+        px.Dropped += (int)Interlocked.Read(ref pixelDropped);
+        var p = new Payload { Pixel = px };
+        if (!q.TryAdd(p))
+        {
+            Interlocked.Increment(ref pixelDropped);
+            if (!q.TryAdd(p))
+            {
+                Interlocked.Increment(ref pixelDropped);
+                return;
+            }
+        }
     }
 
     public static void NoteAck()
@@ -108,23 +144,48 @@ internal static class EwpOut
         if (q == null)
             return;
         try { q.CompleteAdding(); } catch { }
+        try { pixelQueue?.CompleteAdding(); } catch { }
         try { writerThread?.Join(3000); } catch { }
     }
 
     private static void Loop()
     {
-        var w = writer;
+        var s = outStream;
         var sb = new StringBuilder(64);
+        var colls = new[] { queue, pixelQueue };
         try
         {
-            foreach (var first in q_getConsuming())
+            while (true)
             {
-                w.WriteLine(first);
+                Payload p = null;
+                try { BlockingCollection<Payload>.TryTakeFromAny(colls, out p, TimeSpan.FromMilliseconds(250)); }
+                catch (ArgumentException) { break; }          // 两队列均已 CompleteAdding
+                catch (ObjectDisposedException) { break; }
+                if (p == null)
+                {
+                    if (queue.IsCompleted && pixelQueue.IsCompleted) break;
+                    continue;
+                }
+                if (p.Pixel != null)
+                {
+                    // pixel.frame 是独立帧型（自带 frameId/独立计数），不进文本批、不计入 frame.commit.events
+                    Codec.WritePixel(s, p.Pixel);
+                    Interlocked.Increment(ref pixelWritten);
+                    s.Flush();
+                    continue;
+                }
+                Codec.WriteText(s, p.Json);
                 long count = 1;
                 // drain whatever else is already queued (batch), then close the frame
-                while (q_tryTake(out var more))
+                while (queue.TryTake(out var more, 0))
                 {
-                    w.WriteLine(more);
+                    if (more.Pixel != null)
+                    {
+                        Codec.WritePixel(s, more.Pixel);
+                        Interlocked.Increment(ref pixelWritten);
+                        continue;
+                    }
+                    Codec.WriteText(s, more.Json);
                     count++;
                 }
                 sb.Clear();
@@ -133,24 +194,15 @@ internal static class EwpOut
                     .Append(",\"pending\":").Append(Volatile.Read(ref pendingFrames) + 1)
                     .Append(",\"ackTimeouts\":").Append(Volatile.Read(ref ackTimeouts))
                     .Append('}');
-                w.WriteLine(sb.ToString());
+                Codec.WriteText(s, sb.ToString());
+                s.Flush();
                 // 信用窗口：本帧未 ack 前最多积压 CreditWindow 帧
                 Interlocked.Increment(ref pendingFrames);
                 WaitForCredit();
             }
         }
         catch { }
-    }
-
-    private static System.Collections.Generic.IEnumerable<string> q_getConsuming()
-    {
-        return queue.GetConsumingEnumerable();
-    }
-
-    private static bool q_tryTake(out string item)
-    {
-        try { return queue.TryTake(out item, 0); }
-        catch { item = null; return false; }
+        finally { try { s?.Flush(); } catch { } }
     }
 
     /// <summary>等待信用返还；超时兜底放行（记 ackTimeouts，不丢事件）。</summary>
@@ -167,7 +219,7 @@ internal static class EwpOut
                     Interlocked.Increment(ref ackTimeouts);
                     // 放行：把窗口清零，让后续帧继续流出（宁可失控也不死锁）。
                     // 非致命 error 事件尽量外显（队列已满则丢弃——计数器才是真相）。
-                    queue?.TryAdd("{\"t\":\"error\",\"code\":\"ack_timeout\",\"fatal\":false,\"detail\":\"credit window timed out; releasing\"}", 0);
+                    queue?.TryAdd(new Payload { Json = "{\"t\":\"error\",\"code\":\"ack_timeout\",\"fatal\":false,\"detail\":\"credit window timed out; releasing\"}" }, 0);
                     Volatile.Write(ref pendingFrames, 0);
                     break;
                 }
@@ -198,11 +250,14 @@ internal sealed class EwpHost
     // read on the UI thread (dispatched input.submit) - no cross-thread races.
     private long currentReqId = -1;
     private int currentGeneration = -1;
+    /// <summary>B3 离屏像素流（hello.ok mode.pixel=true 才启用；帧信号=CliFramePainted）。</summary>
+    private readonly EwpPixelStreamer pixel;
 
     public EwpHost(MainWindow window, int tcpPort = 0)
     {
         win = window;
         this.tcpPort = tcpPort;
+        pixel = new EwpPixelStreamer(window, () => GlobalStatic.Console, EwpOut.EmitPixel);
     }
 
     // Program wires the dialog delegates after EwpOut.InitIO, so the queue already
@@ -216,12 +271,12 @@ internal sealed class EwpHost
     public void Start()
     {
         var sb = new StringBuilder(320);
-        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0\",\"impl\":\"ewp-b2\",\"engine\":{")
+        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0\",\"impl\":\"ewp-b3\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -264,6 +319,7 @@ internal sealed class EwpHost
     public void NotifyProcessExit()
     {
         running = false;
+        pixel.Dispose();
         EwpOut.Emit("{\"t\":\"exit\"}");
         EwpOut.Shutdown();
     }
@@ -278,9 +334,9 @@ internal sealed class EwpHost
         if (running)
             Subscribe();
         EwpOut.Emit("{\"t\":\"ready\"}");
-        StreamReader reader;
-        try { reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true); }
-        catch { reader = null; }
+        IEwpCommandReader reader = null;
+        try { reader = EwpOut.Codec.CreateReader(Console.OpenStandardInput()); }
+        catch { }
         CommandLoop(reader);
     }
 
@@ -301,19 +357,19 @@ internal sealed class EwpHost
             if (running)
                 Subscribe();
             EwpOut.Emit("{\"t\":\"ready\"}");
-            using var reader = new StreamReader(stream, new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true);
+            using var reader = EwpOut.Codec.CreateReader(stream);
             CommandLoop(reader);
         }
         catch { DispatchQuit(); }
         finally { try { listener?.Stop(); } catch { } }
     }
 
-    private void CommandLoop(TextReader reader)
+    private void CommandLoop(IEwpCommandReader reader)
     {
         while (running)
         {
             string line;
-            try { line = reader != null ? reader.ReadLine() : Console.In.ReadLine(); }
+            try { line = reader != null ? reader.Read() : null; }
             catch { break; }
             if (line == null)
             {
@@ -342,7 +398,28 @@ internal sealed class EwpHost
         console.CliImageLayersCleared += OnImageLayersCleared;
         console.CliIslandPrinted += OnIslandPrinted;
         console.CliIslandCleared += OnIslandCleared;
+        console.CliFramePainted += OnFramePainted;
         EmitMetrics();
+    }
+
+    /// <summary>RefreshStrings 有效通过点（UI 线程，B3 像素流帧信号；仅 mode.pixel=true 时实做捕获）。</summary>
+    private void OnFramePainted() => pixel.OnFramePainted();
+
+    /// <summary>应用 FE 视口（UI 线程）。⚠️ 最小化窗口上 ClientSize 不会触发子控件锚定布局
+    /// （2026-10-25 fixture 实测 render=0x0 而 client=1000x640，mainPicBox 恒 0）——
+    /// 先强制 PerformLayout；仍未落位则微扰一次尺寸（两次尺寸变更必跑布局链）。</summary>
+    private void ApplyViewport(int w, int h)
+    {
+        win.Invoke(new Action(() =>
+        {
+            win.ClientSize = new Size(w, h);
+            win.PerformLayout();
+            if (win.RenderWidth <= 0 || win.RenderHeight <= 0)
+            {
+                win.ClientSize = new Size(w - 1, h - 1);
+                win.ClientSize = new Size(w, h);
+            }
+        }));
     }
 
     /// <summary>应用 hello.ok 暂存的 FE 视口（UI 线程执行；ClientWidth/Height 是窗口活属性，改窗体即生效）。</summary>
@@ -352,7 +429,7 @@ internal sealed class EwpHost
         if (w <= 0 || h <= 0)
             return;
         Volatile.Write(ref pendingVpW, 0);
-        try { win.Invoke(new Action(() => win.ClientSize = new Size(w, h))); } catch { }
+        try { ApplyViewport(w, h); } catch { }
     }
 
     private void OnLineAdded(ConsoleDisplayLine line)
@@ -577,7 +654,9 @@ internal sealed class EwpHost
         EmitResult(true, null, null);
     }
 
-    /// <summary>FE 视口上报（传输线程）：句柄已建则立即经 UI 线程应用，否则暂存到 Subscribe。</summary>
+    /// <summary>FE 视口上报＋像素模式协商（传输线程）：句柄已建则立即经 UI 线程应用，否则暂存到 Subscribe。
+    /// mode.pixel=true ⇒ 启用离屏像素流（EWP §3/§4.4；Enable 幂等且线程安全——
+    /// 早于 Subscribe 启用也无妨，CliFramePainted 未挂前捕获不会发生）。</summary>
     private void DoHelloOk(JsonElement root)
     {
         int w = 0, h = 0;
@@ -590,7 +669,7 @@ internal sealed class EwpHost
         {
             if (win.IsHandleCreated)
             {
-                try { win.Invoke(new Action(() => win.ClientSize = new Size(w, h))); } catch { }
+                try { ApplyViewport(w, h); } catch { }
             }
             else
             {
@@ -601,6 +680,17 @@ internal sealed class EwpHost
         }
         else
             EmitResult(true, null, null);
+        if (root.TryGetProperty("mode", out var mode) && mode.ValueKind == JsonValueKind.Object
+            && mode.TryGetProperty("pixel", out var pe) && pe.ValueKind == JsonValueKind.True)
+        {
+            // 防呆（静默失效陷阱）：TEXTRENDERER 界面无 Skia 画布（mainPicBox 恒 0 尺寸，
+            // OnPaint WINAPI 分支也不画 Skia 内容）——显性报错而非零帧静默（2026-10-25 fixture 实锤）
+            if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
+                EwpOut.Emit("{\"t\":\"error\",\"code\":\"pixel_unavailable\",\"fatal\":false,"
+                    + "\"detail\":\"pixel.frame requires SKIASHARP drawing interface (config DRAWING INTERFACE)\"}");
+            else
+                pixel.Enable();
+        }
     }
 
     private void DoState()
@@ -612,10 +702,17 @@ internal sealed class EwpHost
             + ",\"generation\":" + currentGeneration
             + ",\"lines\":" + liveLines.Count
             + ",\"client\":[" + console.ClientWidth + "," + console.ClientHeight + "]"
+            + ",\"winClient\":[" + win.ClientSize.Width + "," + win.ClientSize.Height + "]"
+            + ",\"winState\":\"" + win.WindowState + "\""
             + ",\"frames\":" + EwpOut.FramesWritten
             + ",\"acks\":" + EwpOut.Acks
             + ",\"pending\":" + EwpOut.PendingFrames
-            + ",\"ackTimeouts\":" + EwpOut.AckTimeouts + "}");
+            + ",\"ackTimeouts\":" + EwpOut.AckTimeouts
+            + ",\"pixel\":{\"enabled\":" + (pixel.Enabled ? "true" : "false")
+            + ",\"frames\":" + pixel.Frames
+            + ",\"dropped\":" + pixel.Dropped
+            + ",\"written\":" + EwpOut.PixelWritten
+            + ",\"writeDropped\":" + EwpOut.PixelDropped + "}}");
     }
 
     /// <summary>结构化快照（B2）：行数组（lineId+text）＋世代＋挂起输入；断线重连按此幂等重建。</summary>
