@@ -1,6 +1,7 @@
 using MinorShift.Emuera.Forms;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime;
+using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Config;
@@ -253,7 +254,7 @@ internal sealed class EwpHost
     /// <summary>B3 离屏像素流（hello.ok mode.pixel=true 才启用；帧信号=CliFramePainted）。</summary>
     private readonly EwpPixelStreamer pixel;
 
-    /// <summary>B② 频道状态（EwpChannel 名挂钩维护；id → kind/rev/open）。
+    /// <summary>B② 频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open）。
     /// 脚本线程写（IntoFunction）、UI 线程读（snapshot/state）——lock 保护。</summary>
     private sealed class ChannelState
     {
@@ -282,7 +283,7 @@ internal sealed class EwpHost
 
     public void Start()
     {
-        EwpChannel.Handler = OnChannelMacro;
+        ChannelHooks.Handler = OnChannelMacro;
         var sb = new StringBuilder(320);
         sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.1\",\"impl\":\"ewp-b4\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
@@ -332,7 +333,7 @@ internal sealed class EwpHost
     public void NotifyProcessExit()
     {
         running = false;
-        EwpChannel.Handler = null;
+        ChannelHooks.Handler = null;
         pixel.Dispose();
         EwpOut.Emit("{\"t\":\"exit\"}");
         EwpOut.Shutdown();

@@ -1,20 +1,23 @@
-using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using System;
 
-// eraWire B②: channel 名挂钩——D0 契约（UI_CHANNEL.ERB 文件头）的消费方。
-// 内核 Process.State.IntoFunction 末尾调用 NotifyFunctionEntry：UI_CHANNEL_* 三宏的
-// 函数入口即通道边界（函数体恒 no-op，全部语义由本钩子发 EWP 事件，spec §4.2）。
+// eraWire B②: 频道宏名挂钩（Runtime 层）——D0 契约（游戏仓 UI_CHANNEL.ERB 文件头）的消费方。
+// 内核 Process.State.IntoFunction 末尾调用 NotifyFunctionEntry：UI_CHANNEL_* 三宏的函数入口
+// 即通道边界（函数体恒 no-op，全部语义由宿主装的 Handler 发 EWP 事件，spec §4.2）。
+//
+// ⚠ 分层约束（2026-10-25 P5 实证）：本文件必须留在 Runtime 层——Xamarin Core 只编译
+// `..\Emuera\Runtime\**\*.cs`（Emuera.Xamarin.Core.csproj:71），内核若直接引用 UI/Ewp
+// 则跨平台构建断裂（CS0234）。故与 PlatformInterop 同法：内核只持委托，宿主（EwpHost）注入。
 // 非 EWP 模式 Handler 为 null——Notify 立即短路，普通执行零语义零开销。
-namespace MinorShift.Emuera.UI.Ewp;
+namespace MinorShift.Emuera.Runtime.Script;
 
-internal static class EwpChannel
+internal static class ChannelHooks
 {
     private const string NameBegin = "UI_CHANNEL_BEGIN";
     private const string NameEnd = "UI_CHANNEL_END";
     private const string NameClear = "UI_CHANNEL_CLEAR";
 
-    /// <summary>EwpHost.Start 装机（--ewp）／NotifyProcessExit 卸载。签名：(macro, id, kind)。</summary>
+    /// <summary>宿主注入（EwpHost.Start 装／NotifyProcessExit 卸）。签名：(macro, id, kind)。</summary>
     public static Action<string, string, string> Handler;
 
     /// <summary>IntoFunction 末尾调用（脚本线程；参数已绑定进形参，从形参变量读回
