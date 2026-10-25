@@ -141,10 +141,12 @@ internal sealed partial class EmueraConsole : IDisposable
 	public void PrintHTMLIsland(string html)
 	{
 		_htmlElementList.AddRange(HtmlManager.Html2DisplayLine(html, stringMeasure, this));
+		CliIslandPrinted?.Invoke(html);
 	}
 	public void ClearHTMLIsland()
 	{
 		_htmlElementList.Clear();
+		CliIslandCleared?.Invoke();
 	}
 
 
@@ -306,6 +308,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (lineNo < 0)
 			lineNo += int.MaxValue;
 		lastDrawnLineNo = -1;
+		// EWP WireHost：CLEARLINE 删行后通知（无订阅者时零开销）
+		CliLinesRemoved?.Invoke(num);
 		//MaxLog超過時の補充はCLEARLINEで改行が入るため1つだけ消す
 		if (displayLineList.Count == Config.MaxLog)
 			displayLineList.RemoveAt(0);

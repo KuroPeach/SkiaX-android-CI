@@ -87,6 +87,30 @@ static partial class Program
 		);
 		cliDebugOption.AddAlias("-CliDebug");
 		rootCommand.AddOption(cliDebugOption);
+		var ewpOption = new Option<bool>(
+			name: "--ewp",
+			description: "eraWire EWP/0 宿主：stdio/TCP 事件流（hello/legacy.line/input.request/frame.commit/pixel.frame），B3"
+		);
+		ewpOption.AddAlias("-ewp");
+		rootCommand.AddOption(ewpOption);
+		var ewpPortOption = new Option<int>(
+			name: "--ewp-port",
+			description: "EWP TCP 模式端口（与 --ewp 连用；缺省 0＝stdio）"
+		);
+		ewpPortOption.AddAlias("-ewp-port");
+		rootCommand.AddOption(ewpPortOption);
+		var ewpJsonOption = new Option<bool>(
+			name: "--ewp-json",
+			description: "EWP 用 JSON-Lines 编码（调试/抓包形态；A2 起默认＝MessagePack，spec §2 正本）"
+		);
+		ewpJsonOption.AddAlias("-ewp-json");
+		rootCommand.AddOption(ewpJsonOption);
+		var ewpMsgpackOption = new Option<bool>(
+			name: "--ewp-msgpack",
+			description: "EWP 用 MessagePack 编码（A2 起默认即此，显式同义；4 字节长度前缀帧）"
+		);
+		ewpMsgpackOption.AddAlias("-ewp-msgpack");
+		rootCommand.AddOption(ewpMsgpackOption);
 
 		var filesArg = new Argument<string[]>(
 					"解析するファイル"
@@ -118,6 +142,13 @@ static partial class Program
 			DebugMode = true;
 			UI.CliDebug.CliDebugHost.InitIO();
 		}
+		var ewpMode = result.GetValueForOption(ewpOption);
+		EwpMode = ewpMode;
+		EwpPort = result.GetValueForOption(ewpPortOption);
+		// A2（v0.1 定稿）：--ewp 默认＝MessagePack（spec §2 正本）；--ewp-json 调试/抓包形态
+		EwpMsgpack = !result.GetValueForOption(ewpJsonOption);
+		if (ewpMode)
+			UI.Ewp.EwpOut.InitIO(deferWriter: EwpPort > 0, msgpack: EwpMsgpack);
 
 		var genLang = result.GetValueForOption(genLangOption);
 		if (genLang)
@@ -308,7 +339,18 @@ static partial class Program
 
 		// PlatformInterop 委托初始化（WinForms 实现）
 		PlatformInterop.DoEvents = () => Application.DoEvents();
-		if (CliDebugMode)
+		if (EwpMode)
+		{
+			// EWP 模式：模态对话框转 dialog.request 事件（ShowQuestion 一律应答 No，与 CliDebug 同策略）
+			PlatformInterop.ShowMessage = text => UI.Ewp.EwpHost.EmitDialogEvent("message", text, "");
+			PlatformInterop.ShowMessageWithTitle = (text, title) => UI.Ewp.EwpHost.EmitDialogEvent("message", text, title);
+			PlatformInterop.ShowQuestion = (text, title) =>
+			{
+				UI.Ewp.EwpHost.EmitDialogEvent("question", text, title);
+				return false;
+			};
+		}
+		else if (CliDebugMode)
 		{
 			// CLI 模式：模态对话框转为 stdout 事件，避免无人值守卡死（ShowQuestion 一律应答 No）
 			PlatformInterop.ShowMessage = text => UI.CliDebug.CliDebugHost.EmitDialogEvent("message", text, "");
@@ -369,8 +411,21 @@ static partial class Program
 			}
 			#endregion
 
+			#region EWP_eraWire
+			UI.Ewp.EwpHost ewpHost = null;
+			if (EwpMode)
+			{
+				// 与 CliDebug 同法：保留消息循环，最小化窗口（非 headless）；B1 文本级 stdio 宿主
+				win.ShowInTaskbar = false;
+				win.WindowState = FormWindowState.Minimized;
+				ewpHost = new UI.Ewp.EwpHost(win, EwpPort);
+				ewpHost.Start();
+			}
+			#endregion
+
 			Application.Run(win);
 			cliHost?.NotifyProcessExit();
+			ewpHost?.NotifyProcessExit();
 			/* VVII版マージ前の起動処理
 			MainWindow win = null;
 			StartTime = WinmmTimer.TickCount;
@@ -517,8 +572,14 @@ static partial class Program
 	//public static bool debugMode = false;
 	//public static bool DebugMode { get { return debugMode; } }
 	public static bool DebugMode { get; private set; }
-	/// <summary>CLI 调试模式（--CliDebug）：stdin/stdout JSON Lines 协议，隐含 DebugMode。</summary>
-	public static bool CliDebugMode { get; private set; }
+		/// <summary>CLI 调试模式（--CliDebug）：stdin/stdout JSON Lines 协议，隐含 DebugMode。</summary>
+		public static bool CliDebugMode { get; private set; }
+		/// <summary>eraWire EWP/0 宿主（--ewp）：stdio/TCP 事件流（EwpHost，B3 含像素流）。</summary>
+		public static bool EwpMode { get; private set; }
+		/// <summary>EWP TCP 模式端口（--ewp-port，0＝stdio）。</summary>
+		public static int EwpPort { get; private set; }
+		/// <summary>EWP MessagePack 编码。A2 起 --ewp 默认即 MessagePack；--ewp-json 切 JSON-Lines 调试形态。</summary>
+		public static bool EwpMsgpack { get; private set; }
 
 	static Program()
 	{

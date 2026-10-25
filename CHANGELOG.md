@@ -4,6 +4,71 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.5.0] — EWP v0.1 定稿：MessagePack 默认翻转（eraWire A2）
+
+### Changed
+
+- **`--ewp` 默认编码＝MessagePack**（spec §2 正本形态，A2 定稿）：4 字节大端长度前缀帧；`--ewp-json` 切 JSON-Lines（调试/抓包/哑前端零依赖形态）；`--ewp-msgpack` 保留为显式同义 no-op。B③ 过渡态（默认 JSON）终结
+- hello 升版 `proto:"EWP/0.1"`、impl `ewp-b3`→`ewp-b4`
+
+### 验收（2026-10-25）
+
+- dumbfe 默认 msgpack 全链 PASS（与 JSON 模式事件数完全一致）；三门禁（--ewp-json 调试形态）回归 PASS；godot headless msgpack 门禁 PASS（六 fixtures 双 codec 逐字符一致）；live_gate3 真机 msgpack 直连 PASS
+- 前置：C 轨 godot 侧 EwpMsgpack.gd 编解码落地（headless 自证全 PASS）
+
+### Changed
+
+- **版本签名**：`Skiav16.4` → `Skiav16.5`（`1824+v24+EMv18+EEv56+Skiav16.5`）
+
+***
+
+## [16.4.0] — channel 语义流（eraWire B② 余量，D0 契约消费）
+
+### Added
+
+- **channel 名挂钩（内核账本 #4，+2 行）**：`Process.State.IntoFunction` 末尾调 `UI.Ewp.EwpChannel.NotifyFunctionEntry`——`UI_CHANNEL_BEGIN/END/CLEAR` 三宏（eratw-chs `ERB/魔改内容/PRINT系/UI_CHANNEL.ERB`，D0 骨架）的**函数入口即通道边界**；实参从已绑定的形参变量读回；非 EWP 模式 Handler 为 null 立即短路，普通执行零语义零开销。事件（EWP §4.2）：`channel.create{id,kind,tier:"grid-locked"}`（id 首见）＋`channel.begin{id,rev}`（每次 BEGIN，rev 先递增）＋`channel.commit{id,rev}`（与配对 begin 同 rev 定稿）＋`channel.clear{id}`（清内容不清频道，rev 保持）；未配对 end/clear 静默忽略并计 `channelMismatch`（state 可观测）。新文件 `UI/Ewp/EwpChannel.cs`
+- **hello caps 增 `channel`**；`snapshot.full` 增 `channels[]`（id/kind/rev/open，幂等重建数据源）；`state` 增 `channels`/`channelMismatch`
+- **B② 至此收口**：余量仅 channel/node 词表的 node.* 部分（随 D1 包装面实测后定）与 colormatrix/followScroll（v1）
+
+### Changed
+
+- **版本签名**：`Skiav16.3` → `Skiav16.4`（`1824+v24+EMv18+EEv56+Skiav16.4`）
+
+***
+
+## [16.3.0] — 像素流＋MessagePack 编码（eraWire B3）
+
+### Added
+
+- **`pixel.frame` 像素流（EWP §4.4）**：`hello` caps 增 `pixel.frame`；FE 在 `hello.ok` 里 `mode.pixel=true` 即启用。管线＝内核新事件 `CliFramePainted`（`RefreshStrings` 有效通过点＝帧信号，内核账本第 3 笔，+7 行）→ UI 线程渲染离屏 raster `SKSurface`（尺寸＝`RenderWidth×RenderHeight`）直调 `console.OnPaint` → `ReadPixels` 拷贝 → 专用编码线程 PNG → `EwpOut` 独立像素队列写出。v0 整帧无 dirty-rect（A1-⑥）；过载策略＝捕获队列**丢旧保新**（cap 4）＋写出队列丢新计数（cap 8，EWP §6.3 像素流单独计数，与文本信用窗背压刻意不同——像素可丢、行不可丢）；载荷 `{frameId,w,h,fmt:"png",stats{dropped,encMs},data}`。新文件 `UI/Ewp/EwpPixel.cs`
+- **L0.5 编码抽象 `IEwpCodec`（EWP §2）**：JSON-Lines（默认，换行定界）与 MessagePack（`--ewp-msgpack`，4 字节大端长度前缀帧）。MessagePack 为手写子集编解码器（不引包依赖）：编码＝`JsonElement` 递归打包（nil/bool/int/float/str/map/array），`pixel.frame` 直构 map（`data` 为 bin 不经 JSON 往返）；解码＝FE 命令 msgpack→JSON 文本回灌既有 `HandleLine`（零侵入）。`--ewp-json` 为显式别名；**默认仍 JSON-Lines（过渡态）**——A2 v0.1 定稿时连同 C 轨 FE 一起翻正本默认。新文件 `UI/Ewp/EwpCodec.cs`
+- **`EwpOut` 双队列写手**：文本 8192 有界队列（满则阻塞生产者＝信用窗背压，B1 语义不变）＋像素小队列；写手 `TryTakeFromAny` 双路取件；`pixel.frame` 为独立帧型不计入 `frame.commit.events`（守恒口径：非 `frame.commit` 非 `pixel.frame` 的服务端事件 ⇔ Σ`frame.commit.events`）。`state` 命令增 `pixel{enabled,frames,dropped,written,writeDropped}` 观测块
+- **`hello` 增补**：caps 加 `pixel.frame`；impl `ewp-b2`→`ewp-b3`
+- **像素流防呆与观测**：①hello.ok 请求 pixel 但 `DRAWING INTERFACE:TEXTRENDERER` ⇒ 显性 `error{pixel_unavailable}`（该界面无 Skia 画布，不报则零帧静默——fixture 实锤）；②捕获遇 `render=0x0`（最小化窗口锚定布局未落地）一次性 `error{pixel_zero_size}` 诊断；③视口应用强制 `PerformLayout`＋微扰兜底（最小化窗 `ClientSize` 生效但 mainPicBox 恒 0 的 WinForms 行为，`render=0x0 client=1000x640` 实证）；④`state` 命令增 `winClient`/`winState` 字段
+
+### Changed
+
+- **版本签名**：`Skiav16.2` → `Skiav16.3`（`1824+v24+EMv18+EEv56+Skiav16.3`）
+
+***
+
+## [16.2.0] — EWP/0 wire 宿主（eraWire B1）
+
+### Added
+
+- **`--ewp` 启动模式**：eraWire EWP/0 stdio 宿主（新增 `UI/Ewp/EwpHost.cs`）。stdin/stdout JSON-Lines 事件流：事件＝`hello`/`ready`/`legacy.line`（行 ID 单调）/`legacy.clear`/`input.request`（reqId+generation+buttons，TINPUT 超时以 `timeoutMs` 透出）/`meta.state`/`dialog.request`/`frame.commit`/`snapshot.full`/`exit`；命令＝`input.submit`（text/button/enter/skip 四路，**stale 世代拒收**）/`view.ack`/`state`/`snapshot.req`/`sys.quit`。最小化窗口保消息循环（与 `--CliDebug` 同法，非 headless）。涉及 `Program.cs`
+- **信用窗背压（EWP §6.3）**：`EwpOut` 专用写手线程＋8192 有界队列（队列满时阻塞生产者＝脚本暂停），未 ack 帧数 ≥8 时 writer 暂停发送（5s 超时兜底＋`ackTimeouts` 计数，`frame.commit` 附 `pending` 积压数）——替换 `--CliDebug` 同步写 stdout 的管道反压死锁路径（知识库 cli-debug-automation §3.1 实证问题）
+- **`CliLinesRemoved` 内核事件**：`CLEARLINE` 删行后在 `deleteLine` 触发（参数＝请求删除的逻辑行数），无订阅者零开销；WireHost 据此发 `legacy.clear`（`fromLineId`+`count`，尾部裁剪）。涉及 `EmueraConsole.cs` / `EmueraConsole.Print.cs`
+- **B2 首批（eraWire）**：`hello.metrics` 网格保真基准（cellW/cellH/lineH/font，StringMeasure 同源测量）；FE 视口回传（`hello.ok.viewport` → 窗体尺寸，`CLIENTWIDTH()/CLIENTHEIGHT()` 随之生效，零内核改动）；`frame.commit` 附 `ackTimeouts`、信用超时以非致命 `error{ack_timeout}` 外显；结构化 `snapshot.full`（lineId+text 数组＋世代＋挂起输入，断线重连幂等重建）；TCP 传输模式（`--ewp-port`，单客户端，接入前事件在 EwpOut 队列缓冲）
+- **B2-3（eraWire）sprite/overlay 语义流**：内核新增 5 事件（`CliImageLayerSet/Cleared/ClearedAll`、`CliIslandPrinted/Cleared`，`ImageLayerManager.SetLayer` 改返真＝仅实际添加时通知；B2 内核账本第 2 笔）；WireHost 发 `sprite.set/clear`（depth/texture/geometry/opacity/follow，colormatrix 留 v1）与 `overlay.island(_clear)`（载荷＝原始 HTML 透传，v0 单实例）；snapshot 增 `sprites`/`island`。metrics 因字体时序改为 **`meta.metrics` 于字体就绪后补发**（Start 期测宽会在 FontFactory 初始化前触碰 SKFont，触发「不適正なフォント→強制終了」守卫——pixtest 实锤）
+- **`Dialog` 全量改走 `PlatformInterop` 委托**：GUI 模式行为不变（MessageBox 同参数）；`--ewp/--CliDebug` 模式下原生弹窗（字体错误/无限循环警告等 35 处调用点）转为 `dialog.request` 事件——根治无人值守测试被原生弹窗阻塞与值守屏幕刷窗。涉及 `UI/Dialog.cs`
+
+### Changed
+
+- **版本签名**：`Skiav16.1` → `Skiav16.2`（`1824+v24+EMv18+EEv56+Skiav16.2`）
+
+***
+
 ## [16.1.0] — 用户变量 ALS 别名按变量域隔离
 
 ### Fixed

@@ -728,6 +728,8 @@ internal sealed class ProcessState
 			if (call.TopLabel.hasPrivDynamicVar)
 				call.TopLabel.ScopeIn();
 		}
+		// eraWire B②: 频道宏名挂钩——UI_CHANNEL_* 入口即通道边界（参数已绑定；非 EWP 模式内部短路）
+		MinorShift.Emuera.UI.Ewp.EwpChannel.NotifyFunctionEntry(call, exm);
 		functionList.Add(call);
 		if (GameProcProcess.DebugLogEnabled) GameProcProcess.DebugLog(string.Format("[IntoFunction] added, functionList.Count after={0}\n", functionList.Count));
 		//sequential = false;

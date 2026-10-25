@@ -27,11 +27,11 @@ internal sealed class ImageLayerManager
 
 	public IReadOnlyList<ImageLayer> Layers => _layers;
 
-	public void SetLayer(string spriteName, long depth, int x, int y,
+	public bool SetLayer(string spriteName, long depth, int x, int y,
 		int width, int height, int opacity, float[]? colorMatrix, bool followScroll, int currentScrollY)
 	{
 		var sprite = AppContents.GetSprite(spriteName);
-		if (sprite == null) return;
+		if (sprite == null) return false;
 
 		_layers.Add(new ImageLayer
 		{
@@ -46,6 +46,7 @@ internal sealed class ImageLayerManager
 			FollowScroll = followScroll,
 			InitialScrollY = currentScrollY
 		});
+		return true;
 	}
 
 	public void ClearLayer(long depth)
