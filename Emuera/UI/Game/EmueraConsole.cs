@@ -3276,9 +3276,9 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// div 覆盖层按钮（<c>LineIndex=-1</c>）本轮<b>不给</b>矩形（<c>HasRect=false</c>）：
 	/// 其绘制矩形与 <c>TestChildHitbox</c> 本就分叉（I3 设计卡 §3.3），⛔ 用包围盒冒充。
 	/// </summary>
-	public List<(string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect)> GetSelectableButtonRects()
+	public List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect)> GetSelectableButtonRects()
 	{
-		var result = new List<(string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect)>();
+		var result = new List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect)>();
 		var items = CollectSelectableButtons();
 		if (items.Count == 0)
 			return result;
@@ -3321,9 +3321,127 @@ internal sealed partial class EmueraConsole : IDisposable
 					lineY + top, button.Width, bottom - top);
 				hasRect = true;
 			}
-			result.Add((text, value, button.IsInteger, hasRect, rect));
+			result.Add((button, text, value, button.IsInteger, hasRect, rect));
 		}
 		return result;
+	}
+
+	/// <summary>
+	/// 命中测试（只读，无副作用）：给定 render 逻辑坐标，返回该点命中的按钮（无则 null）。
+	/// 几何判据与 <c>MoveMouse</c> 内的 hit-test 分支同源：普通行按 <c>relPointY</c> 自下而上累加，
+	/// div 覆盖层走 <see cref="ConsoleDivPart.TestChildHitbox"/>。<c>MoveMouse</c> 另担选中态副作用
+	/// （pointingString/selectingButton），本方法只答「命中了谁」，故**不带** IsInProcess 早退
+	/// （那是鼠标交互的限制，不是几何限制）。
+	/// ⚠️ 改 <c>MoveMouse</c> 的几何判据必须同步改这里——I3-c 的 rect 自检依赖它。
+	/// </summary>
+	internal ConsoleButtonString HitTestButtonAt(int pointX, int pointY)
+	{
+		if (window == null || displayLineList.Count == 0)
+			return null;
+		int bottomLineNo = window.ScrollBar.Value - 1;
+		if (displayLineList.Count - 1 < bottomLineNo)
+			bottomLineNo = displayLineList.Count - 1;
+		int topLineNo = bottomLineNo - (window.RenderHeight / Config.LineHeight);
+		if (topLineNo < 0)
+			topLineNo = 0;
+		int relPointY = pointY - window.RenderHeight;
+
+		// 普通行：自下而上、行内自右向左（与 MoveMouse 同）
+		for (int i = bottomLineNo; i >= topLineNo; i--)
+		{
+			relPointY += Config.LineHeight;
+			ConsoleDisplayLine curLine = displayLineList[i];
+			for (int b = 0; b < curLine.Buttons.Length; b++)
+			{
+				ConsoleButtonString button = curLine.Buttons[curLine.Buttons.Length - b - 1];
+				if (button == null || button.StrArray == null || !button.IsButton)
+					continue;
+				if (button.PointX > pointX || button.PointX + button.Width < pointX)
+					continue;
+				foreach (AConsoleDisplayNode part in button.StrArray)
+				{
+					if (part == null || part is ConsoleDivPart)
+						continue;
+					if (part.PointX <= pointX && part.PointX + part.Width >= pointX
+						&& relPointY >= part.Top && relPointY <= part.Bottom)
+						return button;
+				}
+			}
+		}
+
+		// div（HTML 覆盖层）：与 MoveMouse 同口径（含 200px 容错剪枝）
+		if (ConsoleEscapedParts.Changed
+			|| !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
+		{
+			escapedParts ??= [];
+			ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
+		}
+		if (escapedParts != null && escapedParts.Count > 0)
+		{
+			var bottomLineBase = window.RenderHeight - Config.LineHeight;
+			var correction = lineNo > Config.MaxLog ? lineNo - Config.MaxLog : 0;
+			var depths = escapedParts.Keys.ToArray();
+			Array.Sort(depths);
+			// depth 大的在上层：自顶向下查
+			for (int d = depths.Length - 1; d >= 0; d--)
+			{
+				foreach (var part in escapedParts[depths[d]])
+				{
+					if (part is not ConsoleDivPart div)
+						continue;
+					if (div.Parent?.ParentLine == null)
+						continue;
+					var lineY = bottomLineBase
+						+ (div.Parent.ParentLine.LineNo - bottomLineNo - correction) * Config.LineHeight;
+					if (pointY < lineY + div.Top - 200 || pointY > lineY + div.Bottom + 200)
+						continue;
+					var child = div.TestChildHitbox(pointX, pointY, lineY);
+					if (child != null && child.IsButton)
+						return child;
+				}
+			}
+		}
+		return null;
+	}
+
+	/// <summary>
+	/// rect 自检（I3-c）：在 rect 与既有 hit-test 的**共同覆盖区**内取中心＋四角，逐点跑
+	/// <see cref="HitTestButtonAt"/>，要求全部命中同一按钮。用于 <c>input.request</c> 发 rect
+	/// 前的生产护栏：自检不过 ⇒ 该按钮不发 rect（FE 回退文本/值），⛔ 不放大成"点得到但点错"。
+	/// <para>
+	/// 🔴 共同区要右缩 <c>Config.DrawingParam_ShapePositionShift</c>：rect 的 x 对齐**绘制**
+	/// （<c>PointX + shift</c>，见 ConsoleStyledString.cs:441），而既有 hit-test 判的是
+	/// <c>part.PointX</c>（**不含** shift）⇒ 两者在 x 上本就差 shift（既有缺陷，登记不修）。
+	/// 因此 rect 左边界可能比 hit-test 左界多 shift、右边界多 shift：右界内缩 shift 才是共同区。
+	/// </para>
+	/// 返回失败点数（0＝通过）。
+	/// </summary>
+	internal int RectSelfCheckPoints(ConsoleButtonString button, Rectangle rect)
+	{
+		if (button == null || rect.Width <= 0 || rect.Height <= 0)
+			return 1;
+		int shift = Config.DrawingParam_ShapePositionShift;
+		int left = rect.X + 1;
+		int right = rect.X + rect.Width - 1 - shift;
+		int top = rect.Y + 1;
+		int bottom = rect.Y + rect.Height - 1;
+		int cx = rect.X + rect.Width / 2;
+		int cy = rect.Y + rect.Height / 2;
+		var points = new List<(int X, int Y)> { (cx, cy) };
+		if (right > left && bottom > top)
+		{
+			points.Add((left, top));
+			points.Add((right, top));
+			points.Add((left, bottom));
+			points.Add((right, bottom));
+		}
+		int failed = 0;
+		foreach (var (px, py) in points)
+		{
+			if (!ReferenceEquals(HitTestButtonAt(px, py), button))
+				failed++;
+		}
+		return failed;
 	}
 
 	/// <summary>

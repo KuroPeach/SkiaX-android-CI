@@ -293,6 +293,9 @@ internal sealed class EwpHost
     private int metricsRenderW;
     private int metricsRenderH;
     private bool metricsRenderResent;
+    /// <summary>rect 自检失败累计（I3-c 生产护栏）：几何自检不过的按钮不发 rect，只计数。
+    /// <c>sys.state.rectSelfCheckFailed</c> 可观测；门禁断言 == 0。</summary>
+    private long rectSelfCheckFailed;
 
     public EwpHost(MainWindow window, int tcpPort = 0)
     {
@@ -318,7 +321,7 @@ internal sealed class EwpHost
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -661,11 +664,20 @@ internal sealed class EwpHost
                 .Append(",\"isInteger\":").Append(button.IsInteger ? "true" : "false");
             if (rectEnabled && button.HasRect)
             {
-                sb.Append(",\"rect\":{\"x\":").Append(button.Rect.X)
-                    .Append(",\"y\":").Append(button.Rect.Y)
-                    .Append(",\"w\":").Append(button.Rect.Width)
-                    .Append(",\"h\":").Append(button.Rect.Height)
-                    .Append(",\"coordinateSpace\":\"viewport-global\"}");
+                // I3-c 生产护栏：先跑连通性自检（中心＋四角内侧共 5 点须全部命中同一按钮）。
+                // 不过就降级不发 rect（FE 回退文本/值），只计数——⛔ 宁可没有 rect，不可点错。
+                if (console.RectSelfCheckPoints(button.Button, button.Rect) == 0)
+                {
+                    sb.Append(",\"rect\":{\"x\":").Append(button.Rect.X)
+                        .Append(",\"y\":").Append(button.Rect.Y)
+                        .Append(",\"w\":").Append(button.Rect.Width)
+                        .Append(",\"h\":").Append(button.Rect.Height)
+                        .Append(",\"coordinateSpace\":\"viewport-global\"}");
+                }
+                else
+                {
+                    Interlocked.Increment(ref rectSelfCheckFailed);
+                }
             }
             sb.Append('}');
         }
@@ -940,7 +952,8 @@ internal sealed class EwpHost
             + ",\"writeDropped\":" + EwpOut.PixelDropped + "}"
             + ",\"channels\":" + channelCount
             + ",\"channelMismatch\":" + mismatch
-            + ",\"channelEnabled\":" + (channelEnabled ? "true" : "false") + "}");
+            + ",\"channelEnabled\":" + (channelEnabled ? "true" : "false")
+            + ",\"rectSelfCheckFailed\":" + Interlocked.Read(ref rectSelfCheckFailed) + "}");
     }
 
     /// <summary>结构化快照（B2/S1）：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；
