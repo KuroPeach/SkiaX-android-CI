@@ -3162,6 +3162,8 @@ internal sealed partial class EmueraConsole : IDisposable
 	public event Action CliTerminalStateEntered;
 	/// <summary>CLEARLINE 删除行后触发，参数＝请求删除的逻辑行数（WireHost 据此发 legacy.clear）。</summary>
 	public event Action<int> CliLinesRemoved;
+	/// <summary>ClearDisplay 全量清场前触发（WireHost 同步快照账本与频道状态）。</summary>
+	public event Action CliDisplayCleared;
 	/// <summary>EWP WireHost：SETIMAGELAYER(L) 实际添加图层后触发（spriteName,depth,x,y,w,h,opacity,followScroll；colormatrix 留 v1）。</summary>
 	public event Action<string, long, int, int, int, int, int, bool> CliImageLayerSet;
 	/// <summary>EWP WireHost：CLEARIMAGELAYER 后触发（参数＝深度）。</summary>

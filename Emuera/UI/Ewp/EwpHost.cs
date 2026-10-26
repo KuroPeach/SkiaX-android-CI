@@ -239,8 +239,16 @@ internal sealed class EwpHost
 
     private long lineIdSeq;
     private long reqIdSeq;
-    /// <summary>仍在缓冲里的行（lineId+文本；CLEARLINE 尾部裁剪；仅 UI/脚本线程访问）。结构化 snapshot 的数据源。</summary>
-    private readonly List<(long Id, string Text)> liveLines = new();
+    /// <summary>快照用行账本：lineId/文本/频道 owner/到达时的频道 rev；CLEARLINE 尾部裁剪。</summary>
+    private sealed class LiveLine
+    {
+        public long Id;
+        public string Text;
+        public string Owner = "";
+        public long OwnerRev;
+    }
+    /// <summary>仍存活的行（lineId/文本/归属；仅 UI 线程访问，频道元数据在 channelGate 下）。</summary>
+    private readonly List<LiveLine> liveLines = new();
     /// <summary>活着的 sprite 图层（与引擎同语义：同深度可叠多层、按深度清）。snapshot 数据源。</summary>
     private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow)> liveSprites = new();
     /// <summary>当前 island 的原始 HTML（null＝无 island）。v0 单实例（A1-④）。</summary>
@@ -254,17 +262,27 @@ internal sealed class EwpHost
     /// <summary>B3 离屏像素流（hello.ok mode.pixel=true 才启用；帧信号=CliFramePainted）。</summary>
     private readonly EwpPixelStreamer pixel;
 
-    /// <summary>B② 频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open）。
+    /// <summary>B②/S1 频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open/segments）。
     /// 脚本线程写（IntoFunction）、UI 线程读（snapshot/state）——lock 保护。</summary>
+    private sealed class ChannelSegment
+    {
+        public long Rev;
+        public bool Committed;
+    }
     private sealed class ChannelState
     {
         public string Kind;
         public long Rev;
         public bool Open;
+        public readonly List<ChannelSegment> Segments = new();
     }
     private readonly object channelGate = new();
     private readonly Dictionary<string, ChannelState> channels = new();
+    /// <summary>真实 begin 次序（栈底→栈顶）；空栈时新行走主日志。</summary>
+    private readonly List<string> openStack = new();
     private long channelMismatch;
+    /// <summary>FE 的 hello.ok.caps 是否包含 channel；缺省 caps 按旧 FE 常开处理。</summary>
+    private volatile bool channelEnabled = true;
 
     public EwpHost(MainWindow window, int tcpPort = 0)
     {
@@ -285,7 +303,7 @@ internal sealed class EwpHost
     {
         ChannelHooks.Handler = OnChannelMacro;
         var sb = new StringBuilder(320);
-        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.1\",\"impl\":\"ewp-b4\",\"engine\":{")
+        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.2\",\"impl\":\"ewp-b4\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
@@ -339,11 +357,14 @@ internal sealed class EwpHost
         EwpOut.Shutdown();
     }
 
-    /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}；
-    /// end=commit{rev}（与配对 begin 同 rev 定稿）；clear=clear{id}（清内容不清频道，
-    /// rev 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。</summary>
+    /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}+新段；
+    /// end=commit{rev}（与配对 begin 同 rev 定稿）；clear=clear{id}（清段不清频道，
+    /// rev/open/行 owner 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。</summary>
     private void OnChannelMacro(string macro, string id, string kind)
     {
+        // H4：FE 未声明 channel 时只停发 wire 事件，不改变 ERB 宏本身的空展开行为。
+        if (!channelEnabled)
+            return;
         switch (macro)
         {
             case "begin":
@@ -351,6 +372,11 @@ internal sealed class EwpHost
                     kind = "log";
                 lock (channelGate)
                 {
+                    if (string.IsNullOrEmpty(id))
+                    {
+                        channelMismatch++;
+                        break;
+                    }
                     if (!channels.TryGetValue(id, out var st))
                     {
                         st = new ChannelState { Kind = kind };
@@ -358,8 +384,12 @@ internal sealed class EwpHost
                         EwpOut.Emit("{\"t\":\"channel.create\",\"id\":" + J(id)
                             + ",\"kind\":" + J(kind) + ",\"tier\":\"grid-locked\"}");
                     }
+                    // 同 id 重复 begin＝移栈顶＋rev++，不形成嵌套。
+                    openStack.Remove(id);
+                    openStack.Add(id);
                     st.Rev++;
                     st.Open = true;
+                    st.Segments.Add(new ChannelSegment { Rev = st.Rev, Committed = false });
                     EwpOut.Emit("{\"t\":\"channel.begin\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
                 }
                 break;
@@ -369,6 +399,10 @@ internal sealed class EwpHost
                     if (channels.TryGetValue(id, out var st) && st.Open)
                     {
                         st.Open = false;
+                        openStack.Remove(id);
+                        var seg = st.Segments.Find(s => s.Rev == st.Rev);
+                        if (seg != null)
+                            seg.Committed = true;
                         EwpOut.Emit("{\"t\":\"channel.commit\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
                     }
                     else
@@ -378,8 +412,12 @@ internal sealed class EwpHost
             case "clear":
                 lock (channelGate)
                 {
-                    if (channels.ContainsKey(id))
+                    if (channels.TryGetValue(id, out var st))
+                    {
+                        // 清内容不清频道：段清空，rev/open 与行 owner 保持。
+                        st.Segments.Clear();
                         EwpOut.Emit("{\"t\":\"channel.clear\",\"id\":" + J(id) + "}");
+                    }
                     else
                         channelMismatch++;
                 }
@@ -456,6 +494,7 @@ internal sealed class EwpHost
         console.CliWaitInputEntered += OnWaitInput;
         console.CliTerminalStateEntered += OnTerminalState;
         console.CliLinesRemoved += OnLinesRemoved;
+        console.CliDisplayCleared += OnDisplayCleared;
         console.CliImageLayerSet += OnImageLayerSet;
         console.CliImageLayerCleared += OnImageLayerCleared;
         console.CliImageLayersCleared += OnImageLayersCleared;
@@ -500,7 +539,25 @@ internal sealed class EwpHost
         // text level; spans/line-level buttons deferred (spec freeze list).
         var id = ++lineIdSeq;
         var text = ClipboardProcessor.StripHTML(line.ToString());
-        liveLines.Add((id, text));
+        var owner = "";
+        long ownerRev = 0;
+        lock (channelGate)
+        {
+            if (openStack.Count > 0)
+            {
+                owner = openStack[openStack.Count - 1];
+                if (channels.TryGetValue(owner, out var st))
+                {
+                    ownerRev = st.Rev;
+                    // clear 后仍 open 的频道：下一次内容到达时重建当前 rev 的未提交段。
+                    if (!st.Segments.Exists(s => s.Rev == ownerRev))
+                        st.Segments.Add(new ChannelSegment { Rev = ownerRev, Committed = false });
+                }
+                else
+                    owner = "";
+            }
+        }
+        liveLines.Add(new LiveLine { Id = id, Text = text, Owner = owner, OwnerRev = ownerRev });
         var json = "{\"t\":\"legacy.line\",\"lineId\":" + id
             + ",\"gen\":" + currentGeneration
             + ",\"text\":" + J(text) + "}";
@@ -517,6 +574,23 @@ internal sealed class EwpHost
         liveLines.RemoveRange(liveLines.Count - removed, removed);
         EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId
             + ",\"count\":" + removed + "}");
+    }
+
+    /// <summary>ClearDisplay 全量清场：清快照行/频道/段/栈，向 FE 发一条清空通知。
+    /// v0.2 不发 channel.destroy；重连以无旧状态的 snapshot 为准。</summary>
+    private void OnDisplayCleared()
+    {
+        int count = liveLines.Count;
+        long fromId = count > 0 ? liveLines[0].Id : -1;
+        liveLines.Clear();
+        lock (channelGate)
+        {
+            channels.Clear();
+            openStack.Clear();
+            channelMismatch = 0;
+        }
+        if (count > 0)
+            EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId + ",\"count\":-1}");
     }
 
     private void OnWaitInput()
@@ -640,10 +714,13 @@ internal sealed class EwpHost
                 case "hello.ok":
                     DoHelloOk(root);
                     break;
+                // EWP/0.2 正名与 0.1 旧名共用同一入口；hello.proto 已翻为 0.2。
                 case "state":
+                case "sys.state":
                     Dispatch(() => DoState());
                     break;
                 case "snapshot.req":
+                case "sys.snapshot":
                     Dispatch(() => DoSnapshot());
                     break;
                 case "sys.quit":
@@ -722,6 +799,35 @@ internal sealed class EwpHost
     /// 早于 Subscribe 启用也无妨，CliFramePainted 未挂前捕获不会发生）。</summary>
     private void DoHelloOk(JsonElement root)
     {
+        // H4：caps 缺失＝旧 FE，保持 channel 常开；显式数组按是否含 channel 降级。
+        // caps 存在但不是数组视为旧格式，按常开兼容。
+        if (!root.TryGetProperty("caps", out var caps) || caps.ValueKind != JsonValueKind.Array)
+        {
+            channelEnabled = true;
+        }
+        else
+        {
+            var hasChannel = false;
+            foreach (var cap in caps.EnumerateArray())
+            {
+                if (cap.ValueKind == JsonValueKind.String && cap.GetString() == "channel")
+                {
+                    hasChannel = true;
+                    break;
+                }
+            }
+            channelEnabled = hasChannel;
+        }
+        if (!channelEnabled)
+        {
+            // 降级期间不保留旧频道状态；后续 state/snapshot 必须表现为 channel 关闭。
+            lock (channelGate)
+            {
+                channels.Clear();
+                channelMismatch = 0;
+            }
+        }
+
         int w = 0, h = 0;
         if (root.TryGetProperty("viewport", out var vp) && vp.ValueKind == JsonValueKind.Object)
         {
@@ -759,6 +865,13 @@ internal sealed class EwpHost
     private void DoState()
     {
         var console = GameConsole;
+        int channelCount;
+        long mismatch;
+        lock (channelGate)
+        {
+            channelCount = channelEnabled ? channels.Count : 0;
+            mismatch = channelMismatch;
+        }
         EwpOut.Emit("{\"t\":\"result\",\"ok\":true,\"state\":" + J(console.CliStateName)
             + ",\"waitInput\":" + (console.IsWaitInputState ? "true" : "false")
             + ",\"reqId\":" + currentReqId
@@ -776,11 +889,13 @@ internal sealed class EwpHost
             + ",\"dropped\":" + pixel.Dropped
             + ",\"written\":" + EwpOut.PixelWritten
             + ",\"writeDropped\":" + EwpOut.PixelDropped + "}"
-            + ",\"channels\":" + channels.Count
-            + ",\"channelMismatch\":" + channelMismatch + "}");
+            + ",\"channels\":" + channelCount
+            + ",\"channelMismatch\":" + mismatch
+            + ",\"channelEnabled\":" + (channelEnabled ? "true" : "false") + "}");
     }
 
-    /// <summary>结构化快照（B2）：行数组（lineId+text）＋世代＋挂起输入；断线重连按此幂等重建。</summary>
+    /// <summary>结构化快照（B2/S1）：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；
+    /// 断线重连按此原子重建。</summary>
     private void DoSnapshot()
     {
         var console = GameConsole;
@@ -812,20 +927,80 @@ internal sealed class EwpHost
                 .Append(",\"follow\":").Append(s.Follow ? "true" : "false").Append('}');
         }
         sb.Append("],\"island\":").Append(liveIslandHtml != null ? J(liveIslandHtml) : "null");
-        sb.Append(",\"channels\":[");
         lock (channelGate)
         {
-            int ci = 0;
-            foreach (var kv in channels)
+            // 所有存活行的 owner 映射（含 channel.clear 后隐藏行）；主日志行不出现在映射里。
+            var lineChannels = new Dictionary<string, List<long>>();
+            if (channelEnabled)
             {
-                if (ci++ > 0) sb.Append(',');
-                sb.Append("{\"id\":").Append(J(kv.Key))
-                    .Append(",\"kind\":").Append(J(kv.Value.Kind))
-                    .Append(",\"rev\":").Append(kv.Value.Rev)
-                    .Append(",\"open\":").Append(kv.Value.Open ? "true" : "false").Append('}');
+                foreach (var line in liveLines)
+                {
+                    if (string.IsNullOrEmpty(line.Owner) || !channels.ContainsKey(line.Owner))
+                        continue;
+                    if (!lineChannels.TryGetValue(line.Owner, out var ids))
+                    {
+                        ids = new List<long>();
+                        lineChannels[line.Owner] = ids;
+                    }
+                    ids.Add(line.Id);
+                }
             }
+            sb.Append(",\"lineChannels\":{");
+            int lci = 0;
+            foreach (var kv in lineChannels)
+            {
+                if (lci++ > 0) sb.Append(',');
+                sb.Append(J(kv.Key)).Append(":[");
+                for (int i = 0; i < kv.Value.Count; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append(kv.Value[i]);
+                }
+                sb.Append(']');
+            }
+            sb.Append("},\"openStack\":[");
+            if (channelEnabled)
+            {
+                for (int i = 0; i < openStack.Count; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append(J(openStack[i]));
+                }
+            }
+            sb.Append("],\"channels\":[");
+            if (channelEnabled)
+            {
+                int ci = 0;
+                foreach (var kv in channels)
+                {
+                    if (ci++ > 0) sb.Append(',');
+                    sb.Append("{\"id\":").Append(J(kv.Key))
+                        .Append(",\"kind\":").Append(J(kv.Value.Kind))
+                        .Append(",\"rev\":").Append(kv.Value.Rev)
+                        .Append(",\"open\":").Append(kv.Value.Open ? "true" : "false")
+                        .Append(",\"segments\":[");
+                    int si = 0;
+                    foreach (var seg in kv.Value.Segments)
+                    {
+                        if (si++ > 0) sb.Append(',');
+                        sb.Append("{\"rev\":").Append(seg.Rev)
+                            .Append(",\"committed\":").Append(seg.Committed ? "true" : "false")
+                            .Append(",\"lineIds\":[");
+                        int li = 0;
+                        foreach (var line in liveLines)
+                        {
+                            if (line.Owner != kv.Key || line.OwnerRev != seg.Rev)
+                                continue;
+                            if (li++ > 0) sb.Append(',');
+                            sb.Append(line.Id);
+                        }
+                        sb.Append("]}");
+                    }
+                    sb.Append("]}");
+                }
+            }
+            sb.Append("]}");
         }
-        sb.Append("]}");
         EwpOut.Emit(sb.ToString());
     }
 

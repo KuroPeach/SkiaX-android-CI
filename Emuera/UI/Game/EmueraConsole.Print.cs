@@ -48,6 +48,8 @@ internal sealed partial class EmueraConsole : IDisposable
 	#endregion
 	public void ClearDisplay()
 	{
+		// EWP WireHost：全量清场须在 displayLineList 清空前通知，供快照账本同步。
+		CliDisplayCleared?.Invoke();
 		#region EE_AnchorのCB機能移植
 		CBProc.ClearScreen();
 		#endregion
