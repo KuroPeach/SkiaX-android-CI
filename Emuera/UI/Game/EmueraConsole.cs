@@ -3189,15 +3189,17 @@ internal sealed partial class EmueraConsole : IDisposable
 	};
 
 	/// <summary>
-	/// 当前输入等待世代可选的按钮列表（显示文本 / 提交值 / 是否整数），无则返回空列表。
+	/// 当前输入等待世代可选按钮的<b>唯一</b>遍历（按钮对象 + 所属行下标）。
 	/// 筛选逻辑移植自 SkiaX RefreshQuickButtonAsync（EmueraConsole.ex.cs）：
 	/// 仅值输入系（IntValue/StrValue/AnyValue/IntButton/StrButton）收集；
 	/// 自底向上回溯，遇到旧世代按钮（Generation != 0 且 != lastButtonGeneration）即停止——
 	/// 与 PressEnterKey 的 IntButton/StrButton 验证分支同规则。
+	/// <c>LineIndex</c>＝该按钮所属 <c>displayLineList</c> 下标；div 覆盖层按钮记 <c>-1</c>（不属普通行）。
+	/// ⚠️ 顺序敏感：普通行倒序 → div（CollectDivParts 再倒序）→ 末尾一次 Reverse，改动会改变 wire 按钮顺序。
 	/// </summary>
-	public List<(string Text, string Value, bool IsInteger)> GetSelectableButtons()
+	private List<(ConsoleButtonString Button, int LineIndex)> CollectSelectableButtons()
 	{
-		var result = new List<(string Text, string Value, bool IsInteger)>();
+		var result = new List<(ConsoleButtonString Button, int LineIndex)>();
 		if (!IsWaitInputState || inputReq == null)
 			return result;
 		switch (inputReq.InputType)
@@ -3223,9 +3225,7 @@ internal sealed partial class EmueraConsole : IDisposable
 						goto Done;
 					continue;
 				}
-				result.Add((ClipboardProcessor.StripHTML(button.ToString()).Trim(),
-					button.IsInteger ? button.Input.ToString() : button.Inputs,
-					button.IsInteger));
+				result.Add((button, i));
 			}
 		}
 	Done:
@@ -3244,13 +3244,85 @@ internal sealed partial class EmueraConsole : IDisposable
 				{
 					if (button == null || !button.IsButton)
 						continue;
-					result.Add((ClipboardProcessor.StripHTML(button.ToString()).Trim(),
-						button.IsInteger ? button.Input.ToString() : button.Inputs,
-						button.IsInteger));
+					result.Add((button, -1));
 				}
 			}
 		}
 		result.Reverse();
+		return result;
+	}
+
+	/// <summary>
+	/// 当前输入等待世代可选的按钮列表（显示文本 / 提交值 / 是否整数），无则返回空列表。
+	/// 口径与顺序同 <see cref="CollectSelectableButtons"/>（同一遍历，⛔ 不得各自再写一份筛选）。
+	/// </summary>
+	public List<(string Text, string Value, bool IsInteger)> GetSelectableButtons()
+	{
+		var result = new List<(string Text, string Value, bool IsInteger)>();
+		foreach (var (button, _) in CollectSelectableButtons())
+		{
+			result.Add((ClipboardProcessor.StripHTML(button.ToString()).Trim(),
+				button.IsInteger ? button.Input.ToString() : button.Inputs,
+				button.IsInteger));
+		}
+		return result;
+	}
+
+	/// <summary>
+	/// 同 <see cref="GetSelectableButtons"/>，另给每个按钮的<b>本宿主几何</b>（EWP <c>buttons[].rect</c>，I3-a）。
+	/// 坐标系＝<c>MainWindow.RenderWidth</c>×<c>RenderHeight</c> 的 render 逻辑像素（与鼠标 hit-test 同源；
+	/// 全屏已由 <c>ToLogicalPoint</c>/<c>RenderWidth</c> 除过 scale，⛔ 再除一次）；
+	/// <c>x</c> 已含 <c>Config.DrawingParam_ShapePositionShift</c>（绘制统一偏移），纵向滚动已隐含在行 y 里。
+	/// div 覆盖层按钮（<c>LineIndex=-1</c>）本轮<b>不给</b>矩形（<c>HasRect=false</c>）：
+	/// 其绘制矩形与 <c>TestChildHitbox</c> 本就分叉（I3 设计卡 §3.3），⛔ 用包围盒冒充。
+	/// </summary>
+	public List<(string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect)> GetSelectableButtonRects()
+	{
+		var result = new List<(string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect)>();
+		var items = CollectSelectableButtons();
+		if (items.Count == 0)
+			return result;
+
+		// 与 GetLinePointY 同一口径：屏幕下沿行号由滚动条决定（hit-test 用的是 displayLineList 下标）。
+		int bottomLineNo = 0;
+		if (window != null)
+		{
+			bottomLineNo = window.ScrollBar.Value - 1;
+			if (displayLineList.Count - 1 < bottomLineNo)
+				bottomLineNo = displayLineList.Count - 1;
+		}
+
+		foreach (var (button, lineIndex) in items)
+		{
+			string text = ClipboardProcessor.StripHTML(button.ToString()).Trim();
+			string value = button.IsInteger ? button.Input.ToString() : button.Inputs;
+			bool hasRect = false;
+			Rectangle rect = default;
+			if (window != null && lineIndex >= 0 && button.StrArray != null && button.Width > 0)
+			{
+				int top = int.MaxValue;
+				int bottom = int.MinValue;
+				foreach (var part in button.StrArray)
+				{
+					if (part == null)
+						continue;
+					if (part.Top < top)
+						top = part.Top;
+					if (part.Bottom > bottom)
+						bottom = part.Bottom;
+				}
+				if (top > bottom)
+				{
+					top = 0;
+					bottom = Config.FontSize;
+				}
+				int lineY = window.RenderHeight - Config.LineHeight * (bottomLineNo - lineIndex + 1);
+				rect = new Rectangle(button.PointX + Config.DrawingParam_ShapePositionShift,
+					lineY + top, button.Width, bottom - top);
+				hasRect = true;
+			}
+			result.Add((text, value, button.IsInteger, hasRect, rect));
+		}
 		return result;
 	}
 
