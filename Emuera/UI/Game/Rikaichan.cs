@@ -8,7 +8,6 @@ using System.IO; //for File
 using System.Text;
 using System.Windows.Forms; //for TextRenderer
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 
 namespace MinorShift.Emuera.GameView;
 

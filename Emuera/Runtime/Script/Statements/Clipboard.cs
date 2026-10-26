@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Text.RegularExpressions;
+#if WINDOWS
 using System.Windows.Forms;
+#endif
+using MinorShift.Emuera.UI;
 using MinorShift.Emuera.UI.Game;
 using System.Runtime.CompilerServices;
 
@@ -10,7 +13,7 @@ internal partial class ClipboardProcessor
 {
 	private readonly bool classicMode; // New Lines Only mode
 
-	private readonly Forms.MainWindow mainWin;
+	private readonly IConsoleSurface mainWin;
 
 	private bool minTimePassed; //Has enough time passed since the last Clipboard update?
 	private bool postWaiting; //Is there text waiting to be sent to clipboard?
@@ -35,7 +38,7 @@ internal partial class ClipboardProcessor
 		InputWait,
 	}
 
-	public ClipboardProcessor(Forms.MainWindow parent)
+	public ClipboardProcessor(IConsoleSurface parent)
 	{
 		classicMode = Config.Config.CBNewLinesOnly;
 
@@ -230,7 +233,9 @@ internal partial class ClipboardProcessor
 		if (newText == OldText) return;
 		try
 		{
+#if WINDOWS
 			mainWin.Invoke(() => Clipboard.SetDataObject(newText, false, 3, 200));
+#endif
 			if (ScrollPos == 0) OldNewLineCount = NewLineCount;
 			NewLineCount = 0;
 			OldText = newText;

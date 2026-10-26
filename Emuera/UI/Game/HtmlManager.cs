@@ -9,8 +9,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
-using static MinorShift.Emuera.Runtime.Utils.EvilMask.Shape;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 
@@ -267,7 +265,6 @@ internal static class HtmlManager
 		public bool HasBorder = false;
 		public int BorderWidth;
 		public Color BorderColor;
-		public Padding? Padding;
 	}
 
 	private sealed class HtmlAnalzeState

@@ -1,4 +1,4 @@
-using MinorShift.Emuera.Forms;
+using MinorShift.Emuera.UI;
 using MinorShift.Emuera.GameView;
 using SkiaSharp;
 using System;
@@ -18,7 +18,7 @@ internal sealed class EwpPixelStreamer : IDisposable
 {
     private const int EncodeQueueCap = 4;
 
-    private readonly MainWindow win;
+    private readonly IConsoleSurface win;
     private readonly Func<EmueraConsole> consoleOf;
     private readonly Action<EwpPixelPayload> emit;
 
@@ -37,7 +37,7 @@ internal sealed class EwpPixelStreamer : IDisposable
     public long Dropped => Interlocked.Read(ref dropped);
     public bool Enabled => enabled;
 
-    public EwpPixelStreamer(MainWindow window, Func<EmueraConsole> consoleProvider, Action<EwpPixelPayload> emitToOut)
+    public EwpPixelStreamer(IConsoleSurface window, Func<EmueraConsole> consoleProvider, Action<EwpPixelPayload> emitToOut)
     {
         win = window;
         consoleOf = consoleProvider;
@@ -83,7 +83,7 @@ internal sealed class EwpPixelStreamer : IDisposable
                 zeroSizeWarned = true;
                 EwpOut.Emit("{\"t\":\"error\",\"code\":\"pixel_zero_size\",\"fatal\":false,\"detail\":\"render="
                     + w + "x" + h + " client=" + win.ClientSize.Width + "x" + win.ClientSize.Height
-                    + " state=" + win.WindowState + "\"}");
+                    + " state=" + win.WindowStateName + "\"}");
             }
             return;
         }

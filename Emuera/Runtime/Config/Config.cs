@@ -8,7 +8,6 @@ using System.Drawing;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
 using System.Reflection;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 
@@ -302,9 +301,7 @@ internal static class Config
 
 	private static bool CheckFont(string fontName)
 	{
-		//Best way to check if a font exists on system.drawing...
-		var font = new Font(fontName, 10);
-		return FontFamily.GenericSansSerif.Name != font.Name || GlobalStatic.Pfc.Families.Any(ff => ff.Name == fontName);
+		return FontFactory.IsFontAvailable(fontName);
 	}
 	#endregion
 	#endregion

@@ -10,7 +10,6 @@ using MinorShift.Emuera.GameData.Function;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
-using System.Drawing.Text;
 
 namespace MinorShift.Emuera;
 
@@ -48,7 +47,7 @@ internal static class GlobalStatic
 	public static bool ForceQuitAndRestart;//連続実行を防ぐ
 	#endregion
 	#region EE_フォントファイル対応
-	public static PrivateFontCollection Pfc = new();
+	public static FontRegistry Pfc = new();
 	#endregion
 
 	#region EM_私家版_SkiaSharp字体回退

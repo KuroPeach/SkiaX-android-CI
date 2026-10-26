@@ -4,10 +4,8 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Text;
-using static MinorShift.Emuera.Runtime.Utils.EvilMask.Shape;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 
 
 namespace MinorShift.Emuera.Runtime.Utils.EvilMask;
@@ -180,8 +178,8 @@ class ConsoleDivPart : AConsoleDisplayNode
 			: Display switch
 			{
 				DisplayMode.AbsoluteLeftTop => new Rectangle(xOffset, PointY, width + 2, Height),
-				DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height),
-				_ => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.MainPicBox.Height - PointY - Height, width + 2, Height)
+				DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.PicHeight - PointY - Height, width + 2, Height),
+				_ => new Rectangle(xOffset, GlobalStatic.EMediator.Console.Window.PicHeight - PointY - Height, width + 2, Height)
 			}; // 何故か+2pxが必要，なぞ
 
 		// Save the current canvas state before clipping

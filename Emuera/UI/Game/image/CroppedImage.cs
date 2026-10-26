@@ -7,7 +7,6 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 
 namespace MinorShift.Emuera.UI.Game.Image;
 

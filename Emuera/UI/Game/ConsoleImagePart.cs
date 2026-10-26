@@ -3,7 +3,6 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.UI.Game.Image;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 using System;
 using System.Drawing;
 using System.Text;

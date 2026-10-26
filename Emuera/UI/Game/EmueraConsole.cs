@@ -1,5 +1,7 @@
 //using System.Drawing.Imaging;
+#if WINDOWS
 using MinorShift.Emuera.Forms;
+#endif
 //using MinorShift.Emuera.GameData;
 using MinorShift.Emuera.GameProc.Function;
 using MinorShift.Emuera.Runtime;
@@ -15,6 +17,7 @@ using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
+using MinorShift.Emuera.UI;
 using MinorShift.Emuera.UI.Game;
 using MinorShift.Emuera.UI.Game.Image;
 using MinorShift.Emuera.UI.Game.Rendering;
@@ -27,12 +30,10 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 using trsl = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.SystemLine;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 
 
 
@@ -93,7 +94,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public Color? TextBackgroundColor { get; set; }
 
-	public EmueraConsole(MainWindow parent)
+	public EmueraConsole(IConsoleSurface parent)
 	{
 		window = parent;
 		#region EE_AnchorのCB機能移植
@@ -114,7 +115,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		genericTimer.Enabled = false;
 		CBG_Clear();//文字列描画用ダミー追加
 
-		redrawTimer = new Timer
+		redrawTimer = new ConsoleTimer
 		{
 			Enabled = false//TODO:1824アニメ用再描画タイマー有効化関数の追加
 		};
@@ -282,7 +283,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	public void SetImageLayer(string spriteName, long depth, int x, int y,
 		int width, int height, int opacity, float[]? colorMatrix, bool followScroll)
 	{
-		int currentScrollY = window.ScrollBar.Value * Config.LineHeight;
+		int currentScrollY = window.ScrollValue * Config.LineHeight;
 		// EWP WireHost：仅在实际添加成功（sprite 存在）时通知；colormatrix 留 v1（A1-③）
 		if (_imageLayerManager.SetLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, followScroll, currentScrollY))
 			CliImageLayerSet?.Invoke(spriteName, depth, x, y, width, height, opacity, followScroll);
@@ -307,9 +308,9 @@ internal sealed partial class EmueraConsole : IDisposable
 	#endregion
 
 	const string ErrorButtonsText = "__openFileWithDebug__";
-	private readonly MainWindow window;
+	private readonly IConsoleSurface window;
 	#region EE_MOUSEB
-	public MainWindow Window { get { return window; } }
+	public IConsoleSurface Window { get { return window; } }
 	#endregion
 	#region EE_BINPUT
 	public List<ConsoleDisplayLine> DisplayLineList { get { return displayLineList; } }
@@ -348,7 +349,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// 現在、Emueraがアクティブかどうか
 	/// </summary>
 	internal bool IsActive
-	{ get { return !(window == null || !window.Created || Form.ActiveForm == null); } }
+	{ get { return !(window == null || !window.Created || !window.IsActive); } }
 
 	/// <summary>
 	/// スクリプトが継続中かどうか
@@ -542,13 +543,9 @@ internal sealed partial class EmueraConsole : IDisposable
 
 		if (GlobalStatic.ForceQuitAndRestart == true)
 		{
-			var result = MessageBox.Show(trmb.ForceQuitAndRestart.Text,
-				"FORCE_QUIT_AND_RESTART",
-				MessageBoxButtons.YesNo
-				//System.Windows.MessageBoxIcon.None,
-				//System.Windows.MessageBoxDefaultButton.Button1
-				);
-			if (result == DialogResult.Yes)
+			var result = PlatformInterop.ShowQuestion(trmb.ForceQuitAndRestart.Text,
+				"FORCE_QUIT_AND_RESTART");
+			if (result)
 			{
 				Program.rebootFlag = false;
 				throw new CodeEE(trerror.ForceQuitAndRestartError.Text);
@@ -557,7 +554,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (Program.rebootFlag)
 			window.Reboot();
 		else
-			Application.Exit();
+			window.Close();
 		GlobalStatic.ForceQuitAndRestart = true;
 		return;
 	}
@@ -735,23 +732,23 @@ internal sealed partial class EmueraConsole : IDisposable
 		nfUserScrolledBack = false;
 		nfScrollOffsetFromBottom = 0;
 		// 强制滚动到底部，确保从 NF 状态退出后回到最新内容
-		if (window.ScrollBar.Value < window.ScrollBar.Maximum)
+		if (window.ScrollValue < window.ScrollMaximum)
 		{
 			window.TextBoxIgnoreScrollBarChanges = true;
-			window.ScrollBar.Value = window.ScrollBar.Maximum;
+			window.ScrollValue = window.ScrollMaximum;
 			window.TextBoxIgnoreScrollBarChanges = false;
 		}
 		if (req.Timelimit > 0)
 		{
 			if (req.OneInput)
-				window.update_lastinput();
+				window.UpdateLastInput();
 			presetTimer();
 			//				setTimer();
 		}
 		CliWaitInputEntered?.Invoke();
 		//updateMousePosition();
-		//Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-		//if (window.MainPicBox.ClientRectangle.Contains(point))
+		//Point point = window.MousePosition;
+		//if (window.PicClientRectangle.Contains(point))
 		//{
 		//	PrintFlush(false);
 		//	MoveMouse(point);
@@ -775,9 +772,9 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (state == ConsoleState.WaitInputNoFocus)
 		{
-			nfUserScrolledBack = window.ScrollBar.Value < window.ScrollBar.Maximum;
+			nfUserScrolledBack = window.ScrollValue < window.ScrollMaximum;
 			if (nfUserScrolledBack)
-				nfScrollOffsetFromBottom = window.ScrollBar.Maximum - window.ScrollBar.Value;
+				nfScrollOffsetFromBottom = window.ScrollMaximum - window.ScrollValue;
 		}
 	}
 
@@ -804,19 +801,19 @@ internal sealed partial class EmueraConsole : IDisposable
 				nfUserScrolledBack = false;
 				nfScrollOffsetFromBottom = 0;
 			}
-			else if (window.ScrollBar.Value < window.ScrollBar.Maximum)
+			else if (window.ScrollValue < window.ScrollMaximum)
 			{
 				// 从上一个 WaitInputNoFocus 继承，更新偏移量
-				nfScrollOffsetFromBottom = window.ScrollBar.Maximum - window.ScrollBar.Value;
+				nfScrollOffsetFromBottom = window.ScrollMaximum - window.ScrollValue;
 			}
 			// Val >= Max 且 nfBack=True：CLEARLINE 把 Value 拉到了 Max，保留 offset
 		}
 		// nfBack=False 时不设置，即使 Val < Max（可能是 AWAIT 期间的滚动）
 		// 但需要确保 ScrollBar 在底部，否则 verticalScrollBarUpdate 的 wasAtBottom 会出错
-		if (!nfUserScrolledBack && window.ScrollBar.Value < window.ScrollBar.Maximum)
+		if (!nfUserScrolledBack && window.ScrollValue < window.ScrollMaximum)
 		{
 			window.TextBoxIgnoreScrollBarChanges = true;
-			window.ScrollBar.Value = window.ScrollBar.Maximum;
+			window.ScrollValue = window.ScrollMaximum;
 			window.TextBoxIgnoreScrollBarChanges = false;
 		}
 		state = ConsoleState.WaitInputNoFocus;
@@ -826,7 +823,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (req.Timelimit > 0)
 		{
 			if (req.OneInput)
-				window.update_lastinput();
+				window.UpdateLastInput();
 			presetTimer();
 		}
 		CliWaitInputEntered?.Invoke();
@@ -904,7 +901,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		InvalidateBackgroundCache();
 		window?.Invalidate();
-		window?.MainPicBox?.Invalidate();
+		window?.InvalidatePicBox();
 	}
 	private void BakeBackground()
 	{
@@ -931,7 +928,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// <summary>
 	/// INPUT中のアニメーション用タイマー
 	/// </summary>
-	Timer redrawTimer;
+	ConsoleTimer redrawTimer;
 
 	public int AnimeTimer => redrawTimer.Enabled ? (int)redrawTimer.Interval : 0;
 
@@ -1055,8 +1052,8 @@ internal sealed partial class EmueraConsole : IDisposable
 			InputMouseKey(4, 0, 0, 0, 0, 0);
 			if (IsWaitInputState && inputReq.NeedValue)
 			{
-				Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-				if (window.MainPicBox.ClientRectangle.Contains(point))
+				Point point = window.MousePosition;
+				if (window.PicClientRectangle.Contains(point))
 					MoveMouse(point);
 			}
 			RefreshStrings(true);
@@ -1074,8 +1071,8 @@ internal sealed partial class EmueraConsole : IDisposable
 			{
 				window.Invoke(() =>
 				{
-					Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-					if (window.MainPicBox.ClientRectangle.Contains(point))
+					Point point = window.MousePosition;
+					if (window.PicClientRectangle.Contains(point))
 						MoveMouse(point);
 				});
 			}
@@ -1336,7 +1333,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		#endregion
 	}
 
-	internal void MouseDown(Point point, MouseButtons button)
+	internal void MouseDown(Point point, int button)
 	{
 		if (!IsWaitingPrimitive)
 			return;
@@ -1369,11 +1366,11 @@ internal sealed partial class EmueraConsole : IDisposable
 			if (!selectingButton.IsInteger)
 			{
 				GlobalStatic.VEvaluator.RESULTS = selectingButton.Inputs;
-				InputMouseKey(1, (int)button, clientPoint.X, clientPoint.Y, buttonNum, 0);
+				InputMouseKey(1, button, clientPoint.X, clientPoint.Y, buttonNum, 0);
 			}
 			else
 			{
-				InputMouseKey(1, (int)button, clientPoint.X, clientPoint.Y, buttonNum, selectingButton.Input);
+				InputMouseKey(1, button, clientPoint.X, clientPoint.Y, buttonNum, selectingButton.Input);
 			}
 		}
 		else
@@ -1383,13 +1380,13 @@ internal sealed partial class EmueraConsole : IDisposable
 		#endregion
 	}
 
-	//1823 Key入力を捕まえる
-	internal void PressPrimitiveKey(Keys keycode, Keys keydata, Keys keymod)
+	//1823 Key入力を捕まえる（キー値は WinForms Keys の int 値。headless からは呼ばれない）
+	internal void PressPrimitiveKey(int keycode, int keydata, int keymod)
 	{
 		if (IsWaitingPrimitive)
 			#region EE_INPUTMOUSEKEY拡張
 			// InputMouseKey(3, (int)keycode, (int)keydata, 0, 0);
-			InputMouseKey(3, (int)keycode, (int)keydata, 0, 0, 0);
+			InputMouseKey(3, keycode, keydata, 0, 0, 0);
 		#endregion
 	}
 
@@ -1407,8 +1404,8 @@ internal sealed partial class EmueraConsole : IDisposable
 			RunEmueraProgram(null);
 			if (IsWaitInputState && inputReq.NeedValue)
 			{
-				Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-				if (window.MainPicBox.ClientRectangle.Contains(point))
+				Point point = window.MousePosition;
+				if (window.PicClientRectangle.Contains(point))
 					MoveMouse(point);
 			}
 		}
@@ -1543,8 +1540,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		{
 			if (IsWaitInputState && inputReq.NeedValue)
 			{
-				Point point = window.MainPicBox.PointToClient(Control.MousePosition);
-				if (window.MainPicBox.ClientRectangle.Contains(point))
+				Point point = window.MousePosition;
+				if (window.PicClientRectangle.Contains(point))
 					MoveMouse(point);
 			}
 			RefreshStrings(true);
@@ -1789,7 +1786,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public void SetEmueraVersionInfo(string str)
 	{
-		window.TextBox.Text = str;
+		window.TextBoxText = str;
 	}
 	public string GetWindowTitle()
 	{
@@ -1804,7 +1801,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// </summary>
 	public void RefreshStrings(bool force_Paint)
 	{
-		bool isBackLog = window.ScrollBar.Value != window.ScrollBar.Maximum;
+		bool isBackLog = window.ScrollValue != window.ScrollMaximum;
 		//ログ表示はREDRAWの設定に関係なく行うようにする
 		if ((redraw == ConsoleRedraw.None) && (!force_Paint) && (!isBackLog))
 			return;
@@ -1852,11 +1849,11 @@ internal sealed partial class EmueraConsole : IDisposable
 				PlatformInterop.DoEvents();
 			}
 		}
-		window.TextBox.BackColor = bgColor.ToDrawingColor();
-		window.TextBox.ForeColor = Config.ForeColor;
+		window.TextBoxBackColor = bgColor.ToDrawingColor();
+		window.TextBoxForeColor = Config.ForeColor;
 		try
 		{
-			window.TextBox.Font = new Font(Config.FontName, Config.FontSize, FontStyle.Regular, GraphicsUnit.Pixel);
+			window.SetTextBoxFont(Config.FontName, Config.FontSize);
 		}
 		catch { }
 
@@ -1885,7 +1882,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	public int GetLinePointY(int lineNo)
 	{
 		int pointY = window.RenderHeight - Config.LineHeight;
-		int bottomLineNo = window.ScrollBar.Value - 1;
+		int bottomLineNo = window.ScrollValue - 1;
 		if (displayLineList.Count - 1 < bottomLineNo)
 			bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
 		pointY -= (bottomLineNo - lineNo) * Config.LineHeight;
@@ -1913,11 +1910,11 @@ internal sealed partial class EmueraConsole : IDisposable
 		//1824 アニメスプライト用・現在フレームの時間を決定
 		_frameDeltaTimer.Restart();
 
-		bool isBackLog = window.ScrollBar.Value != window.ScrollBar.Maximum;
+		bool isBackLog = window.ScrollValue != window.ScrollMaximum;
 		int pointY = window.RenderHeight - Config.LineHeight;
 
 
-		int bottomLineNo = window.ScrollBar.Value - 1;
+		int bottomLineNo = window.ScrollValue - 1;
 		int topLineNo = bottomLineNo - (pointY / Config.LineHeight + 1);
 		if (topLineNo < 0)
 			topLineNo = 0;
@@ -1967,7 +1964,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			foreach (var depth in allDepths)
 			{
 				// Draw ImageLayers at this depth
-				_imageLayerManager.DrawLayersAtDepth(graph, (int)graph.LocalClipBounds.Width, (int)graph.LocalClipBounds.Height, window.ScrollBar.Value * Config.LineHeight, depth);
+				_imageLayerManager.DrawLayersAtDepth(graph, (int)graph.LocalClipBounds.Width, (int)graph.LocalClipBounds.Height, window.ScrollValue * Config.LineHeight, depth);
 
 				if (cidx < cbgList.Count && cbgList[cidx].zdepth == depth)
 				{
@@ -2093,7 +2090,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (lastPointingString != pointingString || lastSelectingCBGButtonInt != selectingCBGButtonInt)
 		{
 			if (tooltipUsed)
-				window.ToolTip.RemoveAll();
+				window.ToolTipRemoveAll();
 
 			string title = null;
 			if (pointingString != null)
@@ -2113,9 +2110,9 @@ internal sealed partial class EmueraConsole : IDisposable
 			if (!string.IsNullOrEmpty(title))
 			{
 				title = title.Replace("<br>", Environment.NewLine);
-				if (window.ToolTip.OwnerDraw == false && window.ToolTip.InitialDelay == 0 && tooltip_duration == 0)
+				if (!window.ToolTipOwnerDraw && window.ToolTipInitialDelay == 0 && tooltip_duration == 0)
 				{
-					window.ToolTip.SetToolTip(window.MainPicBox, title);
+					window.ToolTipSetText(title);
 				}
 				else
 				{
@@ -2125,31 +2122,28 @@ internal sealed partial class EmueraConsole : IDisposable
 					Task.Run(async () =>
 					{
 						ConsoleButtonString savedPointingString = pointingString;
-						if (window.ToolTip.InitialDelay != 0)
-							await Task.Delay(window.ToolTip.InitialDelay);
+						if (window.ToolTipInitialDelay != 0)
+							await Task.Delay(window.ToolTipInitialDelay);
 						context.Post((state) =>
 						{
-							if (window == null || window.IsDisposed || window.MainPicBox == null || window.MainPicBox.IsDisposed)
+							if (window.IsDisposed)
 								return;
 
-							MoveMouse(GetMousePosition());
+							MoveMouse(window.MousePosition);
 							if (lastPointingString == savedPointingString)
 							{
-								Point mousePos = window.MainPicBox.PointToClient(Control.MousePosition);
-								int cursorHeight = Cursor.Current != null ? Cursor.Current.Size.Height : 32;
+								Point mousePos = window.MousePosition;
+								int cursorHeight = window.CursorHeight;
 								Point p = new Point(mousePos.X + 2, mousePos.Y + cursorHeight / 2);
-								Point absoluteP = Cursor.Position;
-								Size screen = Screen.FromPoint(absoluteP).WorkingArea.Size;
+								Point absoluteP = window.ScreenMousePosition;
+								Size screen = window.ScreenWorkingArea;
 								if (absoluteP.Y + tooltip_size.Height > screen.Height)
 									p.Y -= cursorHeight * 2;
 								if (p.Y < 0)
 									p.Y = 0;
 								if (p.Y + tooltip_size.Height > screen.Height)
 									tooltip_size = new Size(tooltip_size.Width, screen.Height - p.Y);
-								if (tooltip_duration == 0)
-									window.ToolTip.Show(title, window.MainPicBox, p);
-								else
-									window.ToolTip.Show(title, window.MainPicBox, p, tooltip_duration);
+								window.ToolTipShow(title, p, tooltip_duration);
 							}
 						}, null);
 					});
@@ -2176,111 +2170,39 @@ internal sealed partial class EmueraConsole : IDisposable
 		}
 	}
 
-	private void ToolTip_Draw(object sender, DrawToolTipEventArgs e)
-	{
-		if (tooltip_img && int.TryParse(e.ToolTipText, out int i))
-		{
-			var g = GameData.Function.FunctionMethodCreator.ReadGraphics(i);
-			if (g.IsCreated)
-			{
-				SKBitmap img = g.SKBitmap;
-#if WINDOWS
-				try
-				{
-					e.Graphics.DrawImage(img.ToBitmap(), 0, 0);
-					return;
-				}
-				catch (Exception)
-				{
-					// Fall through to default tooltip handling if conversion fails
-				}
-#endif
-			}
-
-		}
-		e.DrawBackground();
-		e.DrawBorder();
-		foreach (FontFamily ff in GlobalStatic.Pfc.Families)
-		{
-			if (ff.Name == tooltip_fontname)
-			{
-				using (Font f = new(ff, tooltip_fontsize))
-				{
-					TextRenderer.DrawText(e.Graphics, e.ToolTipText, f, e.Bounds, window.ToolTip.ForeColor, window.ToolTip.BackColor, tooltip_format);
-				}
-				return;
-			}
-		}
-		using (Font f = new(tooltip_fontname, tooltip_fontsize))
-		{
-			TextRenderer.DrawText(e.Graphics, e.ToolTipText, f, e.Bounds, window.ToolTip.ForeColor, window.ToolTip.BackColor, tooltip_format);
-		}
-	}
-
-	private void ToolTip_Popup(object sender, PopupEventArgs e)
-	{
-		if (tooltip_img && int.TryParse((sender as ToolTip).GetToolTip(e.AssociatedControl), out int i))
-		{
-			var g = GameData.Function.FunctionMethodCreator.ReadGraphics(i);
-			if (g.IsCreated)
-			{
-				e.ToolTipSize = new Size(g.Width, g.Height);
-				tooltip_size = e.ToolTipSize;
-				return;
-			}
-		}
-		Font f;
-		foreach (FontFamily ff in GlobalStatic.Pfc.Families)
-		{
-			if (ff.Name == tooltip_fontname)
-			{
-				f = new Font(ff, tooltip_fontsize);
-				goto foundfont;
-			}
-		}
-		f = new Font(tooltip_fontname, tooltip_fontsize);
-	foundfont:
-		var size = TextRenderer.MeasureText((sender as ToolTip).GetToolTip(e.AssociatedControl), f, new Size(int.MaxValue, int.MaxValue), tooltip_format);
-		e.ToolTipSize = new Size(size.Width, size.Height);
-		tooltip_size = e.ToolTipSize;
-	}
-
 	public void CustomToolTip(bool b)
 	{
-		if (!b)
-		{
-			window.ToolTip.Draw -= new DrawToolTipEventHandler(ToolTip_Draw);
-			window.ToolTip.Popup -= new PopupEventHandler(ToolTip_Popup);
-		}
-		else if (!window.ToolTip.OwnerDraw)
-		{
-			window.ToolTip.Draw += new DrawToolTipEventHandler(ToolTip_Draw);
-			window.ToolTip.Popup += new PopupEventHandler(ToolTip_Popup);
-		}
-		window.ToolTip.OwnerDraw = b;
+		window.SetCustomToolTip(b);
 	}
 
 	public void SetToolTipColor(Color foreColor, Color backColor)
 	{
-		window.ToolTip.ForeColor = foreColor;
-		window.ToolTip.BackColor = backColor;
-
+		window.ToolTipForeColor = foreColor;
+		window.ToolTipBackColor = backColor;
 	}
 	public void SetToolTipDelay(int delay)
 	{
-		window.ToolTip.InitialDelay = delay;
+		window.ToolTipInitialDelay = delay;
 	}
 
 	int tooltip_duration;
 	Size tooltip_size;
 	string tooltip_fontname = Config.FontName;
 	long tooltip_fontsize = Config.FontSize;
-	TextFormatFlags tooltip_format;
+	long tooltip_format;
 	bool tooltip_img;
+
+	// 桌面 MainWindow 的 ToolTip 自绘需要读这些值；headless 不绘制。
+	internal bool TooltipImageRequested => tooltip_img;
+	internal string TooltipFontName => tooltip_fontname;
+	internal long TooltipFontSize => tooltip_fontsize;
+	internal long TooltipFormat => tooltip_format;
+	internal Size TooltipSize { get => tooltip_size; set => tooltip_size = value; }
+
 	public void SetToolTipDuration(int duration)
 	{
 		tooltip_duration = duration;
-		window.ToolTip.AutoPopDelay = duration;
+		window.ToolTipAutoPopDelay = duration;
 	}
 	public void SetToolTipFontName(string fn)
 	{
@@ -2292,7 +2214,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	}
 	public void SetToolTipFormat(long f)
 	{
-		tooltip_format = (TextFormatFlags)f;
+		tooltip_format = f;
 	}
 	public void SetToolTipImg(bool b)
 	{
@@ -2313,8 +2235,10 @@ internal sealed partial class EmueraConsole : IDisposable
 	#endregion
 
 	#region DebugMode系
+#if WINDOWS
 	DebugDialog dd;
 	public DebugDialog DebugDialog { get { return dd; } }
+#endif
 	StringBuilder dConsoleLog = new("");
 	public string DebugConsoleLog { get { return dConsoleLog.ToString(); } }
 	List<string> dTraceLogList = [];
@@ -2346,6 +2270,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	}
 	public void OpenDebugDialog()
 	{
+#if WINDOWS
 		if (!Program.DebugMode)
 			return;
 		if (dd != null)
@@ -2365,6 +2290,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		dd.SetParent(this, process);
 		dd.TranslateUI();
 		dd.Show();
+#endif
 	}
 
 	public void DebugPrint(string str)
@@ -2513,7 +2439,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (window == null || !window.Created)
 			return new Point();
 		//クライアント左上基準の座標取得
-		Point pos = window.MainPicBox.PointToClient(Cursor.Position);
+		Point pos = window.MousePosition;
 		//クライアント左下基準の座標に置き換え
 		pos.Y -= ClientHeight;
 		return pos;
@@ -2590,13 +2516,13 @@ internal sealed partial class EmueraConsole : IDisposable
 			#endregion
 			goto end;
 		//履歴表示中は無視
-		//if (window.ScrollBar.Value != window.ScrollBar.Maximum)
+		//if (window.ScrollValue != window.ScrollMaximum)
 		//	goto end;
 		int pointX = point.X;
 		int pointY = point.Y;
 		ConsoleDisplayLine curLine;
 
-		int bottomLineNo = window.ScrollBar.Value - 1;
+		int bottomLineNo = window.ScrollValue - 1;
 		if (displayLineList.Count - 1 < bottomLineNo)
 			bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
 		int topLineNo = bottomLineNo - (window.RenderHeight / Config.LineHeight);
@@ -2712,7 +2638,7 @@ internal sealed partial class EmueraConsole : IDisposable
 
 
 	//int posy_bottom2up = window.RenderHeight - pointY;
-	//int logNum = window.ScrollBar.Maximum - window.ScrollBar.Value;
+	//int logNum = window.ScrollMaximum - window.ScrollValue;
 	////表示中の一番下の行番号
 	//int curBottomLineNo = displayLineList.Count - logNum;
 	//int curPointingLineNo = curBottomLineNo - (posy_bottom2up / Config.LineHeight + 1);
@@ -2856,7 +2782,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	private void verticalScrollBarUpdate()
 	{
 		int max = displayLineList.Count;
-		int move = max - window.ScrollBar.Maximum;
+		int move = max - window.ScrollMaximum;
 		if (move == 0)
 			return;
 		window.TextBoxIgnoreScrollBarChanges = true;
@@ -2865,22 +2791,22 @@ internal sealed partial class EmueraConsole : IDisposable
 		// 闪烁通过 RefreshStrings 中跳过 Running 状态的渲染来避免
 		if (nfUserScrolledBack)
 		{
-			window.ScrollBar.Maximum = max;
+			window.ScrollMaximum = max;
 			int targetVal = max - nfScrollOffsetFromBottom;
 			if (targetVal < 0) targetVal = 0;
 			if (targetVal > max) targetVal = max;
-			window.ScrollBar.Value = targetVal;
-			window.ScrollBar.Enabled = max > 0;
+			window.ScrollValue = targetVal;
+			window.ScrollEnabled = max > 0;
 		}
 		else
 		{
-			bool wasAtBottom = window.ScrollBar.Value >= window.ScrollBar.Maximum;
-			window.ScrollBar.Maximum = max;
+			bool wasAtBottom = window.ScrollValue >= window.ScrollMaximum;
+			window.ScrollMaximum = max;
 			if (wasAtBottom && move > 0)
-				window.ScrollBar.Value += move;
-			else if (max < window.ScrollBar.Value)
-				window.ScrollBar.Value = max;
-			window.ScrollBar.Enabled = max > 0;
+				window.ScrollValue += move;
+			else if (max < window.ScrollValue)
+				window.ScrollValue = max;
+			window.ScrollEnabled = max > 0;
 		}
 		window.TextBoxIgnoreScrollBarChanges = false;
 	}
@@ -2976,12 +2902,12 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (state == ConsoleState.Error)
 		{
-			MessageBox.Show(trerror.CanNotUseWhenError.Text);
+			PlatformInterop.ShowMessage(trerror.CanNotUseWhenError.Text);
 			return;
 		}
 		if (state == ConsoleState.Initializing)
 		{
-			MessageBox.Show(trerror.CanNotUseWhenInitialize.Text);
+			PlatformInterop.ShowMessage(trerror.CanNotUseWhenInitialize.Text);
 			return;
 		}
 		bool notRedraw = false;
@@ -3027,12 +2953,12 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (state == ConsoleState.Error)
 		{
-			MessageBox.Show(trerror.CanNotUseWhenError.Text);
+			PlatformInterop.ShowMessage(trerror.CanNotUseWhenError.Text);
 			return;
 		}
 		if (state == ConsoleState.Initializing)
 		{
-			MessageBox.Show(trerror.CanNotUseWhenInitialize.Text);
+			PlatformInterop.ShowMessage(trerror.CanNotUseWhenInitialize.Text);
 			return;
 		}
 		bool notRedraw = false;
@@ -3065,12 +2991,12 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (state == ConsoleState.Error)
 		{
-			MessageBox.Show(trerror.CanNotUseWhenError.Text);
+			PlatformInterop.ShowMessage(trerror.CanNotUseWhenError.Text);
 			return;
 		}
 		if (state == ConsoleState.Initializing)
 		{
-			MessageBox.Show(trerror.CanNotUseWhenInitialize.Text);
+			PlatformInterop.ShowMessage(trerror.CanNotUseWhenInitialize.Text);
 			return;
 		}
 		if (genericTimer.Enabled)
@@ -3113,12 +3039,12 @@ internal sealed partial class EmueraConsole : IDisposable
 		/*
 		if (state == ConsoleState.Error)
 		{
-			MessageBox.Show(trerror.CanNotUseWhenError.Text);
+			PlatformInterop.ShowMessage(trerror.CanNotUseWhenError.Text);
 			return;
 		}
 		if (state == ConsoleState.Initializing)
 		{
-			MessageBox.Show(trerror.CanNotUseWhenInitialize.Text);
+			PlatformInterop.ShowMessage(trerror.CanNotUseWhenInitialize.Text);
 			return;
 		}
 		if (genericTimer.Enabled)
@@ -3292,10 +3218,10 @@ internal sealed partial class EmueraConsole : IDisposable
 		int mainPicHeight = 0;
 		if (window != null)
 		{
-			bottomLineNo = window.ScrollBar.Value - 1;
+			bottomLineNo = window.ScrollValue - 1;
 			if (displayLineList.Count - 1 < bottomLineNo)
 				bottomLineNo = displayLineList.Count - 1;
-			try { mainPicHeight = window.MainPicBox.Height; } catch { }
+			try { mainPicHeight = window.PicHeight; } catch { }
 		}
 
 		foreach (var (button, lineIndex, div, childRow) in items)
@@ -3384,7 +3310,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (window == null || displayLineList.Count == 0)
 			return null;
-		int bottomLineNo = window.ScrollBar.Value - 1;
+		int bottomLineNo = window.ScrollValue - 1;
 		if (displayLineList.Count - 1 < bottomLineNo)
 			bottomLineNo = displayLineList.Count - 1;
 		int topLineNo = bottomLineNo - (window.RenderHeight / Config.LineHeight);

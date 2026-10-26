@@ -1,6 +1,5 @@
 using MinorShift.Emuera.UI.Game;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,8 +9,10 @@ using System.Text;
 
 namespace MinorShift.Emuera.Runtime.Utils.EvilMask;
 
-internal sealed class Utils
+internal sealed partial class Utils
 {
+	internal struct Direction { public const int Top = 0, Right = 1, Bottom = 2, Left = 3; }
+	internal struct Corner { public const int LeftTop = 0, RightTop = 1, RightBottom = 2, LeftBottom = 3; }
 	internal sealed class MixedNum
 	{
 		public static int ToPixel(MixedNum num, int def)
@@ -237,44 +238,8 @@ internal sealed class Utils
 		}
 	}
 	// filepathの安全性(ゲームフォルダ以外のフォルダか)を確認しない
-	static public Bitmap LoadImage(string filepath)
-	{
-		Bitmap bmp = null;
-		//FileStream fs = null;
-		if (!File.Exists(filepath)) return null;
-		try
-		{
-			/*				fs = new FileStream(filepath, FileMode.Open);
-					var factory = new ImageProcessor.ImageFactory();
-					factory.Load(fs);
-					bmp = (Bitmap)factory.Image;*/
-			using var skbmp = SKBitmap.Decode(filepath);
-			if (skbmp != null)
-			{
-				return skbmp.ToBitmap();
-			}
-			return new Bitmap(filepath);
-		}
-		catch { }
-		return bmp;
-
-	}
-	// ビットマップファイルからアイコンファイルをつくる
-	public static Icon MakeIconFromBmpFile(Bitmap bmp)
-	{
-		Image img = bmp;
-
-		Bitmap bitmap = new(256, 256, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-		Graphics g = Graphics.FromImage(bitmap);
-		g.DrawImage(img, new Rectangle(0, 0, 256, 256));
-		g.Dispose();
-
-		Icon icon = Icon.FromHandle(bitmap.GetHicon());
-
-		img.Dispose();
-		bitmap.Dispose();
-		return icon;
-	}
+	// NOTE: Bitmap/Icon 系（LoadImage/MakeIconFromBmpFile）は桌面 Program 专用，
+	// 已拆到 Utils.Icon.cs（headless 工程排除该文件）。
 
 	public sealed class DataTable
 	{

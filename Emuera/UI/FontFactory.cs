@@ -1,6 +1,9 @@
 using MinorShift.Emuera.Runtime.Config;
 using System.Collections.Generic;
 using System.Drawing;
+#if WINDOWS
+using System.Drawing.Text;
+#endif
 using SkiaSharp;
 using MinorShift.Emuera.UI.Game;
 using System;
@@ -29,7 +32,9 @@ internal static class FontFactory
 	static readonly Dictionary<(string fontname, float fontSize, FontStyle font_style, SkiaSharpFontEdging edging, SkiaSharpFontHinting hinting), SKFont> fontDic = [];
 	static readonly Dictionary<(char, string), SKTypeface> fallbackTypefaceCache = [];
 	static readonly Dictionary<(int, string), SKTypeface> fallbackTypefaceCodepointCache = [];
+#if WINDOWS
 	static readonly Dictionary<(string fontname, int fontSize, FontStyle font_style), Font> gdiFontDic = [];
+#endif
 
 	/// <summary>
 	/// 供 emoji/符号使用的「单色」回退字体（按序）。
@@ -67,15 +72,50 @@ internal static class FontFactory
 		return rasterFontNames.Contains(fontName);
 	}
 
+	/// <summary>字体可用性（跨平台）：私有字体 → 系统字体（Windows 用 GDI 枚举，其他用 Skia 精确族名）。</summary>
+	public static bool IsFontAvailable(string fontName)
+	{
+		if (string.IsNullOrEmpty(fontName))
+			return false;
+		if (GlobalStatic.Pfc.Contains(fontName))
+			return true;
+#if WINDOWS
+		try
+		{
+			using var ifc = new InstalledFontCollection();
+			foreach (var ff in ifc.Families)
+			{
+				if (ff != null && string.Equals(ff.Name, fontName, StringComparison.OrdinalIgnoreCase))
+					return true;
+			}
+		}
+		catch { }
+#endif
+		try
+		{
+			var tf = SKTypeface.FromFamilyName(fontName);
+			return tf != null && string.Equals(tf.FamilyName, fontName, StringComparison.OrdinalIgnoreCase);
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
 	/// <summary>
 	/// 诊断用：返回 FontFactory 各缓存字典的条目数
 	/// </summary>
 	internal static (int fontCount, int fallbackCount, int fallbackCpCount, int gdiCount) GetDiagnosticStats()
 	{
 		lock (fontDic)
+#if WINDOWS
 			return (fontDic.Count, fallbackTypefaceCache.Count, fallbackTypefaceCodepointCache.Count, gdiFontDic.Count);
+#else
+			return (fontDic.Count, fallbackTypefaceCache.Count, fallbackTypefaceCodepointCache.Count, 0);
+#endif
 	}
 
+#if WINDOWS
 	/// <summary>
 	/// 在 font/ 目录加载的私有字体集合（GlobalStatic.Pfc）中按族名查找 FontFamily。
 	/// 关键：new Font(string) 无法解析未安装到系统的私有字体（会静默回退到默认字体），
@@ -83,16 +123,7 @@ internal static class FontFactory
 	/// </summary>
 	private static FontFamily FindPrivateFontFamily(string name)
 	{
-		var pfc = GlobalStatic.Pfc;
-		if (pfc == null || string.IsNullOrEmpty(name))
-			return null;
-
-		foreach (FontFamily ff in pfc.Families)
-		{
-			if (ff != null && string.Equals(ff.Name, name, StringComparison.OrdinalIgnoreCase))
-				return ff;
-		}
-		return null;
+		return GlobalStatic.Pfc.GetGdiFamily(name);
 	}
 
 	public static Font GetGdiFont(string requestFontName, FontStyle style, float fontSize)
@@ -146,6 +177,7 @@ internal static class FontFactory
 		gdiFontDic[key] = font;
 		return font;
 	}
+#endif
 
 	public static SKFont GetFont(StringStyle stringStyle)
 	{
@@ -190,7 +222,7 @@ internal static class FontFactory
 	/// </summary>
 	private static SKTypeface MatchCustomTypeface(string fontName)
 	{
-		var list = GlobalStatic.CustomTypefaces;
+		var list = GlobalStatic.Pfc.Typefaces;
 		if (list == null || string.IsNullOrEmpty(fontName))
 			return null;
 
@@ -265,7 +297,7 @@ internal static class FontFactory
 			return cachedTypeface;
 		}
 
-		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
+		foreach (var customTypeface in GlobalStatic.Pfc.Typefaces)
 		{
 			if (customTypeface != null && customTypeface.ContainsGlyph(c))
 			{
@@ -340,7 +372,7 @@ internal static class FontFactory
 		if (fallbackTypefaceCodepointCache.TryGetValue(cacheKey, out var cachedTypeface))
 			return cachedTypeface;
 
-		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
+		foreach (var customTypeface in GlobalStatic.Pfc.Typefaces)
 		{
 			if (customTypeface != null && customTypeface.GetGlyph(codepoint) != 0)
 			{
@@ -374,7 +406,7 @@ internal static class FontFactory
 			typeface = SKTypeface.Default;
 		if (typeface.GetGlyph((int)codepoint) != 0)
 			return true;
-		foreach (var customTypeface in GlobalStatic.CustomTypefaces)
+		foreach (var customTypeface in GlobalStatic.Pfc.Typefaces)
 		{
 			if (customTypeface != null && customTypeface.GetGlyph((int)codepoint) != 0)
 				return true;
@@ -394,7 +426,9 @@ internal static class FontFactory
 		fontDic.Clear();
 		fallbackTypefaceCache.Clear();
 		fallbackTypefaceCodepointCache.Clear();
+#if WINDOWS
 		gdiFontDic.Clear();
+#endif
 
 		Debug.WriteLine("[FontFactory] 释放字体缓存（仅清除引用，交由 GC 回收）");
 	}

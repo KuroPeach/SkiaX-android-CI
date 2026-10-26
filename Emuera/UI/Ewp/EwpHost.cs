@@ -1,4 +1,4 @@
-using MinorShift.Emuera.Forms;
+using MinorShift.Emuera.UI;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Script;
@@ -48,6 +48,8 @@ internal static class EwpOut
     private static BlockingCollection<Payload> pixelQueue;
     private static Stream outStream;
     private static Thread writerThread;
+    /// <summary>Shutdown 期放行信用窗等待，确保 exit 事件能落盘（否则写手可能卡在 WaitForCredit）。</summary>
+    private static volatile bool closing;
     private static long frameSeq;
     private static long ackCount;
     private static readonly object ackGate = new();
@@ -70,6 +72,7 @@ internal static class EwpOut
     /// 期间事件在队列中缓冲（boot 期 ~1.4k 行，远低于 8192 容量）。</summary>
     public static void InitIO(bool deferWriter = false, bool msgpack = false)
     {
+        closing = false;
         Codec = msgpack ? new EwpMsgpackCodec() : new EwpJsonCodec();
         var utf8 = new UTF8Encoding(false);
         try { Console.InputEncoding = utf8; } catch { }
@@ -144,6 +147,12 @@ internal static class EwpOut
         var q = queue;
         if (q == null)
             return;
+        closing = true;
+        lock (ackGate)
+        {
+            // 唤醒可能卡在信用窗的写手，让它排空 exit 后再退出
+            Monitor.PulseAll(ackGate);
+        }
         try { q.CompleteAdding(); } catch { }
         try { pixelQueue?.CompleteAdding(); } catch { }
         try { writerThread?.Join(3000); } catch { }
@@ -212,7 +221,7 @@ internal static class EwpOut
         lock (ackGate)
         {
             long deadline = Environment.TickCount64 + AckTimeoutMs;
-            while (Volatile.Read(ref pendingFrames) >= CreditWindow)
+            while (!closing && Volatile.Read(ref pendingFrames) >= CreditWindow)
             {
                 long left = deadline - Environment.TickCount64;
                 if (left <= 0)
@@ -232,7 +241,7 @@ internal static class EwpOut
 
 internal sealed class EwpHost
 {
-    private readonly MainWindow win;
+    private readonly IConsoleSurface win;
     private readonly int tcpPort;
     private Thread transportThread;
     private volatile bool running = true;
@@ -297,7 +306,7 @@ internal sealed class EwpHost
     /// <c>sys.state.rectSelfCheckFailed</c> 可观测；门禁断言 == 0。</summary>
     private long rectSelfCheckFailed;
 
-    public EwpHost(MainWindow window, int tcpPort = 0)
+    public EwpHost(IConsoleSurface window, int tcpPort = 0)
     {
         win = window;
         this.tcpPort = tcpPort;
@@ -375,8 +384,9 @@ internal sealed class EwpHost
     {
         running = false;
         ChannelHooks.Handler = null;
-        pixel.Dispose();
+        // 先发 exit 再清像素流：像素流 Dispose 若抛异常也不能把 exit 吞掉。
         EwpOut.Emit("{\"t\":\"exit\"}");
+        try { pixel.Dispose(); } catch { }
         EwpOut.Shutdown();
     }
 
@@ -544,6 +554,11 @@ internal sealed class EwpHost
                 win.ClientSize = new Size(w - 1, h - 1);
                 win.ClientSize = new Size(w, h);
             }
+            // N1-b：viewport 可能把 render 画布从「初始 Config 尺寸」改到实际 client 尺寸；
+            // 原逻辑只在初始 render<=0 时补发 metrics，headless（初始 render=Config 尺寸>0）
+            // 会永远停在旧值。这里按实际变化补发一次（桌面同样受益，FE 更早拿到正确网格）。
+            if (win.RenderWidth != metricsRenderW || win.RenderHeight != metricsRenderH)
+                EmitMetrics();
         }));
     }
 
@@ -944,7 +959,7 @@ internal sealed class EwpHost
             + ",\"lines\":" + liveLines.Count
             + ",\"client\":[" + console.ClientWidth + "," + console.ClientHeight + "]"
             + ",\"winClient\":[" + win.ClientSize.Width + "," + win.ClientSize.Height + "]"
-            + ",\"winState\":\"" + win.WindowState + "\""
+            + ",\"winState\":\"" + win.WindowStateName + "\""
             + ",\"frames\":" + EwpOut.FramesWritten
             + ",\"acks\":" + EwpOut.Acks
             + ",\"pending\":" + EwpOut.PendingFrames

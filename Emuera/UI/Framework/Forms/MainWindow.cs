@@ -22,7 +22,7 @@ using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
 
 namespace MinorShift.Emuera.Forms
 {
-	internal sealed partial class MainWindow : Form
+	internal sealed partial class MainWindow : Form, IConsoleSurface
 	{
 		public MainWindow(string[] args)
 		{
@@ -932,7 +932,7 @@ namespace MinorShift.Emuera.Forms
 			//			if (console.IsWaitingPrimitiveMouse)
 			{
 				var logicalPoint = ToLogicalPoint(e.Location);
-				console.MouseDown(logicalPoint, e.Button);
+				console.MouseDown(logicalPoint, (int)e.Button);
 				#region EM_私家版_INPUT系機能拡張
 				if (vScrollBar.Value == vScrollBar.Maximum && console.SelectingButton != null)
 					GlobalStatic.Process.InputInteger(6, console.SelectingButton.GetMappedColor(logicalPoint.X, logicalPoint.Y));
@@ -1547,7 +1547,7 @@ namespace MinorShift.Emuera.Forms
 			if (console.IsWaitingPrimitive)
 			{
 				e.SuppressKeyPress = true;
-				console.PressPrimitiveKey(e.KeyCode, e.KeyData, e.Modifiers);
+				console.PressPrimitiveKey((int)e.KeyCode, (int)e.KeyData, (int)e.Modifiers);
 				return;
 			}
 			//HOTKEY STATE
