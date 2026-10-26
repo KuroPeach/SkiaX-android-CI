@@ -42,6 +42,54 @@ static partial class Program
 
 	*/
 	/// <summary>
+	/// 启动期致命错误（CSV/ERB 缺失等）：自动化模式绝不弹模态框；GUI 模式显示带路径的错误后退出。
+	/// 统一写 stderr（EngineProcess 会把 stderr 落到 engine_stderr.txt），并让进程以 2 退出。
+	/// </summary>
+	private static void ReportStartupError(string code, string title, string text)
+	{
+		try { Console.Error.WriteLine("[startup] " + code); } catch { }
+		if (EwpMode || EwpHeadlessMode || CliDebugMode)
+		{
+			// EWP/CLI/headless：不弹窗，直接失败退出；调用方已写 stderr。
+			Environment.Exit(2);
+			return;
+		}
+		// 普通 GUI：模型化错误窗（非系统模态 MessageBox），显示路径；关闭后以 2 退出。
+		try
+		{
+			var form = new Form
+			{
+				Text = title,
+				Width = 760,
+				Height = 300,
+				StartPosition = FormStartPosition.CenterScreen,
+				MinimizeBox = false,
+				MaximizeBox = false,
+			};
+			var box = new TextBox
+			{
+				Multiline = true,
+				ReadOnly = true,
+				ScrollBars = ScrollBars.Vertical,
+				Dock = DockStyle.Fill,
+				Text = text,
+			};
+			var button = new Button { Text = "退出", Dock = DockStyle.Bottom, Height = 40 };
+			button.Click += (_, __) => form.Close();
+			form.Controls.Add(box);
+			form.Controls.Add(button);
+			form.Show();
+			Application.Run(form);
+		}
+		catch
+		{
+			// 极端情况下回退原生 MessageBox；仍然退出
+			MessageBox.Show(text, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+		}
+		Environment.Exit(2);
+	}
+
+	/// <summary>
 	/// アプリケーションのメイン エントリ ポイントです。
 	/// </summary>
 	[STAThread]
@@ -49,6 +97,7 @@ static partial class Program
 	{
 		// memo: Shift-JISを扱うためのおまじない
 		System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+		try { Console.OutputEncoding = new System.Text.UTF8Encoding(false); } catch { }
 		var rootCommand = new RootCommand("Emuera");
 
 		#region eee_カレントディレクトリー
@@ -222,22 +271,26 @@ static partial class Program
 		#endregion
 
 		//二重起動の禁止かつ二重起動
+		if (!EwpHeadlessMode)
+			ApplicationConfiguration.Initialize();
 		if ((!Config.AllowMultipleInstances) && AssemblyData.PrevInstance())
 		{
-			//Dialog.Show("既に起動しています", "多重起動を許可する場合、emuera.configを書き換えて下さい");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.InstaceExists.Text, Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text);
+			ReportStartupError("already_running", Lang.UI.MainWindow.MsgBox.InstaceExists.Text,
+				Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text);
 			return;
 		}
-		if (!Directory.Exists(CsvDir))
+		if (!Directory.Exists(CsvDir) || !Directory.Exists(ErbDir))
 		{
-			//Dialog.Show("フォルダなし", "csvフォルダが見つかりません");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text);
-			return;
-		}
-		if (!Directory.Exists(ErbDir))
-		{
-			//Dialog.Show("フォルダなし", "erbフォルダが見つかりません");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.NoErbFolder.Text);
+			// ASCII 先行行：EngineProcess 的 engine_stderr.txt 可直接 grep 路径（避免本地化编码混杂）
+			try { Console.Error.WriteLine("[startup] missing_game_data CSV=" + CsvDir + " ERB=" + ErbDir); } catch { }
+			var lines = new List<string>();
+			if (!Directory.Exists(CsvDir))
+				lines.Add(Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text + ": " + CsvDir);
+			if (!Directory.Exists(ErbDir))
+				lines.Add(Lang.UI.MainWindow.MsgBox.NoErbFolder.Text + ": " + ErbDir);
+			lines.Add("请从游戏目录启动 Emuera.exe，或将 CSV/ERB 放到可执行文件同目录。");
+			ReportStartupError("missing_game_data", Lang.UI.MainWindow.MsgBox.FolderNotFound.Text,
+				string.Join(Environment.NewLine, lines));
 			return;
 		}
 		#region EE_フォントファイル対応
@@ -336,9 +389,6 @@ static partial class Program
 			}
 			#endregion
 		}
-
-		if (!EwpHeadlessMode)
-			ApplicationConfiguration.Initialize();
 
 		// PlatformInterop 委托初始化（WinForms 实现）
 		PlatformInterop.DoEvents = () => Application.DoEvents();

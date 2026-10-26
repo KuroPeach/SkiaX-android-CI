@@ -10,7 +10,7 @@ namespace MinorShift.Emuera;
 /// </summary>
 internal static class SkiaInterop
 {
-	public static SKColor ToSKColor(this Color c) => new(c.A, c.R, c.G, c.B);
+	public static SKColor ToSKColor(this Color c) => new(c.R, c.G, c.B, c.A);
 
 	public static Color ToDrawingColor(this SKColor c)
 		=> Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue);

@@ -23,6 +23,7 @@ internal static class HeadlessProgram
 	{
 		SegmentCulture();
 		Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+		try { Console.OutputEncoding = new UTF8Encoding(false); } catch { }
 
 		string gameDir = null;
 		int port = 0;
@@ -55,6 +56,12 @@ internal static class HeadlessProgram
 		Program.EwpHeadlessMode = true;
 		Program.EwpPort = port;
 		Program.EwpMsgpack = !json;
+
+		if (!Directory.Exists(Program.CsvDir) || !Directory.Exists(Program.ErbDir))
+		{
+			Console.Error.WriteLine("[startup] missing_game_data: CSV=" + Program.CsvDir + " ERB=" + Program.ErbDir);
+			return 2;
+		}
 
 		ConfigData.Instance.LoadConfig();
 		JSONConfig.Load();

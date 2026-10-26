@@ -6,6 +6,7 @@ using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.UI.Game.Rendering;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -259,7 +260,9 @@ internal sealed class EwpHost
     /// <summary>仍存活的行（lineId/文本/归属；仅 UI 线程访问，频道元数据在 channelGate 下）。</summary>
     private readonly List<LiveLine> liveLines = new();
     /// <summary>活着的 sprite 图层（与引擎同语义：同深度可叠多层、按深度清）。snapshot 数据源。</summary>
-    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow)> liveSprites = new();
+    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow, long Rev)> liveSprites = new();
+    /// <summary>R-3a：运行期图层不可变快照（UI 线程；FE 声明 sprite.export 后才启用）。</summary>
+    private readonly EwpSpriteExport spriteExport = new();
     /// <summary>当前 island 的原始 HTML（null＝无 island）。v0 单实例（A1-④）。</summary>
     private string liveIslandHtml;
     /// <summary>hello.ok 里 FE 上报的视口（窗体句柄未建时暂存，Subscribe 时经 UI 线程应用）。</summary>
@@ -330,7 +333,7 @@ internal sealed class EwpHost
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -621,6 +624,7 @@ internal sealed class EwpHost
         int count = liveLines.Count;
         long fromId = count > 0 ? liveLines[0].Id : -1;
         liveLines.Clear();
+        spriteExport.Clear();
         lock (channelGate)
         {
             channels.Clear();
@@ -709,13 +713,27 @@ internal sealed class EwpHost
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":" + J(GameConsole?.CliStateName ?? "Unknown") + "}");
     }
 
-    /// <summary>SETIMAGELAYER(L)→sprite.set（EWP §4.3；colormatrix 留 v1＝A1-③）。</summary>
-    private void OnImageLayerSet(string tex, long depth, int x, int y, int w, int h, int op, bool follow)
+    /// <summary>SETIMAGELAYER(L)→sprite.set（EWP §4.3；colormatrix 留 v1＝A1-③）。
+    /// R-3a：先用实际 ImageLayer 对象同步冻结快照，再发事件；rev 只在启用导出时出现。</summary>
+    private void OnImageLayerSet(ImageLayer layer)
     {
-        liveSprites.Add((depth, tex, x, y, w, h, op, follow));
-        EwpOut.Emit("{\"t\":\"sprite.set\",\"depth\":" + depth + ",\"texture\":" + J(tex)
-            + ",\"x\":" + x + ",\"y\":" + y + ",\"w\":" + w + ",\"h\":" + h
-            + ",\"opacity\":" + op + ",\"follow\":" + (follow ? "true" : "false") + "}");
+        long rev = spriteExport.Capture(layer);
+        string tex = layer.Image?.Name ?? "";
+        liveSprites.Add((layer.Depth, tex, layer.X, layer.Y, layer.Width, layer.Height,
+            layer.Opacity, layer.FollowScroll, rev));
+        var sb = new StringBuilder(160);
+        sb.Append("{\"t\":\"sprite.set\",\"depth\":").Append(layer.Depth)
+            .Append(",\"texture\":").Append(J(tex))
+            .Append(",\"x\":").Append(layer.X)
+            .Append(",\"y\":").Append(layer.Y)
+            .Append(",\"w\":").Append(layer.Width)
+            .Append(",\"h\":").Append(layer.Height)
+            .Append(",\"opacity\":").Append(layer.Opacity)
+            .Append(",\"follow\":").Append(layer.FollowScroll ? "true" : "false");
+        if (rev > 0)
+            sb.Append(",\"rev\":").Append(rev);
+        sb.Append('}');
+        EwpOut.Emit(sb.ToString());
     }
 
     private void OnImageLayerCleared(long depth)
@@ -779,6 +797,9 @@ internal sealed class EwpHost
             string t = root.TryGetProperty("t", out var tv) && tv.ValueKind == JsonValueKind.String ? tv.GetString() : null;
             switch (t)
             {
+                case "sprite.req":
+                    Dispatch(() => DoSpriteRequest(root.Clone()));
+                    break;
                 case "input.submit":
                     Dispatch(() => DoInputSubmit(root.Clone()));
                     break;
@@ -880,11 +901,13 @@ internal sealed class EwpHost
         {
             channelEnabled = true;
             rectEnabled = false;
+            spriteExport.Enabled = false;
         }
         else
         {
             var hasChannel = false;
             var hasRect = false;
+            var hasSpriteExport = false;
             foreach (var cap in caps.EnumerateArray())
             {
                 if (cap.ValueKind != JsonValueKind.String)
@@ -894,9 +917,12 @@ internal sealed class EwpHost
                     hasChannel = true;
                 else if (capName == "input.rect")
                     hasRect = true;
+                else if (capName == "sprite.export")
+                    hasSpriteExport = true;
             }
             channelEnabled = hasChannel;
             rectEnabled = hasRect;
+            spriteExport.Enabled = hasSpriteExport;
         }
         if (!channelEnabled)
         {
@@ -942,6 +968,51 @@ internal sealed class EwpHost
         }
     }
 
+    /// <summary>R-3a：FE 请求精确快照。只读不可变快照缓存，不查 activeSprites、不现画。
+    /// 成功回 sprite.data；失败回 sprite.data.fail；⛔ 不返回 result。</summary>
+    private void DoSpriteRequest(JsonElement root)
+    {
+        string texture = null;
+        long rev = 0;
+        if (root.TryGetProperty("texture", out var texEl) && texEl.ValueKind == JsonValueKind.String)
+            texture = texEl.GetString();
+        if (root.TryGetProperty("rev", out var revEl) && revEl.ValueKind == JsonValueKind.Number)
+            revEl.TryGetInt64(out rev);
+        if (string.IsNullOrEmpty(texture) || rev <= 0)
+        {
+            EmitSpriteFail(texture ?? "", rev, "bad_request",
+                string.IsNullOrEmpty(texture) ? "texture" : "rev");
+            return;
+        }
+
+        string key = texture.ToUpperInvariant();
+        if (!spriteExport.TryEncode(key, rev, out var png, out int w, out int h, out var code, out var detail))
+        {
+            EmitSpriteFail(key, rev, code ?? "not_exportable", detail);
+            return;
+        }
+
+        var sb = new StringBuilder(256 + png.Length * 2);
+        sb.Append("{\"t\":\"sprite.data\",\"texture\":").Append(J(key))
+            .Append(",\"rev\":").Append(rev)
+            .Append(",\"w\":").Append(w)
+            .Append(",\"h\":").Append(h)
+            .Append(",\"fmt\":\"png\",\"data\":\"").Append(Convert.ToBase64String(png)).Append("\"}");
+        EwpOut.Emit(sb.ToString());
+    }
+
+    private static void EmitSpriteFail(string texture, long rev, string code, string detail)
+    {
+        var sb = new StringBuilder(128);
+        sb.Append("{\"t\":\"sprite.data.fail\",\"texture\":").Append(J(texture ?? ""))
+            .Append(",\"rev\":").Append(rev)
+            .Append(",\"code\":").Append(J(code ?? "not_exportable"));
+        if (!string.IsNullOrEmpty(detail))
+            sb.Append(",\"detail\":").Append(J(detail));
+        sb.Append('}');
+        EwpOut.Emit(sb.ToString());
+    }
+
     private void DoState()
     {
         var console = GameConsole;
@@ -952,6 +1023,7 @@ internal sealed class EwpHost
             channelCount = channelEnabled ? channels.Count : 0;
             mismatch = channelMismatch;
         }
+        var spriteStats = spriteExport.Stats();
         EwpOut.Emit("{\"t\":\"result\",\"ok\":true,\"state\":" + J(console.CliStateName)
             + ",\"waitInput\":" + (console.IsWaitInputState ? "true" : "false")
             + ",\"reqId\":" + currentReqId
@@ -972,7 +1044,13 @@ internal sealed class EwpHost
             + ",\"channels\":" + channelCount
             + ",\"channelMismatch\":" + mismatch
             + ",\"channelEnabled\":" + (channelEnabled ? "true" : "false")
-            + ",\"rectSelfCheckFailed\":" + Interlocked.Read(ref rectSelfCheckFailed) + "}");
+            + ",\"rectSelfCheckFailed\":" + Interlocked.Read(ref rectSelfCheckFailed)
+            + ",\"spriteExport\":{\"enabled\":" + (spriteStats.Enabled ? "true" : "false")
+            + ",\"snapshots\":" + spriteStats.Snapshots
+            + ",\"bytes\":" + spriteStats.Bytes
+            + ",\"requests\":" + spriteStats.Requests
+            + ",\"failures\":" + spriteStats.Failures
+            + ",\"lastRev\":" + spriteStats.LastRev + "}}");
     }
 
     /// <summary>结构化快照（B2/S1）：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；
@@ -1005,7 +1083,10 @@ internal sealed class EwpHost
                 .Append(",\"x\":").Append(s.X).Append(",\"y\":").Append(s.Y)
                 .Append(",\"w\":").Append(s.W).Append(",\"h\":").Append(s.H)
                 .Append(",\"opacity\":").Append(s.Op)
-                .Append(",\"follow\":").Append(s.Follow ? "true" : "false").Append('}');
+                .Append(",\"follow\":").Append(s.Follow ? "true" : "false");
+            if (s.Rev > 0)
+                sb.Append(",\"rev\":").Append(s.Rev);
+            sb.Append('}');
         }
         sb.Append("],\"island\":").Append(liveIslandHtml != null ? J(liveIslandHtml) : "null");
         lock (channelGate)

@@ -285,8 +285,9 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		int currentScrollY = window.ScrollValue * Config.LineHeight;
 		// EWP WireHost：仅在实际添加成功（sprite 存在）时通知；colormatrix 留 v1（A1-③）
-		if (_imageLayerManager.SetLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, followScroll, currentScrollY))
-			CliImageLayerSet?.Invoke(spriteName, depth, x, y, width, height, opacity, followScroll);
+		var layer = _imageLayerManager.SetLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, followScroll, currentScrollY);
+		if (layer != null)
+			CliImageLayerSet?.Invoke(layer);
 	}
 
 	public void ClearImageLayer(long depth)
@@ -3090,8 +3091,9 @@ internal sealed partial class EmueraConsole : IDisposable
 	public event Action<int> CliLinesRemoved;
 	/// <summary>ClearDisplay 全量清场前触发（WireHost 同步快照账本与频道状态）。</summary>
 	public event Action CliDisplayCleared;
-	/// <summary>EWP WireHost：SETIMAGELAYER(L) 实际添加图层后触发（spriteName,depth,x,y,w,h,opacity,followScroll；colormatrix 留 v1）。</summary>
-	public event Action<string, long, int, int, int, int, int, bool> CliImageLayerSet;
+	/// <summary>EWP WireHost：SETIMAGELAYER(L) 实际添加图层后触发（事件携带实际 ImageLayer 对象；
+	/// 快照导出必须用该对象，不再按名二次查找）。</summary>
+	public event Action<ImageLayer> CliImageLayerSet;
 	/// <summary>EWP WireHost：CLEARIMAGELAYER 后触发（参数＝深度）。</summary>
 	public event Action<long> CliImageLayerCleared;
 	/// <summary>EWP WireHost：CLEARIMAGELAYER_ALL 后触发。</summary>
