@@ -283,6 +283,16 @@ internal sealed class EwpHost
     private long channelMismatch;
     /// <summary>FE 的 hello.ok.caps 是否包含 channel；缺省 caps 按旧 FE 常开处理。</summary>
     private volatile bool channelEnabled = true;
+    /// <summary>FE 的 hello.ok.caps 是否包含 input.rect（I3-b）：缺省 false ⇒ input.request 的
+    /// buttons[] 不带 rect 键（⛔ 发 null 或空对象，FE 侧统一按「无 rect 回退文本/值」处理）。
+    /// 引擎 hello.caps 自报暂不含 input.rect：声明即承诺，等 I3-c 真机门禁通过后再加。</summary>
+    private volatile bool rectEnabled;
+    /// <summary>最近一次 EmitMetrics 读到的 render 尺寸（rect 的坐标画布）。
+    /// Subscribe 期窗口可能未完成布局 ⇒ 读到 0（最小化实测 render=0x0）；首个 input.request
+    /// 时窗口必已就绪，故在那里补发一次。</summary>
+    private int metricsRenderW;
+    private int metricsRenderH;
+    private bool metricsRenderResent;
 
     public EwpHost(MainWindow window, int tcpPort = 0)
     {
@@ -325,11 +335,21 @@ internal sealed class EwpHost
     {
         int cellW = 0;
         try { cellW = StringMeasure.GetDisplayLength(" ", Config.DefaultFont) * 2; } catch { }
+        // I3-b：renderW/renderH 与 sys.state.client 同源（console.ClientWidth/Height
+        // ＝ MainWindow.RenderWidth/RenderHeight，即 rect 的坐标画布＝render 逻辑像素）。
+        // 这里重复一次是为了让 FE 在网格基准旁直接拿到画布尺寸；⛔ 与 hello.ok.viewport
+        // （FE 期望的 ClientSize，含滚动条/边框）不是一个量。
+        int renderW = 0, renderH = 0;
+        try { renderW = win.RenderWidth; renderH = win.RenderHeight; } catch { }
+        metricsRenderW = renderW;
+        metricsRenderH = renderH;
         EwpOut.Emit("{\"t\":\"meta.metrics\",\"metrics\":{\"cellW\":" + cellW
             + ",\"cellH\":" + Config.FontSize
             + ",\"lineH\":" + Config.LineHeight
             + ",\"font\":" + J(Config.FontName)
-            + ",\"fontSize\":" + Config.FontSize + "}}");
+            + ",\"fontSize\":" + Config.FontSize
+            + ",\"renderW\":" + renderW
+            + ",\"renderH\":" + renderH + "}}");
     }
 
     private static string SafeVersion()
@@ -599,7 +619,21 @@ internal sealed class EwpHost
         if (console == null || console.inputReq == null)
             return;
         var req = console.inputReq;
-        var buttons = console.GetSelectableButtons();
+        // I3-b：Subscribe 期窗口若未完成布局，meta.metrics 的 renderW/H 会读到 0（最小化实测）。
+        // 首个 input.request 时窗口必已就绪 ⇒ 补发一次，让 FE 在拿到 rect 之前就有画布尺寸。
+        if (!metricsRenderResent && metricsRenderW <= 0)
+        {
+            int probeW = 0, probeH = 0;
+            try { probeW = win.RenderWidth; probeH = win.RenderHeight; } catch { }
+            if (probeW > 0 && probeH > 0)
+            {
+                metricsRenderResent = true;
+                EmitMetrics();
+            }
+        }
+        // I3-b：统一走几何版本（同一遍历，多算几个 int，开销可忽略），
+        // 是否把 rect 写进 wire 由 FE 请求的 input.rect cap 决定。
+        var buttons = console.GetSelectableButtonRects();
         var reqId = ++reqIdSeq;
         currentReqId = reqId;
         currentGeneration = console.LastButtonGeneration;
@@ -620,11 +654,20 @@ internal sealed class EwpHost
         {
             if (i > 0)
                 sb.Append(',');
+            var button = buttons[i];
             sb.Append("{\"index\":").Append(i)
-                .Append(",\"text\":").Append(J(buttons[i].Text))
-                .Append(",\"value\":").Append(J(buttons[i].Value))
-                .Append(",\"isInteger\":").Append(buttons[i].IsInteger ? "true" : "false")
-                .Append('}');
+                .Append(",\"text\":").Append(J(button.Text))
+                .Append(",\"value\":").Append(J(button.Value))
+                .Append(",\"isInteger\":").Append(button.IsInteger ? "true" : "false");
+            if (rectEnabled && button.HasRect)
+            {
+                sb.Append(",\"rect\":{\"x\":").Append(button.Rect.X)
+                    .Append(",\"y\":").Append(button.Rect.Y)
+                    .Append(",\"w\":").Append(button.Rect.Width)
+                    .Append(",\"h\":").Append(button.Rect.Height)
+                    .Append(",\"coordinateSpace\":\"viewport-global\"}");
+            }
+            sb.Append('}');
         }
         sb.Append("]}");
         EwpOut.Emit(sb.ToString());
@@ -800,23 +843,29 @@ internal sealed class EwpHost
     private void DoHelloOk(JsonElement root)
     {
         // H4：caps 缺失＝旧 FE，保持 channel 常开；显式数组按是否含 channel 降级。
+        // I3-b：同一次遍历顺带解析 input.rect（旧 FE 不请求 ⇒ rectEnabled=false，不发 rect）。
         // caps 存在但不是数组视为旧格式，按常开兼容。
         if (!root.TryGetProperty("caps", out var caps) || caps.ValueKind != JsonValueKind.Array)
         {
             channelEnabled = true;
+            rectEnabled = false;
         }
         else
         {
             var hasChannel = false;
+            var hasRect = false;
             foreach (var cap in caps.EnumerateArray())
             {
-                if (cap.ValueKind == JsonValueKind.String && cap.GetString() == "channel")
-                {
+                if (cap.ValueKind != JsonValueKind.String)
+                    continue;
+                var capName = cap.GetString();
+                if (capName == "channel")
                     hasChannel = true;
-                    break;
-                }
+                else if (capName == "input.rect")
+                    hasRect = true;
             }
             channelEnabled = hasChannel;
+            rectEnabled = hasRect;
         }
         if (!channelEnabled)
         {
