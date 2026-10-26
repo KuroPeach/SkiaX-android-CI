@@ -3195,11 +3195,15 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// 自底向上回溯，遇到旧世代按钮（Generation != 0 且 != lastButtonGeneration）即停止——
 	/// 与 PressEnterKey 的 IntButton/StrButton 验证分支同规则。
 	/// <c>LineIndex</c>＝该按钮所属 <c>displayLineList</c> 下标；div 覆盖层按钮记 <c>-1</c>（不属普通行）。
+	/// <para>
+	/// <c>LineIndex</c>＝该按钮所属 <c>displayLineList</c> 下标；div 覆盖层按钮记 <c>-1</c>，
+	/// 并用 <c>Div</c>／<c>ChildRow</c> 给出所属 div 与 div 内行号（I3-d 的 rect 导出用）。
+	/// </para>
 	/// ⚠️ 顺序敏感：普通行倒序 → div（CollectDivParts 再倒序）→ 末尾一次 Reverse，改动会改变 wire 按钮顺序。
 	/// </summary>
-	private List<(ConsoleButtonString Button, int LineIndex)> CollectSelectableButtons()
+	private List<(ConsoleButtonString Button, int LineIndex, ConsoleDivPart Div, int ChildRow)> CollectSelectableButtons()
 	{
-		var result = new List<(ConsoleButtonString Button, int LineIndex)>();
+		var result = new List<(ConsoleButtonString Button, int LineIndex, ConsoleDivPart Div, int ChildRow)>();
 		if (!IsWaitInputState || inputReq == null)
 			return result;
 		switch (inputReq.InputType)
@@ -3225,7 +3229,7 @@ internal sealed partial class EmueraConsole : IDisposable
 						goto Done;
 					continue;
 				}
-				result.Add((button, i));
+				result.Add((button, i, null, -1));
 			}
 		}
 	Done:
@@ -3244,7 +3248,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				{
 					if (button == null || !button.IsButton)
 						continue;
-					result.Add((button, -1));
+					result.Add((button, -1, div, j));
 				}
 			}
 		}
@@ -3259,7 +3263,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	public List<(string Text, string Value, bool IsInteger)> GetSelectableButtons()
 	{
 		var result = new List<(string Text, string Value, bool IsInteger)>();
-		foreach (var (button, _) in CollectSelectableButtons())
+		foreach (var (button, _, _, _) in CollectSelectableButtons())
 		{
 			result.Add((ClipboardProcessor.StripHTML(button.ToString()).Trim(),
 				button.IsInteger ? button.Input.ToString() : button.Inputs,
@@ -3276,54 +3280,96 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// div 覆盖层按钮（<c>LineIndex=-1</c>）本轮<b>不给</b>矩形（<c>HasRect=false</c>）：
 	/// 其绘制矩形与 <c>TestChildHitbox</c> 本就分叉（I3 设计卡 §3.3），⛔ 用包围盒冒充。
 	/// </summary>
-	public List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect)> GetSelectableButtonRects()
+	public List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect, bool HitTestOracle)> GetSelectableButtonRects()
 	{
-		var result = new List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect)>();
+		var result = new List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect, bool HitTestOracle)>();
 		var items = CollectSelectableButtons();
 		if (items.Count == 0)
 			return result;
 
 		// 与 GetLinePointY 同一口径：屏幕下沿行号由滚动条决定（hit-test 用的是 displayLineList 下标）。
 		int bottomLineNo = 0;
+		int mainPicHeight = 0;
 		if (window != null)
 		{
 			bottomLineNo = window.ScrollBar.Value - 1;
 			if (displayLineList.Count - 1 < bottomLineNo)
 				bottomLineNo = displayLineList.Count - 1;
+			try { mainPicHeight = window.MainPicBox.Height; } catch { }
 		}
 
-		foreach (var (button, lineIndex) in items)
+		foreach (var (button, lineIndex, div, childRow) in items)
 		{
 			string text = ClipboardProcessor.StripHTML(button.ToString()).Trim();
 			string value = button.IsInteger ? button.Input.ToString() : button.Inputs;
 			bool hasRect = false;
+			bool hitTestOracle = lineIndex >= 0;   // div 按钮的 hit-test 与绘制分叉（§3.3），不能当 oracle
 			Rectangle rect = default;
-			if (window != null && lineIndex >= 0 && button.StrArray != null && button.Width > 0)
+			if (window != null && button.StrArray != null && button.Width > 0)
 			{
-				int top = int.MaxValue;
-				int bottom = int.MinValue;
-				foreach (var part in button.StrArray)
+				var (partTop, partBottom) = ButtonVerticalRange(button);
+				if (lineIndex >= 0)
 				{
-					if (part == null)
-						continue;
-					if (part.Top < top)
-						top = part.Top;
-					if (part.Bottom > bottom)
-						bottom = part.Bottom;
+					int lineY = window.RenderHeight - Config.LineHeight * (bottomLineNo - lineIndex + 1);
+					rect = new Rectangle(button.PointX + Config.DrawingParam_ShapePositionShift,
+						lineY + partTop, button.Width, partBottom - partTop);
+					hasRect = true;
 				}
-				if (top > bottom)
+				else if (div != null)
 				{
-					top = 0;
-					bottom = Config.FontSize;
+					// I3-d：div 按钮的 rect 由**绘制**矩形推出（GetContentRect，与 DrawTo 同源），
+					// ⛔ 不用 TestChildHitbox——绝对定位下它与绘制分叉（§3.3）。
+					// <div> 默认 isRelative=true（HtmlManager.cs:1202），相对定位要用父行屏幕 y。
+					// 绝对定位的 Y 依赖 MainPicBox.Height（物理）；全屏时它与 render 逻辑高度不同名 ⇒ 不冒充。
+					bool posUsable = div.IsRelative
+						|| (mainPicHeight > 0 && mainPicHeight == window.RenderHeight);
+					if (posUsable && div.Parent?.ParentLine != null)
+					{
+						// 相对定位的基准＝**父行的屏幕行顶 y**，必须与普通行 rect 同源：
+						// 用显示列表下标算（⛔ 不用 MoveMouse 里 ParentLine.LineNo + correction 那套——
+						// 那是 Y 剪枝用的粗算式（还带 ±200 容差），不是绘制位置）。
+						int parentIdx = displayLineList.IndexOf(div.Parent.ParentLine);
+						if (parentIdx >= 0)
+						{
+							int parentLineY = window.RenderHeight
+								- Config.LineHeight * (bottomLineNo - parentIdx + 1);
+							var content = div.GetContentRect(mainPicHeight, parentLineY);
+							if (content.Height > 0 && content.Width > 0)
+							{
+								int rowY = content.Top + childRow * Config.LineHeight;
+								rect = new Rectangle(button.PointX + Config.DrawingParam_ShapePositionShift,
+									rowY + partTop, button.Width, partBottom - partTop);
+								hasRect = true;
+							}
+						}
+					}
 				}
-				int lineY = window.RenderHeight - Config.LineHeight * (bottomLineNo - lineIndex + 1);
-				rect = new Rectangle(button.PointX + Config.DrawingParam_ShapePositionShift,
-					lineY + top, button.Width, bottom - top);
-				hasRect = true;
 			}
-			result.Add((button, text, value, button.IsInteger, hasRect, rect));
+			result.Add((button, text, value, button.IsInteger, hasRect, rect, hitTestOracle));
 		}
 		return result;
+	}
+
+	/// <summary>按钮在**行内**的纵向范围（各 part 的 Top/Bottom 外包；退化时取字号高）。</summary>
+	static (int Top, int Bottom) ButtonVerticalRange(ConsoleButtonString button)
+	{
+		int top = int.MaxValue;
+		int bottom = int.MinValue;
+		foreach (var part in button.StrArray)
+		{
+			if (part == null)
+				continue;
+			if (part.Top < top)
+				top = part.Top;
+			if (part.Bottom > bottom)
+				bottom = part.Bottom;
+		}
+		if (top > bottom)
+		{
+			top = 0;
+			bottom = Config.FontSize;
+		}
+		return (top, bottom);
 	}
 
 	/// <summary>

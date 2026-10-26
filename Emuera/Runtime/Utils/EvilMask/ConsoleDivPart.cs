@@ -256,6 +256,39 @@ class ConsoleDivPart : AConsoleDisplayNode
 			child.ShiftPositionX(diff);
 	}
 
+	/// <summary>
+	/// 内容区矩形（I3-d：div 按钮 rect 的导出源）。初值公式与 <see cref="DrawTo"/> 首段**逐字同源**，
+	/// 再按 margin → border → padding 依次内缩（与 DrawTo 的绘制/夹取顺序一致，顺序不可调换）。
+	/// <paramref name="mainPicHeight"/> 传 <c>MainPicBox.Height</c>（**物理**高度；全屏时与 render 逻辑高度不同，
+	/// 调用方须自行判断是否可用）；<paramref name="parentLineY"/> 仅 <see cref="IsRelative"/> 时使用（父行屏幕 y）。
+	/// ⚠️ 改 <see cref="DrawTo"/> 的初值或内缩顺序，必须同步改这里。
+	/// </summary>
+	internal Rectangle GetContentRect(int mainPicHeight, int parentLineY)
+	{
+		var rect = IsRelative
+			? new Rectangle(PointX + xOffset, parentLineY + PointY, width + 2, Height)
+			: Display switch
+			{
+				DisplayMode.AbsoluteLeftTop => new Rectangle(xOffset, PointY, width + 2, Height),
+				DisplayMode.AbsoluteLeftBottom => new Rectangle(xOffset, mainPicHeight - PointY - Height, width + 2, Height),
+				_ => new Rectangle(xOffset, mainPicHeight - PointY - Height, width + 2, Height),
+			};
+		if (margin != null)
+			rect = InsetRect(rect, margin);
+		if (border != null)
+			rect = InsetRect(rect, border);
+		if (padding != null)
+			rect = InsetRect(rect, padding);
+		return rect;
+	}
+
+	static Rectangle InsetRect(Rectangle rect, int[] inset)
+	{
+		return new Rectangle(rect.X + inset[Direction.Left], rect.Y + inset[Direction.Top],
+			rect.Width - inset[Direction.Left] - inset[Direction.Right],
+			rect.Height - inset[Direction.Top] - inset[Direction.Bottom]);
+	}
+
 	public override void SetWidth(StringMeasure sm, float subPixel)
 	{
 	}

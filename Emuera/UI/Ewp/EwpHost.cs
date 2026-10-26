@@ -664,9 +664,13 @@ internal sealed class EwpHost
                 .Append(",\"isInteger\":").Append(button.IsInteger ? "true" : "false");
             if (rectEnabled && button.HasRect)
             {
-                // I3-c 生产护栏：先跑连通性自检（中心＋四角内侧共 5 点须全部命中同一按钮）。
+                // I3-c 生产护栏：先跑连通性自检（中心＋共同区四角共 5 点须全部命中同一按钮）。
                 // 不过就降级不发 rect（FE 回退文本/值），只计数——⛔ 宁可没有 rect，不可点错。
-                if (console.RectSelfCheckPoints(button.Button, button.Rect) == 0)
+                // I3-d：div 按钮（HitTestOracle=false）跳过自检——其 hit-test 与绘制在绝对定位下分叉
+                // （设计卡 §3.3），rect 由 GetContentRect 的绘制矩形推出，拿 hit-test 当 oracle 必误判。
+                bool selfCheckOk = !button.HitTestOracle
+                    || console.RectSelfCheckPoints(button.Button, button.Rect) == 0;
+                if (selfCheckOk)
                 {
                     sb.Append(",\"rect\":{\"x\":").Append(button.Rect.X)
                         .Append(",\"y\":").Append(button.Rect.Y)
