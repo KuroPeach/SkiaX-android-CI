@@ -42,6 +42,54 @@ static partial class Program
 
 	*/
 	/// <summary>
+	/// 启动期致命错误（CSV/ERB 缺失等）：自动化模式绝不弹模态框；GUI 模式显示带路径的错误后退出。
+	/// 统一写 stderr（EngineProcess 会把 stderr 落到 engine_stderr.txt），并让进程以 2 退出。
+	/// </summary>
+	private static void ReportStartupError(string code, string title, string text)
+	{
+		try { Console.Error.WriteLine("[startup] " + code); } catch { }
+		if (EwpMode || EwpHeadlessMode || CliDebugMode)
+		{
+			// EWP/CLI/headless：不弹窗，直接失败退出；调用方已写 stderr。
+			Environment.Exit(2);
+			return;
+		}
+		// 普通 GUI：模型化错误窗（非系统模态 MessageBox），显示路径；关闭后以 2 退出。
+		try
+		{
+			var form = new Form
+			{
+				Text = title,
+				Width = 760,
+				Height = 300,
+				StartPosition = FormStartPosition.CenterScreen,
+				MinimizeBox = false,
+				MaximizeBox = false,
+			};
+			var box = new TextBox
+			{
+				Multiline = true,
+				ReadOnly = true,
+				ScrollBars = ScrollBars.Vertical,
+				Dock = DockStyle.Fill,
+				Text = text,
+			};
+			var button = new Button { Text = "退出", Dock = DockStyle.Bottom, Height = 40 };
+			button.Click += (_, __) => form.Close();
+			form.Controls.Add(box);
+			form.Controls.Add(button);
+			form.Show();
+			Application.Run(form);
+		}
+		catch
+		{
+			// 极端情况下回退原生 MessageBox；仍然退出
+			MessageBox.Show(text, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+		}
+		Environment.Exit(2);
+	}
+
+	/// <summary>
 	/// アプリケーションのメイン エントリ ポイントです。
 	/// </summary>
 	[STAThread]
@@ -49,6 +97,7 @@ static partial class Program
 	{
 		// memo: Shift-JISを扱うためのおまじない
 		System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+		try { Console.OutputEncoding = new System.Text.UTF8Encoding(false); } catch { }
 
 		// 音频平台工厂：WinForms 使用 NAudioSound
 		Runtime.Utils.Sound.Factory = () => new NAudioSound();
@@ -111,6 +160,12 @@ static partial class Program
 		);
 		ewpMsgpackOption.AddAlias("-ewp-msgpack");
 		rootCommand.AddOption(ewpMsgpackOption);
+		var ewpHeadlessOption = new Option<bool>(
+			name: "--ewp-headless",
+			description: "无窗 EWP 宿主：不创建 MainWindow / 不进 Application.Run（N1-b）"
+		);
+		ewpHeadlessOption.AddAlias("-ewp-headless");
+		rootCommand.AddOption(ewpHeadlessOption);
 
 		var filesArg = new Argument<string[]>(
 					"解析するファイル"
@@ -143,11 +198,13 @@ static partial class Program
 			UI.CliDebug.CliDebugHost.InitIO();
 		}
 		var ewpMode = result.GetValueForOption(ewpOption);
-		EwpMode = ewpMode;
+		var ewpHeadlessMode = result.GetValueForOption(ewpHeadlessOption);
+		EwpHeadlessMode = ewpHeadlessMode;
+		EwpMode = ewpMode || ewpHeadlessMode;
 		EwpPort = result.GetValueForOption(ewpPortOption);
 		// A2（v0.1 定稿）：--ewp 默认＝MessagePack（spec §2 正本）；--ewp-json 调试/抓包形态
 		EwpMsgpack = !result.GetValueForOption(ewpJsonOption);
-		if (ewpMode)
+		if (EwpMode)
 			UI.Ewp.EwpOut.InitIO(deferWriter: EwpPort > 0, msgpack: EwpMsgpack);
 
 		var genLang = result.GetValueForOption(genLangOption);
@@ -189,7 +246,6 @@ static partial class Program
 		#endregion
 
 		Application.SetCompatibleTextRenderingDefault(false);
-
 		ProfileOptimization.SetProfileRoot(exeDir ?? ExeDir);
 		ProfileOptimization.StartProfile("profile");
 
@@ -220,22 +276,26 @@ static partial class Program
 		#endregion
 
 		//二重起動の禁止かつ二重起動
+		if (!EwpHeadlessMode)
+			ApplicationConfiguration.Initialize();
 		if ((!Config.AllowMultipleInstances) && AssemblyData.PrevInstance())
 		{
-			//Dialog.Show("既に起動しています", "多重起動を許可する場合、emuera.configを書き換えて下さい");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.InstaceExists.Text, Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text);
+			ReportStartupError("already_running", Lang.UI.MainWindow.MsgBox.InstaceExists.Text,
+				Lang.UI.MainWindow.MsgBox.MultiInstanceInfo.Text);
 			return;
 		}
-		if (!Directory.Exists(CsvDir))
+		if (!Directory.Exists(CsvDir) || !Directory.Exists(ErbDir))
 		{
-			//Dialog.Show("フォルダなし", "csvフォルダが見つかりません");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text);
-			return;
-		}
-		if (!Directory.Exists(ErbDir))
-		{
-			//Dialog.Show("フォルダなし", "erbフォルダが見つかりません");
-			Dialog.Show(Lang.UI.MainWindow.MsgBox.FolderNotFound.Text, Lang.UI.MainWindow.MsgBox.NoErbFolder.Text);
+			// ASCII 先行行：EngineProcess 的 engine_stderr.txt 可直接 grep 路径（避免本地化编码混杂）
+			try { Console.Error.WriteLine("[startup] missing_game_data CSV=" + CsvDir + " ERB=" + ErbDir); } catch { }
+			var lines = new List<string>();
+			if (!Directory.Exists(CsvDir))
+				lines.Add(Lang.UI.MainWindow.MsgBox.NoCsvFolder.Text + ": " + CsvDir);
+			if (!Directory.Exists(ErbDir))
+				lines.Add(Lang.UI.MainWindow.MsgBox.NoErbFolder.Text + ": " + ErbDir);
+			lines.Add("请从游戏目录启动 Emuera.exe，或将 CSV/ERB 放到可执行文件同目录。");
+			ReportStartupError("missing_game_data", Lang.UI.MainWindow.MsgBox.FolderNotFound.Text,
+				string.Join(Environment.NewLine, lines));
 			return;
 		}
 		#region EE_フォントファイル対応
@@ -335,8 +395,6 @@ static partial class Program
 			#endregion
 		}
 
-		ApplicationConfiguration.Initialize();
-
 		// PlatformInterop 委托初始化（WinForms 实现）
 		PlatformInterop.DoEvents = () => Application.DoEvents();
 		if (EwpMode)
@@ -388,6 +446,13 @@ static partial class Program
 		// 音频平台工厂：WinForms 使用 NAudioSound
 		Runtime.Utils.Sound.Factory = () => new Runtime.Utils.NAudioSound();
 		GlobalStatic.Bgm = Runtime.Utils.Sound.Factory();
+
+		if (EwpHeadlessMode)
+		{
+			// N1-b：无窗宿主。不创建 MainWindow，队列泵驱动 console/EWP。
+			UI.Headless.HeadlessHost.Run();
+			return;
+		}
 
 		using var win = new Forms.MainWindow(args);
 		{
@@ -472,114 +537,6 @@ static partial class Program
 		*/
 	}
 
-	[MemberNotNull(nameof(ExeDir))]
-	[MemberNotNull(nameof(CsvDir))]
-	[MemberNotNull(nameof(ErbDir))]
-	[MemberNotNull(nameof(DebugDir))]
-	[MemberNotNull(nameof(DatDir))]
-	[MemberNotNull(nameof(ContentDir))]
-
-	private static void SetDirPaths(string exeDir)
-	{
-
-		ExeDir = Path.GetFullPath(new DirectoryInfo(exeDir).FullName + Path.DirectorySeparatorChar);
-
-		CsvDir = Path.Combine(ExeDir, "csv") + Path.DirectorySeparatorChar;
-		ErbDir = Path.Combine(ExeDir, "erb") + Path.DirectorySeparatorChar;
-		DebugDir = Path.Combine(ExeDir, "debug") + Path.DirectorySeparatorChar;
-		DatDir = Path.Combine(ExeDir, "dat") + Path.DirectorySeparatorChar;
-		ContentDir = Path.Combine(ExeDir, "resources") + Path.DirectorySeparatorChar;
-		#region EE_フォントファイル対応
-		FontDir = Path.Combine(ExeDir, "font") + Path.DirectorySeparatorChar;
-		#endregion
-		#region EE_PLAYSOUND系
-		MusicDir = Path.Combine(ExeDir, "sound") + Path.DirectorySeparatorChar;
-		#endregion
-
-		/*
-		CsvDir = WorkingDir + "csv\\";
-		ErbDir = WorkingDir + "erb\\";
-		DebugDir = WorkingDir + "debug\\";
-		DatDir = WorkingDir + "dat\\";
-		ContentDir = WorkingDir + "resources\\";
-		#region EE_フォントファイル対応
-		FontDir = WorkingDir + "font\\";
-		#endregion
-		*/
-	}
-
-	#region eee_カレントディレクトリー
-	/// <summary>
-	/// 実行ファイルのディレクトリ。最後にPath.DirectorySeparatorCharを付けたstring
-	/// </summary>
-	public static string ExeDir { get; private set; }
-	public static string WorkingDir { get; private set; }
-	#endregion
-	public static string CsvDir { get; private set; }
-	public static string ErbDir { get; private set; }
-	public static string DebugDir { get; private set; }
-	public static string DatDir { get; private set; }
-	public static string ContentDir { get; private set; }
-	public static string ExeName { get; private set; }
-	#region EE_PLAYSOUND系
-	public static string MusicDir { get; private set; }
-	/// <summary>
-	/// 大小写不敏感文件查找。找到则 filepath 更新为实际路径，返回 true。
-	/// </summary>
-	public static bool FileExists(ref string filepath)
-	{
-		if (string.IsNullOrEmpty(filepath)) return false;
-		if (File.Exists(filepath)) return true;
-		// 大小写不敏感查找
-		var dir = Path.GetDirectoryName(filepath);
-		var name = Path.GetFileName(filepath);
-		if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(name)) return false;
-		try
-		{
-			foreach (var f in Directory.GetFiles(dir, name))
-			{
-				filepath = f;
-				return true;
-			}
-			// 尝试不区分大小写匹配
-			foreach (var f in Directory.GetFiles(dir))
-			{
-				if (string.Equals(Path.GetFileName(f), name, StringComparison.OrdinalIgnoreCase))
-				{
-					filepath = f;
-					return true;
-				}
-			}
-		}
-		catch { }
-		return false;
-	}
-	#endregion
-	#region EE_フォントファイル対応
-	public static string FontDir { get; private set; }
-	#endregion
-
-
-	public static bool rebootFlag;
-	//public static int RebootClientX = 0;
-	//public static int RebootClientY = 0;
-	public static FormWindowState RebootWinState = FormWindowState.Normal;
-	//public static Point RebootLocation;
-
-	public static bool AnalysisMode;
-	public static List<string> AnalysisFiles;
-
-	//public static bool debugMode = false;
-	//public static bool DebugMode { get { return debugMode; } }
-	public static bool DebugMode { get; private set; }
-		/// <summary>CLI 调试模式（--CliDebug）：stdin/stdout JSON Lines 协议，隐含 DebugMode。</summary>
-		public static bool CliDebugMode { get; private set; }
-		/// <summary>eraWire EWP/0 宿主（--ewp）：stdio/TCP 事件流（EwpHost，B3 含像素流）。</summary>
-		public static bool EwpMode { get; private set; }
-		/// <summary>EWP TCP 模式端口（--ewp-port，0＝stdio）。</summary>
-		public static int EwpPort { get; private set; }
-		/// <summary>EWP MessagePack 编码。A2 起 --ewp 默认即 MessagePack；--ewp-json 切 JSON-Lines 调试形态。</summary>
-		public static bool EwpMsgpack { get; private set; }
 
 	static Program()
 	{

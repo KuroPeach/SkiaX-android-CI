@@ -113,12 +113,6 @@ internal sealed class ConsoleDisplayLine
 		buttons = newButtons;
 	}
 
-	public static void Clear(Brush brush, Graphics graph, int pointY)
-	{
-		Rectangle rect = new(0, pointY, Config.WindowX, Config.LineHeight);
-		graph.FillRectangle(brush, rect);
-	}
-
 	//public ConsoleButtonString GetPointingButton(int pointX)
 	//{
 	//	////1815 優先順位を逆順にする

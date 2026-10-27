@@ -14,6 +14,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emuera.Xamarin.Core", "Emuera.Xamarin.Core\Emuera.Xamarin.Core.csproj", "{D97467FF-72AB-4740-B026-2A4A019B88E8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emuera.Xamarin.Desktop", "Emuera.Xamarin.Desktop\Emuera.Xamarin.Desktop.csproj", "{B687C349-A786-4640-8981-083E7379B0E6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emuera.Headless", "Emuera.Headless\Emuera.Headless.csproj", "{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -175,6 +176,30 @@ Global
 		{B687C349-A786-4640-8981-083E7379B0E6}.Release-NAudio|x86.Build.0 = Debug|Any CPU
 		{B687C349-A786-4640-8981-083E7379B0E6}.Release-NAudio|Any CPU.ActiveCfg = Debug|Any CPU
 		{B687C349-A786-4640-8981-083E7379B0E6}.Release-NAudio|Any CPU.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug|x64.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug|x86.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug-NAudio|x64.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug-NAudio|x64.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug-NAudio|x86.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug-NAudio|x86.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug-NAudio|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Debug-NAudio|Any CPU.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release|x64.ActiveCfg = Release|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release|x64.Build.0 = Release|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release|x86.ActiveCfg = Release|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release|x86.Build.0 = Release|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release-NAudio|x64.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release-NAudio|x64.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release-NAudio|x86.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release-NAudio|x86.Build.0 = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release-NAudio|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5C5D34F-A929-4732-8469-9DBCBA67D9DC}.Release-NAudio|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

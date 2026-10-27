@@ -13,7 +13,9 @@ using MinorShift.Emuera.UI;
 using MinorShift.Emuera.UI.Game;
 using MinorShift.Emuera.UI.Game.Image;
 using SkiaSharp;
+#if WINDOWS
 using SkiaSharp.Views.Desktop;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -3279,27 +3281,7 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			string str = arguments[0].GetStrValue(exm);
-			using System.Drawing.Text.InstalledFontCollection ifc = new();
-			long isInstalled = 0;
-			foreach (FontFamily ff in ifc.Families)
-			{
-				#region EE_フォントファイル対応
-				if (ff.Name == str)
-				{
-					isInstalled = 1;
-					break;
-				}
-			}
-			foreach (FontFamily ff in GlobalStatic.Pfc.Families)
-			{
-				if (ff.Name == str)
-				{
-					isInstalled = 1;
-					break;
-				}
-			}
-			#endregion
-			return (isInstalled);
+			return FontFactory.IsFontAvailable(str) ? 1 : 0;
 		}
 
 	}
@@ -7390,11 +7372,11 @@ internal static partial class FunctionMethodCreator
 				try
 				{
 					#region EE_フォントファイル対応
-					foreach (FontFamily ff in GlobalStatic.Pfc.Families)
+					foreach (var ff in GlobalStatic.Pfc.FamilyNames)
 					{
-						if (ff.Name == fontname)
+						if (ff == fontname)
 						{
-							styledFont = FontFactory.GetFont(ff.Name, fs, fontsize);
+							styledFont = FontFactory.GetFont(ff, fs, fontsize);
 							goto foundfont;
 						}
 					}
@@ -7630,12 +7612,21 @@ internal static partial class FunctionMethodCreator
 					if ((style & 8) != 0)
 						fs |= FontStyle.Underline;
 				}
+#if WINDOWS
 				Font fnt = new(fontname, fontsize, fs, GraphicsUnit.Pixel);
 				var measured = PlatformInterop.MeasureText(text, fontname, fontsize, fs);
 
 				var resultArray = exm.VEvaluator.RESULT_ARRAY;
 				resultArray[1] = (long)measured.Height;
 				return (long)measured.Width;
+#else
+				var skFont = FontFactory.GetFont(fontname, fs, fontsize) ?? Config.DefaultFont;
+				using var measurePaint = new SKPaint { Typeface = skFont.Typeface, TextSize = skFont.Size };
+				var skMetrics = skFont.Metrics;
+				var skResultArray = exm.VEvaluator.RESULT_ARRAY;
+				skResultArray[1] = (long)Math.Ceiling(-skMetrics.Ascent + skMetrics.Descent);
+				return (long)Math.Ceiling(measurePaint.MeasureText(text));
+#endif
 			}
 			catch (Exception ex)
 			{
@@ -8303,7 +8294,8 @@ internal static partial class FunctionMethodCreator
 	}
 
 	/// <summary>
-	/// GFILLRECTANGLE(int ID, int cARGB, int x, int y, int width, int height)
+	/// GFILLRECTANGLE(int ID, int x, int y, int width, int height)
+	/// 颜色来自当前 brush（GSETBRUSH / GSETCOLOR），不是参数（EG-1c：修正旧注释的 6 参描述）。
 	/// </summary>
 	public sealed class GraphicsFillRectangleMethod : FunctionMethod
 	{
@@ -9115,9 +9107,9 @@ internal static partial class FunctionMethodCreator
 			//if (exm.Console.SelectingButton != null)
 			//	return exm.Console.SelectingButton.ToString();
 			bool b = exm.Console.AlwaysRefresh;
-			Point point = exm.Console.Window.MainPicBox.PointToClient(PlatformInterop.GetMousePosition());
+			Point point = exm.Console.Window.MousePosition;
 			exm.Console.AlwaysRefresh = true;
-			if (exm.Console.Window.MainPicBox.ClientRectangle.Contains(point))
+			if (exm.Console.Window.PicClientRectangle.Contains(point))
 				exm.Console.MoveMouse(point);
 			exm.Console.AlwaysRefresh = b;
 			if (exm.Console.PointingSring != null)
@@ -9636,7 +9628,7 @@ internal static partial class FunctionMethodCreator
 		}
 		public override string GetStrValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
-			return exm.Console.Window.TextBox.Text;
+			return exm.Console.Window.TextBoxText;
 		}
 	}
 	private sealed class ChangeTextBoxMethod : FunctionMethod
@@ -9957,7 +9949,7 @@ internal static partial class FunctionMethodCreator
 		{
 			Int64 argument0 = arguments[0].GetIntValue(exm);
 			Int64 argument1 = arguments[1].GetIntValue(exm);
-			GlobalStatic.Console.Window.hotkeyState.HotkeyStateSet((nint)argument0, (nint)argument1);
+			GlobalStatic.Console.Window.HotkeyStateSet((nint)argument0, (nint)argument1);
 			return 0;
 		}
 	}
@@ -9976,7 +9968,7 @@ internal static partial class FunctionMethodCreator
 		public override Int64 GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			Int64 argument0 = arguments[0].GetIntValue(exm);
-			GlobalStatic.Console.Window.hotkeyState.HotkeyStateInit((nint)argument0);
+			GlobalStatic.Console.Window.HotkeyStateInit((nint)argument0);
 			return 0;
 		}
 	}

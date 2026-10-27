@@ -55,6 +55,20 @@ internal static class FontFactory
 			fontAliases[name] = typeface;
 	}
 
+	/// <summary>2026-10-27：develop 新增 FONTEXISTS 判定；Android 侧按「非空即认为可解析」（系统字体）。</summary>
+	public static bool IsFontAvailable(string fontName)
+	{
+		return !string.IsNullOrEmpty(fontName);
+	}
+
+	/// <summary>2026-10-27：develop 的默认字体兜底（P1）；Android 侧用默认 typeface。</summary>
+	public static SKFont CreateEmergencyFont(float fontSize = -1)
+	{
+		if (fontSize <= 0)
+			fontSize = Config.FontSize;
+		return new SKFont(SKTypeface.Default, fontSize);
+	}
+
 	public static bool IsRasterFont(string fontName)
 	{
 		if (string.IsNullOrEmpty(fontName))

@@ -51,6 +51,14 @@ namespace MinorShift.Emuera.UI.Framework.Forms
 		public virtual void MainMenu_Reboot() { }
 		public virtual void MainMenu_GotoTitle() { }
 
+		// 2026-10-27（N1-a 接口面移植）：develop 的 EmueraConsole.Window 走 IConsoleSurface，
+		// Runtime 的 Creator.Method 会取这些成员；Android 侧给安全默认值。
+		public virtual Point MousePosition { get; } = Point.Empty;
+		public virtual XEmuera.Drawing.Rectangle PicClientRectangle { get; } = new XEmuera.Drawing.Rectangle(0, 0, 0, 0);
+		public virtual string TextBoxText { get => TextBox.Text; set => TextBox.Text = value ?? ""; }
+		public virtual void HotkeyStateSet(nint key, nint state) { }
+		public virtual void HotkeyStateInit(nint state) { }
+
 		public HotkeyState hotkeyState { get; } = new HotkeyState();
 
 		public virtual TextBoxStub TextBox { get; } = new TextBoxStub();

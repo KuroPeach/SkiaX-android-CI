@@ -6,7 +6,6 @@ using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.UI.Game;
 using MinorShift.Emuera.GameProc.Function;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,7 +13,6 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Windows.Forms;
 using static MinorShift.Emuera.Runtime.Utils.EvilMask.Utils;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
 using trmb = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.MessageBox;
@@ -48,6 +46,8 @@ internal sealed partial class EmueraConsole : IDisposable
 	#endregion
 	public void ClearDisplay()
 	{
+		// EWP WireHost：全量清场须在 displayLineList 清空前通知，供快照账本同步。
+		CliDisplayCleared?.Invoke();
 		#region EE_AnchorのCB機能移植
 		CBProc.ClearScreen();
 		#endregion
@@ -119,7 +119,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		forceTextBoxColor = true;
 		//REDRAWされない場合はTextBoxの色は変えずにフラグだけ立てる
 		//最初の再描画時に現在の背景色に合わせる
-		if (redraw == ConsoleRedraw.None && window.ScrollBar.Value == window.ScrollBar.Maximum)
+		if (redraw == ConsoleRedraw.None && window.ScrollValue == window.ScrollMaximum)
 			return;
 		//色変化が速くなりすぎないように一定時間以内の再呼び出しは強制待ちにする
 		if (_drawStopwatch == null)
@@ -810,7 +810,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	}
 	public void ClearText()
 	{
-		window.clear_richText();
+		window.ClearRichText();
 	}
 
 	internal ConsoleDisplayLine PrintPlainwithSingleLine(string str, bool force_LEFT = false)

@@ -2,14 +2,15 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.GameProc.Function;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+#if WINDOWS
 using System.Windows.Forms;
+#endif
 
 namespace MinorShift.Emuera.UI.Game;
 
@@ -29,12 +30,14 @@ public struct TextsWithFont
 	public float offsetY;
 }
 
+#if WINDOWS
 public struct GdiTextsWithFont
 {
 	public string Text;
 	public Font Font;
 	public float Width;
 }
+#endif
 
 /// <summary>
 /// 装飾付文字列。stringとStringStyleからなる。
@@ -66,12 +69,14 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		}
 
 		string fontName = style.Fontname ?? Config.FontName;
+#if WINDOWS
 		IsRasterFont = FontFactory.IsRasterFont(fontName);
 		if (IsRasterFont)
 		{
 			GdiFont = FontFactory.GetGdiFont(fontName, style.FontStyle, Font.Size);
 			BuildGdiFallbacks();
 		}
+#endif
 
 		BuildFallbacks();
 
@@ -104,6 +109,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		}
 
 		string fontName = style.Fontname ?? Config.FontName;
+#if WINDOWS
 		IsRasterFont = FontFactory.IsRasterFont(fontName);
 
 		if (RenderMode == TextDrawingMode.TEXTRENDERER && IsRasterFont)
@@ -111,6 +117,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 			GdiFont = FontFactory.GetGdiFont(fontName, style.FontStyle, Font.Size);
 			BuildGdiFallbacks();
 		}
+#endif
 
 		BuildFallbacks();
 
@@ -146,6 +153,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		}
 
 		string fontName = style.Fontname ?? Config.FontName;
+#if WINDOWS
 		IsRasterFont = FontFactory.IsRasterFont(fontName);
 
 		if (RenderMode == TextDrawingMode.TEXTRENDERER && IsRasterFont)
@@ -153,6 +161,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 			GdiFont = FontFactory.GetGdiFont(fontName, style.FontStyle, Font.Size);
 			BuildGdiFallbacks();
 		}
+#endif
 
 		BuildFallbacks();
 
@@ -166,6 +175,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 		Width = -1;
 	}
 
+#if WINDOWS
 	private void BuildGdiFallbacks()
 	{
 		if (GdiFont == null) return;
@@ -184,6 +194,7 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 
 		_gdiTexts = gdiTextsWithFontList;
 	}
+#endif
 
 	private void BuildFallbacks()
 	{
@@ -271,8 +282,10 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 	public SKFont Font { get; private set; }
 	SKFont _fallbackFont;
 	List<TextsWithFont> _texts;//フォントフォールバック用
+#if WINDOWS
 	List<GdiTextsWithFont> _gdiTexts;
 	public Font GdiFont { get; private set; }
+#endif
 	public bool IsRasterFont { get; private set; }
 
 	public StringStyle StringStyle { get; private set; }
@@ -318,13 +331,16 @@ internal sealed class ConsoleStyledString : AConsoleColoredPart
 			return;
 		}
 
+#if WINDOWS
 		if (RenderMode == TextDrawingMode.TEXTRENDERER && GdiFont != null && _gdiTexts != null)
 		{
 			var offsetX = 0.0f;
 			foreach (var text in _gdiTexts) offsetX += text.Width;
 			Width = (int)offsetX;
 		}
-		else if (_texts == null)
+		else
+#endif
+		if (_texts == null)
 		{
 			Width = StringMeasure.GetDisplayLength(Text, Font);
 		}

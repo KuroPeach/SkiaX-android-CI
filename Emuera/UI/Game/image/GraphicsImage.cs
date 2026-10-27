@@ -1,6 +1,5 @@
 using MinorShift.Emuera.Runtime.Config;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -250,6 +249,7 @@ internal sealed class GraphicsImage : AbstractImage
 		}
 	}
 
+#if WINDOWS
 	private void GDrawStringGDIFallback(string text, int x, int y)
 	{
 		SKFont skFont = font ?? Config.DefaultFont;
@@ -297,6 +297,7 @@ internal sealed class GraphicsImage : AbstractImage
 
 		canvas.DrawBitmap(skTemp, x, y);
 	}
+#endif
 	#endregion
 
 	/// <summary>
@@ -854,29 +855,6 @@ internal sealed class GraphicsImage : AbstractImage
 
 	#endregion
 
-
-	private static byte[] BytesFromBitmap(Bitmap bmp)
-	{
-		BitmapData bmpData = bmp.LockBits(
-		  new Rectangle(0, 0, bmp.Width, bmp.Height),
-		  ImageLockMode.ReadOnly,  // 書き込むときはReadAndWriteで
-		  PixelFormat.Format32bppArgb
-		);
-		if (bmpData.Stride < 0)
-			throw new Exception();//変な形式のが送られてくることはありえないはずだが一応
-		byte[] pixels = new byte[bmpData.Stride * bmp.Height];
-		try
-		{
-			nint ptr = bmpData.Scan0;
-			Marshal.Copy(ptr, pixels, 0, pixels.Length);
-		}
-		finally
-		{
-			bmp.UnlockBits(bmpData);
-
-		}
-		return pixels;
-	}
 
 	/*
 	/// <summary>

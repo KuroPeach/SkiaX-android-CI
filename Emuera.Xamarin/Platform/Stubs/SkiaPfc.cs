@@ -41,6 +41,17 @@ namespace MinorShift.Emuera
 			}
 		}
 
+		/// <summary>2026-10-27：develop 的 Creator.Method 用 FamilyNames 做字体族名匹配。</summary>
+		public IEnumerable<string> FamilyNames
+		{
+			get
+			{
+				foreach (var tf in _typefaces)
+					if (!string.IsNullOrEmpty(tf.FamilyName))
+						yield return tf.FamilyName;
+			}
+		}
+
 		public void AddFontFile(string path)
 		{
 			try

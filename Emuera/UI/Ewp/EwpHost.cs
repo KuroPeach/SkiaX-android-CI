@@ -1,4 +1,4 @@
-using MinorShift.Emuera.Forms;
+using MinorShift.Emuera.UI;
 using MinorShift.Emuera.GameView;
 using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Script;
@@ -6,6 +6,7 @@ using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.UI.Game.Rendering;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -48,6 +49,8 @@ internal static class EwpOut
     private static BlockingCollection<Payload> pixelQueue;
     private static Stream outStream;
     private static Thread writerThread;
+    /// <summary>Shutdown 期放行信用窗等待，确保 exit 事件能落盘（否则写手可能卡在 WaitForCredit）。</summary>
+    private static volatile bool closing;
     private static long frameSeq;
     private static long ackCount;
     private static readonly object ackGate = new();
@@ -70,6 +73,7 @@ internal static class EwpOut
     /// 期间事件在队列中缓冲（boot 期 ~1.4k 行，远低于 8192 容量）。</summary>
     public static void InitIO(bool deferWriter = false, bool msgpack = false)
     {
+        closing = false;
         Codec = msgpack ? new EwpMsgpackCodec() : new EwpJsonCodec();
         var utf8 = new UTF8Encoding(false);
         try { Console.InputEncoding = utf8; } catch { }
@@ -144,6 +148,12 @@ internal static class EwpOut
         var q = queue;
         if (q == null)
             return;
+        closing = true;
+        lock (ackGate)
+        {
+            // 唤醒可能卡在信用窗的写手，让它排空 exit 后再退出
+            Monitor.PulseAll(ackGate);
+        }
         try { q.CompleteAdding(); } catch { }
         try { pixelQueue?.CompleteAdding(); } catch { }
         try { writerThread?.Join(3000); } catch { }
@@ -212,7 +222,7 @@ internal static class EwpOut
         lock (ackGate)
         {
             long deadline = Environment.TickCount64 + AckTimeoutMs;
-            while (Volatile.Read(ref pendingFrames) >= CreditWindow)
+            while (!closing && Volatile.Read(ref pendingFrames) >= CreditWindow)
             {
                 long left = deadline - Environment.TickCount64;
                 if (left <= 0)
@@ -232,17 +242,27 @@ internal static class EwpOut
 
 internal sealed class EwpHost
 {
-    private readonly MainWindow win;
+    private readonly IConsoleSurface win;
     private readonly int tcpPort;
     private Thread transportThread;
     private volatile bool running = true;
 
     private long lineIdSeq;
     private long reqIdSeq;
-    /// <summary>仍在缓冲里的行（lineId+文本；CLEARLINE 尾部裁剪；仅 UI/脚本线程访问）。结构化 snapshot 的数据源。</summary>
-    private readonly List<(long Id, string Text)> liveLines = new();
+    /// <summary>快照用行账本：lineId/文本/频道 owner/到达时的频道 rev；CLEARLINE 尾部裁剪。</summary>
+    private sealed class LiveLine
+    {
+        public long Id;
+        public string Text;
+        public string Owner = "";
+        public long OwnerRev;
+    }
+    /// <summary>仍存活的行（lineId/文本/归属；仅 UI 线程访问，频道元数据在 channelGate 下）。</summary>
+    private readonly List<LiveLine> liveLines = new();
     /// <summary>活着的 sprite 图层（与引擎同语义：同深度可叠多层、按深度清）。snapshot 数据源。</summary>
-    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow)> liveSprites = new();
+    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow, long Rev)> liveSprites = new();
+    /// <summary>R-3a：运行期图层不可变快照（UI 线程；FE 声明 sprite.export 后才启用）。</summary>
+    private readonly EwpSpriteExport spriteExport = new();
     /// <summary>当前 island 的原始 HTML（null＝无 island）。v0 单实例（A1-④）。</summary>
     private string liveIslandHtml;
     /// <summary>hello.ok 里 FE 上报的视口（窗体句柄未建时暂存，Subscribe 时经 UI 线程应用）。</summary>
@@ -254,19 +274,42 @@ internal sealed class EwpHost
     /// <summary>B3 离屏像素流（hello.ok mode.pixel=true 才启用；帧信号=CliFramePainted）。</summary>
     private readonly EwpPixelStreamer pixel;
 
-    /// <summary>B② 频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open）。
+    /// <summary>B②/S1 频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open/segments）。
     /// 脚本线程写（IntoFunction）、UI 线程读（snapshot/state）——lock 保护。</summary>
+    private sealed class ChannelSegment
+    {
+        public long Rev;
+        public bool Committed;
+    }
     private sealed class ChannelState
     {
         public string Kind;
         public long Rev;
         public bool Open;
+        public readonly List<ChannelSegment> Segments = new();
     }
     private readonly object channelGate = new();
     private readonly Dictionary<string, ChannelState> channels = new();
+    /// <summary>真实 begin 次序（栈底→栈顶）；空栈时新行走主日志。</summary>
+    private readonly List<string> openStack = new();
     private long channelMismatch;
+    /// <summary>FE 的 hello.ok.caps 是否包含 channel；缺省 caps 按旧 FE 常开处理。</summary>
+    private volatile bool channelEnabled = true;
+    /// <summary>FE 的 hello.ok.caps 是否包含 input.rect（I3-b）：缺省 false ⇒ input.request 的
+    /// buttons[] 不带 rect 键（⛔ 发 null 或空对象，FE 侧统一按「无 rect 回退文本/值」处理）。
+    /// 引擎 hello.caps 自报暂不含 input.rect：声明即承诺，等 I3-c 真机门禁通过后再加。</summary>
+    private volatile bool rectEnabled;
+    /// <summary>最近一次 EmitMetrics 读到的 render 尺寸（rect 的坐标画布）。
+    /// Subscribe 期窗口可能未完成布局 ⇒ 读到 0（最小化实测 render=0x0）；首个 input.request
+    /// 时窗口必已就绪，故在那里补发一次。</summary>
+    private int metricsRenderW;
+    private int metricsRenderH;
+    private bool metricsRenderResent;
+    /// <summary>rect 自检失败累计（I3-c 生产护栏）：几何自检不过的按钮不发 rect，只计数。
+    /// <c>sys.state.rectSelfCheckFailed</c> 可观测；门禁断言 == 0。</summary>
+    private long rectSelfCheckFailed;
 
-    public EwpHost(MainWindow window, int tcpPort = 0)
+    public EwpHost(IConsoleSurface window, int tcpPort = 0)
     {
         win = window;
         this.tcpPort = tcpPort;
@@ -285,12 +328,12 @@ internal sealed class EwpHost
     {
         ChannelHooks.Handler = OnChannelMacro;
         var sb = new StringBuilder(320);
-        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.1\",\"impl\":\"ewp-b4\",\"engine\":{")
+        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.3\",\"impl\":\"ewp-b4\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -307,11 +350,21 @@ internal sealed class EwpHost
     {
         int cellW = 0;
         try { cellW = StringMeasure.GetDisplayLength(" ", Config.DefaultFont) * 2; } catch { }
+        // I3-b：renderW/renderH 与 sys.state.client 同源（console.ClientWidth/Height
+        // ＝ MainWindow.RenderWidth/RenderHeight，即 rect 的坐标画布＝render 逻辑像素）。
+        // 这里重复一次是为了让 FE 在网格基准旁直接拿到画布尺寸；⛔ 与 hello.ok.viewport
+        // （FE 期望的 ClientSize，含滚动条/边框）不是一个量。
+        int renderW = 0, renderH = 0;
+        try { renderW = win.RenderWidth; renderH = win.RenderHeight; } catch { }
+        metricsRenderW = renderW;
+        metricsRenderH = renderH;
         EwpOut.Emit("{\"t\":\"meta.metrics\",\"metrics\":{\"cellW\":" + cellW
             + ",\"cellH\":" + Config.FontSize
             + ",\"lineH\":" + Config.LineHeight
             + ",\"font\":" + J(Config.FontName)
-            + ",\"fontSize\":" + Config.FontSize + "}}");
+            + ",\"fontSize\":" + Config.FontSize
+            + ",\"renderW\":" + renderW
+            + ",\"renderH\":" + renderH + "}}");
     }
 
     private static string SafeVersion()
@@ -334,16 +387,20 @@ internal sealed class EwpHost
     {
         running = false;
         ChannelHooks.Handler = null;
-        pixel.Dispose();
+        // 先发 exit 再清像素流：像素流 Dispose 若抛异常也不能把 exit 吞掉。
         EwpOut.Emit("{\"t\":\"exit\"}");
+        try { pixel.Dispose(); } catch { }
         EwpOut.Shutdown();
     }
 
-    /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}；
-    /// end=commit{rev}（与配对 begin 同 rev 定稿）；clear=clear{id}（清内容不清频道，
-    /// rev 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。</summary>
+    /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}+新段；
+    /// end=commit{rev}（与配对 begin 同 rev 定稿）；clear=clear{id}（清段不清频道，
+    /// rev/open/行 owner 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。</summary>
     private void OnChannelMacro(string macro, string id, string kind)
     {
+        // H4：FE 未声明 channel 时只停发 wire 事件，不改变 ERB 宏本身的空展开行为。
+        if (!channelEnabled)
+            return;
         switch (macro)
         {
             case "begin":
@@ -351,6 +408,11 @@ internal sealed class EwpHost
                     kind = "log";
                 lock (channelGate)
                 {
+                    if (string.IsNullOrEmpty(id))
+                    {
+                        channelMismatch++;
+                        break;
+                    }
                     if (!channels.TryGetValue(id, out var st))
                     {
                         st = new ChannelState { Kind = kind };
@@ -358,8 +420,12 @@ internal sealed class EwpHost
                         EwpOut.Emit("{\"t\":\"channel.create\",\"id\":" + J(id)
                             + ",\"kind\":" + J(kind) + ",\"tier\":\"grid-locked\"}");
                     }
+                    // 同 id 重复 begin＝移栈顶＋rev++，不形成嵌套。
+                    openStack.Remove(id);
+                    openStack.Add(id);
                     st.Rev++;
                     st.Open = true;
+                    st.Segments.Add(new ChannelSegment { Rev = st.Rev, Committed = false });
                     EwpOut.Emit("{\"t\":\"channel.begin\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
                 }
                 break;
@@ -369,6 +435,10 @@ internal sealed class EwpHost
                     if (channels.TryGetValue(id, out var st) && st.Open)
                     {
                         st.Open = false;
+                        openStack.Remove(id);
+                        var seg = st.Segments.Find(s => s.Rev == st.Rev);
+                        if (seg != null)
+                            seg.Committed = true;
                         EwpOut.Emit("{\"t\":\"channel.commit\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
                     }
                     else
@@ -378,8 +448,12 @@ internal sealed class EwpHost
             case "clear":
                 lock (channelGate)
                 {
-                    if (channels.ContainsKey(id))
+                    if (channels.TryGetValue(id, out var st))
+                    {
+                        // 清内容不清频道：段清空，rev/open 与行 owner 保持。
+                        st.Segments.Clear();
                         EwpOut.Emit("{\"t\":\"channel.clear\",\"id\":" + J(id) + "}");
+                    }
                     else
                         channelMismatch++;
                 }
@@ -456,6 +530,7 @@ internal sealed class EwpHost
         console.CliWaitInputEntered += OnWaitInput;
         console.CliTerminalStateEntered += OnTerminalState;
         console.CliLinesRemoved += OnLinesRemoved;
+        console.CliDisplayCleared += OnDisplayCleared;
         console.CliImageLayerSet += OnImageLayerSet;
         console.CliImageLayerCleared += OnImageLayerCleared;
         console.CliImageLayersCleared += OnImageLayersCleared;
@@ -482,6 +557,11 @@ internal sealed class EwpHost
                 win.ClientSize = new Size(w - 1, h - 1);
                 win.ClientSize = new Size(w, h);
             }
+            // N1-b：viewport 可能把 render 画布从「初始 Config 尺寸」改到实际 client 尺寸；
+            // 原逻辑只在初始 render<=0 时补发 metrics，headless（初始 render=Config 尺寸>0）
+            // 会永远停在旧值。这里按实际变化补发一次（桌面同样受益，FE 更早拿到正确网格）。
+            if (win.RenderWidth != metricsRenderW || win.RenderHeight != metricsRenderH)
+                EmitMetrics();
         }));
     }
 
@@ -500,7 +580,25 @@ internal sealed class EwpHost
         // text level; spans/line-level buttons deferred (spec freeze list).
         var id = ++lineIdSeq;
         var text = ClipboardProcessor.StripHTML(line.ToString());
-        liveLines.Add((id, text));
+        var owner = "";
+        long ownerRev = 0;
+        lock (channelGate)
+        {
+            if (openStack.Count > 0)
+            {
+                owner = openStack[openStack.Count - 1];
+                if (channels.TryGetValue(owner, out var st))
+                {
+                    ownerRev = st.Rev;
+                    // clear 后仍 open 的频道：下一次内容到达时重建当前 rev 的未提交段。
+                    if (!st.Segments.Exists(s => s.Rev == ownerRev))
+                        st.Segments.Add(new ChannelSegment { Rev = ownerRev, Committed = false });
+                }
+                else
+                    owner = "";
+            }
+        }
+        liveLines.Add(new LiveLine { Id = id, Text = text, Owner = owner, OwnerRev = ownerRev });
         var json = "{\"t\":\"legacy.line\",\"lineId\":" + id
             + ",\"gen\":" + currentGeneration
             + ",\"text\":" + J(text) + "}";
@@ -519,13 +617,55 @@ internal sealed class EwpHost
             + ",\"count\":" + removed + "}");
     }
 
+    /// <summary>ClearDisplay 全量清场：清快照行/频道/段/栈，向 FE 发一条清空通知。
+    /// v0.2 不发 channel.destroy；重连以无旧状态的 snapshot 为准。</summary>
+    private void OnDisplayCleared()
+    {
+        int count = liveLines.Count;
+        long fromId = count > 0 ? liveLines[0].Id : -1;
+        liveLines.Clear();
+        spriteExport.Clear();
+        // EG-1b/EG-1d：ClearDisplay＝整屏换场（启动/GotoTitle/读档前），图层与 island 账本
+        // 必须同源清空；否则新会话快照会带出已 Dispose 的旧 sprite（DrawTo 跳过但账本残留）。
+        bool hadSprites = liveSprites.Count > 0;
+        liveSprites.Clear();
+        bool hadIsland = liveIslandHtml != null;
+        liveIslandHtml = null;
+        lock (channelGate)
+        {
+            channels.Clear();
+            openStack.Clear();
+            channelMismatch = 0;
+        }
+        if (hadSprites)
+            EwpOut.Emit("{\"t\":\"sprite.clear\",\"all\":true}");
+        if (hadIsland)
+            EwpOut.Emit("{\"t\":\"overlay.island.clear\"}");
+        if (count > 0)
+            EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId + ",\"count\":-1}");
+    }
+
     private void OnWaitInput()
     {
         var console = GameConsole;
         if (console == null || console.inputReq == null)
             return;
         var req = console.inputReq;
-        var buttons = console.GetSelectableButtons();
+        // I3-b：Subscribe 期窗口若未完成布局，meta.metrics 的 renderW/H 会读到 0（最小化实测）。
+        // 首个 input.request 时窗口必已就绪 ⇒ 补发一次，让 FE 在拿到 rect 之前就有画布尺寸。
+        if (!metricsRenderResent && metricsRenderW <= 0)
+        {
+            int probeW = 0, probeH = 0;
+            try { probeW = win.RenderWidth; probeH = win.RenderHeight; } catch { }
+            if (probeW > 0 && probeH > 0)
+            {
+                metricsRenderResent = true;
+                EmitMetrics();
+            }
+        }
+        // I3-b：统一走几何版本（同一遍历，多算几个 int，开销可忽略），
+        // 是否把 rect 写进 wire 由 FE 请求的 input.rect cap 决定。
+        var buttons = console.GetSelectableButtonRects();
         var reqId = ++reqIdSeq;
         currentReqId = reqId;
         currentGeneration = console.LastButtonGeneration;
@@ -546,11 +686,33 @@ internal sealed class EwpHost
         {
             if (i > 0)
                 sb.Append(',');
+            var button = buttons[i];
             sb.Append("{\"index\":").Append(i)
-                .Append(",\"text\":").Append(J(buttons[i].Text))
-                .Append(",\"value\":").Append(J(buttons[i].Value))
-                .Append(",\"isInteger\":").Append(buttons[i].IsInteger ? "true" : "false")
-                .Append('}');
+                .Append(",\"text\":").Append(J(button.Text))
+                .Append(",\"value\":").Append(J(button.Value))
+                .Append(",\"isInteger\":").Append(button.IsInteger ? "true" : "false");
+            if (rectEnabled && button.HasRect)
+            {
+                // I3-c 生产护栏：先跑连通性自检（中心＋共同区四角共 5 点须全部命中同一按钮）。
+                // 不过就降级不发 rect（FE 回退文本/值），只计数——⛔ 宁可没有 rect，不可点错。
+                // I3-d：div 按钮（HitTestOracle=false）跳过自检——其 hit-test 与绘制在绝对定位下分叉
+                // （设计卡 §3.3），rect 由 GetContentRect 的绘制矩形推出，拿 hit-test 当 oracle 必误判。
+                bool selfCheckOk = !button.HitTestOracle
+                    || console.RectSelfCheckPoints(button.Button, button.Rect) == 0;
+                if (selfCheckOk)
+                {
+                    sb.Append(",\"rect\":{\"x\":").Append(button.Rect.X)
+                        .Append(",\"y\":").Append(button.Rect.Y)
+                        .Append(",\"w\":").Append(button.Rect.Width)
+                        .Append(",\"h\":").Append(button.Rect.Height)
+                        .Append(",\"coordinateSpace\":\"viewport-global\"}");
+                }
+                else
+                {
+                    Interlocked.Increment(ref rectSelfCheckFailed);
+                }
+            }
+            sb.Append('}');
         }
         sb.Append("]}");
         EwpOut.Emit(sb.ToString());
@@ -561,13 +723,27 @@ internal sealed class EwpHost
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":" + J(GameConsole?.CliStateName ?? "Unknown") + "}");
     }
 
-    /// <summary>SETIMAGELAYER(L)→sprite.set（EWP §4.3；colormatrix 留 v1＝A1-③）。</summary>
-    private void OnImageLayerSet(string tex, long depth, int x, int y, int w, int h, int op, bool follow)
+    /// <summary>SETIMAGELAYER(L)→sprite.set（EWP §4.3；colormatrix 留 v1＝A1-③）。
+    /// R-3a：先用实际 ImageLayer 对象同步冻结快照，再发事件；rev 只在启用导出时出现。</summary>
+    private void OnImageLayerSet(ImageLayer layer)
     {
-        liveSprites.Add((depth, tex, x, y, w, h, op, follow));
-        EwpOut.Emit("{\"t\":\"sprite.set\",\"depth\":" + depth + ",\"texture\":" + J(tex)
-            + ",\"x\":" + x + ",\"y\":" + y + ",\"w\":" + w + ",\"h\":" + h
-            + ",\"opacity\":" + op + ",\"follow\":" + (follow ? "true" : "false") + "}");
+        long rev = spriteExport.Capture(layer);
+        string tex = layer.Image?.Name ?? "";
+        liveSprites.Add((layer.Depth, tex, layer.X, layer.Y, layer.Width, layer.Height,
+            layer.Opacity, layer.FollowScroll, rev));
+        var sb = new StringBuilder(160);
+        sb.Append("{\"t\":\"sprite.set\",\"depth\":").Append(layer.Depth)
+            .Append(",\"texture\":").Append(J(tex))
+            .Append(",\"x\":").Append(layer.X)
+            .Append(",\"y\":").Append(layer.Y)
+            .Append(",\"w\":").Append(layer.Width)
+            .Append(",\"h\":").Append(layer.Height)
+            .Append(",\"opacity\":").Append(layer.Opacity)
+            .Append(",\"follow\":").Append(layer.FollowScroll ? "true" : "false");
+        if (rev > 0)
+            sb.Append(",\"rev\":").Append(rev);
+        sb.Append('}');
+        EwpOut.Emit(sb.ToString());
     }
 
     private void OnImageLayerCleared(long depth)
@@ -611,6 +787,9 @@ internal sealed class EwpHost
 
     private static string J(string s) => JsonSerializer.Serialize(s ?? "");
 
+    /// <summary>EG-1b：统计用浮点 JSON 数值（invariant，最多 3 位小数）。</summary>
+    private static string D(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
     private void HandleLine(string line)
     {
         JsonDocument doc;
@@ -631,6 +810,9 @@ internal sealed class EwpHost
             string t = root.TryGetProperty("t", out var tv) && tv.ValueKind == JsonValueKind.String ? tv.GetString() : null;
             switch (t)
             {
+                case "sprite.req":
+                    Dispatch(() => DoSpriteRequest(root.Clone()));
+                    break;
                 case "input.submit":
                     Dispatch(() => DoInputSubmit(root.Clone()));
                     break;
@@ -640,14 +822,21 @@ internal sealed class EwpHost
                 case "hello.ok":
                     DoHelloOk(root);
                     break;
+                // EWP/0.2 正名与 0.1 旧名共用同一入口；hello.proto 已翻为 0.2。
                 case "state":
+                case "sys.state":
                     Dispatch(() => DoState());
                     break;
                 case "snapshot.req":
+                case "sys.snapshot":
                     Dispatch(() => DoSnapshot());
                     break;
                 case "sys.quit":
                     DispatchQuit();
+                    break;
+                // EG-1d：sys.title 落 console.GotoTitle（ClearDisplay ⇒ 精灵快照缓存清空）。
+                case "sys.title":
+                    Dispatch(() => DoTitle());
                     break;
                 default:
                     EmitResult(false, "protocol_violation", "unknown or missing \"t\"");
@@ -722,6 +911,46 @@ internal sealed class EwpHost
     /// 早于 Subscribe 启用也无妨，CliFramePainted 未挂前捕获不会发生）。</summary>
     private void DoHelloOk(JsonElement root)
     {
+        // H4：caps 缺失＝旧 FE，保持 channel 常开；显式数组按是否含 channel 降级。
+        // I3-b：同一次遍历顺带解析 input.rect（旧 FE 不请求 ⇒ rectEnabled=false，不发 rect）。
+        // caps 存在但不是数组视为旧格式，按常开兼容。
+        if (!root.TryGetProperty("caps", out var caps) || caps.ValueKind != JsonValueKind.Array)
+        {
+            channelEnabled = true;
+            rectEnabled = false;
+            spriteExport.Enabled = false;
+        }
+        else
+        {
+            var hasChannel = false;
+            var hasRect = false;
+            var hasSpriteExport = false;
+            foreach (var cap in caps.EnumerateArray())
+            {
+                if (cap.ValueKind != JsonValueKind.String)
+                    continue;
+                var capName = cap.GetString();
+                if (capName == "channel")
+                    hasChannel = true;
+                else if (capName == "input.rect")
+                    hasRect = true;
+                else if (capName == "sprite.export")
+                    hasSpriteExport = true;
+            }
+            channelEnabled = hasChannel;
+            rectEnabled = hasRect;
+            spriteExport.Enabled = hasSpriteExport;
+        }
+        if (!channelEnabled)
+        {
+            // 降级期间不保留旧频道状态；后续 state/snapshot 必须表现为 channel 关闭。
+            lock (channelGate)
+            {
+                channels.Clear();
+                channelMismatch = 0;
+            }
+        }
+
         int w = 0, h = 0;
         if (root.TryGetProperty("viewport", out var vp) && vp.ValueKind == JsonValueKind.Object)
         {
@@ -756,9 +985,76 @@ internal sealed class EwpHost
         }
     }
 
+    /// <summary>R-3a：FE 请求精确快照。只读不可变快照缓存，不查 activeSprites、不现画。
+    /// 成功回 sprite.data；失败回 sprite.data.fail；⛔ 不返回 result。</summary>
+    private void DoSpriteRequest(JsonElement root)
+    {
+        // EG-1b：旧 FE（caps 未声明 sprite.export）明确忽略——⛔不回 data/fail，只计数。
+        if (!spriteExport.Enabled)
+        {
+            spriteExport.NoteIgnoredRequest();
+            return;
+        }
+        string texture = null;
+        long rev = 0;
+        if (root.TryGetProperty("texture", out var texEl) && texEl.ValueKind == JsonValueKind.String)
+            texture = texEl.GetString();
+        if (root.TryGetProperty("rev", out var revEl) && revEl.ValueKind == JsonValueKind.Number)
+            revEl.TryGetInt64(out rev);
+        if (string.IsNullOrEmpty(texture) || rev <= 0)
+        {
+            EmitSpriteFail(texture ?? "", rev, "bad_request",
+                string.IsNullOrEmpty(texture) ? "texture" : "rev");
+            return;
+        }
+
+        string key = texture.ToUpperInvariant();
+        if (!spriteExport.TryEncode(key, rev, out var png, out int w, out int h, out var code, out var detail))
+        {
+            EmitSpriteFail(key, rev, code ?? "not_exportable", detail);
+            return;
+        }
+
+        var sb = new StringBuilder(256 + png.Length * 2);
+        sb.Append("{\"t\":\"sprite.data\",\"texture\":").Append(J(key))
+            .Append(",\"rev\":").Append(rev)
+            .Append(",\"w\":").Append(w)
+            .Append(",\"h\":").Append(h)
+            .Append(",\"fmt\":\"png\",\"data\":\"").Append(Convert.ToBase64String(png)).Append("\"}");
+        EwpOut.Emit(sb.ToString());
+    }
+
+    /// <summary>EG-1d：返回标题（console.GotoTitle 封装）。ClearDisplay 会清空精灵快照缓存，
+    /// 旧 rev 之后必须报 not_found（不是 expired）。</summary>
+    private void DoTitle()
+    {
+        GameConsole.GotoTitle();
+        EmitResult(true, null, "title");
+    }
+
+    private static void EmitSpriteFail(string texture, long rev, string code, string detail)
+    {
+        var sb = new StringBuilder(128);
+        sb.Append("{\"t\":\"sprite.data.fail\",\"texture\":").Append(J(texture ?? ""))
+            .Append(",\"rev\":").Append(rev)
+            .Append(",\"code\":").Append(J(code ?? "not_exportable"));
+        if (!string.IsNullOrEmpty(detail))
+            sb.Append(",\"detail\":").Append(J(detail));
+        sb.Append('}');
+        EwpOut.Emit(sb.ToString());
+    }
+
     private void DoState()
     {
         var console = GameConsole;
+        int channelCount;
+        long mismatch;
+        lock (channelGate)
+        {
+            channelCount = channelEnabled ? channels.Count : 0;
+            mismatch = channelMismatch;
+        }
+        var spriteStats = spriteExport.Stats();
         EwpOut.Emit("{\"t\":\"result\",\"ok\":true,\"state\":" + J(console.CliStateName)
             + ",\"waitInput\":" + (console.IsWaitInputState ? "true" : "false")
             + ",\"reqId\":" + currentReqId
@@ -766,7 +1062,7 @@ internal sealed class EwpHost
             + ",\"lines\":" + liveLines.Count
             + ",\"client\":[" + console.ClientWidth + "," + console.ClientHeight + "]"
             + ",\"winClient\":[" + win.ClientSize.Width + "," + win.ClientSize.Height + "]"
-            + ",\"winState\":\"" + win.WindowState + "\""
+            + ",\"winState\":\"" + win.WindowStateName + "\""
             + ",\"frames\":" + EwpOut.FramesWritten
             + ",\"acks\":" + EwpOut.Acks
             + ",\"pending\":" + EwpOut.PendingFrames
@@ -776,11 +1072,27 @@ internal sealed class EwpHost
             + ",\"dropped\":" + pixel.Dropped
             + ",\"written\":" + EwpOut.PixelWritten
             + ",\"writeDropped\":" + EwpOut.PixelDropped + "}"
-            + ",\"channels\":" + channels.Count
-            + ",\"channelMismatch\":" + channelMismatch + "}");
+            + ",\"channels\":" + channelCount
+            + ",\"channelMismatch\":" + mismatch
+            + ",\"channelEnabled\":" + (channelEnabled ? "true" : "false")
+            + ",\"rectSelfCheckFailed\":" + Interlocked.Read(ref rectSelfCheckFailed)
+            + ",\"spriteExport\":{\"enabled\":" + (spriteStats.Enabled ? "true" : "false")
+            + ",\"snapshots\":" + spriteStats.Snapshots
+            + ",\"bytes\":" + spriteStats.Bytes
+            + ",\"requests\":" + spriteStats.Requests
+            + ",\"failures\":" + spriteStats.Failures
+            + ",\"lastRev\":" + spriteStats.LastRev
+            + ",\"requestsIgnored\":" + spriteStats.RequestsIgnored
+            + ",\"captureMsLast\":" + D(spriteStats.CaptureMsLast)
+            + ",\"captureMsP50\":" + D(spriteStats.CaptureMsP50)
+            + ",\"captureMsP95\":" + D(spriteStats.CaptureMsP95)
+            + ",\"encodeMsLast\":" + D(spriteStats.EncodeMsLast)
+            + ",\"encodeMsP50\":" + D(spriteStats.EncodeMsP50)
+            + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}}");
     }
 
-    /// <summary>结构化快照（B2）：行数组（lineId+text）＋世代＋挂起输入；断线重连按此幂等重建。</summary>
+    /// <summary>结构化快照（B2/S1）：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；
+    /// 断线重连按此原子重建。</summary>
     private void DoSnapshot()
     {
         var console = GameConsole;
@@ -809,23 +1121,86 @@ internal sealed class EwpHost
                 .Append(",\"x\":").Append(s.X).Append(",\"y\":").Append(s.Y)
                 .Append(",\"w\":").Append(s.W).Append(",\"h\":").Append(s.H)
                 .Append(",\"opacity\":").Append(s.Op)
-                .Append(",\"follow\":").Append(s.Follow ? "true" : "false").Append('}');
+                .Append(",\"follow\":").Append(s.Follow ? "true" : "false");
+            if (s.Rev > 0)
+                sb.Append(",\"rev\":").Append(s.Rev);
+            sb.Append('}');
         }
         sb.Append("],\"island\":").Append(liveIslandHtml != null ? J(liveIslandHtml) : "null");
-        sb.Append(",\"channels\":[");
         lock (channelGate)
         {
-            int ci = 0;
-            foreach (var kv in channels)
+            // 所有存活行的 owner 映射（含 channel.clear 后隐藏行）；主日志行不出现在映射里。
+            var lineChannels = new Dictionary<string, List<long>>();
+            if (channelEnabled)
             {
-                if (ci++ > 0) sb.Append(',');
-                sb.Append("{\"id\":").Append(J(kv.Key))
-                    .Append(",\"kind\":").Append(J(kv.Value.Kind))
-                    .Append(",\"rev\":").Append(kv.Value.Rev)
-                    .Append(",\"open\":").Append(kv.Value.Open ? "true" : "false").Append('}');
+                foreach (var line in liveLines)
+                {
+                    if (string.IsNullOrEmpty(line.Owner) || !channels.ContainsKey(line.Owner))
+                        continue;
+                    if (!lineChannels.TryGetValue(line.Owner, out var ids))
+                    {
+                        ids = new List<long>();
+                        lineChannels[line.Owner] = ids;
+                    }
+                    ids.Add(line.Id);
+                }
             }
+            sb.Append(",\"lineChannels\":{");
+            int lci = 0;
+            foreach (var kv in lineChannels)
+            {
+                if (lci++ > 0) sb.Append(',');
+                sb.Append(J(kv.Key)).Append(":[");
+                for (int i = 0; i < kv.Value.Count; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append(kv.Value[i]);
+                }
+                sb.Append(']');
+            }
+            sb.Append("},\"openStack\":[");
+            if (channelEnabled)
+            {
+                for (int i = 0; i < openStack.Count; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append(J(openStack[i]));
+                }
+            }
+            sb.Append("],\"channels\":[");
+            if (channelEnabled)
+            {
+                int ci = 0;
+                foreach (var kv in channels)
+                {
+                    if (ci++ > 0) sb.Append(',');
+                    sb.Append("{\"id\":").Append(J(kv.Key))
+                        .Append(",\"kind\":").Append(J(kv.Value.Kind))
+                        .Append(",\"rev\":").Append(kv.Value.Rev)
+                        .Append(",\"open\":").Append(kv.Value.Open ? "true" : "false")
+                        .Append(",\"segments\":[");
+                    int si = 0;
+                    foreach (var seg in kv.Value.Segments)
+                    {
+                        if (si++ > 0) sb.Append(',');
+                        sb.Append("{\"rev\":").Append(seg.Rev)
+                            .Append(",\"committed\":").Append(seg.Committed ? "true" : "false")
+                            .Append(",\"lineIds\":[");
+                        int li = 0;
+                        foreach (var line in liveLines)
+                        {
+                            if (line.Owner != kv.Key || line.OwnerRev != seg.Rev)
+                                continue;
+                            if (li++ > 0) sb.Append(',');
+                            sb.Append(line.Id);
+                        }
+                        sb.Append("]}");
+                    }
+                    sb.Append("]}");
+                }
+            }
+            sb.Append("]}");
         }
-        sb.Append("]}");
         EwpOut.Emit(sb.ToString());
     }
 

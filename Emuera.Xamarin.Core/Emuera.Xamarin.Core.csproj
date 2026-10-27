@@ -75,7 +75,9 @@
   <!-- 注意：PluginSystem 不再排除——Xamarin 端也要真实加载插件 DLL（CALLSHARP 依赖它） -->
   <ItemGroup>
     <Compile Remove="..\Emuera\Runtime\Utils\Sound.WMP.cs" />
-    <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Shape.cs" />
+    <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Shape.cs" />
+    <!-- 2026-10-27：develop 新增 Utils.Icon.cs（System.Drawing.Bitmap/Icon），Android/net8.0 无 System.Drawing.Common ⇒ 排除（桌面由 Emuera.csproj 编译） -->
+    <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Utils.Icon.cs" />
     <Compile Remove="..\Emuera\Runtime\Script\Statements\Clipboard.cs" />
     <Compile Remove="..\Emuera\Runtime\Utils\EvilMask\Utils.cs" />
     <!-- 内核 PlatformInterop：Xamarin 有自己的 stub 版本 -->

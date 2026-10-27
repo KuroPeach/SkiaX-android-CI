@@ -4,6 +4,18 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.5.1] — 模态窗口期间暂停输入超时定时器（标题 DEMO 假死修复）
+
+### Fixed
+
+- **模态窗口打开期间，`TINPUT/TINPUTNF` 等带时限输入的超时定时器照常走完**：超时路径 `window.Invoke(RunEmueraProgram)` 会在模态消息循环里以默认输入抢跑脚本。实证：标题画面 `TINPUTNF 20000` 的 20 秒自动 DEMO 计时器在「复制日志到剪贴板」窗口打开期间到点，BADAPPLE（6573 帧 ≈ 3:37）在 UI 线程不可取消地播放——游戏窗口被模态禁用、焦点在模态窗使 `GETKEYTRIGGERED` 取消探针全灭 ⇒ 双窗假死，只能等播完或杀进程。现 MainWindow 全部 13 处模态点（剪贴板窗口两入口、保存/打开/文件夹对话框、确认 MessageBox×7）打开前 `PauseTimer()`、关闭后 `ResumeTimer()`（重启秒表，关窗后重新计满）；取消/校验错误路径与 catch 内错误弹窗同被覆盖。涉及 `UI/Framework/Forms/MainWindow.cs`（修复本体 `d7de7e62`）
+
+### Changed
+
+- **版本签名**：`Skiav16.5` → `Skiav16.5.1`（`1824+v24+EMv18+EEv56+Skiav16.5.1`）
+
+***
+
 ## [16.5.0] — EWP v0.1 定稿：MessagePack 默认翻转（eraWire A2）
 
 ### Changed

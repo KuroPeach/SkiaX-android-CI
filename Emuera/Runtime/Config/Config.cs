@@ -311,14 +311,23 @@ internal static class Config
 
 	private static bool CheckFont(string fontName)
 	{
-		var font = new Font(fontName, 10);
-		var families = GlobalStatic.Pfc.Families;
-		return FontFamily.GenericSansSerif.Name != font.Name || families.Any(ff => ff.Name == fontName);
+		return FontFactory.IsFontAvailable(fontName);
 	}
 	#endregion
 	#endregion
 
-	public static SKFont DefaultFont { get { return FontFactory.GetFont("", FontStyle.Regular); } }
+	/// <summary>
+	/// 默认字体。P1（2026-10-27）：字体创建失败时不得把 null 交给测量路径——
+	/// StringMeasure.GetDisplayLength 会 NRE，Process.Initialize 阶段直接变成启动 Error。
+	/// </summary>
+	public static SKFont DefaultFont
+	{
+		get
+		{
+			var font = FontFactory.GetFont("", FontStyle.Regular);
+			return font ?? FontFactory.CreateEmergencyFont();
+		}
+	}
 
 
 	/// <summary>
