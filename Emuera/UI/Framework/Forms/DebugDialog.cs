@@ -943,7 +943,9 @@ namespace MinorShift.Emuera.Forms
 			dialog.TranslateUI();
 			dialog.StartPosition = FormStartPosition.CenterParent;
 			dialog.SetConfig(this);
-			dialog.ShowDialog();
+			// B+C（2026-10-27）：DebugConfigDialog 是模态，打开期间停表/推迟超时。
+			using (ModalTimerGuard.Enter(GlobalStatic.Console))
+				dialog.ShowDialog();
 			TopMost = tempTopMost;
 		}
 

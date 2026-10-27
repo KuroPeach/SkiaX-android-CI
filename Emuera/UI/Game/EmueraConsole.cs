@@ -1004,6 +1004,14 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (!genericTimer.Enabled)
 			return;
+		// C（2026-10-27，B+C 方案）：模态窗口打开期间推迟超时——重启秒表，关窗后重新计满。
+		// 已套 ModalTimerGuard 的模态点此时 genericTimer 本就停着（上面已 return），本分支只兜
+		// 未套 guard 的残余/未来模态，避免 endTimer 把脚本抢跑进模态消息循环。
+		if (PlatformInterop.IsModalOpen())
+		{
+			_genericTimerStopwatch.Restart();
+			return;
+		}
 		if (!IsWaitInputState || inputReq.Timelimit <= 0 || timerID != inputReq.ID)
 		{
 			stopTimer();

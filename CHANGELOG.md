@@ -4,6 +4,35 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.6.0] — EWP v0.3 定稿（运行期快照导出）＋模态超时竞态系统化收口
+
+### Added
+
+- **EWP v0.3（冻结）运行期精灵快照**：`sprite.req` / `sprite.data` / `sprite.data.fail`、`sprite.set.rev`、`snapshot.full.sprites[].rev`；引擎侧新增 `EwpSpriteExport`（`SETIMAGELAYER` 时冻结不可变快照，LRU 96 项/32 MiB，PNG 编码，失败码 `not_found`/`expired`/`not_exportable`/`too_large`/`bad_request`，capture/encode p50/p95 统计）。FE 未声明 `sprite.export` cap 时 `sprite.req` 直接忽略并计 `requestsIgnored`，旧 FE 事件流零变化
+- **`sys.title`**：`console.GotoTitle()` 封装——整屏清场（`legacy.clear{-1}`/`sprite.clear{all}`/`overlay.island.clear`）＋快照缓存清空（旧 rev 此后为 `not_found`），回 `result{ok:true,detail:"title"}`
+- **`ModalTimerGuard`（B 方案）**：统一模态闸（静态深度计数器＋`IDisposable` scope，内部复用 `PauseTimer/ResumeTimer`）；`DebugConfigDialog`、热键 toast×5 接入
+
+### Changed
+
+- **`hello.proto` → `EWP/0.3`**：命令面与 v0.2 同形（0.3 只新增 `sprite.export` 增量）；`0.x`（x≥2）未知 proto 按 v0.2 命令面处理，`EWP/1.0+` 仍显式拒绝
+- **模态窗口期间带时限输入的超时推迟（C 方案）**：`tickTimer` 检测 `PlatformInterop.IsModalOpen`，模态打开时重启秒表、关窗后重新计满；`DisplayTime` 倒计时在模态期间冻结于满值。Headless / EWP / CliDebug 不注入 ⇒ 恒 false，行为不变
+
+### Fixed
+
+- **默认字体创建失败导致启动即 Error**：`FontFactory.GetFont` 原 `catch { return null; }` 使 `Config.DefaultFont` 为 null，`StringMeasure.GetDisplayLength` 解引用 NRE（`Process.Initialize → setStBar`，偶发、整轮作废）。现失败只记录一次（`[font] create failed …` 进 stderr）并由 `CreateEmergencyFont` 兜底；测量侧空守卫返回 `>0`（避免 `getStBar` 的 `while (width < DrawableWidth)` 死循环）
+- **标题 DEMO 假死收口**：13 处模态点已由 16.5.1 逐点暂停；本版 B+C 让残余/未来模态（DebugConfigDialog、热键 toast）也不再抢跑
+
+### 验收（2026-10-27）
+
+- `dotnet build Emuera.sln` 0 error；headless `r3a_sprite_export_gate` 7 场景 PASS；`live_gate3 --proto EWP/0.3` PASS 2m08s；eraWire `r3a_gate`（离线 72＋渲染 17 断言）PASS
+- 模态竞态人工验收：标题 20s 内打开「复制日志到剪贴板」停留 >20s → demo 不启动；关窗后闲置 20s → 自动 demo 仍正常触发
+
+### Changed
+
+- **版本签名**：`Skiav16.5.1` → `Skiav16.6.0`（`1824+v24+EMv18+EEv56+Skiav16.6.0`）
+
+***
+
 ## [16.5.1] — 模态窗口期间暂停输入超时定时器（标题 DEMO 假死修复）
 
 ### Fixed

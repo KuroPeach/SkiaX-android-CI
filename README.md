@@ -1,6 +1,6 @@
 # Emuera-SKIA
 
-> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav16.5.1
+> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav16.6.0
 
 [![Base](https://img.shields.io/badge/base-Emuera%201.824%20%2B%20EEv56-blue)](#)
 [![Lang](https://img.shields.io/badge/lang-C%23%20%2F%20ERABASIC-green)](#)
@@ -26,11 +26,12 @@
 | **像素制表** | `HTML_PRINTC`/`HTML_PRINTLC` 右/左对齐输出；`PRINTC`/`PRINTFORMC` 像素制表重构（跨平台 CJK 列对齐） |
 | **SQL 系统** | 参数化查询（`SQL_P_EXECUTE_*`）、XML 导入导出（`SQL_IMPORT_XML_CUSTOM`）、连接便利函数（`SQL_CONNECTION_OPEN`） |
 | **输入系统** | `TINPUTNF`/`TINPUTSNF`/`TONEINPUTNF`/`TONEINPUTSNF` 不强制回底、自由滚动、`HOVER_PAUSE` 悬停暂停、用户上滚意图保留、`SEQUENCEINPUT` 输入排程、`DISABLE_INPUT_MACRO`/`ENABLE_INPUT_MACRO` 输入宏开关 |
+| **模态与超时** | 模态窗口（剪贴板/文件/确认框/配置/热键提示）打开期间暂停带时限输入的定时器（`ModalTimerGuard` 统一闸＋`tickTimer` 兜底），杜绝超时在窗口背后抢跑脚本；关窗后重新计满 |
 | **显示控制** | F11 全屏比例缩放、`GETDISPLAYLINE` 负数倒数索引（-1=最后一行）、`STRICT_FONT_FALLBACK` 严格字体回退、`TEXT_BGC_ON/OFF` 文本背景色 |
 | **错误处理** | `BEFORE_THROW`/`BEFORE_ERROR` 事件函数、`DisableBeforeErrorThrow` 配置项、8 条 Float 错误消息修正、调试窗口调用栈保留 |
 | **编码与存档** | 非日文编码（GBK 等）下 CJK 文本长度/子串计算修正（`GetStrlenLang`/`GetUFTIndex`/`GetSubStringLang`）；`CHKDATA` 返回存档版本信息 |
 | **诊断工具** | 调试窗口 `LOCAL@FUNCNAME` 监视、变量监视「锁定」列与直接赋值、当前函数栈保留、`ProcessState.ContextStackCount` 计数、变量写入监视（`var_write.log` 明细 + 汇总报告）、打印监视（`print_trace.log` 实时视图 + 汇总报告）；两者均可选记录调用栈（GUI 勾选项 / CLI `watch` 的 `stack`） |
-| **外部协议（EWP）** | `--ewp` 事件流宿主（stdio/TCP，MessagePack 默认 / `--ewp-json` 调试形态）：legacy 行流＋行 ID＋input.request/submit 闭环＋信用窗背压；hello.metrics 网格基准、视口回传、结构化 snapshot、sprite/overlay 语义流、`pixel.frame` 离屏整帧像素流、`UI_CHANNEL_*` 频道边界事件（EWP v0.1） |
+| **外部协议（EWP）** | `--ewp` 事件流宿主（stdio/TCP，MessagePack 默认 / `--ewp-json` 调试形态）：legacy 行流＋行 ID＋input.request/submit 闭环＋信用窗背压；hello.metrics 网格基准、视口回传、结构化 snapshot、sprite/overlay 语义流、`pixel.frame` 离屏整帧像素流、`UI_CHANNEL_*` 频道边界事件；**EWP v0.3（冻结）**：`sprite.export` 运行期快照（`sprite.req`/`data`/`fail`＋`rev`）、`sys.title`、`hello.proto=EWP/0.3` |
 | **性能优化** | `SELECTCASE` 编译期跳转表（O(1) 查找）、SQL 图片缓存、SharedBitmapCache 池（max 200）、AnimSpriteCache LRU（max 6）、DIV 渲染 O(1) 命中测试 |
 | **跨平台** | SkiaX — LazyLoading 仓库内的 Xamarin.Android 移植端（`feature/xamarin` 分支），直接编译内核，详见 [Emuera.Xamarin/](Emuera.Xamarin/) |
 | **平台检测** | `GETPLATFORM()` 返回平台编码（0=Windows / 1=Android / 2=iOS / 3=macOS / 4=Linux / 5=Unknown） |
@@ -81,4 +82,4 @@
 
 ---
 
-> 版本 V16.5.1
+> 版本 V16.6.0
