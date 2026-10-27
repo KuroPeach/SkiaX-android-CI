@@ -4,6 +4,7 @@ using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
 using MinorShift.Emuera.UI.Game.Rendering;
@@ -254,6 +255,8 @@ internal sealed class EwpHost
     {
         public long Id;
         public string Text;
+        /// <summary>R-3b-1：预构建的 spans JSON 数组（null＝该行不含 spans）。</summary>
+        public string Spans;
         public string Owner = "";
         public long OwnerRev;
     }
@@ -299,6 +302,11 @@ internal sealed class EwpHost
     /// buttons[] 不带 rect 键（⛔ 发 null 或空对象，FE 侧统一按「无 rect 回退文本/值」处理）。
     /// 引擎 hello.caps 自报暂不含 input.rect：声明即承诺，等 I3-c 真机门禁通过后再加。</summary>
     private volatile bool rectEnabled;
+    /// <summary>FE 的 hello.ok.caps 是否包含 legacy.spans（R-3b-1）：缺省 false ⇒
+    /// legacy.line/snapshot.full 不含 spans 键（旧 FE 逐字节不变）。</summary>
+    private volatile bool spansEnabled;
+    private long spansEmitted;
+    private long spansSkipped;
     /// <summary>最近一次 EmitMetrics 读到的 render 尺寸（rect 的坐标画布）。
     /// Subscribe 期窗口可能未完成布局 ⇒ 读到 0（最小化实测 render=0x0）；首个 input.request
     /// 时窗口必已就绪，故在那里补发一次。</summary>
@@ -333,7 +341,7 @@ internal sealed class EwpHost
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\",\"legacy.spans\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -591,9 +599,25 @@ internal sealed class EwpHost
 
     private void OnLineAdded(ConsoleDisplayLine line)
     {
-        // text level; spans/line-level buttons deferred (spec freeze list).
         var id = ++lineIdSeq;
-        var text = ClipboardProcessor.StripHTML(line.ToString());
+        var raw = line.ToString();
+        var text = ClipboardProcessor.StripHTML(raw);
+        // R-3b-1：仅在 FE 声明 legacy.spans 且 text 未被 StripHTML 改写时构建 spans；
+        // 保证 span 的 start/end 与 wire 上的 text 同源（CBIgnoreTags 非常态配置时跳过并计数）。
+        string spans = null;
+        if (spansEnabled)
+        {
+            if (string.Equals(text, raw, StringComparison.Ordinal))
+            {
+                spans = BuildSpans(line);
+                if (spans != null)
+                    Interlocked.Increment(ref spansEmitted);
+            }
+            else
+            {
+                Interlocked.Increment(ref spansSkipped);
+            }
+        }
         var owner = "";
         long ownerRev = 0;
         lock (channelGate)
@@ -612,11 +636,175 @@ internal sealed class EwpHost
                     owner = "";
             }
         }
-        liveLines.Add(new LiveLine { Id = id, Text = text, Owner = owner, OwnerRev = ownerRev });
+        liveLines.Add(new LiveLine { Id = id, Text = text, Spans = spans, Owner = owner, OwnerRev = ownerRev });
         var json = "{\"t\":\"legacy.line\",\"lineId\":" + id
             + ",\"gen\":" + currentGeneration
-            + ",\"text\":" + J(text) + "}";
+            + ",\"text\":" + J(text);
+        if (line.Align != DisplayLineAlignment.LEFT)
+            json += ",\"align\":\"" + (line.Align == DisplayLineAlignment.CENTER ? "center" : "right") + "\"";
+        if (spans != null)
+            json += ",\"spans\":" + spans;
+        json += "}";
         EwpOut.Emit(json);
+    }
+
+    /// <summary>R-3b-1：构建 legacy.line.spans（可选；仅 FE 声明 legacy.spans 且 text 未被
+    /// StripHTML 改写时调用）。start/end 为 text 的 Unicode 码点偏移；div 整体跳过，
+    /// 由 FE F-div 继续负责。发 x/advance 与解析色，文本的 x 含引擎对齐位移。</summary>
+    private string BuildSpans(ConsoleDisplayLine line)
+    {
+        var spans = new List<string>();
+        int cp = 0;
+        bool anyNonText = false, anyStyled = false;
+        foreach (var button in line.Buttons)
+        {
+            if (button?.StrArray == null)
+                continue;
+            foreach (var node in button.StrArray)
+            {
+                if (node == null)
+                    continue;
+                string s = node.ToString() ?? "";
+                int len = CodePointLength(s);
+                int start = cp, end = cp + len;
+                cp = end;
+
+                if (node is ConsoleStyledString css)
+                {
+                    var st = css.StringStyle;
+                    bool def = !st.ColorChanged && st.Color == Config.ForeColor
+                        && !st.BackgroundColor.HasValue && st.ButtonColor == Config.FocusColor
+                        && st.FontStyle == FontStyle.Regular
+                        && (string.IsNullOrEmpty(st.Fontname) || string.Equals(st.Fontname, Config.FontName, StringComparison.OrdinalIgnoreCase))
+                        && !css.FontSize.HasValue && !css.VerticalAlign.HasValue;
+                    if (!def)
+                        anyStyled = true;
+                    if (len == 0)
+                        continue;
+                    var sb = new StringBuilder(128);
+                    sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                        .Append(",\"kind\":\"text\",\"x\":").Append(css.PointX)
+                        .Append(",\"advance\":").Append(css.Width)
+                        .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(st.Color)));
+                    if (st.BackgroundColor.HasValue)
+                        sb.Append(",\"bg\":").Append(J(HtmlManager.GetColorToStringArgb(st.BackgroundColor.Value)));
+                    if ((st.FontStyle & FontStyle.Bold) != 0) sb.Append(",\"bold\":true");
+                    if ((st.FontStyle & FontStyle.Italic) != 0) sb.Append(",\"italic\":true");
+                    if ((st.FontStyle & FontStyle.Underline) != 0) sb.Append(",\"underline\":true");
+                    if ((st.FontStyle & FontStyle.Strikeout) != 0) sb.Append(",\"strike\":true");
+                    if (!string.IsNullOrEmpty(st.Fontname) && !string.Equals(st.Fontname, Config.FontName, StringComparison.OrdinalIgnoreCase))
+                        sb.Append(",\"font\":").Append(J(st.Fontname));
+                    if (css.FontSize.HasValue)
+                        sb.Append(",\"size\":").Append(D(css.FontSize.Value));
+                    if (css.VerticalAlign.HasValue)
+                        sb.Append(",\"valign\":").Append(J(css.VerticalAlign.Value.ToString().ToLowerInvariant()));
+                    sb.Append('}');
+                    spans.Add(sb.ToString());
+                    continue;
+                }
+
+                anyNonText = true;
+                if (node is ConsoleImagePart img)
+                {
+                    var dr = img.DestRect;
+                    int dx, dy;
+                    string display = img.Display switch
+                    {
+                        DisplayMode.AbsoluteLeftTop => "absolute-lefttop",
+                        DisplayMode.AbsoluteLeftBottom => "absolute-leftbottom",
+                        DisplayMode.Absolute => "absolute",
+                        _ => "relative"
+                    };
+                    if (img.Display == DisplayMode.Relative)
+                    {
+                        dx = img.PointX + dr.X;
+                        dy = dr.Y;
+                    }
+                    else if (img.Display == DisplayMode.AbsoluteLeftBottom)
+                    {
+                        dx = img.PositionX;
+                        dy = (GameConsole?.ClientHeight ?? 0) + img.PositionY;
+                    }
+                    else
+                    {
+                        dx = img.PositionX;
+                        dy = img.PositionY;
+                    }
+                    var sb = new StringBuilder(160);
+                    sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                        .Append(",\"kind\":\"img\",\"x\":").Append(img.PointX)
+                        .Append(",\"advance\":").Append(img.Width)
+                        .Append(",\"draw\":{\"x\":").Append(dx).Append(",\"y\":").Append(dy)
+                        .Append(",\"w\":").Append(dr.Width).Append(",\"h\":").Append(dr.Height).Append('}')
+                        .Append(",\"src\":").Append(J(img.ResourceName ?? ""));
+                    if (!string.IsNullOrEmpty(img.ButtonResourceName))
+                        sb.Append(",\"srcb\":").Append(J(img.ButtonResourceName));
+                    if (!string.IsNullOrEmpty(img.MappingGraphName))
+                        sb.Append(",\"srcm\":").Append(J(img.MappingGraphName));
+                    if (display != "relative")
+                        sb.Append(",\"display\":").Append(J(display));
+                    if (img.MissingImage)
+                        sb.Append(",\"missing\":true");
+                    if (img.HasColorMatrix)
+                        sb.Append(",\"cm\":true");
+                    sb.Append('}');
+                    spans.Add(sb.ToString());
+                    continue;
+                }
+                if (node is ConsoleShapePart shape)
+                {
+                    var sb = new StringBuilder(128);
+                    sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                        .Append(",\"kind\":\"shape\",\"shape\":").Append(J(shape.ShapeKind))
+                        .Append(",\"x\":").Append(shape.PointX)
+                        .Append(",\"advance\":").Append(shape.Width);
+                    if (shape.HasDrawRect)
+                    {
+                        var r = shape.DrawRect;
+                        // shape rect 的 rect.X 已烘入 originX（ConsoleShapePart.SetWidth），
+                        // 归一到「行内坐标不含 originX」，FE 再统一加 meta.metrics.originX。
+                        int dx = shape.PointX + r.X - Config.DrawingParam_ShapePositionShift;
+                        sb.Append(",\"draw\":{\"x\":").Append(dx).Append(",\"y\":").Append(r.Y)
+                            .Append(",\"w\":").Append(r.Width).Append(",\"h\":").Append(r.Height).Append('}')
+                            .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(shape.ShapeColor)));
+                    }
+                    else if (shape.ShapeKind == "error")
+                    {
+                        sb.Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(shape.ShapeColor)));
+                    }
+                    sb.Append('}');
+                    spans.Add(sb.ToString());
+                    continue;
+                }
+                if (node is ConsoleDivPart div)
+                {
+                    var sb = new StringBuilder(96);
+                    sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                        .Append(",\"kind\":\"div\",\"x\":").Append(div.PointX).Append('}');
+                    spans.Add(sb.ToString());
+                    continue;
+                }
+                // 未知节点：保守当作不可绘制跨度（只推进码点，不画）。
+                spans.Add("{\"start\":" + start + ",\"end\":" + end + ",\"kind\":\"unsupported\"}");
+            }
+        }
+        if (!anyNonText && !anyStyled && line.Align == DisplayLineAlignment.LEFT)
+            return null;
+        if (spans.Count == 0)
+            return null;
+        return "[" + string.Join(",", spans) + "]";
+    }
+
+    private static int CodePointLength(string s)
+    {
+        int n = 0;
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (char.IsHighSurrogate(s[i]) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1]))
+                i++;
+            n++;
+        }
+        return n;
     }
 
     /// <summary>CLEARLINE：按尾部裁剪并广播 legacy.clear（EWP §4.1，fromLineId + count）。</summary>
@@ -933,12 +1121,14 @@ internal sealed class EwpHost
             channelEnabled = true;
             rectEnabled = false;
             spriteExport.Enabled = false;
+            spansEnabled = false;
         }
         else
         {
             var hasChannel = false;
             var hasRect = false;
             var hasSpriteExport = false;
+            var hasSpans = false;
             foreach (var cap in caps.EnumerateArray())
             {
                 if (cap.ValueKind != JsonValueKind.String)
@@ -950,10 +1140,13 @@ internal sealed class EwpHost
                     hasRect = true;
                 else if (capName == "sprite.export")
                     hasSpriteExport = true;
+                else if (capName == "legacy.spans")
+                    hasSpans = true;
             }
             channelEnabled = hasChannel;
             rectEnabled = hasRect;
             spriteExport.Enabled = hasSpriteExport;
+            spansEnabled = hasSpans;
         }
         if (!channelEnabled)
         {
@@ -1090,6 +1283,9 @@ internal sealed class EwpHost
             + ",\"channelMismatch\":" + mismatch
             + ",\"channelEnabled\":" + (channelEnabled ? "true" : "false")
             + ",\"rectSelfCheckFailed\":" + Interlocked.Read(ref rectSelfCheckFailed)
+            + ",\"spansEnabled\":" + (spansEnabled ? "true" : "false")
+            + ",\"spansEmitted\":" + Interlocked.Read(ref spansEmitted)
+            + ",\"spansSkipped\":" + Interlocked.Read(ref spansSkipped)
             + ",\"spriteExport\":{\"enabled\":" + (spriteStats.Enabled ? "true" : "false")
             + ",\"snapshots\":" + spriteStats.Snapshots
             + ",\"bytes\":" + spriteStats.Bytes
@@ -1124,7 +1320,10 @@ internal sealed class EwpHost
         {
             if (i > 0) sb.Append(',');
             sb.Append("{\"lineId\":").Append(liveLines[i].Id)
-                .Append(",\"text\":").Append(J(liveLines[i].Text)).Append('}');
+                .Append(",\"text\":").Append(J(liveLines[i].Text));
+            if (liveLines[i].Spans != null)
+                sb.Append(",\"spans\":").Append(liveLines[i].Spans);
+            sb.Append('}');
         }
         sb.Append("],\"sprites\":[");
         for (int i = 0; i < liveSprites.Count; i++)

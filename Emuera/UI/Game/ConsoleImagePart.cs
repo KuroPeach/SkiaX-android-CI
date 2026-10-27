@@ -192,6 +192,13 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 	//#pragma warning restore CS0649 // フィールド 'ConsoleImagePart.ia' は割り当てられません。常に既定値 null を使用します。
 	public readonly string ResourceName;
 	public readonly string ButtonResourceName;
+	// R-3b-1：span 发射所需只读视图（destRect/display/position 原为 private）。
+	public Rectangle DestRect => destRect;
+	public DisplayMode Display => _display;
+	public int PositionX => _positionX;
+	public int PositionY => _positionY;
+	public bool MissingImage => cImage == null;
+	public bool HasColorMatrix => _colorMatrix != null;
 	public override int Top { get { return top; } }
 	public override int Bottom { get { return bottom; } }
 
