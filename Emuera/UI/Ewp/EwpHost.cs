@@ -328,7 +328,7 @@ internal sealed class EwpHost
     {
         ChannelHooks.Handler = OnChannelMacro;
         var sb = new StringBuilder(320);
-        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.2\",\"impl\":\"ewp-b4\",\"engine\":{")
+        sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.3\",\"impl\":\"ewp-b4\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
