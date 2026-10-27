@@ -358,13 +358,27 @@ internal sealed class EwpHost
         try { renderW = win.RenderWidth; renderH = win.RenderHeight; } catch { }
         metricsRenderW = renderW;
         metricsRenderH = renderH;
+        // R-3b-0（2026-10-28）：把引擎的绘制原点/基线/默认色同源给 FE。
+        // - originX＝ConsoleStyledString/ConsoleImagePart/ConsoleRectangleShapePart 的 +3px 位移
+        //   （ConsoleDivPart.DrawTo 不加，FE 侧必须按 span 类型区分）。
+        // - baselineOffset＝|font ascent|（Skia Ascent 为负；引擎 DrawTo 里 Offset(0,-Ascent)）。
+        // - foreColor/BackColor＝引擎实际默认色（FE 旧值 0.86 与 #C0C0C0 不一致）。
+        int originX = Config.DrawingParam_ShapePositionShift;
+        float baselineOffset = Config.FontSize;
+        try { baselineOffset = -Config.DefaultFont.Metrics.Ascent; } catch { }
+        var foreColor = HtmlManager.GetColorToStringArgb(Config.ForeColor);
+        var backColor = HtmlManager.GetColorToStringArgb(Config.BackColor);
         EwpOut.Emit("{\"t\":\"meta.metrics\",\"metrics\":{\"cellW\":" + cellW
             + ",\"cellH\":" + Config.FontSize
             + ",\"lineH\":" + Config.LineHeight
             + ",\"font\":" + J(Config.FontName)
             + ",\"fontSize\":" + Config.FontSize
             + ",\"renderW\":" + renderW
-            + ",\"renderH\":" + renderH + "}}");
+            + ",\"renderH\":" + renderH
+            + ",\"originX\":" + originX
+            + ",\"baselineOffset\":" + D(baselineOffset)
+            + ",\"foreColor\":" + J(foreColor)
+            + ",\"bgColor\":" + J(backColor) + "}}");
     }
 
     private static string SafeVersion()
