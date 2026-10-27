@@ -50,6 +50,14 @@ class ConsoleDivPart : AConsoleDisplayNode
 					borderColors[i] = Config.Config.ForeColor;
 			}
 		}
+		// eraWire F-div v2（2026-10-28）：子行对齐一并序列化（FE 的 legacy.line 只有纯文本，
+		// 无法还原 <p align>；仅非 LEFT 时添加，多数行文本不变，旧 FE 忽略未知属性）。
+		if (childs != null && childs.Length > 0 && childs[0].Align != DisplayLineAlignment.LEFT)
+		{
+			sb.Append(" align='");
+			sb.Append(childs[0].Align == DisplayLineAlignment.CENTER ? "center" : "right");
+			sb.Append("'");
+		}
 		sb.Append('>');
 		altHeadTag = sb.ToString();
 		Text = string.Empty;
