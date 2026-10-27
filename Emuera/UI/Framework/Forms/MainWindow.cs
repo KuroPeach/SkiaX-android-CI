@@ -562,8 +562,11 @@ namespace MinorShift.Emuera.Forms
 					if (string.IsNullOrEmpty(TextBox.SelectedText))
 					{
 						var dialog = new ClipBoardDialog { StartPosition = FormStartPosition.CenterParent };
+						// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+						bool timerWasRunning = console != null && console.PauseTimer();
 						dialog.Setup(console);
 						dialog.ShowDialog();
+						console?.ResumeTimer(timerWasRunning);
 						return true;
 					}
 					break;
@@ -578,6 +581,8 @@ namespace MinorShift.Emuera.Forms
 						}
 						if (doit)
 						{
+							// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+							bool timerWasRunning = console.PauseTimer();
 							result = openFileDialog.ShowDialog();
 							var filepath = new List<string>();
 							if (result == DialogResult.OK)
@@ -605,6 +610,7 @@ namespace MinorShift.Emuera.Forms
 									return true;
 								}
 							}
+							console.ResumeTimer(timerWasRunning);
 						}
 						break;
 					}
@@ -630,8 +636,11 @@ namespace MinorShift.Emuera.Forms
 							}
 							if (doit)
 							{
+								// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+								bool timerWasRunning = console.PauseTimer();
 								result = MessageBox.Show(trmb.ReturnToTitleAsk.Text, trmb.ReturnToTitle.Text,
 									MessageBoxButtons.OKCancel);
+								console.ResumeTimer(timerWasRunning);
 								if (result != DialogResult.OK)
 									doit = false;
 								if (doit)
@@ -645,13 +654,18 @@ namespace MinorShift.Emuera.Forms
 					}
 				case Keys.R when (keyData & Keys.Modifiers & Keys.Control) == Keys.Control:
 				case Keys.Insert when (keyData & Keys.Modifiers & Keys.Control) == Keys.Control:
-					result = MessageBox.Show(trmb.RestartAsk.Text, trmb.Restart.Text, MessageBoxButtons.OKCancel);
-					if (result == DialogResult.OK)
 					{
-						Reboot();
-						return true;
+						// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+						bool timerWasRunning = console != null && console.PauseTimer();
+						result = MessageBox.Show(trmb.RestartAsk.Text, trmb.Restart.Text, MessageBoxButtons.OKCancel);
+						console?.ResumeTimer(timerWasRunning);
+						if (result == DialogResult.OK)
+						{
+							Reboot();
+							return true;
+						}
+						break;
 					}
-					break;
 				case Keys.V when (keyData & Keys.Modifiers & Keys.Control) == Keys.Control:
 				case Keys.Insert when (keyData & Keys.Modifiers & Keys.Shift) == Keys.Shift:
 					if (Clipboard.GetDataObject() == null || !Clipboard.ContainsText())
@@ -1154,7 +1168,10 @@ namespace MinorShift.Emuera.Forms
 
 		private void exitToolStripMenuItem_Click(object sender, EventArgs e)
 		{
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console != null && console.PauseTimer();
 			DialogResult result = MessageBox.Show(trmb.ExitAsk.Text, trmb.Exit.Text, MessageBoxButtons.OKCancel);
+			console?.ResumeTimer(timerWasRunning);
 			if (result != DialogResult.OK)
 				return;
 			Close();
@@ -1163,7 +1180,10 @@ namespace MinorShift.Emuera.Forms
 
 		private void rebootToolStripMenuItem_Click(object sender, EventArgs e)
 		{
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console != null && console.PauseTimer();
 			DialogResult result = MessageBox.Show(trmb.RestartAsk.Text, trmb.Restart.Text, MessageBoxButtons.OKCancel);
+			console?.ResumeTimer(timerWasRunning);
 			if (result != DialogResult.OK)
 				return;
 			Reboot();
@@ -1276,7 +1296,10 @@ namespace MinorShift.Emuera.Forms
 					MessageBox.Show(trmb.CanNotReturnToTitle.Text);
 				return;
 			}
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console.PauseTimer();
 			DialogResult result = MessageBox.Show(trmb.ReturnToTitleAsk.Text, trmb.ReturnToTitle.Text, MessageBoxButtons.OKCancel);
+			console.ResumeTimer(timerWasRunning);
 			if (result != DialogResult.OK)
 				return;
 			GotoTitle();
@@ -1291,7 +1314,10 @@ namespace MinorShift.Emuera.Forms
 				MessageBox.Show(trmb.NotAvailableDuringScript.Text);
 				return;
 			}
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console.PauseTimer();
 			DialogResult result = MessageBox.Show(trmb.ReloadErbAsk.Text, trmb.ReloadErb.Text, MessageBoxButtons.OKCancel);
+			console.ResumeTimer(timerWasRunning);
 			if (result != DialogResult.OK)
 				return;
 			await ReloadErb();
@@ -1310,7 +1336,10 @@ namespace MinorShift.Emuera.Forms
 			string fname = time.ToString("yyyyMMdd-HHmmss");
 			fname += ".log";
 			saveFileDialog.FileName = fname;
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console.PauseTimer();
 			DialogResult result = saveFileDialog.ShowDialog();
+			console.ResumeTimer(timerWasRunning);
 			if (result == DialogResult.OK)
 			{
 				#region EE_OUTPUTLOG
@@ -1323,6 +1352,8 @@ namespace MinorShift.Emuera.Forms
 
 		private void ログをクリップボードにコピーToolStripMenuItem_Click(object sender, EventArgs e)
 		{
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console.PauseTimer();
 			try
 			{
 				ClipBoardDialog dialog = new()
@@ -1337,6 +1368,10 @@ namespace MinorShift.Emuera.Forms
 				MessageBox.Show(trmb.CanNotOpenClipboard.Text);
 				return;
 			}
+			finally
+			{
+				console.ResumeTimer(timerWasRunning);
+			}
 		}
 
 		private async void ファイルを読み直すFToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1348,27 +1383,40 @@ namespace MinorShift.Emuera.Forms
 				MessageBox.Show(trmb.NotAvailableDuringScript.Text);
 				return;
 			}
-			DialogResult result = openFileDialog.ShowDialog();
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console.PauseTimer();
+			DialogResult result = DialogResult.Cancel;
 			List<string> filepath = [];
+			try
+			{
+				result = openFileDialog.ShowDialog();
+				if (result == DialogResult.OK)
+				{
+					foreach (string fname in openFileDialog.FileNames)
+					{
+						if (!File.Exists(fname))
+						{
+							MessageBox.Show(trmb.FileNotFound.Text, trmb.FileNotFound.Text);
+							return;
+						}
+						if (!Path.GetExtension(fname).Equals(".ERB", StringComparison.OrdinalIgnoreCase))
+						{
+							MessageBox.Show(trmb.IsNotErb.Text, trmb.FileFormatError.Text);
+							return;
+						}
+						if (fname.StartsWith(Program.ErbDir, StringComparison.OrdinalIgnoreCase))
+							filepath.Add(Program.ErbDir + fname[Program.ErbDir.Length..]);
+						else
+							filepath.Add(fname);
+					}
+				}
+			}
+			finally
+			{
+				console.ResumeTimer(timerWasRunning);
+			}
 			if (result == DialogResult.OK)
 			{
-				foreach (string fname in openFileDialog.FileNames)
-				{
-					if (!File.Exists(fname))
-					{
-						MessageBox.Show(trmb.FileNotFound.Text, trmb.FileNotFound.Text);
-						return;
-					}
-					if (!Path.GetExtension(fname).Equals(".ERB", StringComparison.OrdinalIgnoreCase))
-					{
-						MessageBox.Show(trmb.IsNotErb.Text, trmb.FileFormatError.Text);
-						return;
-					}
-					if (fname.StartsWith(Program.ErbDir, StringComparison.OrdinalIgnoreCase))
-						filepath.Add(Program.ErbDir + fname[Program.ErbDir.Length..]);
-					else
-						filepath.Add(fname);
-				}
 				await console.ReloadPartialErb(filepath);
 			}
 		}
@@ -1382,7 +1430,10 @@ namespace MinorShift.Emuera.Forms
 				MessageBox.Show(trmb.NotAvailableDuringScript.Text);
 				return;
 			}
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console.PauseTimer();
 			DialogResult result = MessageBox.Show(trmb.ReloadResourceAsk.Text, trmb.ReloadResource.Text, MessageBoxButtons.OKCancel);
+			console.ResumeTimer(timerWasRunning);
 			if (result != DialogResult.OK)
 				return;
 			console.ReloadResource();
@@ -1416,7 +1467,11 @@ namespace MinorShift.Emuera.Forms
 				return;
 			}
 			//List<KeyValuePair<string, string>> filepath = new List<KeyValuePair<string, string>>();
-			if (folderSelectDialog.ShowDialog() == DialogResult.OK)
+			// 暂停 TINPUT 等定时器，防止模态窗口/MessageBox 期间超时触发 RunEmueraProgram（dbe563ae 同型防护）
+			bool timerWasRunning = console.PauseTimer();
+			DialogResult result = folderSelectDialog.ShowDialog();
+			console.ResumeTimer(timerWasRunning);
+			if (result == DialogResult.OK)
 			{
 				await console.ReloadFolder(folderSelectDialog.SelectedPath);
 			}
