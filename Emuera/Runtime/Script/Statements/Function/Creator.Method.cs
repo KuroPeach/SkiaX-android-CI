@@ -8197,7 +8197,8 @@ internal static partial class FunctionMethodCreator
 	}
 
 	/// <summary>
-	/// GFILLRECTANGLE(int ID, int cARGB, int x, int y, int width, int height)
+	/// GFILLRECTANGLE(int ID, int x, int y, int width, int height)
+	/// 颜色来自当前 brush（GSETBRUSH / GSETCOLOR），不是参数（EG-1c：修正旧注释的 6 参描述）。
 	/// </summary>
 	public sealed class GraphicsFillRectangleMethod : FunctionMethod
 	{

@@ -625,12 +625,22 @@ internal sealed class EwpHost
         long fromId = count > 0 ? liveLines[0].Id : -1;
         liveLines.Clear();
         spriteExport.Clear();
+        // EG-1b/EG-1d：ClearDisplay＝整屏换场（启动/GotoTitle/读档前），图层与 island 账本
+        // 必须同源清空；否则新会话快照会带出已 Dispose 的旧 sprite（DrawTo 跳过但账本残留）。
+        bool hadSprites = liveSprites.Count > 0;
+        liveSprites.Clear();
+        bool hadIsland = liveIslandHtml != null;
+        liveIslandHtml = null;
         lock (channelGate)
         {
             channels.Clear();
             openStack.Clear();
             channelMismatch = 0;
         }
+        if (hadSprites)
+            EwpOut.Emit("{\"t\":\"sprite.clear\",\"all\":true}");
+        if (hadIsland)
+            EwpOut.Emit("{\"t\":\"overlay.island.clear\"}");
         if (count > 0)
             EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId + ",\"count\":-1}");
     }
@@ -777,6 +787,9 @@ internal sealed class EwpHost
 
     private static string J(string s) => JsonSerializer.Serialize(s ?? "");
 
+    /// <summary>EG-1b：统计用浮点 JSON 数值（invariant，最多 3 位小数）。</summary>
+    private static string D(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
     private void HandleLine(string line)
     {
         JsonDocument doc;
@@ -820,6 +833,10 @@ internal sealed class EwpHost
                     break;
                 case "sys.quit":
                     DispatchQuit();
+                    break;
+                // EG-1d：sys.title 落 console.GotoTitle（ClearDisplay ⇒ 精灵快照缓存清空）。
+                case "sys.title":
+                    Dispatch(() => DoTitle());
                     break;
                 default:
                     EmitResult(false, "protocol_violation", "unknown or missing \"t\"");
@@ -972,6 +989,12 @@ internal sealed class EwpHost
     /// 成功回 sprite.data；失败回 sprite.data.fail；⛔ 不返回 result。</summary>
     private void DoSpriteRequest(JsonElement root)
     {
+        // EG-1b：旧 FE（caps 未声明 sprite.export）明确忽略——⛔不回 data/fail，只计数。
+        if (!spriteExport.Enabled)
+        {
+            spriteExport.NoteIgnoredRequest();
+            return;
+        }
         string texture = null;
         long rev = 0;
         if (root.TryGetProperty("texture", out var texEl) && texEl.ValueKind == JsonValueKind.String)
@@ -999,6 +1022,14 @@ internal sealed class EwpHost
             .Append(",\"h\":").Append(h)
             .Append(",\"fmt\":\"png\",\"data\":\"").Append(Convert.ToBase64String(png)).Append("\"}");
         EwpOut.Emit(sb.ToString());
+    }
+
+    /// <summary>EG-1d：返回标题（console.GotoTitle 封装）。ClearDisplay 会清空精灵快照缓存，
+    /// 旧 rev 之后必须报 not_found（不是 expired）。</summary>
+    private void DoTitle()
+    {
+        GameConsole.GotoTitle();
+        EmitResult(true, null, "title");
     }
 
     private static void EmitSpriteFail(string texture, long rev, string code, string detail)
@@ -1050,7 +1081,14 @@ internal sealed class EwpHost
             + ",\"bytes\":" + spriteStats.Bytes
             + ",\"requests\":" + spriteStats.Requests
             + ",\"failures\":" + spriteStats.Failures
-            + ",\"lastRev\":" + spriteStats.LastRev + "}}");
+            + ",\"lastRev\":" + spriteStats.LastRev
+            + ",\"requestsIgnored\":" + spriteStats.RequestsIgnored
+            + ",\"captureMsLast\":" + D(spriteStats.CaptureMsLast)
+            + ",\"captureMsP50\":" + D(spriteStats.CaptureMsP50)
+            + ",\"captureMsP95\":" + D(spriteStats.CaptureMsP95)
+            + ",\"encodeMsLast\":" + D(spriteStats.EncodeMsLast)
+            + ",\"encodeMsP50\":" + D(spriteStats.EncodeMsP50)
+            + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}}");
     }
 
     /// <summary>结构化快照（B2/S1）：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；

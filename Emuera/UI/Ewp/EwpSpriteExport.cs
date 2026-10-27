@@ -3,6 +3,7 @@ using MinorShift.Emuera.UI.Game.Rendering;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 
 namespace MinorShift.Emuera.UI.Ewp;
@@ -20,6 +21,8 @@ internal sealed class EwpSpriteExport
     private const long DefaultMaxPixels = 8_388_608;
     private const int DefaultMaxEncodedBytes = 4 * 1024 * 1024;
     private const int ExpiredKeyLimit = 512;
+    /// <summary>EG-1b：耗时统计环形窗口（最近 N 次）。</summary>
+    private const int PerfWindow = 128;
 
     private sealed class Snapshot
     {
@@ -39,7 +42,14 @@ internal sealed class EwpSpriteExport
         long Bytes,
         long Requests,
         long Failures,
-        long LastRev);
+        long LastRev,
+        long RequestsIgnored,
+        double CaptureMsLast,
+        double CaptureMsP50,
+        double CaptureMsP95,
+        double EncodeMsLast,
+        double EncodeMsP50,
+        double EncodeMsP95);
 
     private readonly object gate = new();
     private readonly Dictionary<(string Texture, long Rev), Snapshot> map = new();
@@ -59,6 +69,11 @@ internal sealed class EwpSpriteExport
     private long cacheBytes;
     private long requests;
     private long failures;
+    private long requestsIgnored;
+    private readonly Queue<double> captureTimes = new();
+    private readonly Queue<double> encodeTimes = new();
+    private double captureMsLast;
+    private double encodeMsLast;
 
     public EwpSpriteExport()
     {
@@ -81,6 +96,7 @@ internal sealed class EwpSpriteExport
     {
         if (!enabled || layer == null || layer.Image == null)
             return 0;
+        var sw = Stopwatch.StartNew();
 
         string texture = (layer.Image.Name ?? "").ToUpperInvariant();
         long rev = System.Threading.Interlocked.Increment(ref revSeq);
@@ -152,12 +168,29 @@ internal sealed class EwpSpriteExport
                 snapshot.Detail = "cache";
             }
             AddLocked(snapshot);
+            RecordCaptureLocked(sw.Elapsed.TotalMilliseconds);
         }
         return rev;
     }
 
-    /// <summary>按 (texture,rev) 取快照并编码 PNG。不返回近似图；淘汰/未知/不支持全部失败。</summary>
+    /// <summary>按 (texture,rev) 取快照并编码 PNG。不返回近似图；淘汰/未知/不支持全部失败。
+    /// EG-1b：外层计时（环形窗口），核心逻辑在 TryEncodeCore。</summary>
     public bool TryEncode(string texture, long rev, out byte[] png, out int width, out int height,
+        out string code, out string detail)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            return TryEncodeCore(texture, rev, out png, out width, out height, out code, out detail);
+        }
+        finally
+        {
+            lock (gate)
+                RecordEncodeLocked(sw.Elapsed.TotalMilliseconds);
+        }
+    }
+
+    private bool TryEncodeCore(string texture, long rev, out byte[] png, out int width, out int height,
         out string code, out string detail)
     {
         png = null;
@@ -224,11 +257,24 @@ internal sealed class EwpSpriteExport
         }
     }
 
+    public void NoteIgnoredRequest()
+    {
+        lock (gate)
+            requestsIgnored++;
+    }
+
     public SpriteExportStats Stats()
     {
         lock (gate)
         {
-            return new SpriteExportStats(enabled, map.Count, cacheBytes, requests, failures, System.Threading.Interlocked.Read(ref revSeq));
+            var (captureP50, captureP95) = Percentiles(captureTimes);
+            var (encodeP50, encodeP95) = Percentiles(encodeTimes);
+            return new SpriteExportStats(
+                enabled, map.Count, cacheBytes, requests, failures,
+                System.Threading.Interlocked.Read(ref revSeq),
+                requestsIgnored,
+                captureMsLast, captureP50, captureP95,
+                encodeMsLast, encodeP50, encodeP95);
         }
     }
 
@@ -288,6 +334,42 @@ internal sealed class EwpSpriteExport
         expiredOrder.Enqueue(key);
         while (expiredOrder.Count > ExpiredKeyLimit)
             expired.Remove(expiredOrder.Dequeue());
+    }
+
+    private void RecordCaptureLocked(double ms)
+    {
+        captureMsLast = ms;
+        captureTimes.Enqueue(ms);
+        while (captureTimes.Count > PerfWindow)
+            captureTimes.Dequeue();
+    }
+
+    private void RecordEncodeLocked(double ms)
+    {
+        encodeMsLast = ms;
+        encodeTimes.Enqueue(ms);
+        while (encodeTimes.Count > PerfWindow)
+            encodeTimes.Dequeue();
+    }
+
+    /// <summary>nearest-rank 分位数（p50/p95），窗口为空时返回 0。</summary>
+    private static (double P50, double P95) Percentiles(Queue<double> window)
+    {
+        if (window.Count == 0)
+            return (0, 0);
+        var arr = window.ToArray();
+        Array.Sort(arr);
+        return (Pick(arr, 0.50), Pick(arr, 0.95));
+    }
+
+    private static double Pick(double[] sorted, double p)
+    {
+        int idx = (int)Math.Ceiling(p * sorted.Length) - 1;
+        if (idx < 0)
+            idx = 0;
+        if (idx >= sorted.Length)
+            idx = sorted.Length - 1;
+        return sorted[idx];
     }
 
     private static int EnvInt(string name, int fallback)

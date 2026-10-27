@@ -210,8 +210,62 @@ internal static class FontFactory
 			fontDic[key] = font;
 			return font;
 		}
+		catch (Exception e)
+		{
+			// P1（2026-10-27）：原实现 catch{return null} 把字体创建失败静默成下游 NRE
+			// （Config.DefaultFont → StringMeasure.GetDisplayLength）。这里记录一次并直构兜底。
+			LogFontFailureOnce(e, fn, fontSize.Value);
+			return CreateEmergencyFont(fontSize.Value);
+		}
+	}
+
+	private static int fontFailureLogged;
+
+	/// <summary>P1：字体创建失败只记录一次，避免逐帧刷屏；headless/EWP 下 stderr 会被 EngineProcess 落盘。</summary>
+	private static void LogFontFailureOnce(Exception e, string fontName, float fontSize)
+	{
+		if (System.Threading.Interlocked.Exchange(ref fontFailureLogged, 1) != 0)
+			return;
+		try
+		{
+			string msg = $"[font] create failed name=\"{fontName}\" size={fontSize}: {e.GetType().Name}: {e.Message}";
+			Debug.WriteLine(msg);
+			Console.Error.WriteLine(msg);
+		}
 		catch
 		{
+			// 日志失败不影响主流程
+		}
+	}
+
+	private static SKFont emergencyFont;
+
+	/// <summary>
+	/// P1 兜底字体：字体创建失败时的最后一道防线。
+	/// 返回 null 只在 Skia 完全不可用时发生（调用方 StringMeasure 已做空守卫）。
+	/// </summary>
+	public static SKFont CreateEmergencyFont(float fontSize = -1)
+	{
+		if (fontSize <= 0)
+			fontSize = Config.FontSize;
+		bool defaultSize = Math.Abs(fontSize - Config.FontSize) < 0.01f;
+		if (defaultSize)
+		{
+			var cached = emergencyFont;
+			if (cached != null)
+				return cached;
+		}
+		try
+		{
+			var typeface = SKTypeface.Default ?? SKTypeface.CreateDefault();
+			var font = new SKFont(typeface, fontSize);
+			if (defaultSize)
+				emergencyFont = font;
+			return font;
+		}
+		catch (Exception e)
+		{
+			LogFontFailureOnce(e, "<emergency>", fontSize);
 			return null;
 		}
 	}
