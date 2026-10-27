@@ -140,7 +140,12 @@ internal sealed partial class EmueraConsole : IDisposable
 	//完全に独立したHTML
 	public void PrintHTMLIsland(string html)
 	{
-		_htmlElementList.AddRange(HtmlManager.Html2DisplayLine(html, stringMeasure, this));
+		var lines = HtmlManager.Html2DisplayLine(html, stringMeasure, this);
+		// eraWire C2-island：island 行は displayLineList に入らず FilterEscaped/escapedParts にも
+		// 登録されない ⇒ div の唯一の描画点は ConsoleButtonString.DrawTo の行内描画になる。
+		foreach (var line in lines)
+			line.DrawDivInline = true;
+		_htmlElementList.AddRange(lines);
 		CliIslandPrinted?.Invoke(html);
 	}
 	public void ClearHTMLIsland()

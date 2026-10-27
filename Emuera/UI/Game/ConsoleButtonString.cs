@@ -323,7 +323,10 @@ internal sealed class ConsoleButtonString
 
 		foreach (var css in strArray)
 		{
-			if (css is ConsoleDivPart) continue;
+			// eraWire C2-island：通常行の div は FilterEscaped→escapedParts→DrawPartTo 側で描くため
+			// ここでは二重描画防止でスキップする。island 行（HTML_PRINT_ISLAND）だけは escapedParts を
+			// 経由しないので DrawDivInline=true により行内で直接描く。
+			if (css is ConsoleDivPart && !(ParentLine?.DrawDivInline ?? false)) continue;
 			css.DrawTo(graph, point, isSelecting, isFocus, isBackLog, mode, IsButton);
 			if (point.X != -1)
 			{

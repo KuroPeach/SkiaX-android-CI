@@ -6,7 +6,7 @@
     <AssemblyName>Emuera.Headless</AssemblyName>
     <RootNamespace>MinorShift.Emuera</RootNamespace>
     <Version>1.824</Version>
-    <InformationalVersion>1824+v24+EMv18+EEv56+Skiav16.6.3+headless</InformationalVersion>
+    <InformationalVersion>1824+v24+EMv18+EEv56+Skiav16.6.4+headless</InformationalVersion>
     <LangVersion>12.0</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
