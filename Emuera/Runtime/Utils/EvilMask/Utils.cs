@@ -181,6 +181,14 @@ internal sealed partial class Utils
 			sb.Append(' ').Append(name).Append("='").Append(HtmlManager.GetColorToString(color)).Append('\'');
 		}
 	}
+
+	public static void AddColorParamArgb(StringBuilder sb, string name, Color color)
+	{
+		if (color != Color.Transparent)
+		{
+			sb.Append(' ').Append(name).Append("='").Append(HtmlManager.GetColorToStringArgb(color)).Append('\'');
+		}
+	}
 	public static void AddColorParam4(StringBuilder sb, string name, Color[] colors)
 	{
 		if (colors != null)
@@ -197,6 +205,28 @@ internal sealed partial class Utils
 				for (int i = 0; i < colors.Length; i++)
 				{
 					sb.Append(HtmlManager.GetColorToString(colors[i]));
+					if (i + 1 < colors.Length) sb.Append(',');
+				}
+			sb.Append('\'');
+		}
+	}
+
+	public static void AddColorParam4Argb(StringBuilder sb, string name, Color[] colors)
+	{
+		if (colors != null)
+		{
+			sb.Append(' ').Append(name).Append("='");
+			if (colors[0] == colors[1] && colors[0] == colors[2] && colors[0] == colors[3])
+				sb.Append(HtmlManager.GetColorToStringArgb(colors[0]));
+			else if (colors[0] == colors[2] && colors[1] == colors[3])
+				sb.Append(HtmlManager.GetColorToStringArgb(colors[0])).Append(',').Append(HtmlManager.GetColorToStringArgb(colors[1]));
+			else if (colors[1] == colors[3])
+				sb.Append(HtmlManager.GetColorToStringArgb(colors[0])).Append(',').Append(HtmlManager.GetColorToStringArgb(colors[1]))
+					.Append(',').Append(HtmlManager.GetColorToStringArgb(colors[2]));
+			else
+				for (int i = 0; i < colors.Length; i++)
+				{
+					sb.Append(HtmlManager.GetColorToStringArgb(colors[i]));
 					if (i + 1 < colors.Length) sb.Append(',');
 				}
 			sb.Append('\'');

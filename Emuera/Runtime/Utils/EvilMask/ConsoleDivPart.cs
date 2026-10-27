@@ -22,9 +22,8 @@ class ConsoleDivPart : AConsoleDisplayNode
 		AddTagMixedNumArg(sb, "xpos", xPos);
 		AddTagMixedNumArg(sb, "ypos", yPos);
 		AddTagMixedNumArg(sb, "width", width);
-		AddColorParam(sb, "color", backgroundColor);
-		if (height != null)
-			AddTagMixedNumArg(sb, "height", height);
+		AddColorParamArgb(sb, "color", backgroundColor);
+		AddTagMixedNumArg(sb, "height", height);
 		if (box != null)
 		{
 			AddTagMixedParam(sb, "margin", box.margin);
@@ -40,7 +39,7 @@ class ConsoleDivPart : AConsoleDisplayNode
 				borderColors = new Color[4];
 				for (int i = 0; i < 4; i++)
 					borderColors[i] = Color.FromArgb(box.color[i]);
-				AddColorParam4(sb, "bcolor", borderColors);
+				AddColorParam4Argb(sb, "bcolor", borderColors);
 			}
 			else if (box.border != null)
 			{

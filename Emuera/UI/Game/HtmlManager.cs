@@ -832,6 +832,19 @@ internal static class HtmlManager
 		b.Append(colorValue.ToString("X6"));
 		return b.ToString();
 	}
+
+	/// <summary>
+	/// ARGB 序列化（div 标签等文本通道）：不透明输出 6 位 #RRGGBB（与旧文本逐字一致），
+	/// 半透明输出 8 位 #AARRGGBB（引擎 stringToColorInt32 的 ARGB 形态）。
+	/// 不改 GetColorToString：字体/形状/剪贴板仍走 6 位（上游 EM/EE 兼容）。
+	/// </summary>
+	public static string GetColorToStringArgb(Color color)
+	{
+		int colorValue = color.R * 0x10000 + color.G * 0x100 + color.B;
+		if (color.A == 255)
+			return "#" + colorValue.ToString("X6");
+		return "#" + color.A.ToString("X2") + colorValue.ToString("X6");
+	}
 	private static string getStringStyleStartingTag(ConsoleStyledString css)
 	{
 		bool fontChanged = !((css.StringStyle.Fontname == null || css.StringStyle.Fontname == Config.FontName) && !css.StringStyle.ColorChanged && css.StringStyle.ButtonColor == Config.FocusColor);

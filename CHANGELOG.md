@@ -4,6 +4,34 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.6.1] — `legacy.line` 保留 div 颜色 alpha（半透明 div 合成保真）
+
+### Added
+
+- **`HtmlManager.GetColorToStringArgb`**：文本通道的 ARGB 序列化——`A == 255` 输出 6 位 `#RRGGBB`（与旧文本逐字一致），半透明输出 8 位 `#AARRGGBB`
+- **`Utils.AddColorParamArgb` / `AddColorParam4Argb`**：与现有 `AddColorParam` / `AddColorParam4` 同构的 ARGB 版本（additive，不动旧签名）
+
+### Changed
+
+- **`ConsoleDivPart` 的 `color` / `bcolor` 标签改写走 ARGB 序列化**：`legacy.line` / 剪贴板里的半透明 div 颜色不再丢 alpha（默认 Flan `0x807B0000` 此前被写成 `#7B0000`）。不透明 div 输出零变化；字体色/`ConsoleShapePart` 仍走 6 位（上游 EM/EE 共用路径不动）
+- 引擎 HTML 解析器 `stringToColorInt32` 本就支持 8 位 ARGB，回读兼容
+
+### Fixed
+
+- **EWP / FE 无法还原半透明 div 的最终合成**：`legacy.line` 只带 `#RRGGBB`，FE 只能按不透明渲染；实测 eraWire E4-B 的 Flan 边框 mask 匹配 13.6%。修复后 `legacy.line` 携带 `#807B0000`，FE `EngineColor` 按引擎 ARGB 解析
+- 影响面仅限 div 标签文本；GUI/pixel 绘制路径不变；`n2` 文本 hash 基线实测同值（标准流无半透明 div）
+
+### 验收（2026-10-27）
+
+- `dotnet build Emuera.sln -c Debug` 0 error；`n2_text_gate` 文本 hash 同基线；`fdiv_gate` U/R/L 全 PASS；E4-A（透明 div）回归 PASS
+- eraWire E4-B：`legacy.line` 实测出现 `color='#807B0000'`；FE 半透明合成在 div 覆盖区非文字像素 99.98%（shift [0,-2] ≤2，抽检左/右边框逐点相等）。**严格全局 mask 仍未达标**（剩余为 followScroll 2px 非整数偏移与 div 内文字排版，F-div v1 不做）⇒ R-3a 仍 experimental
+
+### Changed
+
+- **版本签名**：`Skiav16.6.0` → `Skiav16.6.1`（`1824+v24+EMv18+EEv56+Skiav16.6.1`）
+
+***
+
 ## [16.6.0] — EWP v0.3 定稿（运行期快照导出）＋模态超时竞态系统化收口
 
 ### Added
