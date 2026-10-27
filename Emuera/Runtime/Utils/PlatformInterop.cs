@@ -14,6 +14,13 @@ namespace MinorShift.Emuera
 	{
 		public static Action DoEvents { get; set; } = () => { };
 
+		/// <summary>
+		/// 当前是否有模态窗口打开（B+C 方案 2026-10-27）。GUI 宿主注入
+		/// <c>Forms.ModalTimerGuard.IsModalOpen</c>；Headless/EWP/CliDebug 不注入 ⇒ 恒 false。
+		/// 供 <c>EmueraConsole.tickTimer</c> 做超时兜底（模态期间推迟超时）。
+		/// </summary>
+		public static Func<bool> IsModalOpen { get; set; } = () => false;
+
 		public static Action<string> ShowMessage { get; set; } = _ => { };
 
 		public static Action<string, string> ShowMessageWithTitle { get; set; } = (_, __) => { };

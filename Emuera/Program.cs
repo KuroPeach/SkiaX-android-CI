@@ -419,6 +419,9 @@ static partial class Program
 			PlatformInterop.ShowMessage = text => MessageBox.Show(text);
 			PlatformInterop.ShowMessageWithTitle = (text, title) => MessageBox.Show(text, title);
 			PlatformInterop.ShowQuestion = (text, title) => MessageBox.Show(text, title, MessageBoxButtons.YesNo) == DialogResult.Yes;
+			// B+C（2026-10-27）：GUI 宿主的模态检测源＝ModalTimerGuard 深度计数器。
+			// EWP/CliDebug/Headless 不注入 ⇒ 默认 () => false，行为与现状一致。
+			PlatformInterop.IsModalOpen = () => Forms.ModalTimerGuard.IsModalOpen;
 		}
 		PlatformInterop.GetProductVersion = () => Application.ProductVersion;
 		PlatformInterop.GetMousePosition = () => Cursor.Position;

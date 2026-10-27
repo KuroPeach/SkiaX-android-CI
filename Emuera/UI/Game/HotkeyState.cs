@@ -1,4 +1,4 @@
-﻿using MinorShift.Emuera.Runtime.Config;
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
 using System.Collections.Generic;
@@ -243,21 +243,21 @@ internal class HotkeyState
 		if (enabled)
 		{
 			enabled = false;
-			MessageBox.Show("hotkeys OFF");
+			ShowModal("hotkeys OFF");
 			return;
 		}
 
 		if (!enabled && availableHotkeyFile)
 		{
 			enabled = true;
-			MessageBox.Show("hotkeys ON");
+			ShowModal("hotkeys ON");
 			return;
 		}
 
 		var filename = Program.ExeDir + "HOTKEY.ERB";
 		if (!File.Exists(filename))
 		{
-			MessageBox.Show("HOTKEY.ERB not found.");
+			ShowModal("HOTKEY.ERB not found.");
 			return;
 		}
 
@@ -265,7 +265,7 @@ internal class HotkeyState
 		int res = Parse(lines);
 		if (res != 0)
 		{
-			MessageBox.Show("HOTKEY.ERB parsing failed.");
+			ShowModal("HOTKEY.ERB parsing failed.");
 			return;
 		}
 
@@ -274,13 +274,19 @@ internal class HotkeyState
 		enabled = true;
 		if (availableStateArray)
 		{
-			MessageBox.Show("hotkeys ON");
+			ShowModal("hotkeys ON");
 		} else
 		{
-			MessageBox.Show("hotkeys ON, HOTKEY_STATE_INIT not called.");
+			ShowModal("hotkeys ON, HOTKEY_STATE_INIT not called.");
 		}
 		
 	}
+
+
+	/// <summary>B+C（2026-10-27）：热键 toast 也是模态，打开期间须停表/推迟超时。</summary>
+	private static void ShowModal(string text)
+		=> MinorShift.Emuera.Forms.ModalTimerGuard.Run(
+			MinorShift.Emuera.GlobalStatic.Console, () => MessageBox.Show(text));
 
 	private int InterpreterEval(ref int i, int key)
 	{
