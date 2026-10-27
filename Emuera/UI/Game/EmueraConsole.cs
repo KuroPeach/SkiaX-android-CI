@@ -1973,7 +1973,10 @@ internal sealed partial class EmueraConsole : IDisposable
 			foreach (var depth in allDepths)
 			{
 				// Draw ImageLayers at this depth
-				_imageLayerManager.DrawLayersAtDepth(graph, (int)graph.LocalClipBounds.Width, (int)graph.LocalClipBounds.Height, window.ScrollValue * Config.LineHeight, depth);
+				// eraWire E4-B（2026-10-27）：图层布局必须与文字/CBG 同源——都用 window.RenderHeight。
+				// 曾用 LocalClipBounds（桌面 SKControl 实测 1802x923 ≠ render 1782x921）⇒ 图层整体 +2px，
+				// 与 sprite.set 的 y+renderH-h 语义不一致（V8-B 77.8% 残留之一）。
+				_imageLayerManager.DrawLayersAtDepth(graph, window.RenderWidth, window.RenderHeight, window.ScrollValue * Config.LineHeight, depth);
 
 				if (cidx < cbgList.Count && cbgList[cidx].zdepth == depth)
 				{
