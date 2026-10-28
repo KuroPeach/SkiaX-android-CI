@@ -1550,6 +1550,7 @@ internal sealed class EwpHost
             + ",\"channelMismatch\":" + mismatch
             + ",\"channelEnabled\":" + (channelEnabled ? "true" : "false")
             + ",\"rectSelfCheckFailed\":" + Interlocked.Read(ref rectSelfCheckFailed)
+            + ",\"rectDiag\":" + EmitRectDiag(console)
             + ",\"spansEnabled\":" + (spansEnabled ? "true" : "false")
             + ",\"spansEmitted\":" + Interlocked.Read(ref spansEmitted)
             + ",\"spansSkipped\":" + Interlocked.Read(ref spansSkipped)
@@ -1568,6 +1569,30 @@ internal sealed class EwpHost
             + ",\"encodeMsLast\":" + D(spriteStats.EncodeMsLast)
             + ",\"encodeMsP50\":" + D(spriteStats.EncodeMsP50)
             + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}}");
+    }
+
+    /// <summary>W2a：rect 导出诊断（console.LastRectDiag——最近一次 GetSelectableButtonRects 的
+    /// 失败原因分布与几何快照）。只读观测，⛔ 门禁语义仍用累计的 rectSelfCheckFailed。</summary>
+    private static string EmitRectDiag(EmueraConsole? console)
+    {
+        if (console == null)
+            return "null";
+        var d = console.LastRectDiag;
+        return "{\"noWindow\":" + d.NoWindow
+            + ",\"noStrArray\":" + d.NoStrArray
+            + ",\"widthNonPositive\":" + d.WidthNonPositive
+            + ",\"renderInvalid\":" + d.RenderInvalid
+            + ",\"normalRect\":" + d.NormalRect
+            + ",\"divPosUnusable\":" + d.DivPosUnusable
+            + ",\"divNoParent\":" + d.DivNoParent
+            + ",\"divParentNotInList\":" + d.DivParentNotInList
+            + ",\"divEmptyContent\":" + d.DivEmptyContent
+            + ",\"divRect\":" + d.DivRect
+            + ",\"renderW\":" + d.RenderW
+            + ",\"renderH\":" + d.RenderH
+            + ",\"bottomLine\":" + d.BottomLine
+            + ",\"scrollBottom\":" + d.ScrollBottom
+            + ",\"lineCount\":" + d.LineCount + "}";
     }
 
     /// <summary>结构化快照（B2/S1）：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；
