@@ -345,12 +345,14 @@ internal sealed class ConsoleButtonString
 	}
 	#endregion
 
-	readonly static StringBuilder builder = new();
+	// R-3b-3（W1）：⛔ 不用 static builder——div 节点 ToString 会经 ConsoleDisplayLine.BuildString
+	// 回调本方法（子按钮），共用静态 builder 时会把外层已累积的片段清掉。实测多 div 行
+	// （eratw bodyGraph）wire text 只剩最后一个 div，而 spans 按节点构建 ⇒ text/span 不同源。
 	public override string ToString()
 	{
 		if (strArray == null)
 			return "";
-		builder.Clear();
+		var builder = new StringBuilder(64);
 		foreach (var css in strArray)
 			builder.Append(css.ToString());
 		return builder.ToString();

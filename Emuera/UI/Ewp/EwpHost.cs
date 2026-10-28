@@ -311,6 +311,11 @@ internal sealed class EwpHost
     private volatile bool spansEnabled;
     private long spansEmitted;
     private long spansSkipped;
+    // R-3b-3（W1）div.children：有界递归／载荷上限（旧 FE 忽略 children 键）。
+    private const int MaxDivChildSpans = 512;
+    private const int MaxDivNesting = 1;
+    private long spansChildNodes;
+    private long spansChildTruncated;
     /// <summary>最近一次 EmitMetrics 读到的 render 尺寸（rect 的坐标画布）。
     /// Subscribe 期窗口可能未完成布局 ⇒ 读到 0（最小化实测 render=0x0）；首个 input.request
     /// 时窗口必已就绪，故在那里补发一次。</summary>
@@ -796,9 +801,27 @@ internal sealed class EwpHost
                 }
                 if (node is ConsoleDivPart div)
                 {
-                    var sb = new StringBuilder(96);
+                    // R-3b-3（W1）：div 整块附带**有界** children（text/img/shape/div 同形），
+                    // 坐标相对 div 内容框；递归深度与载荷上限固定，截断时标 truncated。
+                    int budget = MaxDivChildSpans;
+                    var sb = new StringBuilder(256);
                     sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
-                        .Append(",\"kind\":\"div\",\"x\":").Append(div.PointX).Append('}');
+                        .Append(",\"kind\":\"div\",\"x\":").Append(div.PointX);
+                    int picHeight = GameConsole?.ClientHeight ?? 0;
+                    var content = div.GetContentRect(picHeight, 0);
+                    var children = BuildDivChildrenCore(div, start, 0, content.X, content.Y,
+                        picHeight, ref budget, ref anyStyled, out bool truncated);
+                    if (children.Count > 0)
+                    {
+                        sb.Append(",\"children\":[").Append(string.Join(",", children)).Append(']');
+                        if (truncated)
+                            sb.Append(",\"truncated\":true");
+                        // 计入整棵 div 子树（含嵌套；budget 为共享配额）。
+                        Interlocked.Add(ref spansChildNodes, MaxDivChildSpans - budget);
+                    }
+                    if (truncated)
+                        Interlocked.Increment(ref spansChildTruncated);
+                    sb.Append('}');
                     spans.Add(sb.ToString());
                     continue;
                 }
@@ -824,6 +847,232 @@ internal sealed class EwpHost
         }
         return n;
     }
+
+    /// <summary>R-3b-3（W1）：div 子节点 spans（坐标相对 div 内容框；start/end 仍对应
+    /// legacy.line.text 的 Unicode 码点区间，供 FE 从原始行取同一段文本）。
+    /// budget＝整棵 div 子树共享的载荷配额；超限即停并置 truncated（⛔ 静默丢节点）。</summary>
+    private List<string> BuildDivChildrenCore(ConsoleDivPart div, int divStart, int depth,
+        int contentXAbs, int contentYAbs, int picHeight,
+        ref int budget, ref bool anyStyled, out bool truncated)
+    {
+        truncated = false;
+        var list = new List<string>();
+        var children = div.Children;
+        if (children == null || children.Length == 0)
+            return list;
+        int cp = divStart + div.AltHeadTagLength;
+        int lineY = 0;
+        foreach (var childLine in children)
+        {
+            if (childLine?.Buttons != null)
+            {
+                foreach (var button in childLine.Buttons)
+                {
+                    if (button?.StrArray == null)
+                        continue;
+                    foreach (var node in button.StrArray)
+                    {
+                        if (node == null)
+                            continue;
+                        string s = node.ToString() ?? "";
+                        int len = CodePointLength(s);
+                        int start = cp, end = cp + len;
+                        cp = end;
+                        if (budget <= 0)
+                        {
+                            truncated = true;
+                            return list;
+                        }
+                        budget--;
+                        string json = BuildDivChildSpan(node, start, end, lineY, contentXAbs, contentYAbs,
+                            depth, picHeight, ref budget, ref anyStyled, out bool childTrunc);
+                        if (childTrunc)
+                            truncated = true;
+                        if (json != null)
+                            list.Add(json);
+                    }
+                }
+            }
+            cp += 2;  // ConsoleDivPart.ToString：每条子行后追加 "\r\n"
+            lineY += Config.LineHeight;
+        }
+        return list;
+    }
+
+    private string BuildDivChildSpan(AConsoleDisplayNode node, int start, int end, int lineY,
+        int contentXAbs, int contentYAbs, int depth, int picHeight,
+        ref int budget, ref bool anyStyled, out bool truncated)
+    {
+        truncated = false;
+        if (node is ConsoleStyledString css)
+        {
+            if (end <= start)
+                return null;
+            var st = css.StringStyle;
+            bool def = !st.ColorChanged && st.Color == Config.ForeColor
+                && !st.BackgroundColor.HasValue && st.ButtonColor == Config.FocusColor
+                && st.FontStyle == FontStyle.Regular
+                && (string.IsNullOrEmpty(st.Fontname) || string.Equals(st.Fontname, Config.FontName, StringComparison.OrdinalIgnoreCase))
+                && !css.FontSize.HasValue && !css.VerticalAlign.HasValue;
+            if (!def)
+                anyStyled = true;
+            var sb = new StringBuilder(128);
+            sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                .Append(",\"kind\":\"text\",\"x\":").Append(css.PointX - contentXAbs)
+                .Append(",\"y\":").Append(lineY)
+                .Append(",\"advance\":").Append(css.Width)
+                .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(st.Color)));
+            if (st.BackgroundColor.HasValue)
+                sb.Append(",\"bg\":").Append(J(HtmlManager.GetColorToStringArgb(st.BackgroundColor.Value)));
+            if ((st.FontStyle & FontStyle.Bold) != 0) sb.Append(",\"bold\":true");
+            if ((st.FontStyle & FontStyle.Italic) != 0) sb.Append(",\"italic\":true");
+            if ((st.FontStyle & FontStyle.Underline) != 0) sb.Append(",\"underline\":true");
+            if ((st.FontStyle & FontStyle.Strikeout) != 0) sb.Append(",\"strike\":true");
+            if (!string.IsNullOrEmpty(st.Fontname) && !string.Equals(st.Fontname, Config.FontName, StringComparison.OrdinalIgnoreCase))
+                sb.Append(",\"font\":").Append(J(st.Fontname));
+            if (css.FontSize.HasValue)
+                sb.Append(",\"size\":").Append(D(css.FontSize.Value));
+            if (css.VerticalAlign.HasValue)
+                sb.Append(",\"valign\":").Append(J(css.VerticalAlign.Value.ToString().ToLowerInvariant()));
+            sb.Append('}');
+            return sb.ToString();
+        }
+        if (node is ConsoleImagePart img)
+        {
+            var dr = img.DestRect;
+            int dx, dy;
+            string display = img.Display switch
+            {
+                DisplayMode.AbsoluteLeftTop => "absolute-lefttop",
+                DisplayMode.AbsoluteLeftBottom => "absolute-leftbottom",
+                DisplayMode.Absolute => "absolute",
+                _ => "relative"
+            };
+            if (img.Display == DisplayMode.Relative)
+            {
+                dx = img.PointX + dr.X - contentXAbs;
+                dy = dr.Y;
+            }
+            else if (img.Display == DisplayMode.AbsoluteLeftBottom)
+            {
+                dx = img.PositionX;
+                dy = picHeight + img.PositionY;
+            }
+            else
+            {
+                dx = img.PositionX;
+                dy = img.PositionY;
+            }
+            var sb = new StringBuilder(192);
+            sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                .Append(",\"kind\":\"img\",\"x\":").Append(img.PointX - contentXAbs)
+                .Append(",\"y\":").Append(lineY)
+                .Append(",\"advance\":").Append(img.Width)
+                .Append(",\"draw\":{\"x\":").Append(dx).Append(",\"y\":").Append(dy)
+                .Append(",\"w\":").Append(dr.Width).Append(",\"h\":").Append(dr.Height).Append('}')
+                .Append(",\"src\":").Append(J(img.ResourceName ?? ""));
+            if (!string.IsNullOrEmpty(img.ButtonResourceName))
+                sb.Append(",\"srcb\":").Append(J(img.ButtonResourceName));
+            if (!string.IsNullOrEmpty(img.MappingGraphName))
+                sb.Append(",\"srcm\":").Append(J(img.MappingGraphName));
+            if (display != "relative")
+                sb.Append(",\"display\":").Append(J(display));
+            if (img.MissingImage)
+                sb.Append(",\"missing\":true");
+            if (img.HasColorMatrix)
+                sb.Append(",\"cm\":true");
+            if (spriteExport.Enabled && img.Image is SpriteG && dr.Width > 0 && dr.Height > 0)
+            {
+                long rtRev = spriteExport.CaptureInline(img.Image, dr.Width, dr.Height, img.ColorMatrix);
+                if (rtRev > 0)
+                    sb.Append(",\"rt\":true,\"rev\":").Append(rtRev);
+            }
+            sb.Append('}');
+            return sb.ToString();
+        }
+        if (node is ConsoleShapePart shape)
+        {
+            var sb = new StringBuilder(160);
+            sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                .Append(",\"kind\":\"shape\",\"shape\":").Append(J(shape.ShapeKind))
+                .Append(",\"x\":").Append(shape.PointX - contentXAbs)
+                .Append(",\"y\":").Append(lineY)
+                .Append(",\"advance\":").Append(shape.Width);
+            if (shape.HasDrawRect)
+            {
+                var r = shape.DrawRect;
+                int dx = shape.PointX + r.X - Config.DrawingParam_ShapePositionShift - contentXAbs;
+                sb.Append(",\"draw\":{\"x\":").Append(dx).Append(",\"y\":").Append(r.Y)
+                    .Append(",\"w\":").Append(r.Width).Append(",\"h\":").Append(r.Height).Append('}')
+                    .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(shape.ShapeColor)));
+            }
+            else if (shape.ShapeKind == "error")
+            {
+                sb.Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(shape.ShapeColor)));
+            }
+            sb.Append('}');
+            return sb.ToString();
+        }
+        if (node is ConsoleDivPart nd)
+        {
+            var nContent = nd.GetContentRect(picHeight, 0);
+            int bl = InsetOf(nd.DivBorder, Utils.Direction.Left), br = InsetOf(nd.DivBorder, Utils.Direction.Right);
+            int bt = InsetOf(nd.DivBorder, Utils.Direction.Top), bb = InsetOf(nd.DivBorder, Utils.Direction.Bottom);
+            int pl = InsetOf(nd.DivPadding, Utils.Direction.Left), pr = InsetOf(nd.DivPadding, Utils.Direction.Right);
+            int pt = InsetOf(nd.DivPadding, Utils.Direction.Top), pb = InsetOf(nd.DivPadding, Utils.Direction.Bottom);
+            var sb = new StringBuilder(320);
+            sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                .Append(",\"kind\":\"div\",\"x\":").Append(nContent.X - contentXAbs)
+                .Append(",\"y\":").Append(lineY)
+                .Append(",\"box\":{\"x\":").Append(nContent.X - contentXAbs - (bl + pl))
+                .Append(",\"y\":").Append(lineY + nContent.Y - (bt + pt))
+                .Append(",\"w\":").Append(nContent.Width + bl + br + pl + pr)
+                .Append(",\"h\":").Append(nContent.Height + bt + bb + pt + pb)
+                .Append(",\"border\":{\"top\":").Append(bt).Append(",\"right\":").Append(br)
+                .Append(",\"bottom\":").Append(bb).Append(",\"left\":").Append(bl).Append('}')
+                .Append(",\"padding\":{\"top\":").Append(pt).Append(",\"right\":").Append(pr)
+                .Append(",\"bottom\":").Append(pb).Append(",\"left\":").Append(pl).Append('}')
+                .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(nd.DivBackgroundColor)));
+            if (nd.DivBorderColors != null)
+            {
+                sb.Append(",\"bcolor\":[");
+                for (int i = 0; i < 4; i++)
+                {
+                    if (i > 0)
+                        sb.Append(',');
+                    sb.Append(J(HtmlManager.GetColorToStringArgb(nd.DivBorderColors[i])));
+                }
+                sb.Append(']');
+            }
+            sb.Append('}');
+            if (nd.Children != null && nd.Children.Length > 0)
+            {
+                if (depth < MaxDivNesting)
+                {
+                    int nestedContentYAbs = contentYAbs + lineY + nContent.Y;
+                    var nested = BuildDivChildrenCore(nd, start, depth + 1, nContent.X, nestedContentYAbs,
+                        picHeight, ref budget, ref anyStyled, out bool nt);
+                    if (nt)
+                        truncated = true;
+                    if (nested.Count > 0)
+                        sb.Append(",\"children\":[").Append(string.Join(",", nested)).Append(']');
+                    else if (nt)
+                        sb.Append(",\"truncated\":\"depth\"");
+                }
+                else
+                {
+                    truncated = true;
+                    sb.Append(",\"truncated\":\"depth\"");
+                }
+            }
+            sb.Append('}');
+            return sb.ToString();
+        }
+        return "{\"start\":" + start + ",\"end\":" + end + ",\"kind\":\"unsupported\",\"y\":" + lineY + "}";
+    }
+
+    private static int InsetOf(int[] arr, int dir)
+        => arr != null && dir >= 0 && dir < arr.Length ? arr[dir] : 0;
 
     /// <summary>CLEARLINE：按尾部裁剪并广播 legacy.clear（EWP §4.1，fromLineId + count）。</summary>
     private void OnLinesRemoved(int count)
@@ -1304,6 +1553,8 @@ internal sealed class EwpHost
             + ",\"spansEnabled\":" + (spansEnabled ? "true" : "false")
             + ",\"spansEmitted\":" + Interlocked.Read(ref spansEmitted)
             + ",\"spansSkipped\":" + Interlocked.Read(ref spansSkipped)
+            + ",\"spansChildNodes\":" + Interlocked.Read(ref spansChildNodes)
+            + ",\"spansChildTruncated\":" + Interlocked.Read(ref spansChildTruncated)
             + ",\"spriteExport\":{\"enabled\":" + (spriteStats.Enabled ? "true" : "false")
             + ",\"snapshots\":" + spriteStats.Snapshots
             + ",\"bytes\":" + spriteStats.Bytes

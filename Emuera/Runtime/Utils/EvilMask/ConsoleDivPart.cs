@@ -136,6 +136,14 @@ class ConsoleDivPart : AConsoleDisplayNode
 	public DisplayMode Display { get; private set; }
 	public ConsoleDisplayLine[] Children { get { return children; } }
 
+	#region eraWire R-3b-3（div.children spans 只读视图；不改绘制语义）
+	internal int AltHeadTagLength => altHeadTag?.Length ?? 0;
+	internal int[] DivPadding => padding;
+	internal int[] DivBorder => border;
+	internal Color DivBackgroundColor => backgroundColor;
+	internal Color[] DivBorderColors => borderColors;
+	#endregion
+
 	public override bool CanDivide => false;
 	public ConsoleButtonString TestChildHitbox(int pointX, int pointY, int relPointY)
 	{
