@@ -198,6 +198,8 @@ sealed class ConsoleImagePart : AConsoleDisplayNode
 	public int PositionX => _positionX;
 	public int PositionY => _positionY;
 	public bool MissingImage => cImage == null;
+	/// <summary>R-3b-2b：行内图的实际 ASprite（运行期 G 名快照导出用）。</summary>
+	public ASprite Image => cImage;
 	public bool HasColorMatrix => _colorMatrix != null;
 	public override int Top { get { return top; } }
 	public override int Bottom { get { return bottom; } }

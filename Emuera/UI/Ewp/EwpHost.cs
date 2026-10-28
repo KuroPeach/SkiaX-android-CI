@@ -7,6 +7,7 @@ using MinorShift.Emuera.Runtime.Utils;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.UI.Game.Image;
 using MinorShift.Emuera.UI.Game.Rendering;
 using System;
 using System.Collections.Concurrent;
@@ -257,6 +258,9 @@ internal sealed class EwpHost
         public string Text;
         /// <summary>R-3b-1：预构建的 spans JSON 数组（null＝该行不含 spans）。</summary>
         public string Spans;
+        /// <summary>W0：保留行对象用于 snapshot 重建 spans（重捕获行内像素并签发新 rev）。
+        /// 仅 UI 线程访问；行清理（CLEARLINE/ClearDisplay）时随 liveLines 一并释放。</summary>
+        public ConsoleDisplayLine Line;
         public string Owner = "";
         public long OwnerRev;
     }
@@ -636,7 +640,13 @@ internal sealed class EwpHost
                     owner = "";
             }
         }
-        liveLines.Add(new LiveLine { Id = id, Text = text, Spans = spans, Owner = owner, OwnerRev = ownerRev });
+        // W0：仅含运行期行内像素（rt）的行保留行对象，供 snapshot 重建 spans；
+        // 普通行（绝大多数）不持有 ConsoleDisplayLine，避免无意扩大长会话 retained 面。
+        // 行清理（CLEARLINE/ClearDisplay）随 liveLines 释放；引擎自动 MaxLog 裁剪不发
+        // CliLinesRemoved 属既有账本问题（文本/spans 本已保留），W1/T6 再单独处理。
+        bool needLine = spans != null && spans.Contains("\"rt\":true");
+        liveLines.Add(new LiveLine { Id = id, Text = text, Spans = spans,
+            Line = needLine ? line : null, Owner = owner, OwnerRev = ownerRev });
         var json = "{\"t\":\"legacy.line\",\"lineId\":" + id
             + ",\"gen\":" + currentGeneration
             + ",\"text\":" + J(text);
@@ -747,6 +757,14 @@ internal sealed class EwpHost
                         sb.Append(",\"missing\":true");
                     if (img.HasColorMatrix)
                         sb.Append(",\"cm\":true");
+                    // R-3b-2b：运行期 G 名（SpriteG）在 span 构建时冻结像素快照；
+                    // FE 用 (src,rev) 发 sprite.req，旧 rev 永不返回新图。literal（SpriteF）走 2a。
+                    if (spriteExport.Enabled && img.Image is SpriteG && dr.Width > 0 && dr.Height > 0)
+                    {
+                        long rtRev = spriteExport.CaptureInline(img.Image, dr.Width, dr.Height, img.ColorMatrix);
+                        if (rtRev > 0)
+                            sb.Append(",\"rt\":true,\"rev\":").Append(rtRev);
+                    }
                     sb.Append('}');
                     spans.Add(sb.ToString());
                     continue;
@@ -1319,10 +1337,16 @@ internal sealed class EwpHost
         for (int i = 0; i < liveLines.Count; i++)
         {
             if (i > 0) sb.Append(',');
-            sb.Append("{\"lineId\":").Append(liveLines[i].Id)
-                .Append(",\"text\":").Append(J(liveLines[i].Text));
-            if (liveLines[i].Spans != null)
-                sb.Append(",\"spans\":").Append(liveLines[i].Spans);
+            // W0：retained 行若含运行期行内像素（rt），快照必须重建 spans 并重捕获新 rev；
+            // 不得复用可能已被 LRU 淘汰的旧 rev（旧 rev 仍按不可变语义返回旧图）。
+            // 非 rt 行（文本/几何）保持原 spans，避免无意义重建与文本漂移。
+            var ll = liveLines[i];
+            if (spansEnabled && ll.Line != null && ll.Spans != null && ll.Spans.Contains("\"rt\":true"))
+                ll.Spans = BuildSpans(ll.Line);
+            sb.Append("{\"lineId\":").Append(ll.Id)
+                .Append(",\"text\":").Append(J(ll.Text));
+            if (ll.Spans != null)
+                sb.Append(",\"spans\":").Append(ll.Spans);
             sb.Append('}');
         }
         sb.Append("],\"sprites\":[");

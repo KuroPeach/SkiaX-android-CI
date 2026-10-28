@@ -96,9 +96,28 @@ internal sealed class EwpSpriteExport
     {
         if (!enabled || layer == null || layer.Image == null)
             return 0;
+        var sprite = layer.Image;
+        int w = layer.Width > 0 ? layer.Width : Math.Max(0, sprite.DestBaseSize.Width);
+        int h = layer.Height > 0 ? layer.Height : Math.Max(0, sprite.DestBaseSize.Height);
+        return CaptureCore(sprite, w, h, layer.ColorMatrix);
+    }
+
+    /// <summary>R-3b-2b：行内 img（运行期 G 名）像素快照。在构建 spans 时（UI 线程）调用，
+    /// 冻结当时的像素；FE 以 (src,rev) 请求，旧 rev 永不返回新图。
+    /// W0：色彩矩阵必须传入——带 cm 的图仍分配 rev，但请求时明确回 color_matrix fail，
+    /// ⛔ 不得以「未滤镜成功图」冒充。</summary>
+    public long CaptureInline(ASprite sprite, int w, int h, float[] colorMatrix)
+    {
+        if (!enabled || sprite == null)
+            return 0;
+        return CaptureCore(sprite, w, h, colorMatrix);
+    }
+
+    private long CaptureCore(ASprite sprite, int w, int h, float[] colorMatrix)
+    {
         var sw = Stopwatch.StartNew();
 
-        string texture = (layer.Image.Name ?? "").ToUpperInvariant();
+        string texture = (sprite.Name ?? "").ToUpperInvariant();
         long rev = System.Threading.Interlocked.Increment(ref revSeq);
         var snapshot = new Snapshot { Texture = texture, Rev = rev };
 
@@ -109,9 +128,6 @@ internal sealed class EwpSpriteExport
         }
         else
         {
-            var sprite = layer.Image;
-            int w = layer.Width > 0 ? layer.Width : Math.Max(0, sprite.DestBaseSize.Width);
-            int h = layer.Height > 0 ? layer.Height : Math.Max(0, sprite.DestBaseSize.Height);
             snapshot.W = w;
             snapshot.H = h;
 
@@ -125,7 +141,7 @@ internal sealed class EwpSpriteExport
                 snapshot.FailCode = "not_exportable";
                 snapshot.Detail = "empty";
             }
-            else if (layer.ColorMatrix != null)
+            else if (colorMatrix != null)
             {
                 snapshot.FailCode = "not_exportable";
                 snapshot.Detail = "color_matrix";

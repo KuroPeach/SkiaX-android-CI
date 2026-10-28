@@ -1,6 +1,6 @@
 # Emuera-SKIA
 
-> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav16.6.6
+> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav16.6.7
 
 [![Base](https://img.shields.io/badge/base-Emuera%201.824%20%2B%20EEv56-blue)](#)
 [![Lang](https://img.shields.io/badge/lang-C%23%20%2F%20ERABASIC-green)](#)
@@ -82,4 +82,4 @@
 
 ---
 
-> 版本 V16.6.6
+> 版本 V16.6.7
