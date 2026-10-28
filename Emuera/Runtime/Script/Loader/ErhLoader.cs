@@ -375,7 +375,9 @@ internal sealed class ErhLoader
 	private void PrepareERDFileNames()
 	{
 		if (erdFileNames == null) erdFileNames = [];
-		foreach (var path in Directory.GetFiles(Program.ErbDir, "*.erd", SearchOption.AllDirectories))
+		// W3/Linux：Directory.GetFiles("*.erd") 大小写敏感 ⇒ `.ERD` 在 Linux 全部漏掉
+		// （SEMEN_MATRIX@2.ERD 等维度名丢失）。统一走大小写不敏感枚举。
+		foreach (var path in Config.Config.GetFilesCaseInsensitive(Program.ErbDir, "*.erd", SearchOption.AllDirectories))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper(CultureInfo.InvariantCulture);
 			if (!erdFileNames.TryGetValue(key, out var list))
@@ -383,7 +385,7 @@ internal sealed class ErhLoader
 			else
 				list.Add(path);
 		}
-		foreach (var path in Directory.GetFiles(Program.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
+		foreach (var path in Config.Config.GetFilesCaseInsensitive(Program.CsvDir, "*.csv", SearchOption.TopDirectoryOnly))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper(CultureInfo.InvariantCulture);
 			if (!erdFileNames.TryGetValue(key, out var list))
