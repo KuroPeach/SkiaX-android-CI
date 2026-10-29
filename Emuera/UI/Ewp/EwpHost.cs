@@ -1000,6 +1000,18 @@ internal sealed class EwpHost
                 if (rtRev > 0)
                     sb.Append(",\"rt\":true,\"rev\":").Append(rtRev);
             }
+            // N-4：div.children 内的动画精灵也带帧表（与顶层 span 同形；旧 FE 忽略）。
+            if (spriteExport.Enabled && TryAnimInfo(img.Image, out int animCount, out int[] animDelays))
+            {
+                sb.Append(",\"anim\":{\"count\":").Append(animCount)
+                  .Append(",\"delays\":[");
+                for (int di = 0; di < animDelays.Length; di++)
+                {
+                    if (di > 0) sb.Append(',');
+                    sb.Append(animDelays[di]);
+                }
+                sb.Append("]}");
+            }
             sb.Append('}');
             return sb.ToString();
         }

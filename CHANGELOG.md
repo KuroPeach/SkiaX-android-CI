@@ -4,6 +4,20 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.6.12] — EWP div.children 内的动画帧表（N-4 收口）
+
+### Changed
+
+- **div 子节点 img 增可选 `anim{count,delays}`**：与顶层 span 同形（cap `sprite.export`）。此前只有顶层行内 `<img>` 带帧表，`div.children` 里的动画精灵被当作静态图；旧 FE 忽略该键，无协议版本变化
+- `sprite.req` 负 rev 语义不变（`frame = -rev-1`），div 内动画复用同一按需取帧路径
+
+### 验收（2026-10-29）
+
+- eraWire `r3c_anim_gate` div 用例：真实 `<div><img anim></div>` 的 child span 带 `anim{count,delays}`，按伪 rev 取帧与源帧逐像素一致；Godot FE 离线断言 div-child 动画请求/命中/相位独立
+- 版本签名：`Skiav16.6.11` → `Skiav16.6.12`
+
+***
+
 ## [16.6.11] — EWP 动画帧导出（R-3c：ANIME 多帧 / 动图 webp）
 
 ### Added
