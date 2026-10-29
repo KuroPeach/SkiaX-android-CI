@@ -4,6 +4,22 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.6.11] — EWP 动画帧导出（R-3c：ANIME 多帧 / 动图 webp）
+
+### Added
+
+- **span `anim{count,delays}`**（cap `sprite.export`）：动画精灵的帧表。两种类型统一口径——`SpriteAnime`（ANIME CSV：`name,ANIME,w,h`＋逐帧行，如 `AS06MARKIV____服_笑顔动_25` 121 帧×500×500×42 ms）与 `SpriteAnimated`（动图文件多帧）。旧 FE 忽略该键
+- **`sprite.req` 支持负 rev＝动画帧伪键**（`frame = -rev-1`）：按需把该帧捕获进既有 LRU/rev/失败语义（96 项 / 32 MiB），成功回 `sprite.data{..., "frame":k}`、`rev` 回显伪键；失败走 `sprite.data.fail`（含 `frame` 语义同 bad_request/not_exportable）
+- `SpriteAnime` / `SpriteAnimated` 增 `FrameCount`、`GetDelays()`、按帧绘制（`GraphicsDrawFrame` / 既有 `GetFrame`）
+
+### 验收（2026-10-29）
+
+- eraWire `r3c_anim_gate` **PASS**：`AS06MARKIV____服_笑顔动_25`（121 帧、42 ms）帧 0/60/120 与 ANIME CSV 裁片逐像素（meanRgb ≤3、maxRgb ≤48、meanAlpha ≤2）；FE 离线渲染测试 PASS（按帧请求/按 delays 推进/缺帧占位）
+- 观察：`resources/l13/留琴/別立ち2_服_笑顔动_2.webp` 在本构建下未进入 `SpriteAnimated`（SKCodec 未报多帧）⇒ 走静态首帧；当前可用的动画路径是 ANIME CSV 多帧
+- 版本签名：`Skiav16.6.10` → `Skiav16.6.11`
+
+***
+
 ## [16.6.10] — EWP `sys.scroll`（程序化滚动）与快照滚动位置
 
 ### Added

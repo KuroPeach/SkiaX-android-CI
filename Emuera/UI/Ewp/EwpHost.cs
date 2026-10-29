@@ -770,6 +770,19 @@ internal sealed class EwpHost
                         if (rtRev > 0)
                             sb.Append(",\"rt\":true,\"rev\":").Append(rtRev);
                     }
+                    // R-3c：动画精灵（SpriteAnimated 动图 webp / SpriteAnime ANIME CSV 多帧）⇒ 帧表；
+                    // FE 按 delays 轮播、按帧请求（sprite.req 负 rev＝-(frame+1)）。
+                    if (spriteExport.Enabled && TryAnimInfo(img.Image, out int animCount, out int[] animDelays))
+                    {
+                        sb.Append(",\"anim\":{\"count\":").Append(animCount)
+                          .Append(",\"delays\":[");
+                        for (int di = 0; di < animDelays.Length; di++)
+                        {
+                            if (di > 0) sb.Append(',');
+                            sb.Append(animDelays[di]);
+                        }
+                        sb.Append("]}");
+                    }
                     sb.Append('}');
                     spans.Add(sb.ToString());
                     continue;
@@ -1465,6 +1478,27 @@ internal sealed class EwpHost
 
     /// <summary>R-3a：FE 请求精确快照。只读不可变快照缓存，不查 activeSprites、不现画。
     /// 成功回 sprite.data；失败回 sprite.data.fail；⛔ 不返回 result。</summary>
+    /// <summary>R-3c：动画精灵的帧数与逐帧延时（两种类型统一口径）。</summary>
+    private static bool TryAnimInfo(ASprite sprite, out int count, out int[] delays)
+    {
+        switch (sprite)
+        {
+            case SpriteAnimated animated:
+                count = animated.FrameCount;
+                delays = animated.GetDelays();
+                break;
+            case SpriteAnime anime:
+                count = anime.FrameCount;
+                delays = anime.GetDelays();
+                break;
+            default:
+                count = 0;
+                delays = null;
+                break;
+        }
+        return count > 1 && delays != null && delays.Length == count;
+    }
+
     private void DoSpriteRequest(JsonElement root)
     {
         // EG-1b：旧 FE（caps 未声明 sprite.export）明确忽略——⛔不回 data/fail，只计数。
@@ -1479,7 +1513,13 @@ internal sealed class EwpHost
             texture = texEl.GetString();
         if (root.TryGetProperty("rev", out var revEl) && revEl.ValueKind == JsonValueKind.Number)
             revEl.TryGetInt64(out rev);
-        if (string.IsNullOrEmpty(texture) || rev <= 0)
+        // R-3c：可选 frame（动态 webp 按帧导出；与 rev 互斥，frame>=0 时忽略 rev）
+        int frameIndex = -1;
+        if (root.TryGetProperty("frame", out var frameEl) && frameEl.ValueKind == JsonValueKind.Number)
+            frameEl.TryGetInt32(out frameIndex);
+        if (rev < 0)
+            frameIndex = (int)(-rev - 1);   // R-3c：负 rev＝动画帧伪键（frame = -rev-1）
+        if (string.IsNullOrEmpty(texture) || (frameIndex < 0 && rev <= 0))
         {
             EmitSpriteFail(texture ?? "", rev, "bad_request",
                 string.IsNullOrEmpty(texture) ? "texture" : "rev");
@@ -1487,6 +1527,46 @@ internal sealed class EwpHost
         }
 
         string key = texture.ToUpperInvariant();
+        if (frameIndex >= 0)
+        {
+            int fw = 0, fh = 0;
+            if (root.TryGetProperty("w", out var wEl) && wEl.ValueKind == JsonValueKind.Number)
+                wEl.TryGetInt32(out fw);
+            if (root.TryGetProperty("h", out var hEl) && hEl.ValueKind == JsonValueKind.Number)
+                hEl.TryGetInt32(out fh);
+            var animSprite = AppContents.GetSprite(key);
+            if (!TryAnimInfo(animSprite, out int frameCount, out _) || frameCount <= frameIndex)
+            {
+                EmitSpriteFail(key, 0, "not_exportable", "not_animated");
+                return;
+            }
+            if (fw <= 0 || fh <= 0)
+            {
+                fw = animSprite.DestBaseSize.Width;
+                fh = animSprite.DestBaseSize.Height;
+            }
+            long frameRev = spriteExport.CaptureAnimatedFrame(animSprite, frameIndex, fw, fh);
+            if (frameRev <= 0)
+            {
+                EmitSpriteFail(key, 0, "not_exportable", "animated");
+                return;
+            }
+            if (!spriteExport.TryEncode(key, frameRev, out var fpng, out int ew, out int eh,
+                    out var fcode, out var fdetail))
+            {
+                EmitSpriteFail(key, frameRev, fcode ?? "not_exportable", fdetail);
+                return;
+            }
+            var fsb = new StringBuilder(256 + fpng.Length * 2);
+            fsb.Append("{\"t\":\"sprite.data\",\"texture\":").Append(J(key))
+                .Append(",\"rev\":").Append(-(frameIndex + 1))
+                .Append(",\"frame\":").Append(frameIndex)
+                .Append(",\"w\":").Append(ew)
+                .Append(",\"h\":").Append(eh)
+                .Append(",\"fmt\":\"png\",\"data\":\"").Append(Convert.ToBase64String(fpng)).Append("\"}");
+            EwpOut.Emit(fsb.ToString());
+            return;
+        }
         if (!spriteExport.TryEncode(key, rev, out var png, out int w, out int h, out var code, out var detail))
         {
             EmitSpriteFail(key, rev, code ?? "not_exportable", detail);

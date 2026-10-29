@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -6,7 +6,7 @@
     <AssemblyName>Emuera.Headless</AssemblyName>
     <RootNamespace>MinorShift.Emuera</RootNamespace>
     <Version>1.824</Version>
-    <InformationalVersion>1824+v24+EMv18+EEv56+Skiav16.6.10+headless</InformationalVersion>
+    <InformationalVersion>1824+v24+EMv18+EEv56+Skiav16.6.11+headless</InformationalVersion>
     <LangVersion>12.0</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
