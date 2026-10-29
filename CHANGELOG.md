@@ -14,8 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### 验收（2026-10-29）
 
-- eraWire `r3c_anim_gate` **PASS**：`AS06MARKIV____服_笑顔动_25`（121 帧、42 ms）帧 0/60/120 与 ANIME CSV 裁片逐像素（meanRgb ≤3、maxRgb ≤48、meanAlpha ≤2）；FE 离线渲染测试 PASS（按帧请求/按 delays 推进/缺帧占位）
-- 观察：`resources/l13/留琴/別立ち2_服_笑顔动_2.webp` 在本构建下未进入 `SpriteAnimated`（SKCodec 未报多帧）⇒ 走静态首帧；当前可用的动画路径是 ANIME CSV 多帧
+- eraWire `r3c_anim_gate` **PASS（两型都验）**：①**动图 webp（`SpriteAnimated`）**＝`resources/l13/留琴/別立ち2_服_笑顔动_2.webp`（159 帧×270×270），帧 0/79/158 与 webp 自身帧逐像素（meanRgb 0.82／maxRgb ≤25／meanAlpha ≤0.01）；②**ANIME CSV（`SpriteAnime`）**＝`AS06MARKIV____服_笑顔动_25`（121 帧×500×500×42 ms），帧 0/60/120 与 CSV 裁片逐像素（meanRgb ≤2.1／maxRgb ≤33／alpha ≤0.09）；FE 离线渲染测试 PASS
+- 更正：早前「l13 webp 在本构建走静态首帧」的观察**不成立**——那次用的是尚未包含本特性的 16.6.10 构建；16.6.11 实测 159 帧动图正常导出
 - 版本签名：`Skiav16.6.10` → `Skiav16.6.11`
 
 ***
