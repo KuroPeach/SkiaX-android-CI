@@ -4,6 +4,136 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.6.10] — EWP `sys.scroll`（程序化滚动）与快照滚动位置
+
+### Added
+
+- **FE→VM `sys.scroll{value|delta}`**：程序化移动引擎控制台滚动位置，走与鼠标滚轮同一状态路径（`ScrollValue → NotifyUserScrolled → RefreshStrings(true)`），clamp 到 `[0, ScrollMaximum]`；缺省/类型不符回 `protocol_violation`，滚动位置不变
+- **`sys.state` / `snapshot.full` 增可选 `scroll{value,max,visible,top}`**：`visible = floor(RenderHeight/LineHeight)`，`top = max(0, min(value,max)-visible)`＝可见窗口首行（与引擎绘制口径一致）；旧 FE 忽略该键
+
+### 验收（2026-10-29）
+
+- eraWire `r3b2_visible_gate` PASS：clock 行 780/842（窗口外）→ `sys.scroll` 792（top 741），GUI⇄FE 逐边 0/0/0/0、dcov 0.0036；title 未回归
+- 版本签名：`Skiav16.6.9` → `Skiav16.6.10`
+
+***
+
+## [16.6.9] — 按钮矩形导出/自检改用显示列表真底（rect 覆盖根因）
+
+### Fixed
+
+- **`GetSelectableButtonRects` / `HitTestButtonAt` 的底行改用 `displayLineList.Count-1`**：原用 `ScrollValue-1`，而 `ScrollMaximum` 只在重绘/ClearDisplay 同步，WaitInput 入口强滚的是陈旧值（真实状态屏落后 41 行、存档列表 50 行）⇒ 最新行 rect 被算到屏幕外、hit-test 够不到，生产自检全部扣发（rect 覆盖 1/54 的根因；fixture 日志浅无陈旧窗口，I3 门禁此前全绿）
+- **`sys.state.rectDiag`**：最近一次 rect 导出的失败原因分布（noWindow/noStrArray/widthNonPositive/renderInvalid/... + renderW/H/bottomLine/scrollBottom/lineCount）；门禁语义仍是累计 `rectSelfCheckFailed`
+- **`renderInvalid` 守卫**：窗口未完成布局的启动竞态 ⇒ 整轮干净降级，不发退化 rect
+
+### 验收（2026-10-29）
+
+- 真机：主菜单 **54/54**（前 1/54，inView 45）、存档 **39/46**、菜单屏 rect 真点击 PASS；`rect_gate` R1–R7 逐值不变；W2a 真机门禁与 vn_gate/C0/r3b1/integration/n3/c3/n2 全绿
+- 版本签名：`Skiav16.6.8` → `Skiav16.6.9`
+
+***
+
+## [16.6.8] — 行内 `div.children` 与多 div 文本序列化修复
+
+### Added
+
+- **`div.children` 有界发射**：text/img/shape/div，坐标相对内容框；每 div ≤512 子 span、嵌套≤1、超限 `truncated`；复用行内 `rt/rev` 快照；`sys.state` 增 `spansChildNodes`/`spansChildTruncated`
+
+### Fixed
+
+- **多兄弟 div 的 `text` 序列化丢片段**：`ConsoleButtonString.ToString` 改局部 builder（static builder 重入导致 wire text 只剩最后一个 div；bodyGraph 行 213→1740 码点）
+- **`ConsoleDivPart` 只读视图**：AltHeadTagLength/Border/Padding/颜色等供 spans 序列化
+
+### 验收（2026-10-28）
+
+- 真实 eratw `bodyGraph_*`：一行 11 div／37 子 span／5 运行期 rt；GUI⇄FE 5 图逐边 0、32 文本 dy=0/dx≤1
+- 版本签名：`Skiav16.6.7` → `Skiav16.6.8`（README 同步）
+
+***
+
+## [16.6.7] — 行内运行期像素 W0 收口（cm 明确失败／快照重签 rev）
+
+### Fixed
+
+- **`CaptureInline` 接收实际 `ColorMatrix`**：带 cm 仍分配 rev，请求回 `not_exportable/color_matrix`，不再返回未滤镜成功图
+- **`snapshot.full` 对 retained 且含 rt 的行重建 spans、重捕获并签发新 rev**；旧 rev 不可变，容量外明确 `expired`；`LiveLine.Line` 仅对 rt 行保留，CLEARLINE/ClearDisplay 随 liveLines 释放
+
+### 验收（2026-10-28）
+
+- G1/G2/G3：`r3b2_inline_gate`＋`r3b2_integration_gate` PASS；live `rerun-w0` PASS
+- 版本位 `Skiav16.6.7`
+
+***
+
+## [16.6.6] — `legacy.spans` 行内节点/样式序列化
+
+### Added
+
+- **`legacy.line` / `snapshot.full.lines[]` 可选 `spans`**（cap `legacy.spans` 门控）：码点偏移；text/img/shape/div/unsupported；解析色/x/advance/draw；仅非纯默认文本/含非文本节点/align≠LEFT 时发；`text`/`AltText` 不变
+- `ConsoleImagePart`/`ConsoleShapePart` 增 span 只读 getter；`sys.state` 增 `spansEnabled/spansEmitted/spansSkipped`
+
+### 验收（2026-10-28）
+
+- `r3b_spans_gate`／`r3b1_fe_gate`（含真实事件流）PASS；n2 文本 hash 不变
+- 版本签名：`Skiav16.6.5` → `Skiav16.6.6`
+
+***
+
+## [16.6.5] — `meta.metrics` 增绘制原点/基线/默认色
+
+### Added
+
+- `originX`＝`DrawingParam_ShapePositionShift`（只用于文本/img/rect，div 背景/边框不加）；`baselineOffset`＝|font ascent|；`foreColor`/`bgColor`＝引擎实际默认色
+- 不翻 `hello.proto`；旧 FE 忽略新字段
+
+### 验收（2026-10-28）
+
+- `text_pixel_gate`／`fdiv_gate`／V8 全回归 PASS
+- 版本签名：`Skiav16.6.4` → `Skiav16.6.5`
+
+***
+
+## [16.6.4] — `HTML_PRINT_ISLAND` div 落画修复
+
+### Fixed
+
+- island 行独占 `DrawDivInline`：`ConsoleButtonString` 仅对 island 行放行 div，普通行仍走 escapedParts，避免二重绘；`PrintHTMLIsland` 给 island 行置 `DrawDivInline=true`
+- 三端（桌面 GUI／桌面 pixel.frame／headless pixel.frame）bbox 逐边差 0
+
+### 验收（2026-10-28）
+
+- `island_probe` 三端 bbox 逐边 0；C2-island 卡收口
+- 版本 16.6.4；验收记录＝工作区《2026-10-28-C2-island落画修复实施记录》
+
+***
+
+## [16.6.3] — div 开放标签序列化 `align`（供前端还原盒内对齐）
+
+### Changed
+
+- `ConsoleDivPart` 首个子行非左对齐时追加 `align='center'|'right'`（左对齐不写，旧文本不变）；仅属性加法，不改绘制/布局，旧前端忽略
+
+### 验收（2026-10-28）
+
+- eraWire `fdiv_gate` U/R/L/G PASS；V8-A/B 见 E4 卡 §12
+- 版本签名：`Skiav16.6.2` → `Skiav16.6.3`（desktop/headless/README）
+
+***
+
+## [16.6.2] — 图层布局统一到 `RenderWidth/Height`（V8-B +2px 根因）
+
+### Fixed
+
+- `ImageLayer` 绘制原用 `graph.LocalClipBounds`（桌面实测 1802×923），与文字/CBG 的 `window.RenderWidth/Height`（1782×921）不同源 ⇒ 图层整体 +2px，`sprite.set` 的 `y+renderH-h` 语义与引擎实际落画不一致；改用 `window.RenderWidth/RenderHeight`
+- V8-A/V8-B 判据转为 mask 100%、maxDiff ≤1、shift [0,0]
+
+### 验收（2026-10-27）
+
+- eraWire V8-A/B PASS；`r3a` 回归绿
+- 版本签名：`Skiav16.6.1` → `Skiav16.6.2`（desktop/headless/README）
+
+***
+
 ## [16.6.1] — `legacy.line` 保留 div 颜色 alpha（半透明 div 合成保真）
 
 ### Added
