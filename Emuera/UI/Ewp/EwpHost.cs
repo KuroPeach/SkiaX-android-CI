@@ -1300,6 +1300,10 @@ internal sealed class EwpHost
                 case "sys.snapshot":
                     Dispatch(() => DoSnapshot());
                     break;
+                // T7-b：程序化滚动（可见面对拍需要把目标行滚进窗口；与滚轮同一状态路径）。
+                case "sys.scroll":
+                    Dispatch(() => DoScroll(root.Clone()));
+                    break;
                 case "sys.quit":
                     DispatchQuit();
                     break;
@@ -1568,7 +1572,8 @@ internal sealed class EwpHost
             + ",\"captureMsP95\":" + D(spriteStats.CaptureMsP95)
             + ",\"encodeMsLast\":" + D(spriteStats.EncodeMsLast)
             + ",\"encodeMsP50\":" + D(spriteStats.EncodeMsP50)
-            + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}}");
+            + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}"
+            + ",\"scroll\":" + ScrollJson() + "}");
     }
 
     /// <summary>W2a：rect 导出诊断（console.LastRectDiag——最近一次 GetSelectableButtonRects 的
@@ -1712,9 +1717,66 @@ internal sealed class EwpHost
                     sb.Append("]}");
                 }
             }
-            sb.Append("]}");
+            // T7-b：快照附带控制台滚动位置（FE 可按同一窗口渲染 backlog；旧 FE 忽略该键）。
+            // ⚠ 必须在对象闭合前追加（最后一处 "]}")，否则 JSON 结构破裂。
+            sb.Append("],\"scroll\":").Append(ScrollJson()).Append('}');
         }
         EwpOut.Emit(sb.ToString());
+    }
+
+    /// <summary>T7-b：控制台滚动位置（单位＝行）。value＝ScrollValue（底边下一行的索引），
+    /// max＝ScrollMaximum（总行数），visible＝floor(RenderHeight/LineHeight)，
+    /// top＝value-visible＝可见窗口首行索引（与引擎绘制口径一致）。</summary>
+    private string ScrollJson()
+    {
+        int value = 0, max = 0;
+        try { value = win.ScrollValue; max = win.ScrollMaximum; } catch { }
+        int visible = VisibleLines();
+        int top = Math.Max(0, Math.Min(value, max) - visible);
+        return "{\"value\":" + value + ",\"max\":" + max
+            + ",\"visible\":" + visible + ",\"top\":" + top + "}";
+    }
+
+    /// <summary>可见整行数＝floor(RenderHeight/LineHeight)（与 FE visible_rows 同口径）。</summary>
+    private int VisibleLines()
+    {
+        int lineHeight = Config.LineHeight;
+        if (lineHeight <= 0)
+            return 0;
+        int height = 0;
+        try { height = win.RenderHeight; } catch { }
+        return Math.Max(1, height / lineHeight);
+    }
+
+    /// <summary>T7-b：程序化滚动。走与鼠标滚轮相同的状态路径
+    /// （ScrollValue → NotifyUserScrolled → RefreshStrings(force)）；value＝绝对行，delta＝相对行，
+    /// 一律 clamp 到 [0, ScrollMaximum]。响应回带滚动后的 scroll 对象。</summary>
+    private void DoScroll(JsonElement root)
+    {
+        var console = GameConsole;
+        if (console == null)
+        {
+            EmitResult(false, "internal", "console not ready");
+            return;
+        }
+        int max = win.ScrollMaximum;
+        int value;
+        if (root.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.Number
+            && v.TryGetInt32(out int absolute))
+            value = absolute;
+        else if (root.TryGetProperty("delta", out var d) && d.ValueKind == JsonValueKind.Number
+            && d.TryGetInt32(out int delta))
+            value = win.ScrollValue + delta;
+        else
+        {
+            EmitResult(false, "protocol_violation", "sys.scroll needs value or delta (int)");
+            return;
+        }
+        value = Math.Max(0, Math.Min(value, max));
+        win.ScrollValue = value;
+        console.NotifyUserScrolled();
+        console.RefreshStrings(true);
+        EwpOut.Emit("{\"t\":\"result\",\"ok\":true,\"scroll\":" + ScrollJson() + "}");
     }
 
     private void DispatchQuit()
