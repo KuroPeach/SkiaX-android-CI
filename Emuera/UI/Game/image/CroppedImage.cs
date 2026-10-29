@@ -303,6 +303,35 @@ internal sealed class SpriteAnime : ASprite
 			startTime = Stopwatch.GetTimestamp() - (long)(_pausedElapsed * Stopwatch.Frequency / 1000);
 	}
 
+	/// <summary>R-3c：帧数与逐帧延时（供 EWP 帧表导出）。</summary>
+	public int FrameCount => FrameList.Count;
+	public int[] GetDelays()
+	{
+		var delays = new int[FrameList.Count];
+		for (int i = 0; i < FrameList.Count; i++)
+			delays[i] = Math.Max(1, FrameList[i].DelayTimeMs);
+		return delays;
+	}
+
+	/// <summary>R-3c：把指定帧画到 destRect（不依赖播放时钟；EWP 按需导出该帧）。</summary>
+	public void GraphicsDrawFrame(SKCanvas g, Rectangle destRect, int frameIndex)
+	{
+		if (frameIndex < 0 || frameIndex >= FrameList.Count)
+			return;
+		var frame = FrameList[frameIndex];
+		if (frame.BaseImage == null || !frame.BaseImage.IsCreated)
+			return;
+		if (!DestBasePosition.IsEmpty)
+		{
+			destRect.X = destRect.X + (DestBasePosition.X + frame.Offset.X) * destRect.Width / DestBaseSize.Width;
+			destRect.Y = destRect.Y + (DestBasePosition.Y + frame.Offset.Y) * destRect.Height / DestBaseSize.Height;
+			destRect.Width = frame.SrcRectangle.Width * destRect.Width / DestBaseSize.Width;
+			destRect.Height = frame.SrcRectangle.Height * destRect.Height / DestBaseSize.Height;
+		}
+		using SKPaint paint = new() { FilterQuality = (SKFilterQuality)Config.ImageQuality };
+		g.DrawBitmap(frame.BaseImage.SKBitmap, frame.SrcRectangle.ToSKRect(), destRect.ToSKRect(), paint);
+	}
+
 	private AnimeFrame GetCurrentFrame()
 	{
 		if (totaltime <= 0)
@@ -482,6 +511,20 @@ internal sealed class SpriteAnimated : ASprite, IFileBacked
 	public bool IsEvicted => isEvicted;
 	public int FrameCount => frameCount;
 	public override bool IsCreated => frameCount > 0;
+	/// <summary>R-3c：帧在文件内的源矩形（2 字段资源＝整帧）。</summary>
+	public Rectangle SrcRect => srcRect;
+	/// <summary>R-3c：逐帧延时（ms，由累积时间戳差分；最小 1）。</summary>
+	public int[] GetDelays()
+	{
+		var delays = new int[frameCount];
+		int prev = 0;
+		for (int i = 0; i < frameCount; i++)
+		{
+			delays[i] = Math.Max(1, frameTimestamps[i] - prev);
+			prev = frameTimestamps[i];
+		}
+		return delays;
+	}
 
 	public SKBitmap GetFrame(int index)
 	{
