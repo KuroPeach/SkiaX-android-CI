@@ -4,6 +4,7 @@ using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils.Audio;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
@@ -15,6 +16,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -110,7 +112,9 @@ internal static class EwpOut
         var q = queue;
         if (q == null)
             return;
-        try { q.Add(new Payload { Json = json }); } catch { }
+        if (json != null && json.Contains("\"exit\""))
+            EwpDiagnostics.Trace("EwpOut.Emit exit queue=" + (q == null ? -1 : q.Count));
+        try { q.Add(new Payload { Json = json }); } catch (Exception ex) { EwpDiagnostics.Trace("EwpOut.Emit ex " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     /// <summary>像素事件：编码完成后投递写出队列（丢新计数；丢旧保新在 EwpPixelStreamer 捕获级）。</summary>
@@ -148,6 +152,8 @@ internal static class EwpOut
     public static void Shutdown()
     {
         var q = queue;
+        EwpDiagnostics.Trace("EwpOut.Shutdown enter queue=" + (q == null ? -1 : q.Count)
+            + " writerAlive=" + (writerThread != null && writerThread.IsAlive));
         if (q == null)
             return;
         closing = true;
@@ -158,7 +164,12 @@ internal static class EwpOut
         }
         try { q.CompleteAdding(); } catch { }
         try { pixelQueue?.CompleteAdding(); } catch { }
-        try { writerThread?.Join(3000); } catch { }
+        try
+        {
+            var joined = writerThread == null || writerThread.Join(3000);
+            EwpDiagnostics.Trace("EwpOut.Shutdown join=" + joined + " queue=" + q.Count);
+        }
+        catch (Exception ex) { EwpDiagnostics.Trace("EwpOut.Shutdown join ex " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     private static void Loop()
@@ -187,7 +198,10 @@ internal static class EwpOut
                     s.Flush();
                     continue;
                 }
+                var isExit = p.Json != null && p.Json.Contains("\"exit\"");
+                if (isExit) EwpDiagnostics.Trace("writer exit take");
                 Codec.WriteText(s, p.Json);
+                if (isExit) EwpDiagnostics.Trace("writer exit written");
                 long count = 1;
                 // drain whatever else is already queued (batch), then close the frame
                 while (queue.TryTake(out var more, 0))
@@ -209,13 +223,14 @@ internal static class EwpOut
                     .Append('}');
                 Codec.WriteText(s, sb.ToString());
                 s.Flush();
+                if (isExit) EwpDiagnostics.Trace("writer exit flushed");
                 // 信用窗口：本帧未 ack 前最多积压 CreditWindow 帧
                 Interlocked.Increment(ref pendingFrames);
                 WaitForCredit();
             }
         }
-        catch { }
-        finally { try { s?.Flush(); } catch { } }
+        catch (Exception ex) { EwpDiagnostics.Trace("writer ex " + ex.GetType().Name + ": " + ex.Message); }
+        finally { try { s?.Flush(); } catch (Exception ex) { EwpDiagnostics.Trace("writer final flush ex " + ex.GetType().Name + ": " + ex.Message); } }
     }
 
     /// <summary>等待信用返还；超时兜底放行（记 ackTimeouts，不丢事件）。</summary>
@@ -326,11 +341,40 @@ internal sealed class EwpHost
     /// <c>sys.state.rectSelfCheckFailed</c> 可观测；门禁断言 == 0。</summary>
     private long rectSelfCheckFailed;
 
+    /// <summary>R-AUD-4：逻辑通道账本（FE 声明 audio 后指令层/查询/状态全部走它）。</summary>
+    private AudioLedger audioLedger;
+    private volatile bool audioEnabled;
+    private volatile bool feedbackEnabled;
+
+    // G3（2026-10-30）：TCP headless 启动门——FE hello.ok + Subscribe 完成前不启动游戏。
+    // 背景：HeadlessHost 在 Start() 后立即 Initialize()，首帧 legacy.line / input.request
+    // 会早于 AcceptLoop 的 Subscribe（钩子未挂、无补发），FE 拿不到 reqId 只能干等。
+    private readonly ManualResetEventSlim gameStart = new(false);
+    private EmueraConsole attachedConsole;
+    private int helloOkSeen;
+    private int subscribedDone;
+
     public EwpHost(IConsoleSurface window, int tcpPort = 0)
     {
         win = window;
         this.tcpPort = tcpPort;
         pixel = new EwpPixelStreamer(window, () => GlobalStatic.Console, EwpOut.EmitPixel);
+    }
+
+    /// <summary>TCP headless：提前注入 console，使 AcceptLoop 在 console.Initialize() 之前
+    /// 就能 Subscribe 并挂好 Cli* 钩子（stdio/桌面不调用，行为不变）。</summary>
+    public void AttachConsole(EmueraConsole console) => attachedConsole = console;
+
+    /// <summary>启动门是否已放行（hello.ok + Subscribe 均完成）。</summary>
+    public bool GameStartReady => gameStart.IsSet;
+
+    /// <summary>等待启动门；timeoutMs 仅供调用方轮询，不抛异常。</summary>
+    public bool WaitGameStart(int timeoutMs) => gameStart.Wait(timeoutMs);
+
+    private void MaybeReleaseGameStart()
+    {
+        if (Volatile.Read(ref helloOkSeen) == 1 && Volatile.Read(ref subscribedDone) == 1)
+            gameStart.Set();
     }
 
     // Program wires the dialog delegates after EwpOut.InitIO, so the queue already
@@ -344,13 +388,16 @@ internal sealed class EwpHost
     public void Start()
     {
         ChannelHooks.Handler = OnChannelMacro;
+        // R-AUD-4：账本与事件出口在 hello 前装好；FE 声明 audio 前 Enabled=false（原生路径不变）。
+        audioLedger = new AudioLedger();
+        AudioHooks.Attach(audioLedger, OnAudioEvent);
         var sb = new StringBuilder(320);
         sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.3\",\"impl\":\"ewp-b4\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\",\"legacy.spans\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\",\"legacy.spans\",\"audio\",\"audio.feedback\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -416,12 +463,25 @@ internal sealed class EwpHost
 
     public void NotifyProcessExit()
     {
+        EwpDiagnostics.Trace("NotifyProcessExit enter");
         running = false;
         ChannelHooks.Handler = null;
+        AudioHooks.Detach();
         // 先发 exit 再清像素流：像素流 Dispose 若抛异常也不能把 exit 吞掉。
+        try
+        {
+            // R-AUD-4 测试诊断（stderr，⛔ 业务事件）：Q1 静音与 mixer 是否被原生路径初始化。
+            var st = audioLedger?.Stats();
+            Console.Error.WriteLine("[ewp-audio] enabled=" + (audioEnabled ? 1 : 0)
+                + " nativeSuppressed=" + (st?.NativeSuppressed ?? 0)
+                + " mixerInitialized=" + MixerStateJson());
+        }
+        catch { }
         EwpOut.Emit("{\"t\":\"exit\"}");
-        try { pixel.Dispose(); } catch { }
+        EwpDiagnostics.Trace("NotifyProcessExit exit enqueued");
+        try { pixel.Dispose(); } catch (Exception ex) { EwpDiagnostics.Trace("pixel.Dispose ex " + ex.GetType().Name + ": " + ex.Message); }
         EwpOut.Shutdown();
+        EwpDiagnostics.Trace("NotifyProcessExit Shutdown returned");
     }
 
     /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}+新段；
@@ -520,7 +580,7 @@ internal sealed class EwpHost
             listener.Stop();
             var stream = client.GetStream();
             EwpOut.AttachStream(stream);
-            while (running && (!win.IsHandleCreated || GameConsole == null))
+            while (running && (!win.IsHandleCreated || (GameConsole == null && attachedConsole == null)))
                 Thread.Sleep(50);
             if (running)
                 Subscribe();
@@ -553,7 +613,8 @@ internal sealed class EwpHost
 
     private void Subscribe()
     {
-        var console = GameConsole;
+        // TCP headless：console 已由 HeadlessHost 提前注入（Initialize 之前），否则等 GlobalStatic。
+        var console = attachedConsole ?? GameConsole;
         if (console == null)
             return;
         ApplyPendingViewport();
@@ -568,7 +629,19 @@ internal sealed class EwpHost
         console.CliIslandPrinted += OnIslandPrinted;
         console.CliIslandCleared += OnIslandCleared;
         console.CliFramePainted += OnFramePainted;
-        EmitMetrics();
+        if (tcpPort > 0)
+        {
+            // TCP：EmitMetrics 会调 FontFactory（无锁静态缓存），⛔ 不能在 transport 线程
+            // 与 init/渲染并发（实测 InvalidOperationException）；改走 UI 泵
+            // （HeadlessHost 在启动门前持续泵，故不会悬空）。
+            try { win.Invoke(new Action(EmitMetrics)); } catch { }
+        }
+        else
+        {
+            EmitMetrics();
+        }
+        Volatile.Write(ref subscribedDone, 1);
+        MaybeReleaseGameStart();
     }
 
     /// <summary>RefreshStrings 有效通过点（UI 线程，B3 像素流帧信号；仅 mode.pixel=true 时实做捕获）。</summary>
@@ -1313,6 +1386,14 @@ internal sealed class EwpHost
                 case "view.ack":
                     EwpOut.NoteAck();
                     break;
+                // R-AUD-4：FE 回供（通知型：⛔ 不产生 result、⛔ 进 frame.commit、⛔ 占信用窗）。
+                // 传输线程直接更新账本（⛔ 走 UI Dispatch），锁内只写账本。
+                case "audio.state":
+                    HandleAudioFeedback(root, isFail: false);
+                    break;
+                case "audio.fail":
+                    HandleAudioFeedback(root, isFail: true);
+                    break;
                 case "hello.ok":
                     DoHelloOk(root);
                     break;
@@ -1418,6 +1499,7 @@ internal sealed class EwpHost
             rectEnabled = false;
             spriteExport.Enabled = false;
             spansEnabled = false;
+            ApplyAudioCaps(false, false);
         }
         else
         {
@@ -1425,6 +1507,8 @@ internal sealed class EwpHost
             var hasRect = false;
             var hasSpriteExport = false;
             var hasSpans = false;
+            var hasAudio = false;
+            var hasAudioFeedback = false;
             foreach (var cap in caps.EnumerateArray())
             {
                 if (cap.ValueKind != JsonValueKind.String)
@@ -1438,11 +1522,22 @@ internal sealed class EwpHost
                     hasSpriteExport = true;
                 else if (capName == "legacy.spans")
                     hasSpans = true;
+                else if (capName == "audio")
+                    hasAudio = true;
+                else if (capName == "audio.feedback")
+                    hasAudioFeedback = true;
             }
             channelEnabled = hasChannel;
             rectEnabled = hasRect;
             spriteExport.Enabled = hasSpriteExport;
             spansEnabled = hasSpans;
+            // 1.1/C-14：feedback 无 audio ⇒ 忽略 feedback 位、ignored++、不断会话（⛔ cap_mismatch）
+            if (hasAudioFeedback && !hasAudio)
+            {
+                hasAudioFeedback = false;
+                audioLedger?.NoteIgnored();
+            }
+            ApplyAudioCaps(hasAudio, hasAudioFeedback);
         }
         if (!channelEnabled)
         {
@@ -1486,6 +1581,9 @@ internal sealed class EwpHost
             else
                 pixel.Enable();
         }
+        // G3：握手完成——与 Subscribe 一起放行 TCP 启动门（stdio 无人在等，置位无副作用）。
+        Volatile.Write(ref helloOkSeen, 1);
+        MaybeReleaseGameStart();
     }
 
     /// <summary>R-3a：FE 请求精确快照。只读不可变快照缓存，不查 activeSprites、不现画。
@@ -1625,7 +1723,7 @@ internal sealed class EwpHost
             mismatch = channelMismatch;
         }
         var spriteStats = spriteExport.Stats();
-        EwpOut.Emit("{\"t\":\"result\",\"ok\":true,\"state\":" + J(console.CliStateName)
+        var json = "{\"t\":\"result\",\"ok\":true,\"state\":" + J(console.CliStateName)
             + ",\"waitInput\":" + (console.IsWaitInputState ? "true" : "false")
             + ",\"reqId\":" + currentReqId
             + ",\"generation\":" + currentGeneration
@@ -1665,7 +1763,298 @@ internal sealed class EwpHost
             + ",\"encodeMsLast\":" + D(spriteStats.EncodeMsLast)
             + ",\"encodeMsP50\":" + D(spriteStats.EncodeMsP50)
             + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}"
-            + ",\"scroll\":" + ScrollJson() + "}");
+            + ",\"scroll\":" + ScrollJson();
+        // Q15/R-AUD-4：cap 未启用 ⇒ sys.state 不出现 audio 键（旧 FE 零字段副作用）
+        if (audioEnabled)
+            json += ",\"audio\":" + AudioStateJson();
+        EwpOut.Emit(json + "}");
+    }
+
+    // ---------------- R-AUD-4：audio（caps/事件/回供/状态） ----------------
+
+    private void ApplyAudioCaps(bool audio, bool feedback)
+    {
+        bool newlyEnabled = audio && !audioEnabled;
+        audioEnabled = audio;
+        feedbackEnabled = feedback && audio;
+        AudioHooks.Enabled = audio;
+        AudioHooks.FeedbackEnabled = feedbackEnabled;
+        if (newlyEnabled)
+        {
+            // Q1：FE 声明 audio ⇒ VM 静音本机。启动期可能已有原生 BGM/SE 在响（hello.ok 之前
+            // 指令层走原生路径），一次性停掉；此后所有音频指令都走账本，不再碰本机后端。
+            try
+            {
+                if (!win.IsDisposed)
+                    win.Invoke(new Action(MuteNativeAudio));
+            }
+            catch { }
+        }
+    }
+
+    private static void MuteNativeAudio()
+    {
+        try
+        {
+            var bgm = GlobalStatic.Bgm;
+            if (bgm != null)
+                bgm.stop();
+            var se = GlobalStatic.Sound;
+            if (se != null)
+            {
+                for (int i = 0; i < se.Length; i++)
+                {
+                    var s = se[i];
+                    if (s != null)
+                        s.stop();
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static string ActName(AudioAct act)
+    {
+        switch (act)
+        {
+            case AudioAct.Play: return "play";
+            case AudioAct.Stop: return "stop";
+            case AudioAct.StopAll: return "stopAll";
+            case AudioAct.Pause: return "pause";
+            case AudioAct.Resume: return "resume";
+            case AudioAct.Volume: return "volume";
+            case AudioAct.Speed: return "speed";
+            default: return "unknown";
+        }
+    }
+
+    private static string PhaseName(AudioPhase phase)
+    {
+        switch (phase)
+        {
+            case AudioPhase.Playing: return "Playing";
+            case AudioPhase.Paused: return "Paused";
+            case AudioPhase.Ended: return "Ended";
+            case AudioPhase.Failed: return "Failed";
+            default: return "Idle";
+        }
+    }
+
+    /// <summary>至少保留一位小数（spec 示例 speed:1.0；JSON 数值仍等值）。</summary>
+    private static string F(double v)
+        => v.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>AudioHooks.Sink：Runtime 账本 → wire 事件（普通服务端事件，走 EwpOut.Emit）。</summary>
+    private void OnAudioEvent(AudioEvent ev)
+    {
+        if (ev == null || !audioEnabled)
+            return;
+        var sb = new StringBuilder(192);
+        sb.Append("{\"t\":\"").Append(ev.IsBgm ? "audio.bgm" : "audio.se")
+            .Append("\",\"act\":\"").Append(ActName(ev.Act)).Append('"');
+        switch (ev.Act)
+        {
+            case AudioAct.Play:
+                if (!ev.IsBgm)
+                    sb.Append(",\"ch\":").Append(ev.Ch);
+                sb.Append(",\"gen\":").Append(ev.Gen)
+                    .Append(",\"track\":").Append(J(ev.Track));
+                if (ev.IsBgm)
+                    sb.Append(",\"loop\":").Append(ev.Loop ? "true" : "false");
+                else
+                    sb.Append(",\"repeat\":").Append(ev.Repeat);
+                sb.Append(",\"volume\":").Append(ev.Volume)
+                    .Append(",\"speed\":").Append(F(ev.Speed));
+                break;
+            case AudioAct.Volume:
+                if (!ev.IsBgm)
+                {
+                    // 全局 SE 音量：无 ch / gen（spec §2.3）
+                    sb.Append(",\"volume\":").Append(ev.Volume);
+                }
+                else
+                {
+                    sb.Append(",\"gen\":").Append(ev.Gen)
+                        .Append(",\"volume\":").Append(ev.Volume);
+                }
+                break;
+            case AudioAct.Speed:
+                if (!ev.IsBgm)
+                    sb.Append(",\"ch\":").Append(ev.Ch);
+                sb.Append(",\"gen\":").Append(ev.Gen)
+                    .Append(",\"speed\":").Append(F(ev.Speed))
+                    .Append(",\"preservePitch\":").Append(ev.PreservePitch ? "true" : "false");
+                break;
+            case AudioAct.StopAll:
+                break;
+            default: // stop / pause / resume
+                if (!ev.IsBgm)
+                    sb.Append(",\"ch\":").Append(ev.Ch);
+                sb.Append(",\"gen\":").Append(ev.Gen);
+                break;
+        }
+        sb.Append('}');
+        EwpOut.Emit(sb.ToString());
+    }
+
+    private static readonly HashSet<string> AudioFailCodes = new(StringComparer.Ordinal)
+    {
+        "decode", "not_found", "no_device", "path_escape", "no_access", "decode_cached",
+    };
+
+    private static bool TryGetIntProp(JsonElement root, string name, out int value)
+    {
+        value = 0;
+        return root.TryGetProperty(name, out var el)
+            && el.ValueKind == JsonValueKind.Number
+            && el.TryGetInt32(out value);
+    }
+
+    private static bool TryGetLongProp(JsonElement root, string name, out long value)
+    {
+        value = 0;
+        return root.TryGetProperty(name, out var el)
+            && el.ValueKind == JsonValueKind.Number
+            && el.TryGetInt64(out value);
+    }
+
+    private static string OptStringProp(JsonElement root, string name)
+    {
+        return root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String
+            ? el.GetString()
+            : null;
+    }
+
+    /// <summary>audio.state / audio.fail（传输线程）：解析失败 badReports++，⛔ 回 result、⛔ 进 frame.commit。</summary>
+    private void HandleAudioFeedback(JsonElement root, bool isFail)
+    {
+        var ledger = audioLedger;
+        if (ledger == null)
+            return;
+        if (!audioEnabled || !feedbackEnabled)
+        {
+            // 未启用/未声明 feedback 的 audio.* ⇒ 丢弃并计 ignored（spec §4.5）
+            ledger.NoteIgnored();
+            return;
+        }
+        if (!TryGetIntProp(root, "ch", out int ch) || ch < -1 || ch > 9
+            || !TryGetLongProp(root, "gen", out long gen) || gen < 1)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        string track = OptStringProp(root, "track");
+        if (isFail)
+        {
+            string failCode = OptStringProp(root, "code");
+            if (failCode == null || !AudioFailCodes.Contains(failCode))
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+            ledger.ApplyFail(ch, gen, failCode, track);
+            return;
+        }
+
+        string state = OptStringProp(root, "state");
+        if (state != "playing" && state != "paused" && state != "ended" && state != "deferred")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        if (!TryGetLongProp(root, "posMs", out long posMs) || posMs < 0)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        bool hasDur = TryGetLongProp(root, "durMs", out long durMs);
+        if (hasDur && durMs < 0)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        int pitch = -1;
+        if (root.TryGetProperty("pitchPreserved", out var pitchEl))
+        {
+            if (pitchEl.ValueKind == JsonValueKind.True)
+                pitch = 1;
+            else if (pitchEl.ValueKind == JsonValueKind.False)
+                pitch = 0;
+            else
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        string code = OptStringProp(root, "code");
+        if (state == "deferred" && code != null && code != "autoplay_blocked")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        ledger.ApplyState(ch, gen, state, posMs, hasDur ? durMs : 0, hasDur, track, pitch, code);
+    }
+
+    /// <summary>桌面 NAudio 混音器是否被初始化过（headless 无此类型 ⇒ null）。
+    /// 只读反射：EwpHost 同时编进 headless 工程，⛔ 不能直接引用 SoundMixer（headless 剔除 NAudio）。</summary>
+    private static string MixerStateJson()
+    {
+        try
+        {
+            var t = Type.GetType("MinorShift.Emuera.Runtime.Utils.SoundMixer");
+            var p = t?.GetProperty("Initialized", BindingFlags.Public | BindingFlags.Static);
+            if (p != null)
+                return (bool)p.GetValue(null) ? "true" : "false";
+        }
+        catch { }
+        return "null";
+    }
+
+    /// <summary>sys.state.audio（spec §4.4；cap 未启用时调用方不追加此键）。</summary>
+    private string AudioStateJson()
+    {
+        var ledger = audioLedger;
+        if (ledger == null)
+            return "null";
+        var st = ledger.Stats();
+        var sb = new StringBuilder(640);
+        sb.Append("{\"enabled\":true,\"queryMode\":").Append(J(st.QueryMode))
+            .Append(",\"played\":").Append(st.Played)
+            .Append(",\"stopped\":").Append(st.Stopped)
+            .Append(",\"failed\":").Append(st.Failed)
+            .Append(",\"missing\":").Append(st.Missing)
+            .Append(",\"unsafePath\":").Append(st.UnsafePath)
+            .Append(",\"ignored\":").Append(st.Ignored)
+            .Append(",\"staleReports\":").Append(st.StaleReports)
+            .Append(",\"badReports\":").Append(st.BadReports)
+            .Append(",\"queryFallback\":").Append(st.QueryFallback)
+            .Append(",\"trackMismatch\":").Append(st.TrackMismatch)
+            // 测试诊断（⛔ 业务事件；G2/Q1 的 nativeSuppressed 读数）
+            .Append(",\"diag\":{\"nativeSuppressed\":").Append(st.NativeSuppressed)
+            .Append(",\"mixerInitialized\":").Append(MixerStateJson()).Append('}')
+            .Append(",\"channels\":[");
+        var chans = st.Channels ?? Array.Empty<AudioChannelInfo>();
+        for (int i = 0; i < chans.Length; i++)
+        {
+            var c = chans[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"ch\":").Append(c.Ch)
+                .Append(",\"phase\":\"").Append(PhaseName(c.Phase)).Append('"')
+                .Append(",\"gen\":").Append(c.Gen);
+            if (!string.IsNullOrEmpty(c.Track))
+                sb.Append(",\"track\":").Append(J(c.Track));
+            sb.Append(",\"queryMode\":").Append(J(c.QueryMode ?? "unknown"));
+            if (c.FeedbackStaleMs >= 0)
+                sb.Append(",\"feedbackStaleMs\":").Append(c.FeedbackStaleMs);
+            if (c.PitchPreserved == 1)
+                sb.Append(",\"pitchPreserved\":true");
+            else if (c.PitchPreserved == 2)
+                sb.Append(",\"pitchPreserved\":false");
+            sb.Append('}');
+        }
+        sb.Append("]}");
+        return sb.ToString();
     }
 
     /// <summary>W2a：rect 导出诊断（console.LastRectDiag——最近一次 GetSelectableButtonRects 的
@@ -1873,6 +2262,7 @@ internal sealed class EwpHost
 
     private void DispatchQuit()
     {
+        EwpDiagnostics.Trace("DispatchQuit enter disposed=" + win.IsDisposed);
         try
         {
             if (win.IsDisposed)
@@ -1880,10 +2270,11 @@ internal sealed class EwpHost
             win.Invoke(new Action(() =>
             {
                 try { GameConsole?.Quit(); win.Close(); }
-                catch { }
+                catch (Exception ex) { EwpDiagnostics.Trace("DispatchQuit action ex " + ex.GetType().Name + ": " + ex.Message); }
             }));
+            EwpDiagnostics.Trace("DispatchQuit invoke returned");
         }
-        catch { }
+        catch (Exception ex) { EwpDiagnostics.Trace("DispatchQuit ex " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     private static void EmitResult(bool ok, string code, string detail)

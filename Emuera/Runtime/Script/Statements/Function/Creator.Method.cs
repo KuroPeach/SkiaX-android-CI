@@ -8,6 +8,7 @@ using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Function;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils.Audio;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.UI;
 using MinorShift.Emuera.UI.Game;
@@ -9914,6 +9915,19 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			int channelId = (int)arguments[0].GetIntValue(exm);
+			// R-AUD-4：audio 启用 ⇒ 按 AudioLedger 回答（L1 回供 ＞ L2 探针 ＞ L3 intent）
+			int audioInfoType = arguments.Count < 2 || arguments[1] == null
+				? -1
+				: (int)arguments[1].GetIntValue(exm);
+			if (AudioIntents.QueryInfo(channelId, audioInfoType, out var audioValue, out var audioArray))
+			{
+				if (audioArray != null)
+				{
+					for (int i = 0; i < audioArray.Length && i < 5; i++)
+						exm.VEvaluator.RESULT_ARRAY[i] = audioArray[i];
+				}
+				return audioValue;
+			}
 			
 			// 获取目标 Sound 对象
 			Sound targetSound = null;
@@ -9983,6 +9997,9 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			int channelId = (int)arguments[0].GetIntValue(exm);
+			// R-AUD-4：audio 启用 ⇒ 账本相位（Playing 返回 ch；Paused 返回 -1，镜像引擎）
+			if (AudioIntents.IsPlayingSound(channelId, out var audioValue))
+				return audioValue;
 			if (channelId < 0 || channelId >= GlobalStatic.Sound.Length)
 			{
 				return -1;
@@ -10012,6 +10029,20 @@ internal static partial class FunctionMethodCreator
 			int channelId = (int)arguments[0].GetIntValue(exm);
 			// 获取第二个参数：控制行为 (0=暂停, 1=恢复, 2=停止, 3=变速)
 			int action = (int)arguments[1].GetIntValue(exm);
+			// R-AUD-4：audio 启用 ⇒ 只更新账本并发 audio.se 控制事件；返回码与原生一致
+			{
+				bool hasExtra = arguments.Count > 2;
+				int speedPercent = 0;
+				int pitchFlag = 0;
+				if (hasExtra)
+				{
+					speedPercent = (int)arguments[2].GetIntValue(exm);
+					if (arguments.Count >= 4 && arguments[3] != null)
+						pitchFlag = (int)arguments[3].GetIntValue(exm);
+				}
+				if (AudioIntents.SoundControl(channelId, action, hasExtra, speedPercent, pitchFlag, out var audioCode))
+					return audioCode;
+			}
 			
 			// 检查通道号是否有效
 			if (channelId < 0 || channelId >= GlobalStatic.Sound.Length)
@@ -10082,6 +10113,9 @@ internal static partial class FunctionMethodCreator
 		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
 		{
 			// 检查通道是否存在且正在播放
+			// R-AUD-4：audio 启用 ⇒ 账本相位（Paused/Idle/Ended/Failed 均 0）
+			if (AudioIntents.IsPlayingBgm(out var audioValue))
+				return audioValue;
 			if (GlobalStatic.Bgm != null && GlobalStatic.Bgm.isPlaying())
 			{
 				return 1;
@@ -10107,6 +10141,20 @@ internal static partial class FunctionMethodCreator
 		{
 			// 获取第一个参数：控制行为 (0=暂停, 1=恢复, 2=停止, 3=变速)
 			int action = (int)arguments[0].GetIntValue(exm);
+			// R-AUD-4：audio 启用 ⇒ 只更新 BGM 账本并发 audio.bgm 控制事件（返回码 1/-2）
+			{
+				bool hasExtra = arguments.Count > 1;
+				int speedPercent = 0;
+				int pitchFlag = 0;
+				if (hasExtra)
+				{
+					speedPercent = (int)arguments[1].GetIntValue(exm);
+					if (arguments.Count >= 3 && arguments[2] != null)
+						pitchFlag = (int)arguments[2].GetIntValue(exm);
+				}
+				if (AudioIntents.BgmControl(action, hasExtra, speedPercent, pitchFlag, out var audioCode))
+					return audioCode;
+			}
 			// 确保通道已初始化
 			if (GlobalStatic.Bgm == null)
 			{

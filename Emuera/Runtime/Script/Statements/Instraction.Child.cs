@@ -11,6 +11,7 @@ using MinorShift.Emuera.Runtime.Script.Statements.Expression;
 using MinorShift.Emuera.Runtime.Script.Statements.Function;
 using MinorShift.Emuera.Runtime.Script.Statements.Variable;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils.Audio;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.Runtime.Utils.PluginSystem;
 using MinorShift.Emuera.UI;
@@ -2792,6 +2793,9 @@ internal sealed partial class FunctionIdentifier
 			else
 				datFilename = soundArg.Str.GetStrValue(exm);
 			int repeat = soundArg.Opt != null ? (int)Math.Max(soundArg.Opt.GetIntValue(exm), 1) : 1;
+			// R-AUD-4：FE 声明 audio ⇒ VM 静音本机，只更新账本并发 audio.se{play}
+			if (AudioIntents.PlaySound(datFilename, repeat))
+				return;
 			string filepath = Program.MusicDir + datFilename;
 			try
 			{
@@ -2829,6 +2833,9 @@ internal sealed partial class FunctionIdentifier
 		}
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
+			// R-AUD-4：audio 启用 ⇒ 只发 audio.se{stopAll}（Paused 不动；空 stop 不发）
+			if (AudioIntents.StopSound())
+				return;
 			for (int i = 0; i < GlobalStatic.Sound.Length; i++)
 			{
 				if (GlobalStatic.Sound[i] == null)
@@ -2855,6 +2862,9 @@ internal sealed partial class FunctionIdentifier
 				datFilename = arg.ConstStr;
 			else
 				datFilename = arg.Term.GetStrValue(exm);
+			// R-AUD-4：audio 启用 ⇒ 只发 audio.bgm{play}（Q1 静音本机）
+			if (AudioIntents.PlayBgm(datFilename))
+				return;
 			string filepath = Path.GetFullPath(".\\sound\\" + datFilename);
 
 			try
@@ -2878,6 +2888,9 @@ internal sealed partial class FunctionIdentifier
 		}
 		public override void DoInstruction(ExpressionMediator exm, InstructionLine func, ProcessState state)
 		{
+			// R-AUD-4：audio 启用 ⇒ 只发 audio.bgm{stop}（空 stop 不发）
+			if (AudioIntents.StopBgm())
+				return;
 			GlobalStatic.Bgm.stop();
 		}
 	}
@@ -2893,6 +2906,9 @@ internal sealed partial class FunctionIdentifier
 		{
 			ExpressionArgument intExpArg = (ExpressionArgument)func.Argument;
 			int vol = (int)intExpArg.Term.GetIntValue(exm);
+			// R-AUD-4：audio 启用 ⇒ 只更新 10 条 SE 通道账本并发全局 volume（无 ch/gen）
+			if (AudioIntents.SetSoundVolume(vol))
+				return;
 			for (int i = 0; i < GlobalStatic.Sound.Length; i++)
 			{
 				if (GlobalStatic.Sound[i] == null)
@@ -2912,6 +2928,9 @@ internal sealed partial class FunctionIdentifier
 		{
 			ExpressionArgument intExpArg = (ExpressionArgument)func.Argument;
 			int vol = (int)intExpArg.Term.GetIntValue(exm);
+			// R-AUD-4：audio 启用 ⇒ 只更新 BGM 账本并发 audio.bgm{volume,gen}
+			if (AudioIntents.SetBgmVolume(vol))
+				return;
 			GlobalStatic.Bgm.setVolume(vol);
 		}
 	}
