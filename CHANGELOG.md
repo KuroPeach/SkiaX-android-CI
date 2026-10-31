@@ -4,6 +4,36 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.6.13] — EWP audio v1（P3-E：AudioLedger v2 / 6 ERB 内建）
+
+### Added
+
+- **v1 账本**（cap `audio.instances`）：单调句柄（会话内不复用／0＝拒绝）、8 态机与终态保留、`priority`／`steal:none`／`maxVoices`／`maxInstances` 准入与抢占、`stolenBy`；旧 11 槽保留容量不计入上限、不可被抢
+- **总线**：`master`／`bgm`／`se`／`voice` 的 `volume`／`mute`／`stop_all`；duck 规则（多源取 min；默认 `voice→bgm` −12 dB 仅在 `audio.bus` 时下发）
+- **过渡**：`fadeIn`／`crossfade`／`seek`／`if_changed`；`audio.sync` 全量重建（会话首条 v1 事件，≤128 KiB）
+- **v1 事件**：`audio.play`／`ctl`／`bus`／`duck`／`sync`；回供 `audio.state`／`fail` 的 handle 形＋`audio.device`／`audio.bus.state`；`sys.state.audio` v1 加法字段
+- **6 个 ERB 内建**：`AUDIO_PLAY`／`AUDIO_CTL`／`AUDIO_BUS`／`AUDIO_DUCK`／`AUDIO_QUERY`／`AUDIO_BUS_QUERY`（v0.2 会话按 spec §1.5 fail-closed，不回退旧通道）
+- v1 模式下旧 6 指令／5 方法映射为 v1 事件；`STOPSOUND` 只停旧 10 槽的 `playing`／`deferred`；零 `audio.bgm`／`audio.se` 双发
+
+### Changed
+
+- `hello.caps` 增 `audio.instances`／`audio.bus`／`audio.transitions`／`audio.meta`（旧 FE 忽略）
+- 握手前（hello.ok 前）音频意图记入 v1 shadow，v1 会话由 `audio.sync` 重建；v0.2／无 audio 仍按冻结语义丢弃（不补发）
+
+### Fixed（2026-11-01）
+
+- **`audio.play.fadeInMs` 在普通 play 被丢弃**：`AudioV1Ledger.Play` 原先只在 `crossfadeFrom` 生效时才带 `fadeIn`（`doCross ? fadeIn : 0`），导致 `AUDIO_PLAY(..., fadeMs>0)` 的淡入在非交叉场景静默失效，与 v1.0 §8.2「`fadeMs`＝淡入」不符（§1.4 只允许在缺 `transitions` cap 时省略，该分支本就把 `fadeIn` 清 0 并计 `degraded`）。现改为直传 `fadeIn`。
+- 门禁同步：G1 v1 新增 `P2.fade_in_plain`（普通 play `fadeInMs==120`）与 `P2.fade_in_no_crossfade`；`r_aud10_macro_gate` 的 `v1.play0 fadeInMs` 由「容忍 0/300」收紧为精确 300；`r_aud5_live_gate` 的 `v1macro wire CF1` 增加 `fadeInMs==300`，两处 `knownDeviations` 清空。
+
+### 验收（2026-10-31）
+
+- eraWire `r_aud_wire.py --g1v1`：55 句柄（44 新＋11 旧）晚连接 sync 75,031 B ≤128 KiB、sync 为会话首条 v1 事件、抢占／`steal:none`／曲目上限、`STOPSOUND`×`deferred`、未知句柄回供、`no_device` 闭锁与 `restored`、缺 `bus`／`transitions`／`meta` 的降级矩阵
+- v0.2 零回归：`--g1` 120/120；`--g4` 旧 FE 0 条 v1 事件
+- 真实设备／听感／PCM 仍由用户冒烟，⛔ 不宣称音频可用
+- 版本签名：`Skiav16.6.12` → `Skiav16.6.13`
+
+***
+
 ## [16.6.12] — EWP div.children 内的动画帧表（N-4 收口）
 
 ### Changed

@@ -10870,4 +10870,169 @@ internal static partial class FunctionMethodCreator
 			return pointY + Config.LineHeight - exm.Console.ClientHeight;
 		}
 	}
+
+	#region R-AUD-8 EWP audio v1（6 内建，spec §8）
+	private static long AudioIntArg(List<AExpression> args, int i, ExpressionMediator exm)
+		=> args.Count > i && args[i] != null ? args[i].GetIntValue(exm) : 0;
+
+	private static double AudioNumArg(List<AExpression> args, int i, ExpressionMediator exm)
+	{
+		if (args.Count <= i || args[i] == null)
+			return 0.0;
+		return args[i].GetEraType() == EraType.Float
+			? args[i].GetFloatValue(exm)
+			: args[i].GetIntValue(exm);
+	}
+
+	private static string AudioStrArg(List<AExpression> args, int i, ExpressionMediator exm)
+		=> args.Count > i && args[i] != null ? args[i].GetStrValue(exm) : null;
+
+	/// <summary>AUDIO_PLAY(track, bus, volume, loop, fadeMs[, priority[, maxInstances
+	/// [, flags[, crossfadeFrom[, crossfadeMs[, preservePitch[, rate]]]]]]])</summary>
+	private sealed class AudioPlayMethod : FunctionMethod
+	{
+		public AudioPlayMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = {
+						ArgType.String, ArgType.String, ArgType.Int, ArgType.Int, ArgType.Int,
+						ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int, ArgType.Int,
+						ArgType.Int, ArgType.Any }, OmitStart = 5 }
+				];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			string track = AudioStrArg(arguments, 0, exm);
+			string bus = AudioStrArg(arguments, 1, exm);
+			int volume = (int)AudioIntArg(arguments, 2, exm);
+			int loop = (int)AudioIntArg(arguments, 3, exm);
+			int fadeMs = (int)AudioIntArg(arguments, 4, exm);
+			int priority = arguments.Count > 5 && arguments[5] != null
+				? (int)AudioIntArg(arguments, 5, exm) : 128;
+			int maxInstances = arguments.Count > 6 && arguments[6] != null
+				? (int)AudioIntArg(arguments, 6, exm) : 0;
+			int flags = arguments.Count > 7 && arguments[7] != null
+				? (int)AudioIntArg(arguments, 7, exm) : 0;
+			int crossfadeFrom = arguments.Count > 8 && arguments[8] != null
+				? (int)AudioIntArg(arguments, 8, exm) : 0;
+			int crossfadeMs = arguments.Count > 9 && arguments[9] != null
+				? (int)AudioIntArg(arguments, 9, exm) : -1;
+			int preservePitch = arguments.Count > 10 && arguments[10] != null
+				? (int)AudioIntArg(arguments, 10, exm) : 1;
+			double rate = arguments.Count > 11 && arguments[11] != null
+				? AudioNumArg(arguments, 11, exm) : 1.0;
+			return AudioV1Intents.Play(track, bus, volume, loop, fadeMs, priority,
+				maxInstances, flags, crossfadeFrom, crossfadeMs, preservePitch, rate);
+		}
+	}
+
+	/// <summary>AUDIO_CTL(handle, op, value, durMs[, preservePitch[, curve]])</summary>
+	private sealed class AudioCtlMethod : FunctionMethod
+	{
+		public AudioCtlMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = {
+						ArgType.Int, ArgType.Int, ArgType.Any, ArgType.Int,
+						ArgType.Int, ArgType.String }, OmitStart = 2 }
+				];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			int handle = (int)AudioIntArg(arguments, 0, exm);
+			int op = (int)AudioIntArg(arguments, 1, exm);
+			double value = AudioNumArg(arguments, 2, exm);
+			int durMs = (int)AudioIntArg(arguments, 3, exm);
+			bool hasPitch = arguments.Count > 4 && arguments[4] != null;
+			int pitch = hasPitch ? (int)AudioIntArg(arguments, 4, exm) : 0;
+			string curve = AudioStrArg(arguments, 5, exm);
+			return AudioV1Intents.Ctl(handle, op, value, durMs, hasPitch, pitch, curve);
+		}
+	}
+
+	/// <summary>AUDIO_BUS(bus, op, value, durMs)</summary>
+	private sealed class AudioBusMethod : FunctionMethod
+	{
+		public AudioBusMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = {
+						ArgType.String, ArgType.Int, ArgType.Int, ArgType.Int },
+						OmitStart = 2 }
+				];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			string bus = AudioStrArg(arguments, 0, exm);
+			int op = (int)AudioIntArg(arguments, 1, exm);
+			int value = (int)AudioIntArg(arguments, 2, exm);
+			int durMs = (int)AudioIntArg(arguments, 3, exm);
+			return AudioV1Intents.Bus(bus, op, value, durMs);
+		}
+	}
+
+	/// <summary>AUDIO_DUCK(sourceBus, targetBus, duckDb[, attackMs[, releaseMs]])</summary>
+	private sealed class AudioDuckMethod : FunctionMethod
+	{
+		public AudioDuckMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = {
+						ArgType.String, ArgType.String, ArgType.Int, ArgType.Int,
+						ArgType.Int }, OmitStart = 3 }
+				];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+		{
+			string source = AudioStrArg(arguments, 0, exm);
+			string target = AudioStrArg(arguments, 1, exm);
+			int duckDb = (int)AudioIntArg(arguments, 2, exm);
+			int attack = arguments.Count > 3 && arguments[3] != null
+				? (int)AudioIntArg(arguments, 3, exm) : 80;
+			int release = arguments.Count > 4 && arguments[4] != null
+				? (int)AudioIntArg(arguments, 4, exm) : 300;
+			return AudioV1Intents.Duck(source, target, duckDb, attack, release);
+		}
+	}
+
+	/// <summary>AUDIO_QUERY(handle, field)</summary>
+	private sealed class AudioQueryMethod : FunctionMethod
+	{
+		public AudioQueryMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.Int, ArgType.Int } }
+				];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+			=> AudioV1Intents.Query((int)AudioIntArg(arguments, 0, exm),
+				(int)AudioIntArg(arguments, 1, exm));
+	}
+
+	/// <summary>AUDIO_BUS_QUERY(bus, field)</summary>
+	private sealed class AudioBusQueryMethod : FunctionMethod
+	{
+		public AudioBusQueryMethod()
+		{
+			ReturnType = EraType.Integer;
+			argumentTypeArrayEx = [
+					new ArgTypeList{ ArgTypes = { ArgType.String, ArgType.Int } }
+				];
+			CanRestructure = false;
+		}
+		public override long GetIntValue(ExpressionMediator exm, List<AExpression> arguments)
+			=> AudioV1Intents.BusQuery(AudioStrArg(arguments, 0, exm),
+				(int)AudioIntArg(arguments, 1, exm));
+	}
+	#endregion
 }

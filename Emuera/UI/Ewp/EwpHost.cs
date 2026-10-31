@@ -341,10 +341,17 @@ internal sealed class EwpHost
     /// <c>sys.state.rectSelfCheckFailed</c> 可观测；门禁断言 == 0。</summary>
     private long rectSelfCheckFailed;
 
-    /// <summary>R-AUD-4：逻辑通道账本（FE 声明 audio 后指令层/查询/状态全部走它）。</summary>
+    /// <summary>R-AUD-4：逻辑通道账本（v0.2 模式）。</summary>
     private AudioLedger audioLedger;
+    /// <summary>R-AUD-8：v1 账本（audio.instances；握手前作 shadow 记录晚连接意图）。</summary>
+    private AudioV1Ledger audioV1Ledger;
     private volatile bool audioEnabled;
     private volatile bool feedbackEnabled;
+    private volatile bool audioV1Enabled;
+    private bool audioBusCap;
+    private bool audioTransitionsCap;
+    private bool audioMetaCap;
+    private bool audioSyncPending;
 
     // G3（2026-10-30）：TCP headless 启动门——FE hello.ok + Subscribe 完成前不启动游戏。
     // 背景：HeadlessHost 在 Start() 后立即 Initialize()，首帧 legacy.line / input.request
@@ -388,16 +395,17 @@ internal sealed class EwpHost
     public void Start()
     {
         ChannelHooks.Handler = OnChannelMacro;
-        // R-AUD-4：账本与事件出口在 hello 前装好；FE 声明 audio 前 Enabled=false（原生路径不变）。
+        // R-AUD-4/R-AUD-8：账本与事件出口在 hello 前装好；FE 声明 audio 前 Enabled=false（原生路径不变）。
         audioLedger = new AudioLedger();
-        AudioHooks.Attach(audioLedger, OnAudioEvent);
+        audioV1Ledger = new AudioV1Ledger();
+        AudioHooks.Attach(audioLedger, audioV1Ledger, OnAudioEvent, OnAudioV1Event);
         var sb = new StringBuilder(320);
         sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.3\",\"impl\":\"ewp-b4\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\",\"legacy.spans\",\"audio\",\"audio.feedback\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\",\"legacy.spans\",\"audio\",\"audio.feedback\",\"audio.instances\",\"audio.bus\",\"audio.transitions\",\"audio.meta\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -1394,6 +1402,12 @@ internal sealed class EwpHost
                 case "audio.fail":
                     HandleAudioFeedback(root, isFail: true);
                     break;
+                case "audio.device":
+                    HandleAudioDevice(root);
+                    break;
+                case "audio.bus.state":
+                    HandleAudioBusState(root);
+                    break;
                 case "hello.ok":
                     DoHelloOk(root);
                     break;
@@ -1499,7 +1513,7 @@ internal sealed class EwpHost
             rectEnabled = false;
             spriteExport.Enabled = false;
             spansEnabled = false;
-            ApplyAudioCaps(false, false);
+            ApplyAudioCaps(false, false, false, false, false, false);
         }
         else
         {
@@ -1509,6 +1523,10 @@ internal sealed class EwpHost
             var hasSpans = false;
             var hasAudio = false;
             var hasAudioFeedback = false;
+            var hasAudioInstances = false;
+            var hasAudioBus = false;
+            var hasAudioTransitions = false;
+            var hasAudioMeta = false;
             foreach (var cap in caps.EnumerateArray())
             {
                 if (cap.ValueKind != JsonValueKind.String)
@@ -1526,6 +1544,14 @@ internal sealed class EwpHost
                     hasAudio = true;
                 else if (capName == "audio.feedback")
                     hasAudioFeedback = true;
+                else if (capName == "audio.instances")
+                    hasAudioInstances = true;
+                else if (capName == "audio.bus")
+                    hasAudioBus = true;
+                else if (capName == "audio.transitions")
+                    hasAudioTransitions = true;
+                else if (capName == "audio.meta")
+                    hasAudioMeta = true;
             }
             channelEnabled = hasChannel;
             rectEnabled = hasRect;
@@ -1537,7 +1563,8 @@ internal sealed class EwpHost
                 hasAudioFeedback = false;
                 audioLedger?.NoteIgnored();
             }
-            ApplyAudioCaps(hasAudio, hasAudioFeedback);
+            ApplyAudioCaps(hasAudio, hasAudioFeedback, hasAudioInstances,
+                hasAudioBus, hasAudioTransitions, hasAudioMeta);
         }
         if (!channelEnabled)
         {
@@ -1581,6 +1608,8 @@ internal sealed class EwpHost
             else
                 pixel.Enable();
         }
+        // R-AUD-8：v1 握手后、放行游戏前发一次 audio.sync（S1.2/S1.3）。
+        EmitAudioSyncIfPending();
         // G3：握手完成——与 Subscribe 一起放行 TCP 启动门（stdio 无人在等，置位无副作用）。
         Volatile.Write(ref helloOkSeen, 1);
         MaybeReleaseGameStart();
@@ -1772,13 +1801,45 @@ internal sealed class EwpHost
 
     // ---------------- R-AUD-4：audio（caps/事件/回供/状态） ----------------
 
-    private void ApplyAudioCaps(bool audio, bool feedback)
+    private void ApplyAudioCaps(bool audio, bool feedback, bool instances,
+        bool bus, bool transitions, bool meta)
     {
+        bool v1 = audio && instances;
+        if (!v1)
+        {
+            bus = transitions = meta = false;
+        }
         bool newlyEnabled = audio && !audioEnabled;
         audioEnabled = audio;
         feedbackEnabled = feedback && audio;
-        AudioHooks.Enabled = audio;
+        audioV1Enabled = v1;
+        audioBusCap = v1 && bus;
+        audioTransitionsCap = v1 && transitions;
+        audioMetaCap = v1 && meta;
+        // v0.2 账本只在 v0.2 模式启用；v1 由 AudioV1Ledger 接管。
+        AudioHooks.Enabled = audio && !v1;
         AudioHooks.FeedbackEnabled = feedbackEnabled;
+        if (!audio)
+        {
+            AudioHooks.Mode = AudioMode.None;
+            audioV1Ledger?.ResetSession();
+            audioSyncPending = false;
+        }
+        else if (v1)
+        {
+            // S1.2/S1.3：sync 是首条 v1 控制事件；握手期意图已在 shadow 里。
+            AudioHooks.BeginV1Sync();
+            AudioHooks.Mode = AudioMode.V1;
+            audioV1Ledger?.Configure(audioBusCap, audioTransitionsCap, audioMetaCap,
+                feedbackEnabled);
+            audioSyncPending = true;
+        }
+        else
+        {
+            AudioHooks.Mode = AudioMode.V02;
+            audioV1Ledger?.ResetSession();
+            audioSyncPending = false;
+        }
         if (newlyEnabled)
         {
             // Q1：FE 声明 audio ⇒ VM 静音本机。启动期可能已有原生 BGM/SE 在响（hello.ok 之前
@@ -1790,6 +1851,26 @@ internal sealed class EwpHost
             }
             catch { }
         }
+    }
+
+    /// <summary>握手 v1 后发一次全量重建（§6.1/S1.2）；超限 fail-closed（§6.2 A-01）。</summary>
+    private void EmitAudioSyncIfPending()
+    {
+        if (!audioSyncPending)
+            return;
+        audioSyncPending = false;
+        var v1 = audioV1Ledger;
+        if (v1 == null)
+        {
+            AudioHooks.ReleaseV1Sync();
+            return;
+        }
+        AudioHooks.EmitV1SyncNow(new AudioV1Event
+        {
+            T = "audio.sync",
+            Sync = v1.BuildSync(),
+        });
+        AudioHooks.ReleaseV1Sync();
     }
 
     private static void MuteNativeAudio()
@@ -1847,7 +1928,8 @@ internal sealed class EwpHost
     /// <summary>AudioHooks.Sink：Runtime 账本 → wire 事件（普通服务端事件，走 EwpOut.Emit）。</summary>
     private void OnAudioEvent(AudioEvent ev)
     {
-        if (ev == null || !audioEnabled)
+        // v1 模式零 audio.bgm/se（spec §7.1 机械判据）。
+        if (ev == null || !audioEnabled || audioV1Enabled)
             return;
         var sb = new StringBuilder(192);
         sb.Append("{\"t\":\"").Append(ev.IsBgm ? "audio.bgm" : "audio.se")
@@ -1897,10 +1979,361 @@ internal sealed class EwpHost
         EwpOut.Emit(sb.ToString());
     }
 
+    // ---------------- R-AUD-8：audio v1 事件/回供/状态 ----------------
+
+    /// <summary>AudioHooks v1 sink：序列化 + 体积 fail-closed（普通 ≤2 KiB，sync ≤128 KiB）。</summary>
+    private void OnAudioV1Event(AudioV1Event ev)
+    {
+        if (ev == null || !audioV1Enabled)
+            return;
+        string json = AudioV1Json(ev);
+        int limit = ev.T == "audio.sync" ? 131072 : 2048;
+        if (Encoding.UTF8.GetByteCount(json) > limit)
+        {
+            audioV1Ledger?.NoteEventDropped();
+            return;
+        }
+        EwpOut.Emit(json);
+        if (ev.T == "audio.sync")
+            audioV1Ledger?.NoteSyncSent();
+    }
+
+    private static string AudioV1Json(AudioV1Event ev)
+    {
+        var sb = new StringBuilder(256);
+        switch (ev.T)
+        {
+            case "audio.play":
+                sb.Append("{\"t\":\"audio.play\",\"handle\":").Append(ev.Handle)
+                    .Append(",\"bus\":").Append(J(ev.Bus))
+                    .Append(",\"track\":").Append(J(ev.Track))
+                    .Append(",\"loop\":").Append(ev.Loop ? "true" : "false")
+                    .Append(",\"volume\":").Append(ev.Volume)
+                    .Append(",\"rate\":").Append(F(ev.Rate))
+                    .Append(",\"priority\":").Append(ev.Priority)
+                    .Append(",\"preservePitch\":").Append(ev.PreservePitch ? "true" : "false");
+                if (ev.FadeInMs > 0)
+                    sb.Append(",\"fadeInMs\":").Append(ev.FadeInMs);
+                if (ev.CrossfadeFrom > 0)
+                {
+                    sb.Append(",\"crossfadeFrom\":").Append(ev.CrossfadeFrom)
+                        .Append(",\"crossfadeMs\":").Append(ev.CrossfadeMs);
+                }
+                if (ev.Repeat > 1)
+                    sb.Append(",\"repeat\":").Append(ev.Repeat);
+                sb.Append('}');
+                return sb.ToString();
+            case "audio.ctl":
+                sb.Append("{\"t\":\"audio.ctl\",\"handle\":").Append(ev.Handle)
+                    .Append(",\"act\":").Append(J(ev.Act));
+                switch (ev.Act)
+                {
+                    case "seek":
+                    case "volume":
+                    case "fade":
+                    case "priority":
+                    case "loop":
+                        sb.Append(",\"value\":");
+                        if (ev.ValueIsInt)
+                            sb.Append((long)ev.Value);
+                        else
+                            sb.Append(F(ev.Value));
+                        break;
+                    case "rate":
+                        sb.Append(",\"value\":").Append(F(ev.Value));
+                        if (ev.HasPreservePitch)
+                            sb.Append(",\"preservePitch\":")
+                                .Append(ev.PreservePitchValue ? "true" : "false");
+                        break;
+                }
+                if (ev.Act is "stop" or "volume" or "fade")
+                {
+                    if (ev.DurationMs > 0 || ev.Act == "fade")
+                        sb.Append(",\"durationMs\":").Append(ev.DurationMs);
+                    if (!string.IsNullOrEmpty(ev.Curve))
+                        sb.Append(",\"curve\":").Append(J(ev.Curve));
+                }
+                sb.Append('}');
+                return sb.ToString();
+            case "audio.bus":
+                sb.Append("{\"t\":\"audio.bus\",\"bus\":").Append(J(ev.Bus))
+                    .Append(",\"act\":").Append(J(ev.Act));
+                if (ev.Act == "stop_all")
+                {
+                    sb.Append(",\"includePaused\":").Append(ev.IncludePaused ? "true" : "false");
+                    if (ev.DurationMs > 0)
+                        sb.Append(",\"durationMs\":").Append(ev.DurationMs);
+                }
+                else if (ev.HasBusValue)
+                {
+                    sb.Append(",\"value\":").Append(ev.BusValue);
+                }
+                sb.Append('}');
+                return sb.ToString();
+            case "audio.duck":
+                sb.Append("{\"t\":\"audio.duck\",\"sourceBus\":").Append(J(ev.SourceBus))
+                    .Append(",\"targetBus\":").Append(J(ev.TargetBus))
+                    .Append(",\"duckDb\":").Append(F(ev.DuckDb))
+                    .Append(",\"attackMs\":").Append(ev.AttackMs)
+                    .Append(",\"releaseMs\":").Append(ev.ReleaseMs)
+                    .Append(",\"enabled\":").Append(ev.Enabled ? "true" : "false")
+                    .Append('}');
+                return sb.ToString();
+            case "audio.sync":
+                return AudioV1SyncJson(ev.Sync);
+            default:
+                return "{}";
+        }
+    }
+
+    private static string AudioV1SyncJson(AudioV1Sync sync)
+    {
+        if (sync == null)
+            return "{\"t\":\"audio.sync\",\"syncId\":0,\"handles\":[],\"buses\":[],\"ducks\":[]}";
+        var sb = new StringBuilder(1024);
+        sb.Append("{\"t\":\"audio.sync\",\"syncId\":").Append(sync.SyncId)
+            .Append(",\"handles\":[");
+        for (int i = 0; i < sync.Handles.Count; i++)
+        {
+            var h = sync.Handles[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"handle\":").Append(h.Handle)
+                .Append(",\"bus\":").Append(J(h.Bus))
+                .Append(",\"track\":").Append(J(h.Track))
+                .Append(",\"state\":").Append(J(h.State))
+                .Append(",\"loop\":").Append(h.Loop ? "true" : "false")
+                .Append(",\"volume\":").Append(h.Volume)
+                .Append(",\"rate\":").Append(F(h.Rate))
+                .Append(",\"priority\":").Append(h.Priority)
+                .Append(",\"posMs\":").Append(h.PosMs)
+                .Append(",\"preservePitch\":").Append(h.PreservePitch ? "true" : "false");
+            if (h.DurMs > 0)
+                sb.Append(",\"durMs\":").Append(h.DurMs);
+            if (h.Repeat > 1)
+                sb.Append(",\"repeat\":").Append(h.Repeat);
+            sb.Append('}');
+        }
+        sb.Append("],\"buses\":[");
+        for (int i = 0; i < sync.Buses.Count; i++)
+        {
+            var b = sync.Buses[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"bus\":").Append(J(b.Bus))
+                .Append(",\"volume\":").Append(b.Volume)
+                .Append(",\"mute\":").Append(b.Mute ? "true" : "false")
+                .Append('}');
+        }
+        sb.Append("],\"ducks\":[");
+        for (int i = 0; i < sync.Ducks.Count; i++)
+        {
+            var d = sync.Ducks[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"sourceBus\":").Append(J(d.SourceBus))
+                .Append(",\"targetBus\":").Append(J(d.TargetBus))
+                .Append(",\"duckDb\":").Append(F(d.DuckDb))
+                .Append(",\"attackMs\":").Append(d.AttackMs)
+                .Append(",\"releaseMs\":").Append(d.ReleaseMs)
+                .Append(",\"enabled\":").Append(d.Enabled ? "true" : "false")
+                .Append('}');
+        }
+        sb.Append("]}");
+        return sb.ToString();
+    }
+
     private static readonly HashSet<string> AudioFailCodes = new(StringComparer.Ordinal)
     {
         "decode", "not_found", "no_device", "path_escape", "no_access", "decode_cached",
     };
+
+    private static readonly HashSet<string> AudioFailCodesV1 = new(StringComparer.Ordinal)
+    {
+        "decode", "not_found", "no_device", "path_escape", "no_access", "decode_cached",
+        "unsupported_cap", "voice_limit", "bad_bus", "bad_handle",
+    };
+
+    private static bool TryGetDoubleProp(JsonElement root, string name, out double value)
+    {
+        value = 0;
+        return root.TryGetProperty(name, out var el)
+            && el.ValueKind == JsonValueKind.Number
+            && el.TryGetDouble(out value);
+    }
+
+    /// <summary>v1 audio.state / audio.fail（handle 形状；通知型，⛔ 回 result / 进 frame.commit）。</summary>
+    private void HandleAudioV1Feedback(JsonElement root, bool isFail)
+    {
+        var ledger = audioV1Ledger;
+        if (ledger == null)
+            return;
+        if (!feedbackEnabled)
+        {
+            ledger.NoteIgnored();
+            return;
+        }
+        if (!TryGetIntProp(root, "handle", out int handle) || handle < 1)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        string track = OptStringProp(root, "track");
+        if (isFail)
+        {
+            string failCode = OptStringProp(root, "code");
+            if (failCode == null || !AudioFailCodesV1.Contains(failCode))
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+            ledger.ApplyFail(handle, failCode, track);
+            return;
+        }
+        string state = OptStringProp(root, "state");
+        if (state != "playing" && state != "paused" && state != "ended" && state != "deferred")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        if (!TryGetLongProp(root, "posMs", out long posMs) || posMs < 0)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        bool hasDur = TryGetLongProp(root, "durMs", out long durMs);
+        if (hasDur && durMs < 0)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        double rate = 0;
+        if (root.TryGetProperty("rate", out _))
+        {
+            if (!TryGetDoubleProp(root, "rate", out rate) || rate <= 0)
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        int volume = -1;
+        if (root.TryGetProperty("volume", out _))
+        {
+            if (!TryGetIntProp(root, "volume", out volume) || volume < 0 || volume > 100)
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        double eff = 0;
+        bool hasEff = root.TryGetProperty("effectiveVolume", out _);
+        if (hasEff && (!TryGetDoubleProp(root, "effectiveVolume", out eff)
+            || eff < 0 || eff > 100))
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        long latency = -1;
+        if (root.TryGetProperty("latencyMs", out _))
+        {
+            if (!TryGetLongProp(root, "latencyMs", out latency) || latency < 0)
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        int pitch = -1;
+        if (root.TryGetProperty("pitchPreserved", out var pitchEl))
+        {
+            if (pitchEl.ValueKind == JsonValueKind.True)
+                pitch = 1;
+            else if (pitchEl.ValueKind == JsonValueKind.False)
+                pitch = 0;
+            else
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        string code = OptStringProp(root, "code");
+        if (state == "deferred" && code != null && code != "autoplay_blocked")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        ledger.ApplyState(handle, state, posMs, hasDur ? durMs : 0, hasDur, rate,
+            volume, eff, hasEff, pitch, latency, code, track);
+    }
+
+    /// <summary>v1 audio.device（需 audio.meta＋audio.feedback；通知型）。</summary>
+    private void HandleAudioDevice(JsonElement root)
+    {
+        var ledger = audioV1Ledger;
+        if (ledger == null)
+            return;
+        if (!audioV1Enabled || !audioMetaCap || !feedbackEnabled)
+        {
+            ledger.NoteIgnored();
+            return;
+        }
+        string state = OptStringProp(root, "state");
+        if (state != "changed" && state != "unavailable" && state != "restored")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        long latency = -1;
+        if (root.TryGetProperty("latencyMs", out _))
+        {
+            if (!TryGetLongProp(root, "latencyMs", out latency) || latency < 0)
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        ledger.ApplyDevice(state, latency);
+    }
+
+    /// <summary>v1 audio.bus.state（需 audio.meta＋audio.feedback；只用于对拍）。</summary>
+    private void HandleAudioBusState(JsonElement root)
+    {
+        var ledger = audioV1Ledger;
+        if (ledger == null)
+            return;
+        if (!audioV1Enabled || !audioMetaCap || !feedbackEnabled)
+        {
+            ledger.NoteIgnored();
+            return;
+        }
+        string bus = OptStringProp(root, "bus");
+        if (bus == null || !TryGetDoubleProp(root, "effectiveVolume", out double eff)
+            || eff < 0 || eff > 100)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        int mute = -1;
+        if (root.TryGetProperty("mute", out var muteEl))
+        {
+            if (muteEl.ValueKind == JsonValueKind.True)
+                mute = 1;
+            else if (muteEl.ValueKind == JsonValueKind.False)
+                mute = 0;
+            else
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        double duck = 0;
+        bool hasDuck = root.TryGetProperty("duckDb", out _);
+        if (hasDuck && !TryGetDoubleProp(root, "duckDb", out duck))
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        ledger.ApplyBusState(bus, eff, true, mute, duck, hasDuck);
+    }
 
     private static bool TryGetIntProp(JsonElement root, string name, out int value)
     {
@@ -1928,6 +2361,11 @@ internal sealed class EwpHost
     /// <summary>audio.state / audio.fail（传输线程）：解析失败 badReports++，⛔ 回 result、⛔ 进 frame.commit。</summary>
     private void HandleAudioFeedback(JsonElement root, bool isFail)
     {
+        if (audioV1Enabled)
+        {
+            HandleAudioV1Feedback(root, isFail);
+            return;
+        }
         var ledger = audioLedger;
         if (ledger == null)
             return;
@@ -2010,9 +2448,11 @@ internal sealed class EwpHost
         return "null";
     }
 
-    /// <summary>sys.state.audio（spec §4.4；cap 未启用时调用方不追加此键）。</summary>
+    /// <summary>sys.state.audio（spec §4.4 v0.2 / §9.2 v1；cap 未启用时调用方不追加此键）。</summary>
     private string AudioStateJson()
     {
+        if (audioV1Enabled)
+            return AudioV1StateJson();
         var ledger = audioLedger;
         if (ledger == null)
             return "null";
@@ -2051,6 +2491,106 @@ internal sealed class EwpHost
                 sb.Append(",\"pitchPreserved\":true");
             else if (c.PitchPreserved == 2)
                 sb.Append(",\"pitchPreserved\":false");
+            sb.Append('}');
+        }
+        sb.Append("]}");
+        return sb.ToString();
+    }
+
+    /// <summary>sys.state.audio（v1；spec §9.2 加法字段，v0.2 字段不在此模式出现）。</summary>
+    private string AudioV1StateJson()
+    {
+        var ledger = audioV1Ledger;
+        if (ledger == null)
+            return "null";
+        var st = ledger.Stats();
+        var sb = new StringBuilder(2048);
+        sb.Append("{\"enabled\":true,\"mode\":\"v1\",\"queryMode\":")
+            .Append(J(st.QueryMode ?? "unknown"))
+            .Append(",\"audioUnavailable\":").Append(st.AudioUnavailable ? "true" : "false")
+            .Append(",\"played\":").Append(st.Played)
+            .Append(",\"stopped\":").Append(st.Stopped)
+            .Append(",\"failed\":").Append(st.Failed)
+            .Append(",\"missing\":").Append(st.Missing)
+            .Append(",\"unsafePath\":").Append(st.UnsafePath)
+            .Append(",\"ignored\":").Append(st.Ignored)
+            .Append(",\"staleReports\":").Append(st.StaleReports)
+            .Append(",\"badReports\":").Append(st.BadReports)
+            .Append(",\"queryFallback\":").Append(st.QueryFallback)
+            .Append(",\"trackMismatch\":").Append(st.TrackMismatch)
+            .Append(",\"handlesAllocated\":").Append(st.HandlesAllocated)
+            .Append(",\"rejected\":").Append(st.Rejected)
+            .Append(",\"voiceLimit\":").Append(st.VoiceLimit)
+            .Append(",\"stolen\":").Append(st.Stolen)
+            .Append(",\"degraded\":").Append(st.Degraded)
+            .Append(",\"unsupportedCap\":").Append(st.UnsupportedCap)
+            .Append(",\"handleExhausted\":").Append(st.HandleExhausted)
+            .Append(",\"unknownHandleReports\":").Append(st.UnknownHandleReports)
+            .Append(",\"syncSent\":").Append(st.SyncSent)
+            .Append(",\"syncId\":").Append(st.SyncId)
+            .Append(",\"channels\":[");
+        var chans = st.Channels ?? Array.Empty<AudioChannelInfo>();
+        for (int i = 0; i < chans.Length; i++)
+        {
+            var c = chans[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"ch\":").Append(c.Ch)
+                .Append(",\"phase\":\"").Append(PhaseName(c.Phase)).Append('"')
+                .Append(",\"gen\":").Append(c.Gen);
+            if (!string.IsNullOrEmpty(c.Track))
+                sb.Append(",\"track\":").Append(J(c.Track));
+            sb.Append(",\"queryMode\":").Append(J(c.QueryMode ?? "unknown"));
+            if (c.FeedbackStaleMs >= 0)
+                sb.Append(",\"feedbackStaleMs\":").Append(c.FeedbackStaleMs);
+            if (c.PitchPreserved == 1)
+                sb.Append(",\"pitchPreserved\":true");
+            else if (c.PitchPreserved == 2)
+                sb.Append(",\"pitchPreserved\":false");
+            sb.Append('}');
+        }
+        sb.Append("],\"instances\":[");
+        var insts = st.Instances ?? Array.Empty<AudioV1InstanceInfo>();
+        for (int i = 0; i < insts.Length; i++)
+        {
+            var inst = insts[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"handle\":").Append(inst.Handle)
+                .Append(",\"bus\":").Append(J(inst.Bus))
+                .Append(",\"state\":").Append(J(inst.State))
+                .Append(",\"posMs\":").Append(inst.PosMs)
+                .Append(",\"rate\":").Append(F(inst.Rate))
+                .Append(",\"priority\":").Append(inst.Priority)
+                .Append(",\"volume\":").Append(inst.Volume)
+                .Append(",\"stolenBy\":").Append(inst.StolenBy);
+            if (inst.DurMs > 0)
+                sb.Append(",\"durMs\":").Append(inst.DurMs);
+            if (inst.EffectiveTenths >= 0)
+                sb.Append(",\"effectiveVolume\":")
+                    .Append(F(inst.EffectiveTenths / 10.0));
+            if (inst.PitchPreserved >= 0)
+                sb.Append(",\"pitchPreserved\":")
+                    .Append(inst.PitchPreserved == 1 ? "true" : "false");
+            sb.Append('}');
+        }
+        sb.Append("],\"buses\":[");
+        var buses = st.Buses ?? Array.Empty<AudioV1BusInfo>();
+        for (int i = 0; i < buses.Length; i++)
+        {
+            var b = buses[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"bus\":").Append(J(b.Bus))
+                .Append(",\"volume\":").Append(b.Volume)
+                .Append(",\"mute\":").Append(b.Mute ? "true" : "false")
+                .Append(",\"duckDb\":").Append(F(-b.DuckDbTenths / 10.0));
+            if (b.EffectiveTenths >= 0)
+                sb.Append(",\"effectiveVolume\":").Append(F(b.EffectiveTenths / 10.0));
+            if (b.DuckFeedbackTenths >= 0)
+                sb.Append(",\"duckDbFeedback\":")
+                    .Append(F(b.DuckFeedbackTenths / 10.0));
+            sb.Append(",\"voices\":").Append(b.Voices);
             sb.Append('}');
         }
         sb.Append("]}");
