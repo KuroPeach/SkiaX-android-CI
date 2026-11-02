@@ -154,24 +154,32 @@ internal abstract class ASpriteSingle : ASprite
 		var sy = Math.Sign(destRect.Height);
 		_paint.FilterQuality = (SKFilterQuality)Config.ImageQuality;
 		_paint.ColorFilter = attr;
-		if (sx != 1 || sy != 1)
+		// attr 的所有权在调用方（DrawClientBackGround 用 finally Dispose）。必须在 finally 里
+		// 清掉 _paint 的引用：DrawBitmap 抛异常时若留着，下一帧会拿已释放的 filter 绘制（UAF）。
+		try
 		{
-			var absW = Math.Abs(destRect.Width);
-			var absH = Math.Abs(destRect.Height);
-			using var flippedBitmap = new SKBitmap(absW, absH);
-			using var canvas = new SKCanvas(flippedBitmap);
-			canvas.Scale(sx, sy, absW / 2, absH / 2);
-			canvas.DrawBitmap(bmp, SrcRectangle.ToSKRect(), SKRect.Create(0, 0, absW, absH), _paint);
-			var point = destRect.Location.ToSKPoint();
-			if (sx < 0) point.X -= absW;
-			if (sy < 0) point.Y -= absH;
-			g.DrawBitmap(flippedBitmap, point, _paint);
+			if (sx != 1 || sy != 1)
+			{
+				var absW = Math.Abs(destRect.Width);
+				var absH = Math.Abs(destRect.Height);
+				using var flippedBitmap = new SKBitmap(absW, absH);
+				using var canvas = new SKCanvas(flippedBitmap);
+				canvas.Scale(sx, sy, absW / 2, absH / 2);
+				canvas.DrawBitmap(bmp, SrcRectangle.ToSKRect(), SKRect.Create(0, 0, absW, absH), _paint);
+				var point = destRect.Location.ToSKPoint();
+				if (sx < 0) point.X -= absW;
+				if (sy < 0) point.Y -= absH;
+				g.DrawBitmap(flippedBitmap, point, _paint);
+			}
+			else
+			{
+				g.DrawBitmap(bmp, SrcRectangle.ToSKRect(), destRect.ToSKRect(), _paint);
+			}
 		}
-		else
+		finally
 		{
-			g.DrawBitmap(bmp, SrcRectangle.ToSKRect(), destRect.ToSKRect(), _paint);
+			_paint.ColorFilter = null;
 		}
-		_paint.ColorFilter = null;
 	}
 
 }

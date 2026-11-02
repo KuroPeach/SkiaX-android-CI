@@ -156,13 +156,16 @@ static partial class Preload
 
     /// <summary>
     /// 清空缓存并强制一次完整压缩 GC，把释放出的源码文本页立即归还给系统（否则 GC 段内空闲区仍保持提交）。
-    /// 源码行数组（string[]）位于 LOH，四参 Collect 的 compacting 只压缩 SOH，必须显式请求 LOH 压缩。
+    /// 源码行数组（string[]）位于 LOH；`GCCollectionMode.Aggressive` 会压缩 SOH，
+    /// 但 LOH 压缩必须靠 <see cref="GCSettings.LargeObjectHeapCompactionMode"/> 显式请求（CompactOnce 只生效一次）。
+    /// ⚠ 这是**阻塞**全停（STW）操作，只用于「编译完成 / 全量重载」这类一次性边界，⛔ 放进逐帧路径。
     /// </summary>
     public static void ClearAndCompact()
     {
         Clear();
         GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+        // finalizer 可能复活对象，再收一次（几乎不耗时：堆已空）
         GC.WaitForPendingFinalizers();
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, false);
     }

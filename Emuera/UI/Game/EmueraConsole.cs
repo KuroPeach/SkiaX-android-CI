@@ -330,9 +330,11 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (graph == null || width <= 0 || height <= 0)
 			return;
 		// 只在真的存在 SETBGIMAGE 烘焙层时才驱动烘焙（eratw 0 调用点）。
-		// ⛔ 无条件 ValidateBackground：无背景时会凭空分配一张整屏位图，且与 OnPaint 的
-		// LocalClipBounds 尺寸不同会来回重烘焙（thrash）。
-		if (backgroundList.Count > 0 && bakedBackground == null)
+		// ⛔ 无背景时 ValidateBackground：会凭空分配一张整屏位图。
+		// 但**尺寸必须按快照画布校正**：OnPaint 用 graph.LocalClipBounds（部分重绘时＝脏矩形，
+		// 可能小于 RenderWidth），若沿用那块小位图直接 DrawBitmap(0,0)，快照右下会缺块。
+		// ValidateBackground 内部已判尺寸，只在不等时重建（真不等的场景本来就得二选一，不算 thrash）。
+		if (backgroundList.Count > 0)
 			ValidateBackground(width, height);
 		graph.Clear(bgColor);
 		if (bakedBackground != null)

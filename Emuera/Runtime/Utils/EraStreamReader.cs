@@ -68,6 +68,17 @@ internal sealed partial class EraStreamReader : IDisposable
 			_fileLines = lines;
 			return true;
 		}
+		// 快路径：文件未被独占时走框架的向量化读取（懒加载/热重载的热路径，比手写 ReadLine 循环快
+		// 一个量级，且少一次 List→ToArray 的 LOH 峰值）
+		try
+		{
+			_fileLines = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(path));
+			return true;
+		}
+		catch
+		{
+			// 落回共享读：编辑器/杀软持着文件时上面的 DetectEncoding（FileShare.None）会先抛
+		}
 		try
 		{
 			// 与 Preload 一致：ReadWrite 共享，避免编辑器占用文件时按需加载失败

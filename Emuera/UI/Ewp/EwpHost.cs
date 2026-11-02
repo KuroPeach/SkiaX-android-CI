@@ -64,6 +64,8 @@ internal static class EwpOut
     private static int ackTimeouts;
     private static long pixelWritten;
     private static long pixelDropped;
+    /// <summary>R-IMG-1a：bg 队列满而丢新的计数（见 EmitBg 注释）。</summary>
+    private static long bgDropped;
 
     /// <summary>L0.5 编码器（B3）：JSON-Lines（默认）或 MessagePack（--ewp-msgpack）。</summary>
     public static IEwpCodec Codec { get; private set; } = new EwpJsonCodec();
@@ -74,6 +76,8 @@ internal static class EwpOut
     public static int PendingFrames => Volatile.Read(ref pendingFrames);
     public static long PixelWritten => Interlocked.Read(ref pixelWritten);
     public static long PixelDropped => Interlocked.Read(ref pixelDropped);
+    /// <summary>R-IMG-1a：bg 队列满而丢新的累计数（诊断用；FE 按 rev 差重取即可自愈）。</summary>
+    public static long BgDropped => Interlocked.Read(ref bgDropped);
 
     /// <summary>deferWriter=true（TCP 模式）：只建队列，写手线程等 AttachStream 再启动，
     /// 期间事件在队列中缓冲（boot 期 ~1.4k 行，远低于 8192 容量）。</summary>
@@ -140,23 +144,21 @@ internal static class EwpOut
     }
 
     /// <summary>R-IMG-1a：bg 事件入队。bg.set/bg.clear/bg.fail 与 bg.data 共用此队列
-    /// ⇒ 写出顺序＝产生顺序（⛔ 分队列会让 FE 先收到 data）。队列满时丢最旧。</summary>
+    /// ⇒ 写出顺序＝产生顺序（⛔ 分队列会让 FE 先收到 data）。
+    /// 队列满时**丢新**（⛔ 不丢最旧）：淘汰已入队的元素会拆散 set→data 配对
+    /// （丢了 set 的 data 无主、丢了 data 的 set 永远悬空）。丢新则 FE 靠 rev 差发现并按 bg.req 重取。</summary>
     public static void EmitBg(EwpBgPayload bg)
     {
         var q = bgQueue;
         if (q == null || bg == null)
             return;
-        var p = new Payload { Bg = bg };
-        if (q.TryAdd(p))
+        if (q.TryAdd(new Payload { Bg = bg }))
             return;
-        if (q.TryTake(out _))
-        {
-            if (q.TryAdd(p))
-                return;
-        }
+        Interlocked.Increment(ref bgDropped);
     }
 
-    public static void NoteAck()    {
+    public static void NoteAck()
+    {
         Interlocked.Increment(ref ackCount);
         // 不允许 pending 掉到负（多余 ack 忽略）
         while (true)
@@ -720,7 +722,8 @@ internal sealed class EwpHost
     {
         if (!bgEnabled)
             return;
-        if (!resend && Interlocked.Exchange(ref bgDirty, 0) == 0)
+        // resend 也消费脏位：本次已按最新状态发过，再留脏会让下一帧白捕一次
+        if (Interlocked.Exchange(ref bgDirty, 0) == 0 && !resend)
             return;
         var console = GameConsole;
         if (console == null)
@@ -1775,7 +1778,8 @@ internal sealed class EwpHost
     }
 
     private void DoSpriteRequest(JsonElement root)
-    {        // EG-1b：旧 FE（caps 未声明 sprite.export）明确忽略——⛔不回 data/fail，只计数。
+    {
+        // EG-1b：旧 FE（caps 未声明 sprite.export）明确忽略——⛔不回 data/fail，只计数。
         if (!spriteExport.Enabled)
         {
             spriteExport.NoteIgnoredRequest();
