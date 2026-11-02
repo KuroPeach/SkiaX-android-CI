@@ -630,6 +630,8 @@ internal sealed partial class EmueraConsole : IDisposable
 			RefreshStrings(true);
 			return;
 		}
+		// 编译完成后源码文本不再需要（懒加载/重载会按需从磁盘再读），释放约 350MB 常驻内存。
+		Preload.ClearAndCompact();
 		RunEmueraProgram("");
 		RefreshStrings(true);
 

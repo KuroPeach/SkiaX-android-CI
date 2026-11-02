@@ -487,7 +487,8 @@ internal sealed class SpriteAnimated : ASprite, IFileBacked
 
 		if (frameCount > 1)
 		{
-			AnimSpriteCache.RegisterSprite(this);
+			// 注意：不能先 RegisterSprite 再 Add——那会把同一路径的旧实例引用覆盖掉，
+			// Add 就无法识别并 Evict 旧实例。spriteRefs 由 Add 统一登记。
 			AnimSpriteCache.Add(filepath, this);
 		}
 	}
@@ -505,10 +506,22 @@ internal sealed class SpriteAnimated : ASprite, IFileBacked
 				frames[i] = decoded[i].Bitmap;
 		}
 		isEvicted = false;
+		AnimSpriteCache.EnforceBudget(this);
 	}
 
 	public string FilePath => filepath;
 	public bool IsEvicted => isEvicted;
+	public long LoadedBytes
+	{
+		get
+		{
+			if (frames == null || frames.Length == 0) return 0;
+			long bytes = 0;
+			foreach (var frame in frames)
+				if (frame != null) bytes += (long)frame.RowBytes * frame.Height;
+			return bytes;
+		}
+	}
 	public int FrameCount => frameCount;
 	public override bool IsCreated => frameCount > 0;
 	/// <summary>R-3c：帧在文件内的源矩形（2 字段资源＝整帧）。</summary>
@@ -599,8 +612,13 @@ internal sealed class AnimSpriteCache
 	private static readonly LinkedList<string> lruOrder = new();
 	private static readonly Dictionary<string, LinkedListNode<string>> lruNodes = new();
 	private static readonly Dictionary<string, WeakReference<IFileBacked>> spriteRefs = new();
+	private static readonly Dictionary<string, long> lastAccess = new();
 	private static readonly object lockObj = new();
 	private const int MaxAnimations = 6;
+	// 解码后的帧字节预算（eraTW 个别动画单文件解码即近百 MB，仅按个数限制会失控）
+	private const long MaxLoadedBytes = 256L * 1024 * 1024;
+	// 最近仍在绘制的动画不淘汰，避免两个大动画互相挤兑导致每帧重解码
+	private const long IdleEvictMs = 1000;
 
 	public static void Add(string filepath, IFileBacked sprite)
 	{
@@ -608,9 +626,14 @@ internal sealed class AnimSpriteCache
 		{
 			if (lruNodes.TryGetValue(filepath, out var node))
 			{
+				// 同一路径的新实例接管缓存：旧实例的帧没人计数/释放，先淘汰掉
+				if (spriteRefs.TryGetValue(filepath, out var oldRef)
+					&& oldRef.TryGetTarget(out var oldSprite) && !ReferenceEquals(oldSprite, sprite))
+					oldSprite.Evict();
 				lruOrder.Remove(node);
 				lruNodes[filepath] = lruOrder.AddLast(filepath);
 				spriteRefs[filepath] = new WeakReference<IFileBacked>(sprite);
+				lastAccess[filepath] = Environment.TickCount64;
 				return;
 			}
 			while (lruOrder.Count >= MaxAnimations)
@@ -624,21 +647,12 @@ internal sealed class AnimSpriteCache
 					if (spriteRefs.TryGetValue(oldFilepath, out var weakRef) && weakRef.TryGetTarget(out var oldSprite))
 						oldSprite.Evict();
 					spriteRefs.Remove(oldFilepath);
+					lastAccess.Remove(oldFilepath);
 				}
 			}
 			lruNodes[filepath] = lruOrder.AddLast(filepath);
 			spriteRefs[filepath] = new WeakReference<IFileBacked>(sprite);
-		}
-	}
-
-	public static void RegisterSprite(IFileBacked sprite)
-	{
-		if (sprite == null) return;
-		lock (lockObj)
-		{
-			var filepath = sprite.FilePath;
-			if (lruNodes.ContainsKey(filepath))
-				spriteRefs[filepath] = new WeakReference<IFileBacked>(sprite);
+			lastAccess[filepath] = Environment.TickCount64;
 		}
 	}
 
@@ -649,6 +663,38 @@ internal sealed class AnimSpriteCache
 			if (!lruNodes.TryGetValue(filepath, out var node)) return;
 			lruOrder.Remove(node);
 			lruNodes[filepath] = lruOrder.AddLast(filepath);
+			lastAccess[filepath] = Environment.TickCount64;
+		}
+	}
+
+	public static void EnforceBudget(IFileBacked keep)
+	{
+		lock (lockObj)
+		{
+			long total = 0;
+			int loaded = 0;
+			foreach (var kvp in spriteRefs)
+			{
+				if (kvp.Value.TryGetTarget(out var sprite) && !sprite.IsEvicted)
+				{
+					total += sprite.LoadedBytes;
+					loaded++;
+				}
+			}
+			if (total <= MaxLoadedBytes) return;
+
+			long now = Environment.TickCount64;
+			for (var node = lruOrder.First; node != null; node = node.Next)
+			{
+				if (total <= MaxLoadedBytes || loaded <= 1) break;
+				var filepath = node.Value;
+				if (keep != null && filepath == keep.FilePath) continue;
+				if (!lastAccess.TryGetValue(filepath, out var touched) || now - touched < IdleEvictMs) continue;
+				if (!spriteRefs.TryGetValue(filepath, out var weakRef) || !weakRef.TryGetTarget(out var sprite) || sprite.IsEvicted) continue;
+				total -= sprite.LoadedBytes;
+				sprite.Evict();
+				loaded--;
+			}
 		}
 	}
 
@@ -667,6 +713,7 @@ internal sealed class AnimSpriteCache
 			if (spriteRefs.TryGetValue(filepath, out var weakRef) && weakRef.TryGetTarget(out var sprite))
 				sprite.Evict();
 			spriteRefs.Remove(filepath);
+			lastAccess.Remove(filepath);
 		}
 	}
 }

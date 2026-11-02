@@ -2,6 +2,7 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -69,7 +70,16 @@ internal sealed partial class EraStreamReader : IDisposable
 		}
 		try
 		{
-			_fileLines = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(path));
+			// 与 Preload 一致：ReadWrite 共享，避免编辑器占用文件时按需加载失败
+			using var fs = new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+			var encoding = EncodingHandler.DetectEncoding(fs);
+			fs.Position = 0;
+			using var sr = new StreamReader(fs, encoding, detectEncodingFromByteOrderMarks: true);
+			var list = new List<string>();
+			string line;
+			while ((line = sr.ReadLine()) != null)
+				list.Add(line);
+			_fileLines = list.ToArray();
 			return true;
 		}
 		catch

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime;
 using System.Text;
 using System.Threading.Tasks;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
@@ -127,6 +128,43 @@ static partial class Preload
     public static void Clear()
     {
         files.Clear();
+    }
+
+    /// <summary>
+    /// 只丢弃指定文件（或目录下全部文件）的源码缓存。用于局部重载，不触发全量 GC。
+    /// </summary>
+    public static void Remove(IEnumerable<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                var prefix = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                foreach (var key in files.Keys)
+                {
+                    if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        files.TryRemove(key, out _);
+                }
+            }
+            else
+            {
+                files.TryRemove(path, out _);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 清空缓存并强制一次完整压缩 GC，把释放出的源码文本页立即归还给系统（否则 GC 段内空闲区仍保持提交）。
+    /// 源码行数组（string[]）位于 LOH，四参 Collect 的 compacting 只压缩 SOH，必须显式请求 LOH 压缩。
+    /// </summary>
+    public static void ClearAndCompact()
+    {
+        Clear();
+        GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+        GC.WaitForPendingFinalizers();
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, false);
     }
 
     /// <summary>

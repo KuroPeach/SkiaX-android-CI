@@ -4,6 +4,15 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [16.6.14] — 内存优化：源码缓存释放 / 位图缓存字节预算 / 动画缓存预算
+
+### Changed
+
+- ERB/CSV 编译完成后调用 `Preload.ClearAndCompact()`（清缓存＋一次完整压缩 GC，并显式请求 LOH `CompactOnce`）；全量 `ReloadErb` 重新加载后同样释放。`ReloadPartialErb` 只丢弃本次重载文件的源码缓存，不再触发全量 GC。懒加载与重载按需回读磁盘（回退读取与 Preload 一致使用 ReadWrite 共享）。eraTW 实测：标题界面工作集 1.08 GB → 0.67 GB，读档后 1.36 GB → 1.01 GB（4555 文件 / 4.44M 行）
+- `SharedBitmapCache` 由「最多 200 张」改为「256 MB 硬字节预算」的 LRU，LRU 节点字典化（命中 O(1)）。eraTW 素材平均 13.9 MB/张，旧上限最坏可达 2.8 GB；不再保留条目下限（否则 32 张大图即可突破 445 MB），实测 40 张 9 MB 图解码后常驻约 256 MB，被淘汰条目再次取用可正常重解码。淘汰按入缓存时记录的字节数结算，不再二次读取位图；同 key 重入与 LRU 节点失步都有防御
+- `AnimSpriteCache` 在原有 6 个上限外增加 256 MB 帧字节预算：超预算时淘汰 1 秒内未被绘制的动画（至少保留 1 个），避免大动画互相挤兑导致每帧重解码；同一文件路径的新实例接管缓存时先淘汰旧实例。现有素材（单动画 ≤36 MB、6 个上限≈216 MB）不会触发该预算，属安全网
+- `GraphicsImage.GCreateFromF` 的临时解码位图已在原代码 `finally` 中释放，无需改动
+
 ## [16.6.13] — EWP audio v1（P3-E：AudioLedger v2 / 6 ERB 内建）
 
 ### Added
