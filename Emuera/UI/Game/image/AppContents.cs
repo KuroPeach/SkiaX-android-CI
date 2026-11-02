@@ -287,6 +287,7 @@ static class AppContents
 
 			foreach (var path in csvFiles)
 			{
+				// W3/Linux：目录前缀用平台分隔符（"\\" 在 Linux 下是文件名的一部分）。
 				string directory = Path.GetDirectoryName(path) + Path.DirectorySeparatorChar;
 				string[] lines = File.ReadAllLines(path, EncodingHandler.DetectEncoding(path));
 

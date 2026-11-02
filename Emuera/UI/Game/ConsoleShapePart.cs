@@ -104,6 +104,12 @@ abstract class ConsoleShapePart : AConsoleColoredPart
 		get { return false; }
 	}
 
+	// R-3b-1：span 发射所需只读视图（Color 在基类 protected）。
+	public Color ShapeColor => Color;
+	public virtual string ShapeKind => "other";
+	public virtual bool HasDrawRect => false;
+	public virtual Rectangle DrawRect => Rectangle.Empty;
+
 	public override string ToString()
 	{
 		if (AltText == null)
@@ -139,6 +145,9 @@ internal sealed class ConsoleRectangleShapePart : ConsoleShapePart
 	private readonly int bottom;
 	public override int Top { get { return top; } }
 	public override int Bottom { get { return bottom; } }
+	public override string ShapeKind => "rect";
+	public override bool HasDrawRect => true;
+	public override Rectangle DrawRect => rect;
 	readonly RectangleF originalRectF;
 	bool visible;
 	Rectangle rect;
@@ -182,6 +191,8 @@ internal sealed class ConsoleSpacePart : ConsoleShapePart
 
 	public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false) { }
 
+	public override string ShapeKind => "space";
+
 	public override void SetWidth(StringMeasure sm, float subPixel)
 	{
 		float widF = subPixel + WidthF;
@@ -197,6 +208,7 @@ internal sealed class ConsoleErrorShapePart : ConsoleShapePart
 		Text = errMes;
 		AltText = errMes;
 	}
+	public override string ShapeKind => "error";
 
 	public override void DrawTo(SKCanvas graph, SKPoint point, bool isSelecting, bool isFocus, bool isBackLog, TextDrawingMode mode, bool isButton = false)
 	{

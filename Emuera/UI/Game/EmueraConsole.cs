@@ -1975,7 +1975,10 @@ internal sealed partial class EmueraConsole : IDisposable
 			foreach (var depth in allDepths)
 			{
 				// Draw ImageLayers at this depth
-				_imageLayerManager.DrawLayersAtDepth(graph, (int)graph.LocalClipBounds.Width, (int)graph.LocalClipBounds.Height, window.ScrollValue * Config.LineHeight, depth);
+				// eraWire E4-B（2026-10-27）：图层布局必须与文字/CBG 同源——都用 window.RenderHeight。
+				// 曾用 LocalClipBounds（桌面 SKControl 实测 1802x923 ≠ render 1782x921）⇒ 图层整体 +2px，
+				// 与 sprite.set 的 y+renderH-h 语义不一致（V8-B 77.8% 残留之一）。
+				_imageLayerManager.DrawLayersAtDepth(graph, window.RenderWidth, window.RenderHeight, window.ScrollValue * Config.LineHeight, depth);
 
 				if (cidx < cbgList.Count && cbgList[cidx].zdepth == depth)
 				{
@@ -3211,6 +3214,21 @@ internal sealed partial class EmueraConsole : IDisposable
 	}
 
 	/// <summary>
+	/// rect 导出诊断计数（W2a，<see cref="GetSelectableButtonRects"/> 每次调用先清零＝「最近一次
+	/// input.request」的分布）。EWP <c>sys.state.rectDiag</c> 暴露，用于回答「这一屏为什么没 rect」；
+	/// ⛔ 不是门禁语义（门禁语义＝EwpHost 的 rectSelfCheckFailed 累计护栏）。
+	/// </summary>
+	public (int NoWindow, int NoStrArray, int WidthNonPositive, int RenderInvalid, int NormalRect,
+		int DivPosUnusable, int DivNoParent, int DivParentNotInList, int DivEmptyContent, int DivRect,
+		int RenderW, int RenderH, int BottomLine, int ScrollBottom, int LineCount) LastRectDiag => (
+		rectDiagNoWindow, rectDiagNoStrArray, rectDiagWidthNonPositive, rectDiagRenderInvalid, rectDiagNormalRect,
+		rectDiagDivPosUnusable, rectDiagDivNoParent, rectDiagDivParentNotInList, rectDiagDivEmptyContent, rectDiagDivRect,
+		rectDiagRenderW, rectDiagRenderH, rectDiagBottomLine, rectDiagScrollBottom, rectDiagLineCount);
+	int rectDiagNoWindow, rectDiagNoStrArray, rectDiagWidthNonPositive, rectDiagRenderInvalid, rectDiagNormalRect;
+	int rectDiagDivPosUnusable, rectDiagDivNoParent, rectDiagDivParentNotInList, rectDiagDivEmptyContent, rectDiagDivRect;
+	int rectDiagRenderW, rectDiagRenderH, rectDiagBottomLine, rectDiagScrollBottom, rectDiagLineCount;
+
+	/// <summary>
 	/// 同 <see cref="GetSelectableButtons"/>，另给每个按钮的<b>本宿主几何</b>（EWP <c>buttons[].rect</c>，I3-a）。
 	/// 坐标系＝<c>MainWindow.RenderWidth</c>×<c>RenderHeight</c> 的 render 逻辑像素（与鼠标 hit-test 同源；
 	/// 全屏已由 <c>ToLogicalPoint</c>/<c>RenderWidth</c> 除过 scale，⛔ 再除一次）；
@@ -3220,21 +3238,38 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// </summary>
 	public List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect, bool HitTestOracle)> GetSelectableButtonRects()
 	{
+		rectDiagNoWindow = rectDiagNoStrArray = rectDiagWidthNonPositive = rectDiagRenderInvalid = rectDiagNormalRect = 0;
+		rectDiagDivPosUnusable = rectDiagDivNoParent = rectDiagDivParentNotInList = rectDiagDivEmptyContent = rectDiagDivRect = 0;
 		var result = new List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect, bool HitTestOracle)>();
 		var items = CollectSelectableButtons();
 		if (items.Count == 0)
 			return result;
 
-		// 与 GetLinePointY 同一口径：屏幕下沿行号由滚动条决定（hit-test 用的是 displayLineList 下标）。
-		int bottomLineNo = 0;
+		// W2a：rect 导出与 FE 网格同源＝**显示列表真底**（Count-1）。
+		// ⛔ 不用 ScrollValue-1：verticalScrollBarUpdate 只在重绘/ClearDisplay 同步 ScrollMaximum，
+		// WaitInput 入口把 ScrollValue 强滚到的是**陈旧**的 ScrollMaximum——最后一批未重绘的行
+		// （实测真实状态屏差 41 行、存档列表差 50 行）会被算到屏幕外，hit-test 也够不到，
+		// 生产自检随之全部扣发（fixture 日志浅无陈旧窗口，故 I3 门禁此前全绿）。
+		// FE 侧网格永远底锚定到最后一行（ledger 同源），用 Count-1 才与 FE 的命中映射一致。
+		// 稳态（重绘后 ScrollValue==ScrollMaximum==Count）下两者相等，MoveMouse 手感不受影响。
+		int bottomLineNo = displayLineList.Count - 1;
 		int mainPicHeight = 0;
 		if (window != null)
 		{
-			bottomLineNo = window.ScrollValue - 1;
-			if (displayLineList.Count - 1 < bottomLineNo)
-				bottomLineNo = displayLineList.Count - 1;
 			try { mainPicHeight = window.PicHeight; } catch { }
 		}
+		rectDiagBottomLine = bottomLineNo;
+		try { rectDiagScrollBottom = (window?.ScrollValue ?? 0) - 1; } catch { rectDiagScrollBottom = int.MinValue; }
+		rectDiagLineCount = displayLineList.Count;
+		try
+		{
+			rectDiagRenderW = window?.RenderWidth ?? 0;
+			rectDiagRenderH = window?.RenderHeight ?? 0;
+		}
+		catch { }
+		// 窗口未完成布局（启动竞态，I3-b metrics 时序坑的 rect 面）：渲染面无效 ⇒ 本轮不发
+		// 普通行 rect（自检 oracle 的 topLineNo 会退化成单行），计数后干净降级，FE 回退文本/值。
+		bool renderInvalid = rectDiagRenderW <= 0 || rectDiagRenderH <= 0;
 
 		foreach (var (button, lineIndex, div, childRow) in items)
 		{
@@ -3243,41 +3278,86 @@ internal sealed partial class EmueraConsole : IDisposable
 			bool hasRect = false;
 			bool hitTestOracle = lineIndex >= 0;   // div 按钮的 hit-test 与绘制分叉（§3.3），不能当 oracle
 			Rectangle rect = default;
-			if (window != null && button.StrArray != null && button.Width > 0)
+			if (window == null)
+			{
+				rectDiagNoWindow++;
+			}
+			else if (button.StrArray == null)
+			{
+				rectDiagNoStrArray++;
+			}
+			else if (button.Width <= 0)
+			{
+				rectDiagWidthNonPositive++;
+			}
+			else
 			{
 				var (partTop, partBottom) = ButtonVerticalRange(button);
 				if (lineIndex >= 0)
 				{
-					int lineY = window.RenderHeight - Config.LineHeight * (bottomLineNo - lineIndex + 1);
-					rect = new Rectangle(button.PointX + Config.DrawingParam_ShapePositionShift,
-						lineY + partTop, button.Width, partBottom - partTop);
-					hasRect = true;
+					if (renderInvalid)
+					{
+						rectDiagRenderInvalid++;
+					}
+					else
+					{
+						int lineY = window.RenderHeight - Config.LineHeight * (bottomLineNo - lineIndex + 1);
+						rect = new Rectangle(button.PointX + Config.DrawingParam_ShapePositionShift,
+							lineY + partTop, button.Width, partBottom - partTop);
+						hasRect = true;
+						rectDiagNormalRect++;
+					}
 				}
 				else if (div != null)
 				{
-					// I3-d：div 按钮的 rect 由**绘制**矩形推出（GetContentRect，与 DrawTo 同源），
-					// ⛔ 不用 TestChildHitbox——绝对定位下它与绘制分叉（§3.3）。
-					// <div> 默认 isRelative=true（HtmlManager.cs:1202），相对定位要用父行屏幕 y。
-					// 绝对定位的 Y 依赖 MainPicBox.Height（物理）；全屏时它与 render 逻辑高度不同名 ⇒ 不冒充。
-					bool posUsable = div.IsRelative
-						|| (mainPicHeight > 0 && mainPicHeight == window.RenderHeight);
-					if (posUsable && div.Parent?.ParentLine != null)
+					if (renderInvalid)
 					{
-						// 相对定位的基准＝**父行的屏幕行顶 y**，必须与普通行 rect 同源：
-						// 用显示列表下标算（⛔ 不用 MoveMouse 里 ParentLine.LineNo + correction 那套——
-						// 那是 Y 剪枝用的粗算式（还带 ±200 容差），不是绘制位置）。
-						int parentIdx = displayLineList.IndexOf(div.Parent.ParentLine);
-						if (parentIdx >= 0)
+						// 相对定位的 parentLineY 同样依赖 RenderHeight；窗口未就绪时一并降级
+						rectDiagRenderInvalid++;
+					}
+					else
+					{
+						// I3-d：div 按钮的 rect 由**绘制**矩形推出（GetContentRect，与 DrawTo 同源），
+						// ⛔ 不用 TestChildHitbox——绝对定位下它与绘制分叉（§3.3）。
+						// <div> 默认 isRelative=true（HtmlManager.cs:1202），相对定位要用父行屏幕 y。
+						// 绝对定位的 Y 依赖 MainPicBox.Height（物理）；全屏时它与 render 逻辑高度不同名 ⇒ 不冒充。
+						bool posUsable = div.IsRelative
+							|| (mainPicHeight > 0 && mainPicHeight == window.RenderHeight);
+						if (!posUsable)
 						{
-							int parentLineY = window.RenderHeight
-								- Config.LineHeight * (bottomLineNo - parentIdx + 1);
-							var content = div.GetContentRect(mainPicHeight, parentLineY);
-							if (content.Height > 0 && content.Width > 0)
+							rectDiagDivPosUnusable++;
+						}
+						else if (div.Parent?.ParentLine == null)
+						{
+							rectDiagDivNoParent++;
+						}
+						else
+						{
+							// 相对定位的基准＝**父行的屏幕行顶 y**，必须与普通行 rect 同源：
+							// 用显示列表下标算（⛔ 不用 MoveMouse 里 ParentLine.LineNo + correction 那套——
+							// 那是 Y 剪枝用的粗算式（还带 ±200 容差），不是绘制位置）。
+							int parentIdx = displayLineList.IndexOf(div.Parent.ParentLine);
+							if (parentIdx < 0)
 							{
-								int rowY = content.Top + childRow * Config.LineHeight;
-								rect = new Rectangle(button.PointX + Config.DrawingParam_ShapePositionShift,
-									rowY + partTop, button.Width, partBottom - partTop);
-								hasRect = true;
+								rectDiagDivParentNotInList++;
+							}
+							else
+							{
+								int parentLineY = window.RenderHeight
+									- Config.LineHeight * (bottomLineNo - parentIdx + 1);
+								var content = div.GetContentRect(mainPicHeight, parentLineY);
+								if (content.Height > 0 && content.Width > 0)
+								{
+									int rowY = content.Top + childRow * Config.LineHeight;
+									rect = new Rectangle(button.PointX + Config.DrawingParam_ShapePositionShift,
+										rowY + partTop, button.Width, partBottom - partTop);
+									hasRect = true;
+									rectDiagDivRect++;
+								}
+								else
+								{
+									rectDiagDivEmptyContent++;
+								}
 							}
 						}
 					}
@@ -3322,9 +3402,10 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		if (window == null || displayLineList.Count == 0)
 			return null;
-		int bottomLineNo = window.ScrollValue - 1;
-		if (displayLineList.Count - 1 < bottomLineNo)
-			bottomLineNo = displayLineList.Count - 1;
+		// W2a：与 GetSelectableButtonRects 同源＝显示列表真底（Count-1），理由见其注释。
+		// 稳态下与 MoveMouse 的 ScrollValue-1 相等；输入等待前的陈旧窗口里，自检 oracle 必须
+		// 对齐「重绘后用户实际能点到的那一屏」，否则会把刚打印完、尚未重绘的按钮面全判不可点。
+		int bottomLineNo = displayLineList.Count - 1;
 		int topLineNo = bottomLineNo - (window.RenderHeight / Config.LineHeight);
 		if (topLineNo < 0)
 			topLineNo = 0;

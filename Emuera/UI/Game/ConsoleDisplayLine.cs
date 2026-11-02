@@ -49,6 +49,12 @@ internal sealed class ConsoleDisplayLine
 	readonly public bool IsLogicalLine = true;
 	readonly public bool IsTemporary;
 	public bool IsLineEnd = true;
+	/// <summary>
+	/// eraWire C2-island：真のHTML描画（HTML_PRINT_ISLAND）の行は displayLineList／escapedParts を
+	/// 経由しないため、ConsoleDivPart を<b>行内で直接</b>描く必要がある。
+	/// 既定 false＝従来どおり ConsoleButtonString.DrawTo では div をスキップ（通常行は escapedParts 側で描画）。
+	/// </summary>
+	public bool DrawDivInline { get; set; }
 	//EmueraConsole parent;
 	ConsoleButtonString[] buttons;
 	DisplayLineAlignment align;

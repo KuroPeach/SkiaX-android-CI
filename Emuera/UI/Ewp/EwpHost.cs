@@ -4,8 +4,11 @@ using MinorShift.Emuera.Runtime;
 using MinorShift.Emuera.Runtime.Script;
 using MinorShift.Emuera.Runtime.Script.Statements;
 using MinorShift.Emuera.Runtime.Utils;
+using MinorShift.Emuera.Runtime.Utils.Audio;
+using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game;
+using MinorShift.Emuera.UI.Game.Image;
 using MinorShift.Emuera.UI.Game.Rendering;
 using System;
 using System.Collections.Concurrent;
@@ -13,6 +16,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -108,7 +112,9 @@ internal static class EwpOut
         var q = queue;
         if (q == null)
             return;
-        try { q.Add(new Payload { Json = json }); } catch { }
+        if (json != null && json.Contains("\"exit\""))
+            EwpDiagnostics.Trace("EwpOut.Emit exit queue=" + (q == null ? -1 : q.Count));
+        try { q.Add(new Payload { Json = json }); } catch (Exception ex) { EwpDiagnostics.Trace("EwpOut.Emit ex " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     /// <summary>像素事件：编码完成后投递写出队列（丢新计数；丢旧保新在 EwpPixelStreamer 捕获级）。</summary>
@@ -146,6 +152,8 @@ internal static class EwpOut
     public static void Shutdown()
     {
         var q = queue;
+        EwpDiagnostics.Trace("EwpOut.Shutdown enter queue=" + (q == null ? -1 : q.Count)
+            + " writerAlive=" + (writerThread != null && writerThread.IsAlive));
         if (q == null)
             return;
         closing = true;
@@ -156,7 +164,12 @@ internal static class EwpOut
         }
         try { q.CompleteAdding(); } catch { }
         try { pixelQueue?.CompleteAdding(); } catch { }
-        try { writerThread?.Join(3000); } catch { }
+        try
+        {
+            var joined = writerThread == null || writerThread.Join(3000);
+            EwpDiagnostics.Trace("EwpOut.Shutdown join=" + joined + " queue=" + q.Count);
+        }
+        catch (Exception ex) { EwpDiagnostics.Trace("EwpOut.Shutdown join ex " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     private static void Loop()
@@ -185,7 +198,10 @@ internal static class EwpOut
                     s.Flush();
                     continue;
                 }
+                var isExit = p.Json != null && p.Json.Contains("\"exit\"");
+                if (isExit) EwpDiagnostics.Trace("writer exit take");
                 Codec.WriteText(s, p.Json);
+                if (isExit) EwpDiagnostics.Trace("writer exit written");
                 long count = 1;
                 // drain whatever else is already queued (batch), then close the frame
                 while (queue.TryTake(out var more, 0))
@@ -207,13 +223,14 @@ internal static class EwpOut
                     .Append('}');
                 Codec.WriteText(s, sb.ToString());
                 s.Flush();
+                if (isExit) EwpDiagnostics.Trace("writer exit flushed");
                 // 信用窗口：本帧未 ack 前最多积压 CreditWindow 帧
                 Interlocked.Increment(ref pendingFrames);
                 WaitForCredit();
             }
         }
-        catch { }
-        finally { try { s?.Flush(); } catch { } }
+        catch (Exception ex) { EwpDiagnostics.Trace("writer ex " + ex.GetType().Name + ": " + ex.Message); }
+        finally { try { s?.Flush(); } catch (Exception ex) { EwpDiagnostics.Trace("writer final flush ex " + ex.GetType().Name + ": " + ex.Message); } }
     }
 
     /// <summary>等待信用返还；超时兜底放行（记 ackTimeouts，不丢事件）。</summary>
@@ -254,6 +271,11 @@ internal sealed class EwpHost
     {
         public long Id;
         public string Text;
+        /// <summary>R-3b-1：预构建的 spans JSON 数组（null＝该行不含 spans）。</summary>
+        public string Spans;
+        /// <summary>W0：保留行对象用于 snapshot 重建 spans（重捕获行内像素并签发新 rev）。
+        /// 仅 UI 线程访问；行清理（CLEARLINE/ClearDisplay）时随 liveLines 一并释放。</summary>
+        public ConsoleDisplayLine Line;
         public string Owner = "";
         public long OwnerRev;
     }
@@ -299,6 +321,16 @@ internal sealed class EwpHost
     /// buttons[] 不带 rect 键（⛔ 发 null 或空对象，FE 侧统一按「无 rect 回退文本/值」处理）。
     /// 引擎 hello.caps 自报暂不含 input.rect：声明即承诺，等 I3-c 真机门禁通过后再加。</summary>
     private volatile bool rectEnabled;
+    /// <summary>FE 的 hello.ok.caps 是否包含 legacy.spans（R-3b-1）：缺省 false ⇒
+    /// legacy.line/snapshot.full 不含 spans 键（旧 FE 逐字节不变）。</summary>
+    private volatile bool spansEnabled;
+    private long spansEmitted;
+    private long spansSkipped;
+    // R-3b-3（W1）div.children：有界递归／载荷上限（旧 FE 忽略 children 键）。
+    private const int MaxDivChildSpans = 512;
+    private const int MaxDivNesting = 1;
+    private long spansChildNodes;
+    private long spansChildTruncated;
     /// <summary>最近一次 EmitMetrics 读到的 render 尺寸（rect 的坐标画布）。
     /// Subscribe 期窗口可能未完成布局 ⇒ 读到 0（最小化实测 render=0x0）；首个 input.request
     /// 时窗口必已就绪，故在那里补发一次。</summary>
@@ -309,11 +341,47 @@ internal sealed class EwpHost
     /// <c>sys.state.rectSelfCheckFailed</c> 可观测；门禁断言 == 0。</summary>
     private long rectSelfCheckFailed;
 
+    /// <summary>R-AUD-4：逻辑通道账本（v0.2 模式）。</summary>
+    private AudioLedger audioLedger;
+    /// <summary>R-AUD-8：v1 账本（audio.instances；握手前作 shadow 记录晚连接意图）。</summary>
+    private AudioV1Ledger audioV1Ledger;
+    private volatile bool audioEnabled;
+    private volatile bool feedbackEnabled;
+    private volatile bool audioV1Enabled;
+    private bool audioBusCap;
+    private bool audioTransitionsCap;
+    private bool audioMetaCap;
+    private bool audioSyncPending;
+
+    // G3（2026-10-30）：TCP headless 启动门——FE hello.ok + Subscribe 完成前不启动游戏。
+    // 背景：HeadlessHost 在 Start() 后立即 Initialize()，首帧 legacy.line / input.request
+    // 会早于 AcceptLoop 的 Subscribe（钩子未挂、无补发），FE 拿不到 reqId 只能干等。
+    private readonly ManualResetEventSlim gameStart = new(false);
+    private EmueraConsole attachedConsole;
+    private int helloOkSeen;
+    private int subscribedDone;
+
     public EwpHost(IConsoleSurface window, int tcpPort = 0)
     {
         win = window;
         this.tcpPort = tcpPort;
         pixel = new EwpPixelStreamer(window, () => GlobalStatic.Console, EwpOut.EmitPixel);
+    }
+
+    /// <summary>TCP headless：提前注入 console，使 AcceptLoop 在 console.Initialize() 之前
+    /// 就能 Subscribe 并挂好 Cli* 钩子（stdio/桌面不调用，行为不变）。</summary>
+    public void AttachConsole(EmueraConsole console) => attachedConsole = console;
+
+    /// <summary>启动门是否已放行（hello.ok + Subscribe 均完成）。</summary>
+    public bool GameStartReady => gameStart.IsSet;
+
+    /// <summary>等待启动门；timeoutMs 仅供调用方轮询，不抛异常。</summary>
+    public bool WaitGameStart(int timeoutMs) => gameStart.Wait(timeoutMs);
+
+    private void MaybeReleaseGameStart()
+    {
+        if (Volatile.Read(ref helloOkSeen) == 1 && Volatile.Read(ref subscribedDone) == 1)
+            gameStart.Set();
     }
 
     // Program wires the dialog delegates after EwpOut.InitIO, so the queue already
@@ -327,13 +395,17 @@ internal sealed class EwpHost
     public void Start()
     {
         ChannelHooks.Handler = OnChannelMacro;
+        // R-AUD-4/R-AUD-8：账本与事件出口在 hello 前装好；FE 声明 audio 前 Enabled=false（原生路径不变）。
+        audioLedger = new AudioLedger();
+        audioV1Ledger = new AudioV1Ledger();
+        AudioHooks.Attach(audioLedger, audioV1Ledger, OnAudioEvent, OnAudioV1Event);
         var sb = new StringBuilder(320);
         sb.Append("{\"t\":\"hello\",\"proto\":\"EWP/0.3\",\"impl\":\"ewp-b4\",\"engine\":{")
             .Append("\"id\":\"LazyLoading-skia\",\"semver\":").Append(J(SafeVersion()))
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\",\"legacy.spans\",\"audio\",\"audio.feedback\",\"audio.instances\",\"audio.bus\",\"audio.transitions\",\"audio.meta\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -358,13 +430,27 @@ internal sealed class EwpHost
         try { renderW = win.RenderWidth; renderH = win.RenderHeight; } catch { }
         metricsRenderW = renderW;
         metricsRenderH = renderH;
+        // R-3b-0（2026-10-28）：把引擎的绘制原点/基线/默认色同源给 FE。
+        // - originX＝ConsoleStyledString/ConsoleImagePart/ConsoleRectangleShapePart 的 +3px 位移
+        //   （ConsoleDivPart.DrawTo 不加，FE 侧必须按 span 类型区分）。
+        // - baselineOffset＝|font ascent|（Skia Ascent 为负；引擎 DrawTo 里 Offset(0,-Ascent)）。
+        // - foreColor/BackColor＝引擎实际默认色（FE 旧值 0.86 与 #C0C0C0 不一致）。
+        int originX = Config.DrawingParam_ShapePositionShift;
+        float baselineOffset = Config.FontSize;
+        try { baselineOffset = -Config.DefaultFont.Metrics.Ascent; } catch { }
+        var foreColor = HtmlManager.GetColorToStringArgb(Config.ForeColor);
+        var backColor = HtmlManager.GetColorToStringArgb(Config.BackColor);
         EwpOut.Emit("{\"t\":\"meta.metrics\",\"metrics\":{\"cellW\":" + cellW
             + ",\"cellH\":" + Config.FontSize
             + ",\"lineH\":" + Config.LineHeight
             + ",\"font\":" + J(Config.FontName)
             + ",\"fontSize\":" + Config.FontSize
             + ",\"renderW\":" + renderW
-            + ",\"renderH\":" + renderH + "}}");
+            + ",\"renderH\":" + renderH
+            + ",\"originX\":" + originX
+            + ",\"baselineOffset\":" + D(baselineOffset)
+            + ",\"foreColor\":" + J(foreColor)
+            + ",\"bgColor\":" + J(backColor) + "}}");
     }
 
     private static string SafeVersion()
@@ -385,12 +471,25 @@ internal sealed class EwpHost
 
     public void NotifyProcessExit()
     {
+        EwpDiagnostics.Trace("NotifyProcessExit enter");
         running = false;
         ChannelHooks.Handler = null;
+        AudioHooks.Detach();
         // 先发 exit 再清像素流：像素流 Dispose 若抛异常也不能把 exit 吞掉。
+        try
+        {
+            // R-AUD-4 测试诊断（stderr，⛔ 业务事件）：Q1 静音与 mixer 是否被原生路径初始化。
+            var st = audioLedger?.Stats();
+            Console.Error.WriteLine("[ewp-audio] enabled=" + (audioEnabled ? 1 : 0)
+                + " nativeSuppressed=" + (st?.NativeSuppressed ?? 0)
+                + " mixerInitialized=" + MixerStateJson());
+        }
+        catch { }
         EwpOut.Emit("{\"t\":\"exit\"}");
-        try { pixel.Dispose(); } catch { }
+        EwpDiagnostics.Trace("NotifyProcessExit exit enqueued");
+        try { pixel.Dispose(); } catch (Exception ex) { EwpDiagnostics.Trace("pixel.Dispose ex " + ex.GetType().Name + ": " + ex.Message); }
         EwpOut.Shutdown();
+        EwpDiagnostics.Trace("NotifyProcessExit Shutdown returned");
     }
 
     /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}+新段；
@@ -489,7 +588,7 @@ internal sealed class EwpHost
             listener.Stop();
             var stream = client.GetStream();
             EwpOut.AttachStream(stream);
-            while (running && (!win.IsHandleCreated || GameConsole == null))
+            while (running && (!win.IsHandleCreated || (GameConsole == null && attachedConsole == null)))
                 Thread.Sleep(50);
             if (running)
                 Subscribe();
@@ -522,7 +621,8 @@ internal sealed class EwpHost
 
     private void Subscribe()
     {
-        var console = GameConsole;
+        // TCP headless：console 已由 HeadlessHost 提前注入（Initialize 之前），否则等 GlobalStatic。
+        var console = attachedConsole ?? GameConsole;
         if (console == null)
             return;
         ApplyPendingViewport();
@@ -537,7 +637,19 @@ internal sealed class EwpHost
         console.CliIslandPrinted += OnIslandPrinted;
         console.CliIslandCleared += OnIslandCleared;
         console.CliFramePainted += OnFramePainted;
-        EmitMetrics();
+        if (tcpPort > 0)
+        {
+            // TCP：EmitMetrics 会调 FontFactory（无锁静态缓存），⛔ 不能在 transport 线程
+            // 与 init/渲染并发（实测 InvalidOperationException）；改走 UI 泵
+            // （HeadlessHost 在启动门前持续泵，故不会悬空）。
+            try { win.Invoke(new Action(EmitMetrics)); } catch { }
+        }
+        else
+        {
+            EmitMetrics();
+        }
+        Volatile.Write(ref subscribedDone, 1);
+        MaybeReleaseGameStart();
     }
 
     /// <summary>RefreshStrings 有效通过点（UI 线程，B3 像素流帧信号；仅 mode.pixel=true 时实做捕获）。</summary>
@@ -577,9 +689,25 @@ internal sealed class EwpHost
 
     private void OnLineAdded(ConsoleDisplayLine line)
     {
-        // text level; spans/line-level buttons deferred (spec freeze list).
         var id = ++lineIdSeq;
-        var text = ClipboardProcessor.StripHTML(line.ToString());
+        var raw = line.ToString();
+        var text = ClipboardProcessor.StripHTML(raw);
+        // R-3b-1：仅在 FE 声明 legacy.spans 且 text 未被 StripHTML 改写时构建 spans；
+        // 保证 span 的 start/end 与 wire 上的 text 同源（CBIgnoreTags 非常态配置时跳过并计数）。
+        string spans = null;
+        if (spansEnabled)
+        {
+            if (string.Equals(text, raw, StringComparison.Ordinal))
+            {
+                spans = BuildSpans(line);
+                if (spans != null)
+                    Interlocked.Increment(ref spansEmitted);
+            }
+            else
+            {
+                Interlocked.Increment(ref spansSkipped);
+            }
+        }
         var owner = "";
         long ownerRev = 0;
         lock (channelGate)
@@ -598,12 +726,459 @@ internal sealed class EwpHost
                     owner = "";
             }
         }
-        liveLines.Add(new LiveLine { Id = id, Text = text, Owner = owner, OwnerRev = ownerRev });
+        // W0：仅含运行期行内像素（rt）的行保留行对象，供 snapshot 重建 spans；
+        // 普通行（绝大多数）不持有 ConsoleDisplayLine，避免无意扩大长会话 retained 面。
+        // 行清理（CLEARLINE/ClearDisplay）随 liveLines 释放；引擎自动 MaxLog 裁剪不发
+        // CliLinesRemoved 属既有账本问题（文本/spans 本已保留），W1/T6 再单独处理。
+        bool needLine = spans != null && spans.Contains("\"rt\":true");
+        liveLines.Add(new LiveLine { Id = id, Text = text, Spans = spans,
+            Line = needLine ? line : null, Owner = owner, OwnerRev = ownerRev });
         var json = "{\"t\":\"legacy.line\",\"lineId\":" + id
             + ",\"gen\":" + currentGeneration
-            + ",\"text\":" + J(text) + "}";
+            + ",\"text\":" + J(text);
+        if (line.Align != DisplayLineAlignment.LEFT)
+            json += ",\"align\":\"" + (line.Align == DisplayLineAlignment.CENTER ? "center" : "right") + "\"";
+        if (spans != null)
+            json += ",\"spans\":" + spans;
+        json += "}";
         EwpOut.Emit(json);
     }
+
+    /// <summary>R-3b-1：构建 legacy.line.spans（可选；仅 FE 声明 legacy.spans 且 text 未被
+    /// StripHTML 改写时调用）。start/end 为 text 的 Unicode 码点偏移；div 整体跳过，
+    /// 由 FE F-div 继续负责。发 x/advance 与解析色，文本的 x 含引擎对齐位移。</summary>
+    private string BuildSpans(ConsoleDisplayLine line)
+    {
+        var spans = new List<string>();
+        int cp = 0;
+        bool anyNonText = false, anyStyled = false;
+        foreach (var button in line.Buttons)
+        {
+            if (button?.StrArray == null)
+                continue;
+            foreach (var node in button.StrArray)
+            {
+                if (node == null)
+                    continue;
+                string s = node.ToString() ?? "";
+                int len = CodePointLength(s);
+                int start = cp, end = cp + len;
+                cp = end;
+
+                if (node is ConsoleStyledString css)
+                {
+                    var st = css.StringStyle;
+                    bool def = !st.ColorChanged && st.Color == Config.ForeColor
+                        && !st.BackgroundColor.HasValue && st.ButtonColor == Config.FocusColor
+                        && st.FontStyle == FontStyle.Regular
+                        && (string.IsNullOrEmpty(st.Fontname) || string.Equals(st.Fontname, Config.FontName, StringComparison.OrdinalIgnoreCase))
+                        && !css.FontSize.HasValue && !css.VerticalAlign.HasValue;
+                    if (!def)
+                        anyStyled = true;
+                    if (len == 0)
+                        continue;
+                    var sb = new StringBuilder(128);
+                    sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                        .Append(",\"kind\":\"text\",\"x\":").Append(css.PointX)
+                        .Append(",\"advance\":").Append(css.Width)
+                        .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(st.Color)));
+                    if (st.BackgroundColor.HasValue)
+                        sb.Append(",\"bg\":").Append(J(HtmlManager.GetColorToStringArgb(st.BackgroundColor.Value)));
+                    if ((st.FontStyle & FontStyle.Bold) != 0) sb.Append(",\"bold\":true");
+                    if ((st.FontStyle & FontStyle.Italic) != 0) sb.Append(",\"italic\":true");
+                    if ((st.FontStyle & FontStyle.Underline) != 0) sb.Append(",\"underline\":true");
+                    if ((st.FontStyle & FontStyle.Strikeout) != 0) sb.Append(",\"strike\":true");
+                    if (!string.IsNullOrEmpty(st.Fontname) && !string.Equals(st.Fontname, Config.FontName, StringComparison.OrdinalIgnoreCase))
+                        sb.Append(",\"font\":").Append(J(st.Fontname));
+                    if (css.FontSize.HasValue)
+                        sb.Append(",\"size\":").Append(D(css.FontSize.Value));
+                    if (css.VerticalAlign.HasValue)
+                        sb.Append(",\"valign\":").Append(J(css.VerticalAlign.Value.ToString().ToLowerInvariant()));
+                    sb.Append('}');
+                    spans.Add(sb.ToString());
+                    continue;
+                }
+
+                anyNonText = true;
+                if (node is ConsoleImagePart img)
+                {
+                    var dr = img.DestRect;
+                    int dx, dy;
+                    string display = img.Display switch
+                    {
+                        DisplayMode.AbsoluteLeftTop => "absolute-lefttop",
+                        DisplayMode.AbsoluteLeftBottom => "absolute-leftbottom",
+                        DisplayMode.Absolute => "absolute",
+                        _ => "relative"
+                    };
+                    if (img.Display == DisplayMode.Relative)
+                    {
+                        dx = img.PointX + dr.X;
+                        dy = dr.Y;
+                    }
+                    else if (img.Display == DisplayMode.AbsoluteLeftBottom)
+                    {
+                        dx = img.PositionX;
+                        dy = (GameConsole?.ClientHeight ?? 0) + img.PositionY;
+                    }
+                    else
+                    {
+                        dx = img.PositionX;
+                        dy = img.PositionY;
+                    }
+                    var sb = new StringBuilder(160);
+                    sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                        .Append(",\"kind\":\"img\",\"x\":").Append(img.PointX)
+                        .Append(",\"advance\":").Append(img.Width)
+                        .Append(",\"draw\":{\"x\":").Append(dx).Append(",\"y\":").Append(dy)
+                        .Append(",\"w\":").Append(dr.Width).Append(",\"h\":").Append(dr.Height).Append('}')
+                        .Append(",\"src\":").Append(J(img.ResourceName ?? ""));
+                    if (!string.IsNullOrEmpty(img.ButtonResourceName))
+                        sb.Append(",\"srcb\":").Append(J(img.ButtonResourceName));
+                    if (!string.IsNullOrEmpty(img.MappingGraphName))
+                        sb.Append(",\"srcm\":").Append(J(img.MappingGraphName));
+                    if (display != "relative")
+                        sb.Append(",\"display\":").Append(J(display));
+                    if (img.MissingImage)
+                        sb.Append(",\"missing\":true");
+                    if (img.HasColorMatrix)
+                        sb.Append(",\"cm\":true");
+                    // R-3b-2b：运行期 G 名（SpriteG）在 span 构建时冻结像素快照；
+                    // FE 用 (src,rev) 发 sprite.req，旧 rev 永不返回新图。literal（SpriteF）走 2a。
+                    if (spriteExport.Enabled && img.Image is SpriteG && dr.Width > 0 && dr.Height > 0)
+                    {
+                        long rtRev = spriteExport.CaptureInline(img.Image, dr.Width, dr.Height, img.ColorMatrix);
+                        if (rtRev > 0)
+                            sb.Append(",\"rt\":true,\"rev\":").Append(rtRev);
+                    }
+                    // R-3c：动画精灵（SpriteAnimated 动图 webp / SpriteAnime ANIME CSV 多帧）⇒ 帧表；
+                    // FE 按 delays 轮播、按帧请求（sprite.req 负 rev＝-(frame+1)）。
+                    if (spriteExport.Enabled && TryAnimInfo(img.Image, out int animCount, out int[] animDelays))
+                    {
+                        sb.Append(",\"anim\":{\"count\":").Append(animCount)
+                          .Append(",\"delays\":[");
+                        for (int di = 0; di < animDelays.Length; di++)
+                        {
+                            if (di > 0) sb.Append(',');
+                            sb.Append(animDelays[di]);
+                        }
+                        sb.Append("]}");
+                    }
+                    sb.Append('}');
+                    spans.Add(sb.ToString());
+                    continue;
+                }
+                if (node is ConsoleShapePart shape)
+                {
+                    var sb = new StringBuilder(128);
+                    sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                        .Append(",\"kind\":\"shape\",\"shape\":").Append(J(shape.ShapeKind))
+                        .Append(",\"x\":").Append(shape.PointX)
+                        .Append(",\"advance\":").Append(shape.Width);
+                    if (shape.HasDrawRect)
+                    {
+                        var r = shape.DrawRect;
+                        // shape rect 的 rect.X 已烘入 originX（ConsoleShapePart.SetWidth），
+                        // 归一到「行内坐标不含 originX」，FE 再统一加 meta.metrics.originX。
+                        int dx = shape.PointX + r.X - Config.DrawingParam_ShapePositionShift;
+                        sb.Append(",\"draw\":{\"x\":").Append(dx).Append(",\"y\":").Append(r.Y)
+                            .Append(",\"w\":").Append(r.Width).Append(",\"h\":").Append(r.Height).Append('}')
+                            .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(shape.ShapeColor)));
+                    }
+                    else if (shape.ShapeKind == "error")
+                    {
+                        sb.Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(shape.ShapeColor)));
+                    }
+                    sb.Append('}');
+                    spans.Add(sb.ToString());
+                    continue;
+                }
+                if (node is ConsoleDivPart div)
+                {
+                    // R-3b-3（W1）：div 整块附带**有界** children（text/img/shape/div 同形），
+                    // 坐标相对 div 内容框；递归深度与载荷上限固定，截断时标 truncated。
+                    int budget = MaxDivChildSpans;
+                    var sb = new StringBuilder(256);
+                    sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                        .Append(",\"kind\":\"div\",\"x\":").Append(div.PointX);
+                    int picHeight = GameConsole?.ClientHeight ?? 0;
+                    var content = div.GetContentRect(picHeight, 0);
+                    var children = BuildDivChildrenCore(div, start, 0, content.X, content.Y,
+                        picHeight, ref budget, ref anyStyled, out bool truncated);
+                    if (children.Count > 0)
+                    {
+                        sb.Append(",\"children\":[").Append(string.Join(",", children)).Append(']');
+                        if (truncated)
+                            sb.Append(",\"truncated\":true");
+                        // 计入整棵 div 子树（含嵌套；budget 为共享配额）。
+                        Interlocked.Add(ref spansChildNodes, MaxDivChildSpans - budget);
+                    }
+                    if (truncated)
+                        Interlocked.Increment(ref spansChildTruncated);
+                    sb.Append('}');
+                    spans.Add(sb.ToString());
+                    continue;
+                }
+                // 未知节点：保守当作不可绘制跨度（只推进码点，不画）。
+                spans.Add("{\"start\":" + start + ",\"end\":" + end + ",\"kind\":\"unsupported\"}");
+            }
+        }
+        if (!anyNonText && !anyStyled && line.Align == DisplayLineAlignment.LEFT)
+            return null;
+        if (spans.Count == 0)
+            return null;
+        return "[" + string.Join(",", spans) + "]";
+    }
+
+    private static int CodePointLength(string s)
+    {
+        int n = 0;
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (char.IsHighSurrogate(s[i]) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1]))
+                i++;
+            n++;
+        }
+        return n;
+    }
+
+    /// <summary>R-3b-3（W1）：div 子节点 spans（坐标相对 div 内容框；start/end 仍对应
+    /// legacy.line.text 的 Unicode 码点区间，供 FE 从原始行取同一段文本）。
+    /// budget＝整棵 div 子树共享的载荷配额；超限即停并置 truncated（⛔ 静默丢节点）。</summary>
+    private List<string> BuildDivChildrenCore(ConsoleDivPart div, int divStart, int depth,
+        int contentXAbs, int contentYAbs, int picHeight,
+        ref int budget, ref bool anyStyled, out bool truncated)
+    {
+        truncated = false;
+        var list = new List<string>();
+        var children = div.Children;
+        if (children == null || children.Length == 0)
+            return list;
+        int cp = divStart + div.AltHeadTagLength;
+        int lineY = 0;
+        foreach (var childLine in children)
+        {
+            if (childLine?.Buttons != null)
+            {
+                foreach (var button in childLine.Buttons)
+                {
+                    if (button?.StrArray == null)
+                        continue;
+                    foreach (var node in button.StrArray)
+                    {
+                        if (node == null)
+                            continue;
+                        string s = node.ToString() ?? "";
+                        int len = CodePointLength(s);
+                        int start = cp, end = cp + len;
+                        cp = end;
+                        if (budget <= 0)
+                        {
+                            truncated = true;
+                            return list;
+                        }
+                        budget--;
+                        string json = BuildDivChildSpan(node, start, end, lineY, contentXAbs, contentYAbs,
+                            depth, picHeight, ref budget, ref anyStyled, out bool childTrunc);
+                        if (childTrunc)
+                            truncated = true;
+                        if (json != null)
+                            list.Add(json);
+                    }
+                }
+            }
+            cp += 2;  // ConsoleDivPart.ToString：每条子行后追加 "\r\n"
+            lineY += Config.LineHeight;
+        }
+        return list;
+    }
+
+    private string BuildDivChildSpan(AConsoleDisplayNode node, int start, int end, int lineY,
+        int contentXAbs, int contentYAbs, int depth, int picHeight,
+        ref int budget, ref bool anyStyled, out bool truncated)
+    {
+        truncated = false;
+        if (node is ConsoleStyledString css)
+        {
+            if (end <= start)
+                return null;
+            var st = css.StringStyle;
+            bool def = !st.ColorChanged && st.Color == Config.ForeColor
+                && !st.BackgroundColor.HasValue && st.ButtonColor == Config.FocusColor
+                && st.FontStyle == FontStyle.Regular
+                && (string.IsNullOrEmpty(st.Fontname) || string.Equals(st.Fontname, Config.FontName, StringComparison.OrdinalIgnoreCase))
+                && !css.FontSize.HasValue && !css.VerticalAlign.HasValue;
+            if (!def)
+                anyStyled = true;
+            var sb = new StringBuilder(128);
+            sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                .Append(",\"kind\":\"text\",\"x\":").Append(css.PointX - contentXAbs)
+                .Append(",\"y\":").Append(lineY)
+                .Append(",\"advance\":").Append(css.Width)
+                .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(st.Color)));
+            if (st.BackgroundColor.HasValue)
+                sb.Append(",\"bg\":").Append(J(HtmlManager.GetColorToStringArgb(st.BackgroundColor.Value)));
+            if ((st.FontStyle & FontStyle.Bold) != 0) sb.Append(",\"bold\":true");
+            if ((st.FontStyle & FontStyle.Italic) != 0) sb.Append(",\"italic\":true");
+            if ((st.FontStyle & FontStyle.Underline) != 0) sb.Append(",\"underline\":true");
+            if ((st.FontStyle & FontStyle.Strikeout) != 0) sb.Append(",\"strike\":true");
+            if (!string.IsNullOrEmpty(st.Fontname) && !string.Equals(st.Fontname, Config.FontName, StringComparison.OrdinalIgnoreCase))
+                sb.Append(",\"font\":").Append(J(st.Fontname));
+            if (css.FontSize.HasValue)
+                sb.Append(",\"size\":").Append(D(css.FontSize.Value));
+            if (css.VerticalAlign.HasValue)
+                sb.Append(",\"valign\":").Append(J(css.VerticalAlign.Value.ToString().ToLowerInvariant()));
+            sb.Append('}');
+            return sb.ToString();
+        }
+        if (node is ConsoleImagePart img)
+        {
+            var dr = img.DestRect;
+            int dx, dy;
+            string display = img.Display switch
+            {
+                DisplayMode.AbsoluteLeftTop => "absolute-lefttop",
+                DisplayMode.AbsoluteLeftBottom => "absolute-leftbottom",
+                DisplayMode.Absolute => "absolute",
+                _ => "relative"
+            };
+            if (img.Display == DisplayMode.Relative)
+            {
+                dx = img.PointX + dr.X - contentXAbs;
+                dy = dr.Y;
+            }
+            else if (img.Display == DisplayMode.AbsoluteLeftBottom)
+            {
+                dx = img.PositionX;
+                dy = picHeight + img.PositionY;
+            }
+            else
+            {
+                dx = img.PositionX;
+                dy = img.PositionY;
+            }
+            var sb = new StringBuilder(192);
+            sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                .Append(",\"kind\":\"img\",\"x\":").Append(img.PointX - contentXAbs)
+                .Append(",\"y\":").Append(lineY)
+                .Append(",\"advance\":").Append(img.Width)
+                .Append(",\"draw\":{\"x\":").Append(dx).Append(",\"y\":").Append(dy)
+                .Append(",\"w\":").Append(dr.Width).Append(",\"h\":").Append(dr.Height).Append('}')
+                .Append(",\"src\":").Append(J(img.ResourceName ?? ""));
+            if (!string.IsNullOrEmpty(img.ButtonResourceName))
+                sb.Append(",\"srcb\":").Append(J(img.ButtonResourceName));
+            if (!string.IsNullOrEmpty(img.MappingGraphName))
+                sb.Append(",\"srcm\":").Append(J(img.MappingGraphName));
+            if (display != "relative")
+                sb.Append(",\"display\":").Append(J(display));
+            if (img.MissingImage)
+                sb.Append(",\"missing\":true");
+            if (img.HasColorMatrix)
+                sb.Append(",\"cm\":true");
+            if (spriteExport.Enabled && img.Image is SpriteG && dr.Width > 0 && dr.Height > 0)
+            {
+                long rtRev = spriteExport.CaptureInline(img.Image, dr.Width, dr.Height, img.ColorMatrix);
+                if (rtRev > 0)
+                    sb.Append(",\"rt\":true,\"rev\":").Append(rtRev);
+            }
+            // N-4：div.children 内的动画精灵也带帧表（与顶层 span 同形；旧 FE 忽略）。
+            if (spriteExport.Enabled && TryAnimInfo(img.Image, out int animCount, out int[] animDelays))
+            {
+                sb.Append(",\"anim\":{\"count\":").Append(animCount)
+                  .Append(",\"delays\":[");
+                for (int di = 0; di < animDelays.Length; di++)
+                {
+                    if (di > 0) sb.Append(',');
+                    sb.Append(animDelays[di]);
+                }
+                sb.Append("]}");
+            }
+            sb.Append('}');
+            return sb.ToString();
+        }
+        if (node is ConsoleShapePart shape)
+        {
+            var sb = new StringBuilder(160);
+            sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                .Append(",\"kind\":\"shape\",\"shape\":").Append(J(shape.ShapeKind))
+                .Append(",\"x\":").Append(shape.PointX - contentXAbs)
+                .Append(",\"y\":").Append(lineY)
+                .Append(",\"advance\":").Append(shape.Width);
+            if (shape.HasDrawRect)
+            {
+                var r = shape.DrawRect;
+                int dx = shape.PointX + r.X - Config.DrawingParam_ShapePositionShift - contentXAbs;
+                sb.Append(",\"draw\":{\"x\":").Append(dx).Append(",\"y\":").Append(r.Y)
+                    .Append(",\"w\":").Append(r.Width).Append(",\"h\":").Append(r.Height).Append('}')
+                    .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(shape.ShapeColor)));
+            }
+            else if (shape.ShapeKind == "error")
+            {
+                sb.Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(shape.ShapeColor)));
+            }
+            sb.Append('}');
+            return sb.ToString();
+        }
+        if (node is ConsoleDivPart nd)
+        {
+            var nContent = nd.GetContentRect(picHeight, 0);
+            int bl = InsetOf(nd.DivBorder, Utils.Direction.Left), br = InsetOf(nd.DivBorder, Utils.Direction.Right);
+            int bt = InsetOf(nd.DivBorder, Utils.Direction.Top), bb = InsetOf(nd.DivBorder, Utils.Direction.Bottom);
+            int pl = InsetOf(nd.DivPadding, Utils.Direction.Left), pr = InsetOf(nd.DivPadding, Utils.Direction.Right);
+            int pt = InsetOf(nd.DivPadding, Utils.Direction.Top), pb = InsetOf(nd.DivPadding, Utils.Direction.Bottom);
+            var sb = new StringBuilder(320);
+            sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
+                .Append(",\"kind\":\"div\",\"x\":").Append(nContent.X - contentXAbs)
+                .Append(",\"y\":").Append(lineY)
+                .Append(",\"box\":{\"x\":").Append(nContent.X - contentXAbs - (bl + pl))
+                .Append(",\"y\":").Append(lineY + nContent.Y - (bt + pt))
+                .Append(",\"w\":").Append(nContent.Width + bl + br + pl + pr)
+                .Append(",\"h\":").Append(nContent.Height + bt + bb + pt + pb)
+                .Append(",\"border\":{\"top\":").Append(bt).Append(",\"right\":").Append(br)
+                .Append(",\"bottom\":").Append(bb).Append(",\"left\":").Append(bl).Append('}')
+                .Append(",\"padding\":{\"top\":").Append(pt).Append(",\"right\":").Append(pr)
+                .Append(",\"bottom\":").Append(pb).Append(",\"left\":").Append(pl).Append('}')
+                .Append(",\"color\":").Append(J(HtmlManager.GetColorToStringArgb(nd.DivBackgroundColor)));
+            if (nd.DivBorderColors != null)
+            {
+                sb.Append(",\"bcolor\":[");
+                for (int i = 0; i < 4; i++)
+                {
+                    if (i > 0)
+                        sb.Append(',');
+                    sb.Append(J(HtmlManager.GetColorToStringArgb(nd.DivBorderColors[i])));
+                }
+                sb.Append(']');
+            }
+            sb.Append('}');
+            if (nd.Children != null && nd.Children.Length > 0)
+            {
+                if (depth < MaxDivNesting)
+                {
+                    int nestedContentYAbs = contentYAbs + lineY + nContent.Y;
+                    var nested = BuildDivChildrenCore(nd, start, depth + 1, nContent.X, nestedContentYAbs,
+                        picHeight, ref budget, ref anyStyled, out bool nt);
+                    if (nt)
+                        truncated = true;
+                    if (nested.Count > 0)
+                        sb.Append(",\"children\":[").Append(string.Join(",", nested)).Append(']');
+                    else if (nt)
+                        sb.Append(",\"truncated\":\"depth\"");
+                }
+                else
+                {
+                    truncated = true;
+                    sb.Append(",\"truncated\":\"depth\"");
+                }
+            }
+            sb.Append('}');
+            return sb.ToString();
+        }
+        return "{\"start\":" + start + ",\"end\":" + end + ",\"kind\":\"unsupported\",\"y\":" + lineY + "}";
+    }
+
+    private static int InsetOf(int[] arr, int dir)
+        => arr != null && dir >= 0 && dir < arr.Length ? arr[dir] : 0;
 
     /// <summary>CLEARLINE：按尾部裁剪并广播 legacy.clear（EWP §4.1，fromLineId + count）。</summary>
     private void OnLinesRemoved(int count)
@@ -819,6 +1394,20 @@ internal sealed class EwpHost
                 case "view.ack":
                     EwpOut.NoteAck();
                     break;
+                // R-AUD-4：FE 回供（通知型：⛔ 不产生 result、⛔ 进 frame.commit、⛔ 占信用窗）。
+                // 传输线程直接更新账本（⛔ 走 UI Dispatch），锁内只写账本。
+                case "audio.state":
+                    HandleAudioFeedback(root, isFail: false);
+                    break;
+                case "audio.fail":
+                    HandleAudioFeedback(root, isFail: true);
+                    break;
+                case "audio.device":
+                    HandleAudioDevice(root);
+                    break;
+                case "audio.bus.state":
+                    HandleAudioBusState(root);
+                    break;
                 case "hello.ok":
                     DoHelloOk(root);
                     break;
@@ -830,6 +1419,10 @@ internal sealed class EwpHost
                 case "snapshot.req":
                 case "sys.snapshot":
                     Dispatch(() => DoSnapshot());
+                    break;
+                // T7-b：程序化滚动（可见面对拍需要把目标行滚进窗口；与滚轮同一状态路径）。
+                case "sys.scroll":
+                    Dispatch(() => DoScroll(root.Clone()));
                     break;
                 case "sys.quit":
                     DispatchQuit();
@@ -919,12 +1512,21 @@ internal sealed class EwpHost
             channelEnabled = true;
             rectEnabled = false;
             spriteExport.Enabled = false;
+            spansEnabled = false;
+            ApplyAudioCaps(false, false, false, false, false, false);
         }
         else
         {
             var hasChannel = false;
             var hasRect = false;
             var hasSpriteExport = false;
+            var hasSpans = false;
+            var hasAudio = false;
+            var hasAudioFeedback = false;
+            var hasAudioInstances = false;
+            var hasAudioBus = false;
+            var hasAudioTransitions = false;
+            var hasAudioMeta = false;
             foreach (var cap in caps.EnumerateArray())
             {
                 if (cap.ValueKind != JsonValueKind.String)
@@ -936,10 +1538,33 @@ internal sealed class EwpHost
                     hasRect = true;
                 else if (capName == "sprite.export")
                     hasSpriteExport = true;
+                else if (capName == "legacy.spans")
+                    hasSpans = true;
+                else if (capName == "audio")
+                    hasAudio = true;
+                else if (capName == "audio.feedback")
+                    hasAudioFeedback = true;
+                else if (capName == "audio.instances")
+                    hasAudioInstances = true;
+                else if (capName == "audio.bus")
+                    hasAudioBus = true;
+                else if (capName == "audio.transitions")
+                    hasAudioTransitions = true;
+                else if (capName == "audio.meta")
+                    hasAudioMeta = true;
             }
             channelEnabled = hasChannel;
             rectEnabled = hasRect;
             spriteExport.Enabled = hasSpriteExport;
+            spansEnabled = hasSpans;
+            // 1.1/C-14：feedback 无 audio ⇒ 忽略 feedback 位、ignored++、不断会话（⛔ cap_mismatch）
+            if (hasAudioFeedback && !hasAudio)
+            {
+                hasAudioFeedback = false;
+                audioLedger?.NoteIgnored();
+            }
+            ApplyAudioCaps(hasAudio, hasAudioFeedback, hasAudioInstances,
+                hasAudioBus, hasAudioTransitions, hasAudioMeta);
         }
         if (!channelEnabled)
         {
@@ -983,10 +1608,36 @@ internal sealed class EwpHost
             else
                 pixel.Enable();
         }
+        // R-AUD-8：v1 握手后、放行游戏前发一次 audio.sync（S1.2/S1.3）。
+        EmitAudioSyncIfPending();
+        // G3：握手完成——与 Subscribe 一起放行 TCP 启动门（stdio 无人在等，置位无副作用）。
+        Volatile.Write(ref helloOkSeen, 1);
+        MaybeReleaseGameStart();
     }
 
     /// <summary>R-3a：FE 请求精确快照。只读不可变快照缓存，不查 activeSprites、不现画。
     /// 成功回 sprite.data；失败回 sprite.data.fail；⛔ 不返回 result。</summary>
+    /// <summary>R-3c：动画精灵的帧数与逐帧延时（两种类型统一口径）。</summary>
+    private static bool TryAnimInfo(ASprite sprite, out int count, out int[] delays)
+    {
+        switch (sprite)
+        {
+            case SpriteAnimated animated:
+                count = animated.FrameCount;
+                delays = animated.GetDelays();
+                break;
+            case SpriteAnime anime:
+                count = anime.FrameCount;
+                delays = anime.GetDelays();
+                break;
+            default:
+                count = 0;
+                delays = null;
+                break;
+        }
+        return count > 1 && delays != null && delays.Length == count;
+    }
+
     private void DoSpriteRequest(JsonElement root)
     {
         // EG-1b：旧 FE（caps 未声明 sprite.export）明确忽略——⛔不回 data/fail，只计数。
@@ -1001,7 +1652,13 @@ internal sealed class EwpHost
             texture = texEl.GetString();
         if (root.TryGetProperty("rev", out var revEl) && revEl.ValueKind == JsonValueKind.Number)
             revEl.TryGetInt64(out rev);
-        if (string.IsNullOrEmpty(texture) || rev <= 0)
+        // R-3c：可选 frame（动态 webp 按帧导出；与 rev 互斥，frame>=0 时忽略 rev）
+        int frameIndex = -1;
+        if (root.TryGetProperty("frame", out var frameEl) && frameEl.ValueKind == JsonValueKind.Number)
+            frameEl.TryGetInt32(out frameIndex);
+        if (rev < 0)
+            frameIndex = (int)(-rev - 1);   // R-3c：负 rev＝动画帧伪键（frame = -rev-1）
+        if (string.IsNullOrEmpty(texture) || (frameIndex < 0 && rev <= 0))
         {
             EmitSpriteFail(texture ?? "", rev, "bad_request",
                 string.IsNullOrEmpty(texture) ? "texture" : "rev");
@@ -1009,6 +1666,46 @@ internal sealed class EwpHost
         }
 
         string key = texture.ToUpperInvariant();
+        if (frameIndex >= 0)
+        {
+            int fw = 0, fh = 0;
+            if (root.TryGetProperty("w", out var wEl) && wEl.ValueKind == JsonValueKind.Number)
+                wEl.TryGetInt32(out fw);
+            if (root.TryGetProperty("h", out var hEl) && hEl.ValueKind == JsonValueKind.Number)
+                hEl.TryGetInt32(out fh);
+            var animSprite = AppContents.GetSprite(key);
+            if (!TryAnimInfo(animSprite, out int frameCount, out _) || frameCount <= frameIndex)
+            {
+                EmitSpriteFail(key, 0, "not_exportable", "not_animated");
+                return;
+            }
+            if (fw <= 0 || fh <= 0)
+            {
+                fw = animSprite.DestBaseSize.Width;
+                fh = animSprite.DestBaseSize.Height;
+            }
+            long frameRev = spriteExport.CaptureAnimatedFrame(animSprite, frameIndex, fw, fh);
+            if (frameRev <= 0)
+            {
+                EmitSpriteFail(key, 0, "not_exportable", "animated");
+                return;
+            }
+            if (!spriteExport.TryEncode(key, frameRev, out var fpng, out int ew, out int eh,
+                    out var fcode, out var fdetail))
+            {
+                EmitSpriteFail(key, frameRev, fcode ?? "not_exportable", fdetail);
+                return;
+            }
+            var fsb = new StringBuilder(256 + fpng.Length * 2);
+            fsb.Append("{\"t\":\"sprite.data\",\"texture\":").Append(J(key))
+                .Append(",\"rev\":").Append(-(frameIndex + 1))
+                .Append(",\"frame\":").Append(frameIndex)
+                .Append(",\"w\":").Append(ew)
+                .Append(",\"h\":").Append(eh)
+                .Append(",\"fmt\":\"png\",\"data\":\"").Append(Convert.ToBase64String(fpng)).Append("\"}");
+            EwpOut.Emit(fsb.ToString());
+            return;
+        }
         if (!spriteExport.TryEncode(key, rev, out var png, out int w, out int h, out var code, out var detail))
         {
             EmitSpriteFail(key, rev, code ?? "not_exportable", detail);
@@ -1055,7 +1752,7 @@ internal sealed class EwpHost
             mismatch = channelMismatch;
         }
         var spriteStats = spriteExport.Stats();
-        EwpOut.Emit("{\"t\":\"result\",\"ok\":true,\"state\":" + J(console.CliStateName)
+        var json = "{\"t\":\"result\",\"ok\":true,\"state\":" + J(console.CliStateName)
             + ",\"waitInput\":" + (console.IsWaitInputState ? "true" : "false")
             + ",\"reqId\":" + currentReqId
             + ",\"generation\":" + currentGeneration
@@ -1076,6 +1773,12 @@ internal sealed class EwpHost
             + ",\"channelMismatch\":" + mismatch
             + ",\"channelEnabled\":" + (channelEnabled ? "true" : "false")
             + ",\"rectSelfCheckFailed\":" + Interlocked.Read(ref rectSelfCheckFailed)
+            + ",\"rectDiag\":" + EmitRectDiag(console)
+            + ",\"spansEnabled\":" + (spansEnabled ? "true" : "false")
+            + ",\"spansEmitted\":" + Interlocked.Read(ref spansEmitted)
+            + ",\"spansSkipped\":" + Interlocked.Read(ref spansSkipped)
+            + ",\"spansChildNodes\":" + Interlocked.Read(ref spansChildNodes)
+            + ",\"spansChildTruncated\":" + Interlocked.Read(ref spansChildTruncated)
             + ",\"spriteExport\":{\"enabled\":" + (spriteStats.Enabled ? "true" : "false")
             + ",\"snapshots\":" + spriteStats.Snapshots
             + ",\"bytes\":" + spriteStats.Bytes
@@ -1088,7 +1791,834 @@ internal sealed class EwpHost
             + ",\"captureMsP95\":" + D(spriteStats.CaptureMsP95)
             + ",\"encodeMsLast\":" + D(spriteStats.EncodeMsLast)
             + ",\"encodeMsP50\":" + D(spriteStats.EncodeMsP50)
-            + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}}");
+            + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}"
+            + ",\"scroll\":" + ScrollJson();
+        // Q15/R-AUD-4：cap 未启用 ⇒ sys.state 不出现 audio 键（旧 FE 零字段副作用）
+        if (audioEnabled)
+            json += ",\"audio\":" + AudioStateJson();
+        EwpOut.Emit(json + "}");
+    }
+
+    // ---------------- R-AUD-4：audio（caps/事件/回供/状态） ----------------
+
+    private void ApplyAudioCaps(bool audio, bool feedback, bool instances,
+        bool bus, bool transitions, bool meta)
+    {
+        bool v1 = audio && instances;
+        if (!v1)
+        {
+            bus = transitions = meta = false;
+        }
+        bool newlyEnabled = audio && !audioEnabled;
+        audioEnabled = audio;
+        feedbackEnabled = feedback && audio;
+        audioV1Enabled = v1;
+        audioBusCap = v1 && bus;
+        audioTransitionsCap = v1 && transitions;
+        audioMetaCap = v1 && meta;
+        // v0.2 账本只在 v0.2 模式启用；v1 由 AudioV1Ledger 接管。
+        AudioHooks.Enabled = audio && !v1;
+        AudioHooks.FeedbackEnabled = feedbackEnabled;
+        if (!audio)
+        {
+            AudioHooks.Mode = AudioMode.None;
+            audioV1Ledger?.ResetSession();
+            audioSyncPending = false;
+        }
+        else if (v1)
+        {
+            // S1.2/S1.3：sync 是首条 v1 控制事件；握手期意图已在 shadow 里。
+            AudioHooks.BeginV1Sync();
+            AudioHooks.Mode = AudioMode.V1;
+            audioV1Ledger?.Configure(audioBusCap, audioTransitionsCap, audioMetaCap,
+                feedbackEnabled);
+            audioSyncPending = true;
+        }
+        else
+        {
+            AudioHooks.Mode = AudioMode.V02;
+            audioV1Ledger?.ResetSession();
+            audioSyncPending = false;
+        }
+        if (newlyEnabled)
+        {
+            // Q1：FE 声明 audio ⇒ VM 静音本机。启动期可能已有原生 BGM/SE 在响（hello.ok 之前
+            // 指令层走原生路径），一次性停掉；此后所有音频指令都走账本，不再碰本机后端。
+            try
+            {
+                if (!win.IsDisposed)
+                    win.Invoke(new Action(MuteNativeAudio));
+            }
+            catch { }
+        }
+    }
+
+    /// <summary>握手 v1 后发一次全量重建（§6.1/S1.2）；超限 fail-closed（§6.2 A-01）。</summary>
+    private void EmitAudioSyncIfPending()
+    {
+        if (!audioSyncPending)
+            return;
+        audioSyncPending = false;
+        var v1 = audioV1Ledger;
+        if (v1 == null)
+        {
+            AudioHooks.ReleaseV1Sync();
+            return;
+        }
+        AudioHooks.EmitV1SyncNow(new AudioV1Event
+        {
+            T = "audio.sync",
+            Sync = v1.BuildSync(),
+        });
+        AudioHooks.ReleaseV1Sync();
+    }
+
+    private static void MuteNativeAudio()
+    {
+        try
+        {
+            var bgm = GlobalStatic.Bgm;
+            if (bgm != null)
+                bgm.stop();
+            var se = GlobalStatic.Sound;
+            if (se != null)
+            {
+                for (int i = 0; i < se.Length; i++)
+                {
+                    var s = se[i];
+                    if (s != null)
+                        s.stop();
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static string ActName(AudioAct act)
+    {
+        switch (act)
+        {
+            case AudioAct.Play: return "play";
+            case AudioAct.Stop: return "stop";
+            case AudioAct.StopAll: return "stopAll";
+            case AudioAct.Pause: return "pause";
+            case AudioAct.Resume: return "resume";
+            case AudioAct.Volume: return "volume";
+            case AudioAct.Speed: return "speed";
+            default: return "unknown";
+        }
+    }
+
+    private static string PhaseName(AudioPhase phase)
+    {
+        switch (phase)
+        {
+            case AudioPhase.Playing: return "Playing";
+            case AudioPhase.Paused: return "Paused";
+            case AudioPhase.Ended: return "Ended";
+            case AudioPhase.Failed: return "Failed";
+            default: return "Idle";
+        }
+    }
+
+    /// <summary>至少保留一位小数（spec 示例 speed:1.0；JSON 数值仍等值）。</summary>
+    private static string F(double v)
+        => v.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>AudioHooks.Sink：Runtime 账本 → wire 事件（普通服务端事件，走 EwpOut.Emit）。</summary>
+    private void OnAudioEvent(AudioEvent ev)
+    {
+        // v1 模式零 audio.bgm/se（spec §7.1 机械判据）。
+        if (ev == null || !audioEnabled || audioV1Enabled)
+            return;
+        var sb = new StringBuilder(192);
+        sb.Append("{\"t\":\"").Append(ev.IsBgm ? "audio.bgm" : "audio.se")
+            .Append("\",\"act\":\"").Append(ActName(ev.Act)).Append('"');
+        switch (ev.Act)
+        {
+            case AudioAct.Play:
+                if (!ev.IsBgm)
+                    sb.Append(",\"ch\":").Append(ev.Ch);
+                sb.Append(",\"gen\":").Append(ev.Gen)
+                    .Append(",\"track\":").Append(J(ev.Track));
+                if (ev.IsBgm)
+                    sb.Append(",\"loop\":").Append(ev.Loop ? "true" : "false");
+                else
+                    sb.Append(",\"repeat\":").Append(ev.Repeat);
+                sb.Append(",\"volume\":").Append(ev.Volume)
+                    .Append(",\"speed\":").Append(F(ev.Speed));
+                break;
+            case AudioAct.Volume:
+                if (!ev.IsBgm)
+                {
+                    // 全局 SE 音量：无 ch / gen（spec §2.3）
+                    sb.Append(",\"volume\":").Append(ev.Volume);
+                }
+                else
+                {
+                    sb.Append(",\"gen\":").Append(ev.Gen)
+                        .Append(",\"volume\":").Append(ev.Volume);
+                }
+                break;
+            case AudioAct.Speed:
+                if (!ev.IsBgm)
+                    sb.Append(",\"ch\":").Append(ev.Ch);
+                sb.Append(",\"gen\":").Append(ev.Gen)
+                    .Append(",\"speed\":").Append(F(ev.Speed))
+                    .Append(",\"preservePitch\":").Append(ev.PreservePitch ? "true" : "false");
+                break;
+            case AudioAct.StopAll:
+                break;
+            default: // stop / pause / resume
+                if (!ev.IsBgm)
+                    sb.Append(",\"ch\":").Append(ev.Ch);
+                sb.Append(",\"gen\":").Append(ev.Gen);
+                break;
+        }
+        sb.Append('}');
+        EwpOut.Emit(sb.ToString());
+    }
+
+    // ---------------- R-AUD-8：audio v1 事件/回供/状态 ----------------
+
+    /// <summary>AudioHooks v1 sink：序列化 + 体积 fail-closed（普通 ≤2 KiB，sync ≤128 KiB）。</summary>
+    private void OnAudioV1Event(AudioV1Event ev)
+    {
+        if (ev == null || !audioV1Enabled)
+            return;
+        string json = AudioV1Json(ev);
+        int limit = ev.T == "audio.sync" ? 131072 : 2048;
+        if (Encoding.UTF8.GetByteCount(json) > limit)
+        {
+            audioV1Ledger?.NoteEventDropped();
+            return;
+        }
+        EwpOut.Emit(json);
+        if (ev.T == "audio.sync")
+            audioV1Ledger?.NoteSyncSent();
+    }
+
+    private static string AudioV1Json(AudioV1Event ev)
+    {
+        var sb = new StringBuilder(256);
+        switch (ev.T)
+        {
+            case "audio.play":
+                sb.Append("{\"t\":\"audio.play\",\"handle\":").Append(ev.Handle)
+                    .Append(",\"bus\":").Append(J(ev.Bus))
+                    .Append(",\"track\":").Append(J(ev.Track))
+                    .Append(",\"loop\":").Append(ev.Loop ? "true" : "false")
+                    .Append(",\"volume\":").Append(ev.Volume)
+                    .Append(",\"rate\":").Append(F(ev.Rate))
+                    .Append(",\"priority\":").Append(ev.Priority)
+                    .Append(",\"preservePitch\":").Append(ev.PreservePitch ? "true" : "false");
+                if (ev.FadeInMs > 0)
+                    sb.Append(",\"fadeInMs\":").Append(ev.FadeInMs);
+                if (ev.CrossfadeFrom > 0)
+                {
+                    sb.Append(",\"crossfadeFrom\":").Append(ev.CrossfadeFrom)
+                        .Append(",\"crossfadeMs\":").Append(ev.CrossfadeMs);
+                }
+                if (ev.Repeat > 1)
+                    sb.Append(",\"repeat\":").Append(ev.Repeat);
+                sb.Append('}');
+                return sb.ToString();
+            case "audio.ctl":
+                sb.Append("{\"t\":\"audio.ctl\",\"handle\":").Append(ev.Handle)
+                    .Append(",\"act\":").Append(J(ev.Act));
+                switch (ev.Act)
+                {
+                    case "seek":
+                    case "volume":
+                    case "fade":
+                    case "priority":
+                    case "loop":
+                        sb.Append(",\"value\":");
+                        if (ev.ValueIsInt)
+                            sb.Append((long)ev.Value);
+                        else
+                            sb.Append(F(ev.Value));
+                        break;
+                    case "rate":
+                        sb.Append(",\"value\":").Append(F(ev.Value));
+                        if (ev.HasPreservePitch)
+                            sb.Append(",\"preservePitch\":")
+                                .Append(ev.PreservePitchValue ? "true" : "false");
+                        break;
+                }
+                if (ev.Act is "stop" or "volume" or "fade")
+                {
+                    if (ev.DurationMs > 0 || ev.Act == "fade")
+                        sb.Append(",\"durationMs\":").Append(ev.DurationMs);
+                    if (!string.IsNullOrEmpty(ev.Curve))
+                        sb.Append(",\"curve\":").Append(J(ev.Curve));
+                }
+                sb.Append('}');
+                return sb.ToString();
+            case "audio.bus":
+                sb.Append("{\"t\":\"audio.bus\",\"bus\":").Append(J(ev.Bus))
+                    .Append(",\"act\":").Append(J(ev.Act));
+                if (ev.Act == "stop_all")
+                {
+                    sb.Append(",\"includePaused\":").Append(ev.IncludePaused ? "true" : "false");
+                    if (ev.DurationMs > 0)
+                        sb.Append(",\"durationMs\":").Append(ev.DurationMs);
+                }
+                else if (ev.HasBusValue)
+                {
+                    sb.Append(",\"value\":").Append(ev.BusValue);
+                }
+                sb.Append('}');
+                return sb.ToString();
+            case "audio.duck":
+                sb.Append("{\"t\":\"audio.duck\",\"sourceBus\":").Append(J(ev.SourceBus))
+                    .Append(",\"targetBus\":").Append(J(ev.TargetBus))
+                    .Append(",\"duckDb\":").Append(F(ev.DuckDb))
+                    .Append(",\"attackMs\":").Append(ev.AttackMs)
+                    .Append(",\"releaseMs\":").Append(ev.ReleaseMs)
+                    .Append(",\"enabled\":").Append(ev.Enabled ? "true" : "false")
+                    .Append('}');
+                return sb.ToString();
+            case "audio.sync":
+                return AudioV1SyncJson(ev.Sync);
+            default:
+                return "{}";
+        }
+    }
+
+    private static string AudioV1SyncJson(AudioV1Sync sync)
+    {
+        if (sync == null)
+            return "{\"t\":\"audio.sync\",\"syncId\":0,\"handles\":[],\"buses\":[],\"ducks\":[]}";
+        var sb = new StringBuilder(1024);
+        sb.Append("{\"t\":\"audio.sync\",\"syncId\":").Append(sync.SyncId)
+            .Append(",\"handles\":[");
+        for (int i = 0; i < sync.Handles.Count; i++)
+        {
+            var h = sync.Handles[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"handle\":").Append(h.Handle)
+                .Append(",\"bus\":").Append(J(h.Bus))
+                .Append(",\"track\":").Append(J(h.Track))
+                .Append(",\"state\":").Append(J(h.State))
+                .Append(",\"loop\":").Append(h.Loop ? "true" : "false")
+                .Append(",\"volume\":").Append(h.Volume)
+                .Append(",\"rate\":").Append(F(h.Rate))
+                .Append(",\"priority\":").Append(h.Priority)
+                .Append(",\"posMs\":").Append(h.PosMs)
+                .Append(",\"preservePitch\":").Append(h.PreservePitch ? "true" : "false");
+            if (h.DurMs > 0)
+                sb.Append(",\"durMs\":").Append(h.DurMs);
+            if (h.Repeat > 1)
+                sb.Append(",\"repeat\":").Append(h.Repeat);
+            sb.Append('}');
+        }
+        sb.Append("],\"buses\":[");
+        for (int i = 0; i < sync.Buses.Count; i++)
+        {
+            var b = sync.Buses[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"bus\":").Append(J(b.Bus))
+                .Append(",\"volume\":").Append(b.Volume)
+                .Append(",\"mute\":").Append(b.Mute ? "true" : "false")
+                .Append('}');
+        }
+        sb.Append("],\"ducks\":[");
+        for (int i = 0; i < sync.Ducks.Count; i++)
+        {
+            var d = sync.Ducks[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"sourceBus\":").Append(J(d.SourceBus))
+                .Append(",\"targetBus\":").Append(J(d.TargetBus))
+                .Append(",\"duckDb\":").Append(F(d.DuckDb))
+                .Append(",\"attackMs\":").Append(d.AttackMs)
+                .Append(",\"releaseMs\":").Append(d.ReleaseMs)
+                .Append(",\"enabled\":").Append(d.Enabled ? "true" : "false")
+                .Append('}');
+        }
+        sb.Append("]}");
+        return sb.ToString();
+    }
+
+    private static readonly HashSet<string> AudioFailCodes = new(StringComparer.Ordinal)
+    {
+        "decode", "not_found", "no_device", "path_escape", "no_access", "decode_cached",
+    };
+
+    private static readonly HashSet<string> AudioFailCodesV1 = new(StringComparer.Ordinal)
+    {
+        "decode", "not_found", "no_device", "path_escape", "no_access", "decode_cached",
+        "unsupported_cap", "voice_limit", "bad_bus", "bad_handle",
+    };
+
+    private static bool TryGetDoubleProp(JsonElement root, string name, out double value)
+    {
+        value = 0;
+        return root.TryGetProperty(name, out var el)
+            && el.ValueKind == JsonValueKind.Number
+            && el.TryGetDouble(out value);
+    }
+
+    /// <summary>v1 audio.state / audio.fail（handle 形状；通知型，⛔ 回 result / 进 frame.commit）。</summary>
+    private void HandleAudioV1Feedback(JsonElement root, bool isFail)
+    {
+        var ledger = audioV1Ledger;
+        if (ledger == null)
+            return;
+        if (!feedbackEnabled)
+        {
+            ledger.NoteIgnored();
+            return;
+        }
+        if (!TryGetIntProp(root, "handle", out int handle) || handle < 1)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        string track = OptStringProp(root, "track");
+        if (isFail)
+        {
+            string failCode = OptStringProp(root, "code");
+            if (failCode == null || !AudioFailCodesV1.Contains(failCode))
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+            ledger.ApplyFail(handle, failCode, track);
+            return;
+        }
+        string state = OptStringProp(root, "state");
+        if (state != "playing" && state != "paused" && state != "ended" && state != "deferred")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        if (!TryGetLongProp(root, "posMs", out long posMs) || posMs < 0)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        bool hasDur = TryGetLongProp(root, "durMs", out long durMs);
+        if (hasDur && durMs < 0)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        double rate = 0;
+        if (root.TryGetProperty("rate", out _))
+        {
+            if (!TryGetDoubleProp(root, "rate", out rate) || rate <= 0)
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        int volume = -1;
+        if (root.TryGetProperty("volume", out _))
+        {
+            if (!TryGetIntProp(root, "volume", out volume) || volume < 0 || volume > 100)
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        double eff = 0;
+        bool hasEff = root.TryGetProperty("effectiveVolume", out _);
+        if (hasEff && (!TryGetDoubleProp(root, "effectiveVolume", out eff)
+            || eff < 0 || eff > 100))
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        long latency = -1;
+        if (root.TryGetProperty("latencyMs", out _))
+        {
+            if (!TryGetLongProp(root, "latencyMs", out latency) || latency < 0)
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        int pitch = -1;
+        if (root.TryGetProperty("pitchPreserved", out var pitchEl))
+        {
+            if (pitchEl.ValueKind == JsonValueKind.True)
+                pitch = 1;
+            else if (pitchEl.ValueKind == JsonValueKind.False)
+                pitch = 0;
+            else
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        string code = OptStringProp(root, "code");
+        if (state == "deferred" && code != null && code != "autoplay_blocked")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        ledger.ApplyState(handle, state, posMs, hasDur ? durMs : 0, hasDur, rate,
+            volume, eff, hasEff, pitch, latency, code, track);
+    }
+
+    /// <summary>v1 audio.device（需 audio.meta＋audio.feedback；通知型）。</summary>
+    private void HandleAudioDevice(JsonElement root)
+    {
+        var ledger = audioV1Ledger;
+        if (ledger == null)
+            return;
+        if (!audioV1Enabled || !audioMetaCap || !feedbackEnabled)
+        {
+            ledger.NoteIgnored();
+            return;
+        }
+        string state = OptStringProp(root, "state");
+        if (state != "changed" && state != "unavailable" && state != "restored")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        long latency = -1;
+        if (root.TryGetProperty("latencyMs", out _))
+        {
+            if (!TryGetLongProp(root, "latencyMs", out latency) || latency < 0)
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        ledger.ApplyDevice(state, latency);
+    }
+
+    /// <summary>v1 audio.bus.state（需 audio.meta＋audio.feedback；只用于对拍）。</summary>
+    private void HandleAudioBusState(JsonElement root)
+    {
+        var ledger = audioV1Ledger;
+        if (ledger == null)
+            return;
+        if (!audioV1Enabled || !audioMetaCap || !feedbackEnabled)
+        {
+            ledger.NoteIgnored();
+            return;
+        }
+        string bus = OptStringProp(root, "bus");
+        if (bus == null || !TryGetDoubleProp(root, "effectiveVolume", out double eff)
+            || eff < 0 || eff > 100)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        int mute = -1;
+        if (root.TryGetProperty("mute", out var muteEl))
+        {
+            if (muteEl.ValueKind == JsonValueKind.True)
+                mute = 1;
+            else if (muteEl.ValueKind == JsonValueKind.False)
+                mute = 0;
+            else
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        double duck = 0;
+        bool hasDuck = root.TryGetProperty("duckDb", out _);
+        if (hasDuck && !TryGetDoubleProp(root, "duckDb", out duck))
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        ledger.ApplyBusState(bus, eff, true, mute, duck, hasDuck);
+    }
+
+    private static bool TryGetIntProp(JsonElement root, string name, out int value)
+    {
+        value = 0;
+        return root.TryGetProperty(name, out var el)
+            && el.ValueKind == JsonValueKind.Number
+            && el.TryGetInt32(out value);
+    }
+
+    private static bool TryGetLongProp(JsonElement root, string name, out long value)
+    {
+        value = 0;
+        return root.TryGetProperty(name, out var el)
+            && el.ValueKind == JsonValueKind.Number
+            && el.TryGetInt64(out value);
+    }
+
+    private static string OptStringProp(JsonElement root, string name)
+    {
+        return root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String
+            ? el.GetString()
+            : null;
+    }
+
+    /// <summary>audio.state / audio.fail（传输线程）：解析失败 badReports++，⛔ 回 result、⛔ 进 frame.commit。</summary>
+    private void HandleAudioFeedback(JsonElement root, bool isFail)
+    {
+        if (audioV1Enabled)
+        {
+            HandleAudioV1Feedback(root, isFail);
+            return;
+        }
+        var ledger = audioLedger;
+        if (ledger == null)
+            return;
+        if (!audioEnabled || !feedbackEnabled)
+        {
+            // 未启用/未声明 feedback 的 audio.* ⇒ 丢弃并计 ignored（spec §4.5）
+            ledger.NoteIgnored();
+            return;
+        }
+        if (!TryGetIntProp(root, "ch", out int ch) || ch < -1 || ch > 9
+            || !TryGetLongProp(root, "gen", out long gen) || gen < 1)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        string track = OptStringProp(root, "track");
+        if (isFail)
+        {
+            string failCode = OptStringProp(root, "code");
+            if (failCode == null || !AudioFailCodes.Contains(failCode))
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+            ledger.ApplyFail(ch, gen, failCode, track);
+            return;
+        }
+
+        string state = OptStringProp(root, "state");
+        if (state != "playing" && state != "paused" && state != "ended" && state != "deferred")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        if (!TryGetLongProp(root, "posMs", out long posMs) || posMs < 0)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        bool hasDur = TryGetLongProp(root, "durMs", out long durMs);
+        if (hasDur && durMs < 0)
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        int pitch = -1;
+        if (root.TryGetProperty("pitchPreserved", out var pitchEl))
+        {
+            if (pitchEl.ValueKind == JsonValueKind.True)
+                pitch = 1;
+            else if (pitchEl.ValueKind == JsonValueKind.False)
+                pitch = 0;
+            else
+            {
+                ledger.NoteBadReport();
+                return;
+            }
+        }
+        string code = OptStringProp(root, "code");
+        if (state == "deferred" && code != null && code != "autoplay_blocked")
+        {
+            ledger.NoteBadReport();
+            return;
+        }
+        ledger.ApplyState(ch, gen, state, posMs, hasDur ? durMs : 0, hasDur, track, pitch, code);
+    }
+
+    /// <summary>桌面 NAudio 混音器是否被初始化过（headless 无此类型 ⇒ null）。
+    /// 只读反射：EwpHost 同时编进 headless 工程，⛔ 不能直接引用 SoundMixer（headless 剔除 NAudio）。</summary>
+    private static string MixerStateJson()
+    {
+        try
+        {
+            var t = Type.GetType("MinorShift.Emuera.Runtime.Utils.SoundMixer");
+            var p = t?.GetProperty("Initialized", BindingFlags.Public | BindingFlags.Static);
+            if (p != null)
+                return (bool)p.GetValue(null) ? "true" : "false";
+        }
+        catch { }
+        return "null";
+    }
+
+    /// <summary>sys.state.audio（spec §4.4 v0.2 / §9.2 v1；cap 未启用时调用方不追加此键）。</summary>
+    private string AudioStateJson()
+    {
+        if (audioV1Enabled)
+            return AudioV1StateJson();
+        var ledger = audioLedger;
+        if (ledger == null)
+            return "null";
+        var st = ledger.Stats();
+        var sb = new StringBuilder(640);
+        sb.Append("{\"enabled\":true,\"queryMode\":").Append(J(st.QueryMode))
+            .Append(",\"played\":").Append(st.Played)
+            .Append(",\"stopped\":").Append(st.Stopped)
+            .Append(",\"failed\":").Append(st.Failed)
+            .Append(",\"missing\":").Append(st.Missing)
+            .Append(",\"unsafePath\":").Append(st.UnsafePath)
+            .Append(",\"ignored\":").Append(st.Ignored)
+            .Append(",\"staleReports\":").Append(st.StaleReports)
+            .Append(",\"badReports\":").Append(st.BadReports)
+            .Append(",\"queryFallback\":").Append(st.QueryFallback)
+            .Append(",\"trackMismatch\":").Append(st.TrackMismatch)
+            // 测试诊断（⛔ 业务事件；G2/Q1 的 nativeSuppressed 读数）
+            .Append(",\"diag\":{\"nativeSuppressed\":").Append(st.NativeSuppressed)
+            .Append(",\"mixerInitialized\":").Append(MixerStateJson()).Append('}')
+            .Append(",\"channels\":[");
+        var chans = st.Channels ?? Array.Empty<AudioChannelInfo>();
+        for (int i = 0; i < chans.Length; i++)
+        {
+            var c = chans[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"ch\":").Append(c.Ch)
+                .Append(",\"phase\":\"").Append(PhaseName(c.Phase)).Append('"')
+                .Append(",\"gen\":").Append(c.Gen);
+            if (!string.IsNullOrEmpty(c.Track))
+                sb.Append(",\"track\":").Append(J(c.Track));
+            sb.Append(",\"queryMode\":").Append(J(c.QueryMode ?? "unknown"));
+            if (c.FeedbackStaleMs >= 0)
+                sb.Append(",\"feedbackStaleMs\":").Append(c.FeedbackStaleMs);
+            if (c.PitchPreserved == 1)
+                sb.Append(",\"pitchPreserved\":true");
+            else if (c.PitchPreserved == 2)
+                sb.Append(",\"pitchPreserved\":false");
+            sb.Append('}');
+        }
+        sb.Append("]}");
+        return sb.ToString();
+    }
+
+    /// <summary>sys.state.audio（v1；spec §9.2 加法字段，v0.2 字段不在此模式出现）。</summary>
+    private string AudioV1StateJson()
+    {
+        var ledger = audioV1Ledger;
+        if (ledger == null)
+            return "null";
+        var st = ledger.Stats();
+        var sb = new StringBuilder(2048);
+        sb.Append("{\"enabled\":true,\"mode\":\"v1\",\"queryMode\":")
+            .Append(J(st.QueryMode ?? "unknown"))
+            .Append(",\"audioUnavailable\":").Append(st.AudioUnavailable ? "true" : "false")
+            .Append(",\"played\":").Append(st.Played)
+            .Append(",\"stopped\":").Append(st.Stopped)
+            .Append(",\"failed\":").Append(st.Failed)
+            .Append(",\"missing\":").Append(st.Missing)
+            .Append(",\"unsafePath\":").Append(st.UnsafePath)
+            .Append(",\"ignored\":").Append(st.Ignored)
+            .Append(",\"staleReports\":").Append(st.StaleReports)
+            .Append(",\"badReports\":").Append(st.BadReports)
+            .Append(",\"queryFallback\":").Append(st.QueryFallback)
+            .Append(",\"trackMismatch\":").Append(st.TrackMismatch)
+            .Append(",\"handlesAllocated\":").Append(st.HandlesAllocated)
+            .Append(",\"rejected\":").Append(st.Rejected)
+            .Append(",\"voiceLimit\":").Append(st.VoiceLimit)
+            .Append(",\"stolen\":").Append(st.Stolen)
+            .Append(",\"degraded\":").Append(st.Degraded)
+            .Append(",\"unsupportedCap\":").Append(st.UnsupportedCap)
+            .Append(",\"handleExhausted\":").Append(st.HandleExhausted)
+            .Append(",\"unknownHandleReports\":").Append(st.UnknownHandleReports)
+            .Append(",\"syncSent\":").Append(st.SyncSent)
+            .Append(",\"syncId\":").Append(st.SyncId)
+            .Append(",\"channels\":[");
+        var chans = st.Channels ?? Array.Empty<AudioChannelInfo>();
+        for (int i = 0; i < chans.Length; i++)
+        {
+            var c = chans[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"ch\":").Append(c.Ch)
+                .Append(",\"phase\":\"").Append(PhaseName(c.Phase)).Append('"')
+                .Append(",\"gen\":").Append(c.Gen);
+            if (!string.IsNullOrEmpty(c.Track))
+                sb.Append(",\"track\":").Append(J(c.Track));
+            sb.Append(",\"queryMode\":").Append(J(c.QueryMode ?? "unknown"));
+            if (c.FeedbackStaleMs >= 0)
+                sb.Append(",\"feedbackStaleMs\":").Append(c.FeedbackStaleMs);
+            if (c.PitchPreserved == 1)
+                sb.Append(",\"pitchPreserved\":true");
+            else if (c.PitchPreserved == 2)
+                sb.Append(",\"pitchPreserved\":false");
+            sb.Append('}');
+        }
+        sb.Append("],\"instances\":[");
+        var insts = st.Instances ?? Array.Empty<AudioV1InstanceInfo>();
+        for (int i = 0; i < insts.Length; i++)
+        {
+            var inst = insts[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"handle\":").Append(inst.Handle)
+                .Append(",\"bus\":").Append(J(inst.Bus))
+                .Append(",\"state\":").Append(J(inst.State))
+                .Append(",\"posMs\":").Append(inst.PosMs)
+                .Append(",\"rate\":").Append(F(inst.Rate))
+                .Append(",\"priority\":").Append(inst.Priority)
+                .Append(",\"volume\":").Append(inst.Volume)
+                .Append(",\"stolenBy\":").Append(inst.StolenBy);
+            if (inst.DurMs > 0)
+                sb.Append(",\"durMs\":").Append(inst.DurMs);
+            if (inst.EffectiveTenths >= 0)
+                sb.Append(",\"effectiveVolume\":")
+                    .Append(F(inst.EffectiveTenths / 10.0));
+            if (inst.PitchPreserved >= 0)
+                sb.Append(",\"pitchPreserved\":")
+                    .Append(inst.PitchPreserved == 1 ? "true" : "false");
+            sb.Append('}');
+        }
+        sb.Append("],\"buses\":[");
+        var buses = st.Buses ?? Array.Empty<AudioV1BusInfo>();
+        for (int i = 0; i < buses.Length; i++)
+        {
+            var b = buses[i];
+            if (i > 0)
+                sb.Append(',');
+            sb.Append("{\"bus\":").Append(J(b.Bus))
+                .Append(",\"volume\":").Append(b.Volume)
+                .Append(",\"mute\":").Append(b.Mute ? "true" : "false")
+                .Append(",\"duckDb\":").Append(F(-b.DuckDbTenths / 10.0));
+            if (b.EffectiveTenths >= 0)
+                sb.Append(",\"effectiveVolume\":").Append(F(b.EffectiveTenths / 10.0));
+            if (b.DuckFeedbackTenths >= 0)
+                sb.Append(",\"duckDbFeedback\":")
+                    .Append(F(b.DuckFeedbackTenths / 10.0));
+            sb.Append(",\"voices\":").Append(b.Voices);
+            sb.Append('}');
+        }
+        sb.Append("]}");
+        return sb.ToString();
+    }
+
+    /// <summary>W2a：rect 导出诊断（console.LastRectDiag——最近一次 GetSelectableButtonRects 的
+    /// 失败原因分布与几何快照）。只读观测，⛔ 门禁语义仍用累计的 rectSelfCheckFailed。</summary>
+    private static string EmitRectDiag(EmueraConsole? console)
+    {
+        if (console == null)
+            return "null";
+        var d = console.LastRectDiag;
+        return "{\"noWindow\":" + d.NoWindow
+            + ",\"noStrArray\":" + d.NoStrArray
+            + ",\"widthNonPositive\":" + d.WidthNonPositive
+            + ",\"renderInvalid\":" + d.RenderInvalid
+            + ",\"normalRect\":" + d.NormalRect
+            + ",\"divPosUnusable\":" + d.DivPosUnusable
+            + ",\"divNoParent\":" + d.DivNoParent
+            + ",\"divParentNotInList\":" + d.DivParentNotInList
+            + ",\"divEmptyContent\":" + d.DivEmptyContent
+            + ",\"divRect\":" + d.DivRect
+            + ",\"renderW\":" + d.RenderW
+            + ",\"renderH\":" + d.RenderH
+            + ",\"bottomLine\":" + d.BottomLine
+            + ",\"scrollBottom\":" + d.ScrollBottom
+            + ",\"lineCount\":" + d.LineCount + "}";
     }
 
     /// <summary>结构化快照（B2/S1）：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；
@@ -1109,8 +2639,17 @@ internal sealed class EwpHost
         for (int i = 0; i < liveLines.Count; i++)
         {
             if (i > 0) sb.Append(',');
-            sb.Append("{\"lineId\":").Append(liveLines[i].Id)
-                .Append(",\"text\":").Append(J(liveLines[i].Text)).Append('}');
+            // W0：retained 行若含运行期行内像素（rt），快照必须重建 spans 并重捕获新 rev；
+            // 不得复用可能已被 LRU 淘汰的旧 rev（旧 rev 仍按不可变语义返回旧图）。
+            // 非 rt 行（文本/几何）保持原 spans，避免无意义重建与文本漂移。
+            var ll = liveLines[i];
+            if (spansEnabled && ll.Line != null && ll.Spans != null && ll.Spans.Contains("\"rt\":true"))
+                ll.Spans = BuildSpans(ll.Line);
+            sb.Append("{\"lineId\":").Append(ll.Id)
+                .Append(",\"text\":").Append(J(ll.Text));
+            if (ll.Spans != null)
+                sb.Append(",\"spans\":").Append(ll.Spans);
+            sb.Append('}');
         }
         sb.Append("],\"sprites\":[");
         for (int i = 0; i < liveSprites.Count; i++)
@@ -1199,13 +2738,71 @@ internal sealed class EwpHost
                     sb.Append("]}");
                 }
             }
-            sb.Append("]}");
+            // T7-b：快照附带控制台滚动位置（FE 可按同一窗口渲染 backlog；旧 FE 忽略该键）。
+            // ⚠ 必须在对象闭合前追加（最后一处 "]}")，否则 JSON 结构破裂。
+            sb.Append("],\"scroll\":").Append(ScrollJson()).Append('}');
         }
         EwpOut.Emit(sb.ToString());
     }
 
+    /// <summary>T7-b：控制台滚动位置（单位＝行）。value＝ScrollValue（底边下一行的索引），
+    /// max＝ScrollMaximum（总行数），visible＝floor(RenderHeight/LineHeight)，
+    /// top＝value-visible＝可见窗口首行索引（与引擎绘制口径一致）。</summary>
+    private string ScrollJson()
+    {
+        int value = 0, max = 0;
+        try { value = win.ScrollValue; max = win.ScrollMaximum; } catch { }
+        int visible = VisibleLines();
+        int top = Math.Max(0, Math.Min(value, max) - visible);
+        return "{\"value\":" + value + ",\"max\":" + max
+            + ",\"visible\":" + visible + ",\"top\":" + top + "}";
+    }
+
+    /// <summary>可见整行数＝floor(RenderHeight/LineHeight)（与 FE visible_rows 同口径）。</summary>
+    private int VisibleLines()
+    {
+        int lineHeight = Config.LineHeight;
+        if (lineHeight <= 0)
+            return 0;
+        int height = 0;
+        try { height = win.RenderHeight; } catch { }
+        return Math.Max(1, height / lineHeight);
+    }
+
+    /// <summary>T7-b：程序化滚动。走与鼠标滚轮相同的状态路径
+    /// （ScrollValue → NotifyUserScrolled → RefreshStrings(force)）；value＝绝对行，delta＝相对行，
+    /// 一律 clamp 到 [0, ScrollMaximum]。响应回带滚动后的 scroll 对象。</summary>
+    private void DoScroll(JsonElement root)
+    {
+        var console = GameConsole;
+        if (console == null)
+        {
+            EmitResult(false, "internal", "console not ready");
+            return;
+        }
+        int max = win.ScrollMaximum;
+        int value;
+        if (root.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.Number
+            && v.TryGetInt32(out int absolute))
+            value = absolute;
+        else if (root.TryGetProperty("delta", out var d) && d.ValueKind == JsonValueKind.Number
+            && d.TryGetInt32(out int delta))
+            value = win.ScrollValue + delta;
+        else
+        {
+            EmitResult(false, "protocol_violation", "sys.scroll needs value or delta (int)");
+            return;
+        }
+        value = Math.Max(0, Math.Min(value, max));
+        win.ScrollValue = value;
+        console.NotifyUserScrolled();
+        console.RefreshStrings(true);
+        EwpOut.Emit("{\"t\":\"result\",\"ok\":true,\"scroll\":" + ScrollJson() + "}");
+    }
+
     private void DispatchQuit()
     {
+        EwpDiagnostics.Trace("DispatchQuit enter disposed=" + win.IsDisposed);
         try
         {
             if (win.IsDisposed)
@@ -1213,10 +2810,11 @@ internal sealed class EwpHost
             win.Invoke(new Action(() =>
             {
                 try { GameConsole?.Quit(); win.Close(); }
-                catch { }
+                catch (Exception ex) { EwpDiagnostics.Trace("DispatchQuit action ex " + ex.GetType().Name + ": " + ex.Message); }
             }));
+            EwpDiagnostics.Trace("DispatchQuit invoke returned");
         }
-        catch { }
+        catch (Exception ex) { EwpDiagnostics.Trace("DispatchQuit ex " + ex.GetType().Name + ": " + ex.Message); }
     }
 
     private static void EmitResult(bool ok, string code, string detail)

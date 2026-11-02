@@ -1,3 +1,4 @@
+using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.UI.Game.Image;
 using MinorShift.Emuera.UI.Game.Rendering;
 using SkiaSharp;
@@ -96,9 +97,28 @@ internal sealed class EwpSpriteExport
     {
         if (!enabled || layer == null || layer.Image == null)
             return 0;
+        var sprite = layer.Image;
+        int w = layer.Width > 0 ? layer.Width : Math.Max(0, sprite.DestBaseSize.Width);
+        int h = layer.Height > 0 ? layer.Height : Math.Max(0, sprite.DestBaseSize.Height);
+        return CaptureCore(sprite, w, h, layer.ColorMatrix);
+    }
+
+    /// <summary>R-3b-2b：行内 img（运行期 G 名）像素快照。在构建 spans 时（UI 线程）调用，
+    /// 冻结当时的像素；FE 以 (src,rev) 请求，旧 rev 永不返回新图。
+    /// W0：色彩矩阵必须传入——带 cm 的图仍分配 rev，但请求时明确回 color_matrix fail，
+    /// ⛔ 不得以「未滤镜成功图」冒充。</summary>
+    public long CaptureInline(ASprite sprite, int w, int h, float[] colorMatrix)
+    {
+        if (!enabled || sprite == null)
+            return 0;
+        return CaptureCore(sprite, w, h, colorMatrix);
+    }
+
+    private long CaptureCore(ASprite sprite, int w, int h, float[] colorMatrix)
+    {
         var sw = Stopwatch.StartNew();
 
-        string texture = (layer.Image.Name ?? "").ToUpperInvariant();
+        string texture = (sprite.Name ?? "").ToUpperInvariant();
         long rev = System.Threading.Interlocked.Increment(ref revSeq);
         var snapshot = new Snapshot { Texture = texture, Rev = rev };
 
@@ -109,9 +129,6 @@ internal sealed class EwpSpriteExport
         }
         else
         {
-            var sprite = layer.Image;
-            int w = layer.Width > 0 ? layer.Width : Math.Max(0, sprite.DestBaseSize.Width);
-            int h = layer.Height > 0 ? layer.Height : Math.Max(0, sprite.DestBaseSize.Height);
             snapshot.W = w;
             snapshot.H = h;
 
@@ -125,7 +142,7 @@ internal sealed class EwpSpriteExport
                 snapshot.FailCode = "not_exportable";
                 snapshot.Detail = "empty";
             }
-            else if (layer.ColorMatrix != null)
+            else if (colorMatrix != null)
             {
                 snapshot.FailCode = "not_exportable";
                 snapshot.Detail = "color_matrix";
@@ -154,6 +171,107 @@ internal sealed class EwpSpriteExport
                     snapshot.FailCode = "not_exportable";
                     snapshot.Detail = "capture_error";
                 }
+            }
+        }
+
+        lock (gate)
+        {
+            if (snapshot.Bitmap != null && snapshot.Bytes > maxCacheBytes)
+            {
+                snapshot.Bitmap.Dispose();
+                snapshot.Bitmap = null;
+                snapshot.Bytes = 0;
+                snapshot.FailCode = "too_large";
+                snapshot.Detail = "cache";
+            }
+            AddLocked(snapshot);
+            RecordCaptureLocked(sw.Elapsed.TotalMilliseconds);
+        }
+        return rev;
+    }
+
+    /// <summary>R-3c：把动态 webp（SpriteAnimated）的指定帧导出为快照（复用同一 LRU/rev/失败码）。
+    /// 帧索引由 FE 按 span.anim.delays 驱动；同一帧重复请求得到新 rev，内容不可变。</summary>
+    public long CaptureAnimatedFrame(ASprite sprite, int frameIndex, int w, int h)
+    {
+        if (!enabled || sprite == null)
+            return 0;
+        var sw = Stopwatch.StartNew();
+        long rev = System.Threading.Interlocked.Increment(ref revSeq);
+        var snapshot = new Snapshot { Texture = (sprite.Name ?? "").ToUpperInvariant(), Rev = rev, W = w, H = h };
+        if (string.IsNullOrEmpty(snapshot.Texture))
+        {
+            snapshot.FailCode = "not_found";
+            snapshot.Detail = "empty_texture";
+        }
+        else if (sprite is not (SpriteAnimated or SpriteAnime))
+        {
+            snapshot.FailCode = "not_exportable";
+            snapshot.Detail = "not_animated";
+        }
+        else if (w <= 0 || h <= 0)
+        {
+            snapshot.FailCode = "not_exportable";
+            snapshot.Detail = "empty";
+        }
+        else if (w > maxSide || h > maxSide || (long)w * h > maxPixels)
+        {
+            snapshot.FailCode = "too_large";
+            snapshot.Detail = "dimensions";
+        }
+        else
+        {
+            SKBitmap bitmap = null;
+            try
+            {
+                bitmap = new SKBitmap(new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Premul));
+                using var canvas = new SKCanvas(bitmap);
+                canvas.Clear(SKColors.Transparent);
+                if (sprite is SpriteAnimated animated)
+                {
+                    var frame = animated.GetFrame(frameIndex);
+                    if (frame == null)
+                    {
+                        bitmap.Dispose();
+                        bitmap = null;
+                        snapshot.FailCode = "not_exportable";
+                        snapshot.Detail = "frame";
+                    }
+                    else
+                    {
+                        using var paint = new SKPaint { FilterQuality = (SKFilterQuality)Config.ImageQuality };
+                        var src = animated.SrcRect.IsEmpty
+                            ? new SKRect(0, 0, frame.Width, frame.Height)
+                            : animated.SrcRect.ToSKRect();
+                        canvas.DrawBitmap(frame, src, new SKRect(0, 0, w, h), paint);
+                    }
+                }
+                else if (sprite is SpriteAnime anime)
+                {
+                    if (frameIndex < 0 || frameIndex >= anime.FrameCount)
+                    {
+                        bitmap.Dispose();
+                        bitmap = null;
+                        snapshot.FailCode = "not_exportable";
+                        snapshot.Detail = "frame";
+                    }
+                    else
+                    {
+                        anime.GraphicsDrawFrame(canvas, new Rectangle(0, 0, w, h), frameIndex);
+                    }
+                }
+                canvas.Flush();
+                if (snapshot.FailCode == null)
+                {
+                    snapshot.Bitmap = bitmap;
+                    snapshot.Bytes = (long)w * h * 4;
+                }
+            }
+            catch
+            {
+                bitmap?.Dispose();
+                snapshot.FailCode = "not_exportable";
+                snapshot.Detail = "capture_error";
             }
         }
 

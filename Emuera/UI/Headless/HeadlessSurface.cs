@@ -1,4 +1,5 @@
 using MinorShift.Emuera.GameView;
+using MinorShift.Emuera.UI.Ewp;
 using System;
 using System.Drawing;
 
@@ -83,6 +84,7 @@ internal sealed class HeadlessSurface : IConsoleSurface
 	public void Invoke(Action action) => ctx.Send(_ => action(), null);
 	public void Close()
 	{
+		EwpDiagnostics.Trace("surface.Close quitBefore=" + quit);
 		quit = true;
 		ctx.RequestStop();
 	}

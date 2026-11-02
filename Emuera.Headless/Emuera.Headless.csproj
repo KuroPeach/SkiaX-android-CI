@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -6,7 +6,7 @@
     <AssemblyName>Emuera.Headless</AssemblyName>
     <RootNamespace>MinorShift.Emuera</RootNamespace>
     <Version>1.824</Version>
-    <InformationalVersion>1824+v24+EMv18+EEv56+Skiav16.5+headless</InformationalVersion>
+    <InformationalVersion>1824+v24+EMv18+EEv56+Skiav16.6.12+headless</InformationalVersion>
     <LangVersion>12.0</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -15,6 +15,7 @@
     <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
     <NoWarn>CS8981;CS8632;CS0618;CS1998</NoWarn>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <!-- 内核 + 共享控制台 + EWP + 无窗宿主（不含任何 WinForms/GDI 桌面文件） -->
@@ -63,6 +64,9 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="SkiaSharp" Version="3.119.2" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <!-- Linux 原生资产：SkiaSharp 主包不含 libSkiaSharp.so，仅在 linux RID 发布时引入（W3 平台矩阵） -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.2"
+                      Condition="'$(RuntimeIdentifier)' == 'linux-x64'" />
   </ItemGroup>
 
 </Project>

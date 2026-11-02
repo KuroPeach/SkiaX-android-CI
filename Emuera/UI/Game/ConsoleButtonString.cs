@@ -325,7 +325,10 @@ internal sealed class ConsoleButtonString
 
 		foreach (var css in strArray)
 		{
-			if (css is ConsoleDivPart) continue;
+			// eraWire C2-island：通常行の div は FilterEscaped→escapedParts→DrawPartTo 側で描くため
+			// ここでは二重描画防止でスキップする。island 行（HTML_PRINT_ISLAND）だけは escapedParts を
+			// 経由しないので DrawDivInline=true により行内で直接描く。
+			if (css is ConsoleDivPart && !(ParentLine?.DrawDivInline ?? false)) continue;
 			css.DrawTo(graph, point, isSelecting, isFocus, isBackLog, mode, IsButton);
 			if (point.X != -1)
 			{
@@ -344,12 +347,14 @@ internal sealed class ConsoleButtonString
 	}
 	#endregion
 
-	readonly static StringBuilder builder = new();
+	// R-3b-3（W1）：⛔ 不用 static builder——div 节点 ToString 会经 ConsoleDisplayLine.BuildString
+	// 回调本方法（子按钮），共用静态 builder 时会把外层已累积的片段清掉。实测多 div 行
+	// （eratw bodyGraph）wire text 只剩最后一个 div，而 spans 按节点构建 ⇒ text/span 不同源。
 	public override string ToString()
 	{
 		if (strArray == null)
 			return "";
-		builder.Clear();
+		var builder = new StringBuilder(64);
 		foreach (var css in strArray)
 			builder.Append(css.ToString());
 		return builder.ToString();

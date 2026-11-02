@@ -182,7 +182,7 @@ internal sealed partial class Process
 					if (!LazyLoadingTable.ContainsKey(funcName))
 						LazyLoadingTable.Add(funcName, new List<string>());
 
-					string path = Program.ErbDir + fileName;
+					string path = ErbPath(fileName);
 					if (!LazyLoadingFiles.Add(path))
 						path = LazyLoadingFiles.First(x => x == path);
 					LazyLoadingTable[funcName].Add(path);
@@ -210,9 +210,10 @@ internal sealed partial class Process
 
 		System.Diagnostics.Debug.WriteLine($"[LazyLoading] GetLazyFiles: paths=[{string.Join(", ", paths)}], erbFiles sample=[{string.Join(", ", erbFiles.Take(5).Select(p => p.Key))}]");
 
+		char sep = Path.DirectorySeparatorChar;
 		var ret = from pair in erbFiles
 			from path in paths
-			where pair.Key.StartsWith(path) 
+			where pair.Key.Replace('\\', sep).Replace('/', sep).StartsWith(path)
 			select pair.Key;
 		HashSet<string> files = new(ret);
 
@@ -444,6 +445,8 @@ internal sealed partial class Process
 
 	static string ErbPath(string a)
 	{
-		return Program.ErbDir + a;
+		// W3/Linux：索引里的相对路径是 Windows 形态（反斜杠，可能由 Windows 侧生成）。
+		// 直接拼接在 Linux 上不是合法路径 ⇒ 全部判 Deleted ⇒ 索引 0 文件。
+		return Program.ErbDir + a.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
 	}
 }

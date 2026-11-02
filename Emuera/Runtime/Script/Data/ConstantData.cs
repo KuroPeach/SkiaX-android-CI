@@ -2163,7 +2163,9 @@ internal sealed class ConstantData
 			eReader.Close();
 		}
 
-		var aliasPath = Path.Combine(Path.GetDirectoryName(csvPath), Path.GetFileNameWithoutExtension(csvPath) + ".als");
+		// W3/Linux：⛔ 不用 "\\" 硬拼接（Linux 上不是分隔符 ⇒ .als 别名表整体不加载，
+		// MARK/系统变量别名全部「无法解析的标识符」）；Path.ChangeExtension 跨平台且同义。
+		var aliasPath = Path.ChangeExtension(csvPath, ".als");
 		// 用户定义变量（ERD_NAMES_INDEX）的 .als 由 UserDefineLoadData → loadAliasesForUserDefined
 		// 写入 per-variable 的 erdNameToIntDics[varname]；此处的 aliases[ERD_NAMES_INDEX] 全局表
 		// 在逆引字典构建时因 names[ERD_NAMES_INDEX] 已置空而不会被读取，只会在不同变量域

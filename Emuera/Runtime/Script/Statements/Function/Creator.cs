@@ -401,6 +401,14 @@ internal static partial class FunctionMethodCreator
 			["SOUNDCONTROL"] = new SoundControlMethod(),
 			["ISPLAYINGBGM"] = new IsPlayingBgmMethod(),
 			["BGMCONTROL"] = new BgmControlMethod(),
+			#region R-AUD-8 EWP audio v1
+			["AUDIO_PLAY"] = new AudioPlayMethod(),
+			["AUDIO_CTL"] = new AudioCtlMethod(),
+			["AUDIO_BUS"] = new AudioBusMethod(),
+			["AUDIO_DUCK"] = new AudioDuckMethod(),
+			["AUDIO_QUERY"] = new AudioQueryMethod(),
+			["AUDIO_BUS_QUERY"] = new AudioBusQueryMethod(),
+			#endregion
 			["EVAL"] = new EvalMethod(),
 			["EVALF"] = new EvalFMethod(),
 			["EVALS"] = new EvalSMethod(),

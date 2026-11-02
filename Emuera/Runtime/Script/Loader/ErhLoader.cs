@@ -385,6 +385,8 @@ internal sealed class ErhLoader
 	private void PrepareERDFileNames()
 	{
 		if (erdFileNames == null) erdFileNames = [];
+		// W3/Linux：Directory.GetFiles("*.erd") 大小写敏感 ⇒ `.ERD` 在 Linux 全部漏掉
+		// （SEMEN_MATRIX@2.ERD 等维度名丢失）。统一走大小写不敏感枚举。
 		foreach (var path in Config.Config.GetFilesCaseInsensitive(Program.ErbDir, "*.erd", SearchOption.AllDirectories))
 		{
 			var key = Path.GetFileNameWithoutExtension(path).ToUpper(CultureInfo.InvariantCulture);
