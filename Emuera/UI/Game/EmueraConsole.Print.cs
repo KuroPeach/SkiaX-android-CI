@@ -117,6 +117,8 @@ internal sealed partial class EmueraConsole : IDisposable
 	{
 		bgColor = color.ToSKColor();
 		forceTextBoxColor = true;
+		// eraWire R-IMG-1a：底色是背景合成快照的一部分，变即脏
+		NotifyBackgroundChanged();
 		//REDRAWされない場合はTextBoxの色は変えずにフラグだけ立てる
 		//最初の再描画時に現在の背景色に合わせる
 		if (redraw == ConsoleRedraw.None && window.ScrollValue == window.ScrollMaximum)

@@ -92,7 +92,30 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public bool strictFontFallback = false;
 
-	public Color? TextBackgroundColor { get; set; }
+	private Color? _textBackgroundColor;
+	/// <summary>eraWire R-IMG-1a：TEXT_BGC 的全局整行底色。引擎在**绘制时**读它（不是逐行存），
+	/// 所以换色会连已上屏的老行一起变色——EWP 侧因此按「全局状态事件」导出，⛔ 不逐行快照。</summary>
+	public Color? TextBackgroundColor
+	{
+		get { return _textBackgroundColor; }
+		set
+		{
+			if (Nullable.Equals(_textBackgroundColor, value))
+				return;
+			_textBackgroundColor = value;
+			try { CliTextBackgroundChanged?.Invoke(value); } catch { }
+		}
+	}
+
+	/// <summary>TEXT_BGC 状态变化（脚本线程触发；参数为 null ⇒ 关闭）。</summary>
+	public event Action<Color?> CliTextBackgroundChanged;
+
+	/// <summary>eraWire R-IMG-1a：是否存在背景层（CBG 或 SETBGIMAGE 烘焙层）。
+	/// false ⇒ EWP 发 bg.clear（⛔ 发一张纯底色快照冒充背景）。</summary>
+	public bool HasBackgroundLayers
+	{
+		get { return cbgList.Count > 1 || backgroundList.Count > 0; }
+	}
 
 	public EmueraConsole(IConsoleSurface parent)
 	{
@@ -159,6 +182,17 @@ internal sealed partial class EmueraConsole : IDisposable
 			return -zdepth.CompareTo(other.zdepth);
 		}
 	}
+	/// <summary>
+	/// eraWire R-IMG-1a：背景层（清底色＋SETBGIMAGE 烘焙层＋CBG）视觉变更信号。
+	/// 引擎在脚本线程/UI 线程触发，可能一帧内多次；订阅方必须自行合并（⛔ 逐次捕获）。
+	/// </summary>
+	public event Action CliBackgroundChanged;
+
+	private void NotifyBackgroundChanged()
+	{
+		try { CliBackgroundChanged?.Invoke(); } catch { }
+	}
+
 	public void CBG_Clear()
 	{
 		foreach (ClientBackGroundImage cimg in cbgList)
@@ -170,12 +204,14 @@ internal sealed partial class EmueraConsole : IDisposable
 		cbgList.Clear();
 		CBG_ClearBMap();
 		cbgList.Add(new ClientBackGroundImage(0));
+		NotifyBackgroundChanged();
 	}
 
 	public void CBG_ClearRange(int zmin, int zmax)
 	{
 		if (zmin > zmax)
 			return;
+		bool removed = false;
 		for (int i = 0; i < cbgList.Count; i++)
 		{
 			ClientBackGroundImage cimg = cbgList[i];
@@ -187,11 +223,15 @@ internal sealed partial class EmueraConsole : IDisposable
 				cimg.Img.Dispose();
 			cbgList.RemoveAt(i);
 			i--;
+			removed = true;
 		}
+		if (removed)
+			NotifyBackgroundChanged();
 	}
 
 	public void CBG_ClearButton()
 	{
+		bool removed = false;
 		for (int i = 0; i < cbgList.Count; i++)
 		{
 			ClientBackGroundImage cimg = cbgList[i];
@@ -203,8 +243,11 @@ internal sealed partial class EmueraConsole : IDisposable
 				cimg.Img.Dispose();
 			cbgList.RemoveAt(i);
 			i--;
+			removed = true;
 		}
 		CBG_ClearBMap();
+		if (removed)
+			NotifyBackgroundChanged();
 	}
 
 	public void CBG_ClearBMap()
@@ -237,6 +280,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		};
 		cbgList.Add(cbg);
 		cbgList.Sort();
+		NotifyBackgroundChanged();
 		return true;
 	}
 
@@ -268,10 +312,66 @@ internal sealed partial class EmueraConsole : IDisposable
 		};
 		cbgList.Add(cbg);
 		cbgList.Sort();
+		NotifyBackgroundChanged();
 		return true;
 	}
 	public int ClientWidth { get { return window.RenderWidth; } }
 	public int ClientHeight { get { return window.RenderHeight; } }
+
+	#region eraWire R-IMG-1a：背景层合成导出
+	/// <summary>
+	/// 只画「背景层」＝清底色 ＋ SETBGIMAGE 烘焙层 ＋ 全部 CBG（zdepth≠0）。
+	/// ⛔ 不画文字（depth==0）、行内 escapedParts、SETIMAGELAYER 图层——那些由 EWP 语义事件
+	/// 单独承载，混进来会与 FE 双重绘制。绘制顺序/坐标算法与 OnPaint 完全同源
+	/// （cbgList 已按 zdepth 逆序，destRect＝x, y+renderHeight-destH），保证快照＝原生像素。
+	/// </summary>
+	public void PaintBackgroundOnly(SKCanvas graph, int width, int height)
+	{
+		if (graph == null || width <= 0 || height <= 0)
+			return;
+		// 只在真的存在 SETBGIMAGE 烘焙层时才驱动烘焙（eratw 0 调用点）。
+		// ⛔ 无条件 ValidateBackground：无背景时会凭空分配一张整屏位图，且与 OnPaint 的
+		// LocalClipBounds 尺寸不同会来回重烘焙（thrash）。
+		if (backgroundList.Count > 0 && bakedBackground == null)
+			ValidateBackground(width, height);
+		graph.Clear(bgColor);
+		if (bakedBackground != null)
+			graph.DrawBitmap(bakedBackground, 0, 0);
+		foreach (var cbg in cbgList)
+		{
+			if (cbg.zdepth == 0)//0＝文字列用ダミー
+				continue;
+			DrawClientBackGround(graph, cbg, height, false);
+		}
+	}
+
+	/// <summary>OnPaint 与快照共用的单个 CBG 绘制（⛔ 分叉复制，否则像素对不上）。
+	/// withButtonState=true 时按当前悬停按钮取 ImgB（原生屏幕行为）；快照取常态 Img。</summary>
+	private void DrawClientBackGround(SKCanvas graph, ClientBackGroundImage cbg, int renderHeight, bool withButtonState)
+	{
+		ASprite img = cbg.Img;
+		if (withButtonState && cbg.isButton && cbg.buttonValue == selectingCBGButtonInt)
+			img = cbg.ImgB;
+		if (img == null || !img.IsCreated)
+			return;
+		try
+		{
+			int destW = cbg.width > 0 ? cbg.width : img.DestBaseSize.Width;
+			int destH = cbg.height > 0 ? cbg.height : img.DestBaseSize.Height;
+			var destRect = new Rectangle(cbg.x, cbg.y + renderHeight - destH, destW, destH);
+			SKColorFilter filter = null;
+			if (cbg.ColorMatrix != null && cbg.ColorMatrix.Length == 20)
+				filter = SKColorFilter.CreateColorMatrix(cbg.ColorMatrix);
+			else if (cbg.Opacity < 1.0f)
+				filter = SKColorFilter.CreateColorMatrix(new float[] { 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, cbg.Opacity, 0 });
+			try { img.GraphicsDraw(graph, destRect, filter); }
+			finally { filter?.Dispose(); }
+		}
+		catch
+		{
+		}
+	}
+	#endregion
 
 	public void CBGSetImage(string spriteName)
 	{
@@ -862,17 +962,20 @@ internal sealed partial class EmueraConsole : IDisposable
 		backgroundList.Add(pair);
 		backgroundList.Sort((v1, v2) => (v1.Key >= v2.Key) ? -1 : 1);
 		BakeBackground();
+		NotifyBackgroundChanged();
 	}
 	public void ClearBackgroundImage()
 	{
 		backgroundList.Clear();
 		BakeBackground();
+		NotifyBackgroundChanged();
 	}
 
 	public void RemoveBackground(string key)
 	{
 		backgroundList.RemoveAt(backgroundList.FindIndex((v) => v.Value.bgImage.Name == key));
 		BakeBackground();
+		NotifyBackgroundChanged();
 	}
 	public void ValidateBackground(int width, int height)
 	{
@@ -1980,29 +2083,8 @@ internal sealed partial class EmueraConsole : IDisposable
 
 				if (cidx < cbgList.Count && cbgList[cidx].zdepth == depth)
 				{
-					// 先にCBGを描画
-					var cbg = cbgList[cidx];
-					ASprite img = cbg.Img;
-					if (cbg.isButton && cbg.buttonValue == selectingCBGButtonInt)
-						img = cbg.ImgB;
-					if (img != null && img.IsCreated)
-					{
-						try
-						{
-							int destW = cbg.width > 0 ? cbg.width : img.DestBaseSize.Width;
-							int destH = cbg.height > 0 ? cbg.height : img.DestBaseSize.Height;
-							var destRect = new Rectangle(cbg.x, cbg.y + window.RenderHeight - destH, destW, destH);
-							SKColorFilter filter = null;
-							if (cbg.ColorMatrix != null && cbg.ColorMatrix.Length == 20)
-								filter = SKColorFilter.CreateColorMatrix(cbg.ColorMatrix);
-							else if (cbg.Opacity < 1.0f)
-								filter = SKColorFilter.CreateColorMatrix(new float[] { 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, cbg.Opacity, 0 });
-							img.GraphicsDraw(graph, destRect, filter);
-						}
-						catch
-						{
-						}
-					}
+					// 先にCBGを描画（R-IMG-1a：快照与屏幕共用同一绘制函数）
+					DrawClientBackGround(graph, cbgList[cidx], window.RenderHeight, true);
 					cidx++;
 				}
 				if (depth == 0)

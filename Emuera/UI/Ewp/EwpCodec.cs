@@ -25,6 +25,9 @@ internal interface IEwpCodec
 {
     void WriteText(Stream s, string json);
     void WritePixel(Stream s, EwpPixelPayload px);
+    /// <summary>R-IMG-1a：bg 事件（文本型 bg.set/bg.clear/bg.fail 与二进制型 bg.data 共用出口，
+    /// 保证 set 先于 data）。</summary>
+    void WriteBg(Stream s, EwpBgPayload bg);
     IEwpCommandReader CreateReader(Stream s);
 }
 
@@ -55,6 +58,27 @@ internal sealed class EwpJsonCodec : IEwpCodec
         var head = Encoding.UTF8.GetBytes(sb.ToString());
         s.Write(head, 0, head.Length);
         var b64 = Encoding.ASCII.GetBytes(Convert.ToBase64String(px.Png));
+        s.Write(b64, 0, b64.Length);
+        s.WriteByte((byte)'"');
+        s.WriteByte((byte)'}');
+        s.WriteByte((byte)'\n');
+    }
+
+    public void WriteBg(Stream s, EwpBgPayload bg)
+    {
+        if (bg.Png == null)
+        {
+            WriteText(s, bg.Json);
+            return;
+        }
+        var sb = new StringBuilder(96);
+        sb.Append("{\"t\":\"bg.data\",\"rev\":").Append(bg.Rev)
+            .Append(",\"w\":").Append(bg.W)
+            .Append(",\"h\":").Append(bg.H)
+            .Append(",\"fmt\":\"png\",\"data\":\"");
+        var head = Encoding.UTF8.GetBytes(sb.ToString());
+        s.Write(head, 0, head.Length);
+        var b64 = Encoding.ASCII.GetBytes(Convert.ToBase64String(bg.Png));
         s.Write(b64, 0, b64.Length);
         s.WriteByte((byte)'"');
         s.WriteByte((byte)'}');
@@ -97,6 +121,24 @@ internal sealed class EwpMsgpackCodec : IEwpCodec
         WriteStr(ms, "dropped"); WriteInt(ms, px.Dropped);
         WriteStr(ms, "encMs"); WriteInt(ms, px.EncodeMs);
         WriteStr(ms, "data"); WriteBin(ms, px.Png);
+        WriteFramed(s, ms.ToArray());
+    }
+
+    public void WriteBg(Stream s, EwpBgPayload bg)
+    {
+        if (bg.Png == null)
+        {
+            WriteText(s, bg.Json);
+            return;
+        }
+        using var ms = new MemoryStream(96 + bg.Png.Length);
+        WriteMapHeader(ms, 6);
+        WriteStr(ms, "t"); WriteStr(ms, "bg.data");
+        WriteStr(ms, "rev"); WriteInt(ms, bg.Rev);
+        WriteStr(ms, "w"); WriteInt(ms, bg.W);
+        WriteStr(ms, "h"); WriteInt(ms, bg.H);
+        WriteStr(ms, "fmt"); WriteStr(ms, "png");
+        WriteStr(ms, "data"); WriteBin(ms, bg.Png);
         WriteFramed(s, ms.ToArray());
     }
 
