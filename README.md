@@ -31,7 +31,8 @@
 | **错误处理** | `BEFORE_THROW`/`BEFORE_ERROR` 事件函数、`DisableBeforeErrorThrow` 配置项、8 条 Float 错误消息修正、调试窗口调用栈保留 |
 | **编码与存档** | 非日文编码（GBK 等）下 CJK 文本长度/子串计算修正（`GetStrlenLang`/`GetUFTIndex`/`GetSubStringLang`）；`CHKDATA` 返回存档版本信息 |
 | **诊断工具** | 调试窗口 `LOCAL@FUNCNAME` 监视、变量监视「锁定」列与直接赋值、当前函数栈保留、`ProcessState.ContextStackCount` 计数、变量写入监视（`var_write.log` 明细 + 汇总报告）、打印监视（`print_trace.log` 实时视图 + 汇总报告）；两者均可选记录调用栈（GUI 勾选项 / CLI `watch` 的 `stack`） |
-| **外部协议（EWP）** | `--ewp` 事件流宿主（stdio/TCP，MessagePack 默认 / `--ewp-json` 调试形态）：legacy 行流＋行 ID＋input.request/submit 闭环＋信用窗背压；hello.metrics 网格基准、视口回传、结构化 snapshot、sprite/overlay 语义流、`pixel.frame` 离屏整帧像素流、`UI_CHANNEL_*` 频道边界事件；**EWP v0.3（冻结）**：`sprite.export` 运行期快照（`sprite.req`/`data`/`fail`＋`rev`）、`sys.title`、`hello.proto=EWP/0.3` |
+| **外部协议（EWP）** | `--ewp` 事件流宿主（stdio/TCP，MessagePack 默认 / `--ewp-json` 调试形态）：legacy 行流＋行 ID＋input.request/submit 闭环＋信用窗背压；hello.metrics 网格基准、视口回传、结构化 snapshot、sprite/overlay 语义流、`pixel.frame` 离屏整帧像素流、`UI_CHANNEL_*` 频道边界事件；**EWP v0.3（冻结）**：`sprite.export` 运行期快照（`sprite.req`/`data`/`fail`＋`rev`）、`sys.title`、`hello.proto=EWP/0.3`；**16.6.11/16.6.12**：动画精灵帧表 `anim{count,delays}`（顶层 span 与 `div.children` 子节点同形）、`sprite.req` 负 rev 按帧取值 |
+| **音频（EWP）** | `AUDIO_PLAY`／`AUDIO_CTL`／`AUDIO_BUS`／`AUDIO_DUCK`／`AUDIO_QUERY`／`AUDIO_BUS_QUERY` 六个 ERB 内建；v1 账本（单调句柄不复用／0＝拒绝、8 态机与终态保留、`priority`／`steal:none`／`maxVoices`／`maxInstances` 准入与抢占）、`master`/`bgm`/`se`/`voice` 总线与 duck、`fadeIn`/`crossfade`/`seek`/`if_changed` 过渡、重连 `audio.sync` 全量重建；v0.2 会话 fail-closed |
 | **性能优化** | `SELECTCASE` 编译期跳转表（O(1) 查找）、SQL 图片缓存、SharedBitmapCache 池（max 200）、AnimSpriteCache LRU（max 6）、DIV 渲染 O(1) 命中测试 |
 | **跨平台** | SkiaX — LazyLoading 仓库内的 Xamarin.Android 移植端（`feature/xamarin` 分支），直接编译内核，详见 [Emuera.Xamarin/](Emuera.Xamarin/) |
 | **平台检测** | `GETPLATFORM()` 返回平台编码（0=Windows / 1=Android / 2=iOS / 3=macOS / 4=Linux / 5=Unknown） |
