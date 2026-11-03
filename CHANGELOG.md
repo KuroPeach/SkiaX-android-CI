@@ -4,6 +4,47 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [17.0.0] — 内存优化与背景快照转正（累积 16.6.14／16.6.15）
+
+> 16.6.14／16.6.15 是 `develop-skiasharp` 上的开发版本，未单独出包；本版把这两段的改动一并对外发布，
+> 逐条细节仍见下方 16.6.14／16.6.15 两段（保留原文便于对照）。
+
+### Added
+
+- **CBG 合成快照导出**（16.6.15，cap `bg`）：`bg.set`／`bg.data`／`bg.fail`／`bg.clear` 事件、FE→VM `bg.req` 按 rev 重取、`legacy.textbgc` 全局底色事件、`sys.state.bg`／`snapshot.full.bg` 加法字段。快照只含「清底色＋SETBGIMAGE 烘焙层＋CBG」，⛔ 不含文字行、行内 `escapedParts`、`SETIMAGELAYER` 图层（由 EWP 语义事件单独承载）
+- `meta.metrics` 增 `bgDropped`／`bgSkippedIdentical`（bg 导出诊断计数，命名与 pixel 的 `dropped`／`writeDropped` 区分）
+- **信用窗 ack 即醒**：`NoteAck` 增 `Monitor.PulseAll(ackGate)`，写手不再空等 250 ms 超时（突发帧下吞吐不再涓流化）
+
+### Changed
+
+- **内存优化**：ERB/CSV 编译完成后 `Preload.ClearAndCompact()`（清源码缓存＋一次完整压缩 GC＋LOH `CompactOnce`；eraTW 实测标题界面工作集 1.08 GB → 0.67 GB、读档后 1.36 GB → 1.01 GB）；`SharedBitmapCache` 由「最多 200 张」改为 256 MB 硬字节预算 LRU；`AnimSpriteCache` 增 256 MB 帧字节预算；`SKBitmap.Decode` 移出全局锁（并发重复解码由同 key 检查去重）
+- **版本签名**：`Skiav16.6.15` → `Skiav17`（`1824+v24+EMv18+EEv56+Skiav17`）
+
+### 未验收（develop 暂存，归引擎启动面待查）
+
+- GUI `Emuera.exe --ewp`＋最小化启动的 boot 竞态（`meta.state` 停在 boot，~50% 复现；与 bg 特征无关）。GUI 三方对拍机制本身已验证（desktop↔`bg.data`↔`pixel.frame` diff=0/84544）
+
+### 验收（2026-11-04）
+
+- `dotnet build Emuera.sln -c Debug` 0 error（950 条既有 CA 警告）；eraWire `rimg1a_bg_gate` PASS（`bg.set`×20／`bg.data` 8 rev／`bgDropped=14`／`bgSkippedIdentical 0→2`／`pending` 正例／旧 FE 零事件）
+- eraWire `t7_ci` 12 套件功能全 PASS（`n2` 文本 hash 用本版 GUI 引擎跑通，顺带覆盖 `Preload.ClearAndCompact` 与位图缓存预算）
+- headless 真实 staging（4100 ERB）首行 7.7 s、工作集 732 MiB（无渲染口径）
+- 音频听感／GUI 截图／VN 体感仍由用户冒烟
+
+***
+
+## [16.6.15] — R-IMG-1a 验收轮：bg 快照转正 / bg 诊断计数 / 信用窗 ack 即醒
+
+### Added
+
+- **R-IMG-1a：CBG 合成快照导出验收通过**（cap `bg`，`488eb2de` ＋ 审查修复 `cb00aa0a`）。验收覆盖：P0-2 引擎门禁（丢新不拆配对 `bgDropped=13`／同像素去重 `bgSkippedIdentical`／`pending` 正例 ×2）、P0-3 真机链（含退出路径无 `ObjectDisposedException`/`encode_error`）、P0-4 resize 旧 rev 回旧尺寸＋SETBGIMAGE 烘焙层非 16:9 校正、P1-1 临时索引真地点链（parity diff=0/83923）、P1-2 真 UI 读档→shop 页→[778] `@快速测试` 钩子→读档会话内 `snapshot.bg.has=true`→`bg.req` 重建（`tools/rimg1a_load_gate.py`）、P1-4 真实 `FLAG:時間停止` 灰化（bad=0/13272）、P1-5 FE 六断言、旧 FE 零事件零字段。证据＝`tools/R-IMG-1a-artifacts/`＋`docs/cards/R-IMG-1a-验收收尾任务卡.md` §4.1
+- `meta.metrics` 增 `bgDropped`／`bgSkippedIdentical`（P2-1，bg 导出诊断计数；与 pixel 的 dropped/writeDropped 命名区分；joggle/订阅时机重发）
+- `NoteAck` 增 `Monitor.PulseAll(ackGate)`（信用窗写手由 250ms 轮询改 ack 即醒；突发帧下吞吐不再涓流化）
+
+### 未验收（develop 暂存，归引擎启动面待查）
+
+- GUI `Emuera.exe --ewp`＋最小化启动的 boot 竞态（meta.state 停在 boot，~50% 复现；P1-3 GUI 三方对拍机制已验证——desktop↔bg.data↔pixel.frame diff=0/84544——竞态归引擎启动面待查）
+
 ## [16.6.14] — 内存优化：源码缓存释放 / 位图缓存字节预算 / 动画缓存预算
 
 ### Changed
@@ -12,10 +53,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `SharedBitmapCache` 由「最多 200 张」改为「256 MB 硬字节预算」的 LRU，LRU 节点字典化（命中 O(1)）。eraTW 素材平均 13.9 MB/张，旧上限最坏可达 2.8 GB；不再保留条目下限（否则 32 张大图即可突破 445 MB），实测 40 张 9 MB 图解码后常驻约 256 MB，被淘汰条目再次取用可正常重解码。淘汰按入缓存时记录的字节数结算，不再二次读取位图；同 key 重入与 LRU 节点失步都有防御
 - `AnimSpriteCache` 在原有 6 个上限外增加 256 MB 帧字节预算：超预算时淘汰 1 秒内未被绘制的动画（至少保留 1 个），避免大动画互相挤兑导致每帧重解码；同一文件路径的新实例接管缓存时先淘汰旧实例。现有素材（单动画 ≤36 MB、6 个上限≈216 MB）不会触发该预算，属安全网
 - `SharedBitmapCache.Get` 的 `SKBitmap.Decode` 移出全局锁（字节预算下命中率下降、该路径更常走），并发重复解码由 `add` 的同 key 检查去重；`CroppedImage.GraphicsDraw` 的颜色过滤器引用改为 `finally` 清理（原实现异常路径会把已释放的 filter 留在共享 `SKPaint` 上）
-
-### 未验收（develop 暂存，⛔ 不随 16.6.14 发版）
-
-- **R-IMG-1a：CBG 合成快照导出**（cap `bg`，提交 `488eb2de`，作者标注「在建功能，未验收」）：`bg.set`／`bg.data`／`bg.clear`／`bg.fail` 事件、`bg.req` 按 rev 重取、`legacy.textbgc` 全局底色事件、`sys.state.bg`／`snapshot.full.bg` 加法字段。限制：快照只含「清底色＋SETBGIMAGE 烘焙层＋CBG（zdepth≠0）」，⛔ 不含文字行、行内 `escapedParts`、`SETIMAGELAYER` 图层（由 EWP 语义事件单独承载）
 
 ## [16.6.13] — EWP audio v1（P3-E：AudioLedger v2 / 6 ERB 内建）
 

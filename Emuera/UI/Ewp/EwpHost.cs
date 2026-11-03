@@ -476,6 +476,11 @@ internal sealed class EwpHost
         try { baselineOffset = -Config.DefaultFont.Metrics.Ascent; } catch { }
         var foreColor = HtmlManager.GetColorToStringArgb(Config.ForeColor);
         var backColor = HtmlManager.GetColorToStringArgb(Config.BackColor);
+        // P2-1（R-IMG-1a）：bg 导出诊断计数。命名与 pixel 的 dropped/writeDropped 区分（bgDropped）。
+        // bgExport 在 Subscribe 前可能未建（EmitMetrics 首发早于构造完成）——容错取值。
+        long bgDroppedCtr = EwpOut.BgDropped;
+        long bgSkippedCtr = 0;
+        try { if (bgExport != null) bgSkippedCtr = bgExport.Stats().SkippedIdentical; } catch { }
         EwpOut.Emit("{\"t\":\"meta.metrics\",\"metrics\":{\"cellW\":" + cellW
             + ",\"cellH\":" + Config.FontSize
             + ",\"lineH\":" + Config.LineHeight
@@ -486,7 +491,9 @@ internal sealed class EwpHost
             + ",\"originX\":" + originX
             + ",\"baselineOffset\":" + D(baselineOffset)
             + ",\"foreColor\":" + J(foreColor)
-            + ",\"bgColor\":" + J(backColor) + "}}");
+            + ",\"bgColor\":" + J(backColor)
+            + ",\"bgDropped\":" + bgDroppedCtr
+            + ",\"bgSkippedIdentical\":" + bgSkippedCtr + "}}");
     }
 
     private static string SafeVersion()
