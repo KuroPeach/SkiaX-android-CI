@@ -2,6 +2,7 @@ using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Script.Parser;
 using MinorShift.Emuera.Runtime.Utils;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -67,6 +68,8 @@ internal sealed partial class EraStreamReader : IDisposable
 			_fileLines = lines;
 			return true;
 		}
+		// 快路径：文件未被独占时走框架的向量化读取（懒加载/热重载的热路径，比手写 ReadLine 循环快
+		// 一个量级，且少一次 List→ToArray 的 LOH 峰值）
 		try
 		{
 			_fileLines = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(path));
@@ -75,7 +78,24 @@ internal sealed partial class EraStreamReader : IDisposable
 		catch (Exception ex)
 		{
 			System.Diagnostics.Debug.WriteLine($"[Emuera] EraStreamReader.OpenOnCache FAILED: {filepath}: {ex.GetType().Name}: {ex.Message}");
-			Dispose();
+			// 落回共享读：编辑器/杀软持着文件时上面的 DetectEncoding（FileShare.None）会先抛
+		}
+		try
+		{
+			// 与 Preload 一致：ReadWrite 共享，避免编辑器占用文件时按需加载失败
+			using var fs = new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+			var encoding = EncodingHandler.DetectEncoding(fs);
+			fs.Position = 0;
+			using var sr = new StreamReader(fs, encoding, detectEncodingFromByteOrderMarks: true);
+			var list = new List<string>();
+			string line;
+			while ((line = sr.ReadLine()) != null)
+				list.Add(line);
+			_fileLines = list.ToArray();
+			return true;
+		}
+		catch
+		{
 			return false;
 		}
 	}

@@ -289,6 +289,7 @@ internal sealed partial class Process(EmueraConsole view)
 		state.SystemState = SystemStateCode.System_Reloaderb;
 		ErbLoader loader = new(console, exm, this);
 		await loader.LoadErbDir(Program.ErbDir, false, Config.UseLazyLoading, labelDic);
+		Preload.ClearAndCompact();
 		console.ReadAnyKey();
 	}
 
@@ -299,6 +300,8 @@ internal sealed partial class Process(EmueraConsole view)
 		await Preload.Load(paths);
 		var loader = new ErbLoader(console, exm, this);
 		await loader.LoadErbList(paths, labelDic);
+		// 局部重载只丢弃本次涉及文件的源码缓存；强制全量 GC 会让保存后重载明显卡顿
+		Preload.Remove(paths);
 		console.ReadAnyKey();
 	}
 

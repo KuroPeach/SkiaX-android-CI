@@ -20,6 +20,7 @@ internal interface IFileBacked
 {
 	string FilePath { get; }
 	bool IsEvicted { get; }
+	long LoadedBytes { get; }
 	void Evict();
 	void Reload();
 }

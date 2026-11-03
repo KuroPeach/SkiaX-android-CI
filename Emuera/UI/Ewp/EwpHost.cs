@@ -47,10 +47,12 @@ internal static class EwpOut
     {
         public string Json;           // 文本事件（完整 JSON 对象，无换行）
         public EwpPixelPayload Pixel; // 像素事件（与 Json 互斥）
+        public EwpBgPayload Bg;       // R-IMG-1a：bg 事件（文本型或 PNG 型，与上面两者互斥）
     }
 
     private static BlockingCollection<Payload> queue;
     private static BlockingCollection<Payload> pixelQueue;
+    private static BlockingCollection<Payload> bgQueue;
     private static Stream outStream;
     private static Thread writerThread;
     /// <summary>Shutdown 期放行信用窗等待，确保 exit 事件能落盘（否则写手可能卡在 WaitForCredit）。</summary>
@@ -62,6 +64,8 @@ internal static class EwpOut
     private static int ackTimeouts;
     private static long pixelWritten;
     private static long pixelDropped;
+    /// <summary>R-IMG-1a：bg 队列满而丢新的计数（见 EmitBg 注释）。</summary>
+    private static long bgDropped;
 
     /// <summary>L0.5 编码器（B3）：JSON-Lines（默认）或 MessagePack（--ewp-msgpack）。</summary>
     public static IEwpCodec Codec { get; private set; } = new EwpJsonCodec();
@@ -72,6 +76,8 @@ internal static class EwpOut
     public static int PendingFrames => Volatile.Read(ref pendingFrames);
     public static long PixelWritten => Interlocked.Read(ref pixelWritten);
     public static long PixelDropped => Interlocked.Read(ref pixelDropped);
+    /// <summary>R-IMG-1a：bg 队列满而丢新的累计数（诊断用；FE 按 rev 差重取即可自愈）。</summary>
+    public static long BgDropped => Interlocked.Read(ref bgDropped);
 
     /// <summary>deferWriter=true（TCP 模式）：只建队列，写手线程等 AttachStream 再启动，
     /// 期间事件在队列中缓冲（boot 期 ~1.4k 行，远低于 8192 容量）。</summary>
@@ -84,6 +90,7 @@ internal static class EwpOut
         try { Console.OutputEncoding = utf8; } catch { }
         queue = new BlockingCollection<Payload>(new ConcurrentQueue<Payload>(), QueueCapacity);
         pixelQueue = new BlockingCollection<Payload>(new ConcurrentQueue<Payload>(), PixelQueueCapacity);
+        bgQueue = new BlockingCollection<Payload>(new ConcurrentQueue<Payload>(), 8);
         if (deferWriter)
             return;
         Stream s = null;
@@ -136,6 +143,20 @@ internal static class EwpOut
         }
     }
 
+    /// <summary>R-IMG-1a：bg 事件入队。bg.set/bg.clear/bg.fail 与 bg.data 共用此队列
+    /// ⇒ 写出顺序＝产生顺序（⛔ 分队列会让 FE 先收到 data）。
+    /// 队列满时**丢新**（⛔ 不丢最旧）：淘汰已入队的元素会拆散 set→data 配对
+    /// （丢了 set 的 data 无主、丢了 data 的 set 永远悬空）。丢新则 FE 靠 rev 差发现并按 bg.req 重取。</summary>
+    public static void EmitBg(EwpBgPayload bg)
+    {
+        var q = bgQueue;
+        if (q == null || bg == null)
+            return;
+        if (q.TryAdd(new Payload { Bg = bg }))
+            return;
+        Interlocked.Increment(ref bgDropped);
+    }
+
     public static void NoteAck()
     {
         Interlocked.Increment(ref ackCount);
@@ -164,6 +185,7 @@ internal static class EwpOut
         }
         try { q.CompleteAdding(); } catch { }
         try { pixelQueue?.CompleteAdding(); } catch { }
+        try { bgQueue?.CompleteAdding(); } catch { }
         try
         {
             var joined = writerThread == null || writerThread.Join(3000);
@@ -176,7 +198,7 @@ internal static class EwpOut
     {
         var s = outStream;
         var sb = new StringBuilder(64);
-        var colls = new[] { queue, pixelQueue };
+        var colls = new[] { queue, pixelQueue, bgQueue };
         try
         {
             while (true)
@@ -187,7 +209,14 @@ internal static class EwpOut
                 catch (ObjectDisposedException) { break; }
                 if (p == null)
                 {
-                    if (queue.IsCompleted && pixelQueue.IsCompleted) break;
+                    if (queue.IsCompleted && pixelQueue.IsCompleted && bgQueue.IsCompleted) break;
+                    continue;
+                }
+                if (p.Bg != null)
+                {
+                    // bg 事件是独立族（自带 rev），⛔ 混进文本批：bg.set 与 bg.data 必须相邻且有序
+                    Codec.WriteBg(s, p.Bg);
+                    s.Flush();
                     continue;
                 }
                 if (p.Pixel != null)
@@ -295,6 +324,12 @@ internal sealed class EwpHost
     private int currentGeneration = -1;
     /// <summary>B3 离屏像素流（hello.ok mode.pixel=true 才启用；帧信号=CliFramePainted）。</summary>
     private readonly EwpPixelStreamer pixel;
+    /// <summary>R-IMG-1a：CBG/SETBGIMAGE 合成快照导出（hello.ok.caps 含 bg 才启用）。</summary>
+    private readonly EwpBgExport bgExport;
+    /// <summary>背景脏标记（脚本线程置位；UI 线程在帧边界消费并合并）。</summary>
+    private int bgDirty;
+    /// <summary>FE 是否请求 bg（caps）；textbgc 事件随该 cap 一起启停。</summary>
+    private volatile bool bgEnabled;
 
     /// <summary>B②/S1 频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open/segments）。
     /// 脚本线程写（IntoFunction）、UI 线程读（snapshot/state）——lock 保护。</summary>
@@ -366,6 +401,7 @@ internal sealed class EwpHost
         win = window;
         this.tcpPort = tcpPort;
         pixel = new EwpPixelStreamer(window, () => GlobalStatic.Console, EwpOut.EmitPixel);
+        bgExport = new EwpBgExport(EwpOut.EmitBg);
     }
 
     /// <summary>TCP headless：提前注入 console，使 AcceptLoop 在 console.Initialize() 之前
@@ -405,7 +441,7 @@ internal sealed class EwpHost
             .Append("},\"game\":{")
             .Append("\"id\":").Append(J(SafeGameId()))
             .Append(",\"profile\":\"skia-superset\"},")
-            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\",\"legacy.spans\",\"audio\",\"audio.feedback\",\"audio.instances\",\"audio.bus\",\"audio.transitions\",\"audio.meta\"],")
+            .Append("\"caps\":[\"legacy.lines\",\"input.scope\",\"snapshot\",\"frame.commit\",\"view.ack\",\"viewport.report\",\"meta.metrics\",\"pixel.frame\",\"channel\",\"input.rect\",\"sprite.export\",\"legacy.spans\",\"bg\",\"audio\",\"audio.feedback\",\"audio.instances\",\"audio.bus\",\"audio.transitions\",\"audio.meta\"],")
             .Append("\"mode\":{\"semantic\":true,\"pixel\":false}}");
         EwpOut.Emit(sb.ToString());
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":\"boot\"}");
@@ -488,6 +524,7 @@ internal sealed class EwpHost
         EwpOut.Emit("{\"t\":\"exit\"}");
         EwpDiagnostics.Trace("NotifyProcessExit exit enqueued");
         try { pixel.Dispose(); } catch (Exception ex) { EwpDiagnostics.Trace("pixel.Dispose ex " + ex.GetType().Name + ": " + ex.Message); }
+        try { bgExport.Dispose(); } catch (Exception ex) { EwpDiagnostics.Trace("bgExport.Dispose ex " + ex.GetType().Name + ": " + ex.Message); }
         EwpOut.Shutdown();
         EwpDiagnostics.Trace("NotifyProcessExit Shutdown returned");
     }
@@ -637,6 +674,8 @@ internal sealed class EwpHost
         console.CliIslandPrinted += OnIslandPrinted;
         console.CliIslandCleared += OnIslandCleared;
         console.CliFramePainted += OnFramePainted;
+        console.CliBackgroundChanged += OnBackgroundChanged;
+        console.CliTextBackgroundChanged += OnTextBackgroundChanged;
         if (tcpPort > 0)
         {
             // TCP：EmitMetrics 会调 FontFactory（无锁静态缓存），⛔ 不能在 transport 线程
@@ -653,7 +692,48 @@ internal sealed class EwpHost
     }
 
     /// <summary>RefreshStrings 有效通过点（UI 线程，B3 像素流帧信号；仅 mode.pixel=true 时实做捕获）。</summary>
-    private void OnFramePainted() => pixel.OnFramePainted();
+    private void OnFramePainted()
+    {
+        pixel.OnFramePainted();
+        // R-IMG-1a：背景脏标记在帧边界合并消费（一帧内多次 CBG 变更只捕获一次）
+        FlushBackground();
+    }
+
+    /// <summary>R-IMG-1a：CBG/SETBGIMAGE/底色变更（脚本线程）——只置脏，⛔ 不在此捕获
+    /// （一次背景打印会连发 CBGCLEAR＋CBGSETG，逐次捕获＝白画两张）。</summary>
+    private void OnBackgroundChanged()
+    {
+        if (bgEnabled)
+            Interlocked.Exchange(ref bgDirty, 1);
+    }
+
+    /// <summary>TEXT_BGC 状态变化：全局整行底色（旧 FE 未声明 bg ⇒ 零事件）。</summary>
+    private void OnTextBackgroundChanged(System.Drawing.Color? color)
+    {
+        if (!bgEnabled)
+            return;
+        EwpOut.Emit("{\"t\":\"legacy.textbgc\",\"color\":"
+            + (color.HasValue ? J(HtmlManager.GetColorToStringArgb(color.Value)) : "null") + "}");
+    }
+
+    /// <summary>UI 线程：把背景合成快照导出（脏时才做）。resend=true 时即使无变更也重发当前快照
+    /// （snapshot / 读档重建 / sys.state 对账用）。</summary>
+    private void FlushBackground(bool resend = false)
+    {
+        if (!bgEnabled)
+            return;
+        // resend 也消费脏位：本次已按最新状态发过，再留脏会让下一帧白捕一次
+        if (Interlocked.Exchange(ref bgDirty, 0) == 0 && !resend)
+            return;
+        var console = GameConsole;
+        if (console == null)
+            return;
+        int w = 0, h = 0;
+        try { w = win.RenderWidth; h = win.RenderHeight; } catch { }
+        if (w <= 0 || h <= 0)
+            return;
+        try { bgExport.Capture(console, w, h, resend); } catch { }
+    }
 
     /// <summary>应用 FE 视口（UI 线程）。⚠️ 最小化窗口上 ClientSize 不会触发子控件锚定布局
     /// （2026-10-25 fixture 实测 render=0x0 而 client=1000x640，mainPicBox 恒 0）——
@@ -1214,6 +1294,17 @@ internal sealed class EwpHost
         }
         if (hadSprites)
             EwpOut.Emit("{\"t\":\"sprite.clear\",\"all\":true}");
+        // R-IMG-1a：整屏换场（启动/GotoTitle/读档前）⇒ 背景快照作废。下一帧若 CBG 已重建，
+        // 会自然发新的 bg.set；这里先清，避免 FE 留着上一场景的背景。
+        if (bgEnabled && bgExport.HasContent)
+        {
+            bgExport.Clear();
+            EwpOut.EmitBg(new EwpBgPayload
+            {
+                Json = "{\"t\":\"bg.clear\",\"rev\":" + bgExport.CurrentRev + "}",
+                Rev = bgExport.CurrentRev,
+            });
+        }
         if (hadIsland)
             EwpOut.Emit("{\"t\":\"overlay.island.clear\"}");
         if (count > 0)
@@ -1225,6 +1316,8 @@ internal sealed class EwpHost
         var console = GameConsole;
         if (console == null || console.inputReq == null)
             return;
+        // R-IMG-1a：输入边界兜底——CBG 变更后若没有重绘（无文本变化）也要把背景补发出去
+        FlushBackground();
         var req = console.inputReq;
         // I3-b：Subscribe 期窗口若未完成布局，meta.metrics 的 renderW/H 会读到 0（最小化实测）。
         // 首个 input.request 时窗口必已就绪 ⇒ 补发一次，让 FE 在拿到 rect 之前就有画布尺寸。
@@ -1388,6 +1481,9 @@ internal sealed class EwpHost
                 case "sprite.req":
                     Dispatch(() => DoSpriteRequest(root.Clone()));
                     break;
+                case "bg.req":
+                    Dispatch(() => DoBgRequest(root.Clone()));
+                    break;
                 case "input.submit":
                     Dispatch(() => DoInputSubmit(root.Clone()));
                     break;
@@ -1513,6 +1609,8 @@ internal sealed class EwpHost
             rectEnabled = false;
             spriteExport.Enabled = false;
             spansEnabled = false;
+            bgEnabled = false;
+            bgExport.Enabled = false;
             ApplyAudioCaps(false, false, false, false, false, false);
         }
         else
@@ -1521,6 +1619,7 @@ internal sealed class EwpHost
             var hasRect = false;
             var hasSpriteExport = false;
             var hasSpans = false;
+            var hasBg = false;
             var hasAudio = false;
             var hasAudioFeedback = false;
             var hasAudioInstances = false;
@@ -1540,6 +1639,8 @@ internal sealed class EwpHost
                     hasSpriteExport = true;
                 else if (capName == "legacy.spans")
                     hasSpans = true;
+                else if (capName == "bg")
+                    hasBg = true;
                 else if (capName == "audio")
                     hasAudio = true;
                 else if (capName == "audio.feedback")
@@ -1557,6 +1658,8 @@ internal sealed class EwpHost
             rectEnabled = hasRect;
             spriteExport.Enabled = hasSpriteExport;
             spansEnabled = hasSpans;
+            bgEnabled = hasBg;
+            bgExport.Enabled = hasBg;
             // 1.1/C-14：feedback 无 audio ⇒ 忽略 feedback 位、ignored++、不断会话（⛔ cap_mismatch）
             if (hasAudioFeedback && !hasAudio)
             {
@@ -1610,6 +1713,21 @@ internal sealed class EwpHost
         }
         // R-AUD-8：v1 握手后、放行游戏前发一次 audio.sync（S1.2/S1.3）。
         EmitAudioSyncIfPending();
+        // R-IMG-1a：握手即补发当前背景（TITLE 等可能在 FE 连上之前就画好了）；⛔ 直接在此捕获
+        // （传输线程），必须走 UI 泵。
+        if (bgEnabled)
+        {
+            try
+            {
+                win.Invoke(new Action(() =>
+                {
+                    FlushBackground(true);
+                    // 握手即补发 TEXT_BGC 当前值（可能在 FE 连上之前就设过；FE 需要确定初值）
+                    OnTextBackgroundChanged(GameConsole?.TextBackgroundColor);
+                }));
+            }
+            catch { }
+        }
         // G3：握手完成——与 Subscribe 一起放行 TCP 启动门（stdio 无人在等，置位无副作用）。
         Volatile.Write(ref helloOkSeen, 1);
         MaybeReleaseGameStart();
@@ -1636,6 +1754,27 @@ internal sealed class EwpHost
                 break;
         }
         return count > 1 && delays != null && delays.Length == count;
+    }
+
+    /// <summary>R-IMG-1a：FE 按 rev 重取背景快照（snapshot 重建/读档）。rev 命中缓存 ⇒ 重发
+    /// bg.data；否则 bg.fail（expired/not_found）。⛔ 不返回 result，⛔ 现画近似图。</summary>
+    private void DoBgRequest(JsonElement root)
+    {
+        if (!bgExport.Enabled)
+            return;
+        long rev = 0;
+        if (root.TryGetProperty("rev", out var revEl) && revEl.ValueKind == JsonValueKind.Number)
+            revEl.TryGetInt64(out rev);
+        if (rev <= 0)
+        {
+            EwpOut.EmitBg(new EwpBgPayload
+            {
+                Json = "{\"t\":\"bg.fail\",\"rev\":" + rev + ",\"code\":\"bad_request\"}",
+                Rev = rev,
+            });
+            return;
+        }
+        bgExport.Resend(rev);
     }
 
     private void DoSpriteRequest(JsonElement root)
@@ -1744,6 +1883,7 @@ internal sealed class EwpHost
     private void DoState()
     {
         var console = GameConsole;
+        FlushBackground();
         int channelCount;
         long mismatch;
         lock (channelGate)
@@ -1796,7 +1936,30 @@ internal sealed class EwpHost
         // Q15/R-AUD-4：cap 未启用 ⇒ sys.state 不出现 audio 键（旧 FE 零字段副作用）
         if (audioEnabled)
             json += ",\"audio\":" + AudioStateJson();
+        // R-IMG-1a：cap 未启用 ⇒ 不出现 bg 键（旧 FE 逐字节不变）
+        if (bgEnabled)
+            json += ",\"bg\":" + BackgroundStateJson();
         EwpOut.Emit(json + "}");
+    }
+
+    /// <summary>R-IMG-1a：背景快照当前态（rev/w/h/has）＋ TEXT_BGC 全局色。
+    /// FE 拿到 rev 与自己持有的不同 ⇒ 发 bg.req 重取；textbgc 为 null ⇒ 关闭。</summary>
+    private string BackgroundStateJson()
+    {
+        var st = bgExport.Stats();
+        var console = GameConsole;
+        string textBgc = "null";
+        try
+        {
+            if (console?.TextBackgroundColor is Color c)
+                textBgc = J(HtmlManager.GetColorToStringArgb(c));
+        }
+        catch { }
+        return "{\"rev\":" + st.Rev
+            + ",\"w\":" + st.W
+            + ",\"h\":" + st.H
+            + ",\"has\":" + (st.HasContent ? "true" : "false")
+            + ",\"textbgc\":" + textBgc + "}";
     }
 
     // ---------------- R-AUD-4：audio（caps/事件/回供/状态） ----------------
@@ -2626,6 +2789,7 @@ internal sealed class EwpHost
     private void DoSnapshot()
     {
         var console = GameConsole;
+        FlushBackground();
         var sb = new StringBuilder(4096);
         sb.Append("{\"t\":\"snapshot.full\",\"lineCount\":").Append(liveLines.Count)
             .Append(",\"generation\":").Append(currentGeneration)
@@ -2740,7 +2904,12 @@ internal sealed class EwpHost
             }
             // T7-b：快照附带控制台滚动位置（FE 可按同一窗口渲染 backlog；旧 FE 忽略该键）。
             // ⚠ 必须在对象闭合前追加（最后一处 "]}")，否则 JSON 结构破裂。
-            sb.Append("],\"scroll\":").Append(ScrollJson()).Append('}');
+            sb.Append("],\"scroll\":").Append(ScrollJson());
+            // R-IMG-1a：背景快照态（rev/has/textbgc）。FE 若未持有该 rev ⇒ bg.req 重取；
+            // 旧 FE 未声明 bg ⇒ 零键（⛔ 不能无条件追加，否则旧 FE 快照逐字节变化）。
+            if (bgEnabled)
+                sb.Append(",\"bg\":").Append(BackgroundStateJson());
+            sb.Append('}');
         }
         EwpOut.Emit(sb.ToString());
     }

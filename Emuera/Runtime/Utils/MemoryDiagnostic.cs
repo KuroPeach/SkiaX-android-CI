@@ -183,6 +183,7 @@ internal static class MemoryDiagnostic
 			writer.WriteLine($"  tempLoadedGraphicsImages (临时图形图): {tempGraphicsCount}");
 			writer.WriteLine($"  SpriteMeta 定义数 (resources CSV):  {metaRowCount}");
 			writer.WriteLine($"  SharedBitmapCache (全局位图缓存):   {SharedBitmapCache.Count}");
+			writer.WriteLine($"  SharedBitmapCache 字节数:           {FormatBytes(SharedBitmapCache.Bytes)}");
 			writer.WriteLine($"  AnimSpriteCache (动画精灵缓存):     {AnimSpriteCache.Count}");
 
 			// resources/ 目录的 CSV 文件总大小
