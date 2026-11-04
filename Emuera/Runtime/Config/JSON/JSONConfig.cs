@@ -1,4 +1,5 @@
 //新設したコンフィグ設定のロード、セーブ、公開を担当する。
+using System;
 using System.IO;
 using System.Text.Json;
 
@@ -31,8 +32,16 @@ static class JSONConfig
 			// setting.json 由不同分支/版本写出时字段格式可能不兼容
 			// （典型例子：RenderingBackend 写成 "Auto" 字符串）。
 			// 此时退回默认配置，不要让整局游戏加载失败。
-			Runtime.Utils.PlatformInterop.DebugLog?.Invoke(
-				$"JSONConfig.Load: 解析 setting.json 失败，已回退默认配置：{ex.Message}");
+			// 注意：此处不能用 PlatformInterop.DebugLog —— Android 端已把它替换成
+			// stub 并从 Core 项目排除，直接写文件，各平台都能用。
+			try
+			{
+				File.AppendAllText(
+					Program.ExeDir + "config_error.log",
+					$"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] setting.json 解析失败，已回退默认配置：{ex.Message}" + Environment.NewLine);
+			}
+			catch { }
+
 			Data = new JSONConfigData();
 		}
 
