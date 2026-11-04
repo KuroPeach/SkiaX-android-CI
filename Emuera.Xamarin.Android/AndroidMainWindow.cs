@@ -89,6 +89,7 @@ namespace XEmuera.Droid
 
             try
             {
+                // GlobalLayout 是 EventHandler 签名，回调必须接收 (object, EventArgs)
                 activity.Window.DecorView.ViewTreeObserver.GlobalLayout += OnGlobalLayoutForIme;
             }
             catch (Exception ex)
@@ -97,35 +98,35 @@ namespace XEmuera.Droid
             }
         }
 
-        private void OnGlobalLayoutForIme()
+        private void OnGlobalLayoutForIme(object sender, EventArgs e)
         {
             if (activity?.Window?.DecorView == null || mainLayout == null)
                 return;
 
             try
             {
-                int imeHeight = 0;
-                if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
-                {
-                    var insets = activity.Window.DecorView.RootWindowInsets;
-                    if (insets != null)
-                        imeHeight = insets.GetInsets(WindowInsets.Type.Ime()).Bottom;
-                }
-                else
-                {
-                    // Android 10 及以下没有 WindowInsets.Type.Ime()，用可见区域差值估算
-                    var vis = new Android.Graphics.Rect();
-                    activity.Window.DecorView.GetWindowVisibleDisplayFrame(vis);
-                    int screenHeight = activity.Window.DecorView.RootView?.Height ?? 0;
-                    imeHeight = Math.Max(0, screenHeight - vis.Bottom);
-                }
+                // 用「窗口可见区域」与「根视图高度」的差值推断键盘高度。
+                // 全 API 级别可用，不依赖 WindowInsets.Type（net8.0-android 绑定里
+                // 不可用，且项目未引入 AndroidX Core）。
+                var decor = activity.Window.DecorView;
+                var visible = new Android.Graphics.Rect();
+                decor.GetWindowVisibleDisplayFrame(visible);
+
+                int rootHeight = decor.RootView?.Height ?? 0;
+                if (rootHeight <= 0)
+                    return;
+
+                int imeHeight = Math.Max(0, rootHeight - visible.Bottom);
+
+                // 小于一定阈值时视为没有键盘（避免导航栏高度被误判）
+                if (imeHeight < rootHeight * 0.15)
+                    imeHeight = 0;
 
                 if (imeHeight == lastImeInsetHeight)
                     return;
                 lastImeInsetHeight = imeHeight;
 
-                // 输入栏本身由 entryLayout 承担，这里把主布局整体上移，
-                // 让底部文本与输入栏都停在键盘上方。
+                // 把主布局整体上移，让底部文本与输入栏都停在键盘上方。
                 mainLayout.Margin = new Thickness(0, 0, 0, imeHeight);
             }
             catch (Exception ex)
