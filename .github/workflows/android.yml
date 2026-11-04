@@ -104,9 +104,11 @@ jobs:
               -p:AndroidKeyStore=false \
               -p:RunAOTCompilation=false \
               -p:CheckEolWorkloads=false \
-              -p:RuntimeIdentifiers="$RID" \
-              -o "perabi/$ABI"
-            find "perabi/$ABI" -maxdepth 2 -name '*.apk' -exec ls -la {} \;
+              -p:RuntimeIdentifiers="$RID"
+            find Emuera.Xamarin.Android/bin/Release -name '*.apk' -exec ls -la {} \;
+            # 把本架构产物挪到独立目录，供签名阶段使用
+            mkdir -p "perabi/$ABI"
+            find Emuera.Xamarin.Android/bin/Release -name '*.apk' -exec cp {} "perabi/$ABI/" \;
           done
 
       - name: Sign all APKs
