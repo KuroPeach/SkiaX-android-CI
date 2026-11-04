@@ -133,33 +133,62 @@ namespace XEmuera.Droid
                 return;
             }
 
+            Android.App.PendingIntent pending = null;
+            Android.App.AlarmManager alarm = null;
+
             try
             {
                 var launchIntent = activity.PackageManager.GetLaunchIntentForPackage(activity.PackageName);
-                if (launchIntent == null || launchIntent.Component == null)
+                if (launchIntent != null && launchIntent.Component != null)
                 {
-                    Android.Util.Log.Warn("EmueraRestart", "no launch intent, fallback to Finish");
-                    activity.Finish();
-                    return;
+                    launchIntent.AddFlags(Android.Content.ActivityFlags.NewTask
+                        | Android.Content.ActivityFlags.ClearTask);
+
+                    pending = Android.App.PendingIntent.GetActivity(
+                        activity, 0, launchIntent,
+                        Android.App.PendingIntentFlags.CancelCurrent
+                        | Android.App.PendingIntentFlags.Immutable);
+
+                    var ctx = (Android.Content.Context)activity;
+                    alarm = (Android.App.AlarmManager)ctx.GetSystemService(
+                        Android.Content.Context.AlarmService);
                 }
-                launchIntent.AddFlags(Android.Content.ActivityFlags.NewTask | Android.Content.ActivityFlags.ClearTask);
-                activity.StartActivity(launchIntent);
             }
             catch (Exception ex)
             {
-                Android.Util.Log.Warn("EmueraRestart", string.Concat("restart failed: ", ex.Message));
+                Android.Util.Log.Warn("EmueraRestart", string.Concat("prepare failed: ", ex.Message));
             }
 
-            // 先让新实例有机会启动，再结束自己并退出进程。
-            // 若立即 Exit，可能来不及拉起新实例，导致「返回后没反应」。
-            var handler = new Android.OS.Handler(Android.OS.Looper.MainLooper);
-            handler.PostDelayed(() =>
+            // 绝不能 StartActivity 之后再 Exit：新 Activity 会在同一个进程里打开，
+            // 随后的 Exit(0) 把它一并杀掉 —— 表现为「游戏列表闪一下、整个 App 消失」。
+            // 正确做法：拉起动作交给 AlarmManagerService（独立于本进程），
+            // 我们先退出；定时器在进程死后依然有效，会拉起一个全新进程。
+            var scheduled = false;
+            if (alarm != null && pending != null)
             {
-                try { activity.Finish(); } catch { }
+                try
+                {
+                    alarm.Set(Android.App.AlarmType.ElapsedRealtime,
+                        Android.OS.SystemClock.ElapsedRealtime() + 600, pending);
+                    scheduled = true;
+                }
+                catch (Exception ex)
+                {
+                    Android.Util.Log.Warn("EmueraRestart", string.Concat("alarm.Set failed: ", ex.Message));
+                }
+            }
 
-                // 退出进程，确保单例状态 / 原生资源 / 控件树全部释放
-                Java.Lang.JavaSystem.Exit(0);
-            }, 500);
+            if (scheduled)
+            {
+                try { activity.FinishAffinity(); } catch { }
+                try { Java.Lang.JavaSystem.Exit(0); } catch { }
+                return;
+            }
+
+            // 兜底：调度失败就绝不杀进程，否则用户只会看到 App 直接消失。
+            Android.Util.Log.Warn("EmueraRestart", "alarm unavailable, do soft reset instead");
+            try { host?.StopGame(); } catch { }
+            try { activity.Finish(); } catch { }
         }
 
         private void OnSettingsRequested()
