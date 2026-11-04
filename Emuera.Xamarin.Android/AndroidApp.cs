@@ -1,4 +1,5 @@
 ﻿using System;
+using Android.Content;
 using MinorShift.Emuera;
 using MinorShift.Emuera.UI.Framework.Forms;
 using XEmuera.Resources;
@@ -6,7 +7,7 @@ using Xamarin.Forms;
 
 namespace XEmuera.Droid
 {
-    internal class AndroidApp : Application
+    internal class AndroidApp : Xamarin.Forms.Application
     {
         private AndroidHost host;
         private FlyoutPage flyoutPage;
@@ -88,15 +89,21 @@ namespace XEmuera.Droid
         }
 
         /// <summary>
-        /// 退出当前游戏并回到游戏列表。
-        /// 原先游戏内只有「重新加载」「返回标题界面」，想换游戏只能杀应用；
-        /// 这里补上真正的回列表动作：结束引擎会话 → 复位导航 → 刷新列表。
+        /// 「返回游戏列表」——直接重启整个 App 进程。
+        ///
+        /// 引擎是单例设计，状态散落在 GlobalStatic、资源缓存、音频对象、
+        /// Xamarin 控件树等多处。软清理 StopGame 要逐层复位，漏一处就会在
+        /// 下一局表现为 object 丢失 / 图标消失 / STOPBGM 空引用。
+        /// 重启进程能一次性清空全部残留，代价仅几百毫秒。
+        ///
+        /// 用 AlarmManager 延迟拉起自身再退出，不用 Process.KillProcess
+        /// （前台被杀会被系统当成崩溃并弹「应用已停止」）。
         /// </summary>
         private void OnBackToGameListRequested()
         {
             Device.BeginInvokeOnMainThread(async () =>
             {
-                // 引擎正在执行脚本时直接拆会崩，先确认
+                // 引擎正在执行脚本时直接重启可能丢存档，先确认
                 var console = host?.Console;
                 if (console != null && console.IsInProcess)
                 {
@@ -107,18 +114,52 @@ namespace XEmuera.Droid
                     if (!proceed) return;
                 }
 
-                flyoutPage.IsPresented = false;
+                try { host?.SaveLog(); } catch { }
 
-                // 只结束引擎会话，不销毁 gamePage、不剥离 gameView。
-                // 引擎的 MainWindow 是单例，剥离后再挂回会造成控件树错乱
-                // （表现为返回列表后重进游戏丢失图标、渲染对象失效）。
-                host.StopGame();
-
-                // 切回游戏列表页（Detail 换成列表的 NavigationPage）
-                flyoutPage.Detail = new NavigationPage(gameListPage);
-                menuPage.RefreshMenu(isInGame: false);
-                gameListPage.RefreshList();
+                RestartApp();
             });
+        }
+
+        /// <summary>
+        /// 重启本应用：排一个延迟 Intent 拉起启动 Activity，
+        /// 再结束当前 Activity 并退出进程。
+        /// </summary>
+        private void RestartApp()
+        {
+            var activity = MainActivity.Instance;
+            if (activity == null)
+            {
+                Android.Util.Log.Warn("EmueraRestart", "activity is null, cannot restart");
+                return;
+            }
+
+            try
+            {
+                var launchIntent = activity.PackageManager.GetLaunchIntentForPackage(activity.PackageName);
+                if (launchIntent == null || launchIntent.Component == null)
+                {
+                    Android.Util.Log.Warn("EmueraRestart", "no launch intent, fallback to Finish");
+                    activity.Finish();
+                    return;
+                }
+                launchIntent.AddFlags(Android.Content.ActivityFlags.NewTask | Android.Content.ActivityFlags.ClearTask);
+                activity.StartActivity(launchIntent);
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("EmueraRestart", string.Concat("restart failed: ", ex.Message));
+            }
+
+            // 先让新实例有机会启动，再结束自己并退出进程。
+            // 若立即 Exit，可能来不及拉起新实例，导致「返回后没反应」。
+            var handler = new Android.OS.Handler(Android.OS.Looper.MainLooper);
+            handler.PostDelayed(() =>
+            {
+                try { activity.Finish(); } catch { }
+
+                // 退出进程，确保单例状态 / 原生资源 / 控件树全部释放
+                Java.Lang.JavaSystem.Exit(0);
+            }, 500);
         }
 
         private void OnSettingsRequested()
