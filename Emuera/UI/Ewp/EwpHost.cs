@@ -366,6 +366,19 @@ internal sealed class EwpHost
     private volatile bool spansEnabled;
     private long spansEmitted;
     private long spansSkipped;
+
+    // H5（2026-11-05）：REDRAW 0 期间的 legacy 事件缓冲。原生 Emuera 在 redraw==None 时
+    // RefreshStrings 早退（不重绘），行在 REDRAW 1 / AWAIT / 输入边界（RefreshStrings(true)，
+    // force_Paint 穿透 REDRAW 0）一次性上屏——「瞬间到最新行」。EWP 过去逐行直发 ⇒ FE 逐行
+    // 渲染，与原生观感背离（title／存档页的「一行一行 pop」）。这里把 legacy 族事件（line/
+    // clear，含次序）按原生重绘点整批放行：CliFramePainted／OnWaitInput／snapshot／sys.state／
+    // 终局前；4096 条·16MB 阀门防「REDRAW 0 无重绘长循环」无限积压。family 语义不变（旧 FE
+    // 只感知「行到得晚了」，顺序与内容逐字节一致）。
+    private readonly object batchGate = new object();
+    private readonly List<string> batchBuf = new List<string>();
+    private int batchBufBytes;
+    private const int BatchCapEvents = 4096;
+    private const int BatchCapBytes = 16 * 1024 * 1024;
     // R-3b-3（W1）div.children：有界递归／载荷上限（旧 FE 忽略 children 键）。
     private const int MaxDivChildSpans = 512;
     private const int MaxDivNesting = 1;
@@ -709,6 +722,8 @@ internal sealed class EwpHost
     /// <summary>RefreshStrings 有效通过点（UI 线程，B3 像素流帧信号；仅 mode.pixel=true 时实做捕获）。</summary>
     private void OnFramePainted()
     {
+        // H5：原生重绘点＝缓冲行的放行点（REDRAW 1 / AWAIT / 输入边界的 force_Paint 都到这）。
+        FlushLegacyBatch();
         pixel.OnFramePainted();
         // R-IMG-1a：背景脏标记在帧边界合并消费（一帧内多次 CBG 变更只捕获一次）
         FlushBackground();
@@ -838,7 +853,47 @@ internal sealed class EwpHost
         if (spans != null)
             json += ",\"spans\":" + spans;
         json += "}";
-        EwpOut.Emit(json);
+        // H5：REDRAW 0 期间缓冲（原生此刻不重绘）；其余照旧直发。
+        if (!BufferOrEmit(json))
+            EwpOut.Emit(json);
+    }
+
+    /// <summary>H5：REDRAW 0 期间把 legacy 族 JSON 缓冲（返回 true）；否则照旧直发（返回 false）。
+    /// 阀门（条数/字节）触发即时放行，防无重绘长循环积压。</summary>
+    private bool BufferOrEmit(string json)
+    {
+        var console = attachedConsole ?? GameConsole;
+        if (console == null || console.Redraw != ConsoleRedraw.None)
+            return false;
+        lock (batchGate)
+        {
+            batchBuf.Add(json);
+            batchBufBytes += json.Length;
+            if (batchBuf.Count >= BatchCapEvents || batchBufBytes >= BatchCapBytes)
+                FlushLegacyBatchLocked();
+        }
+        return true;
+    }
+
+    /// <summary>H5：把缓冲的 legacy 事件按序整批放行（任意线程；原生重绘点/输入边界/
+    /// snapshot/sys.state/终局前调用）。</summary>
+    private void FlushLegacyBatch()
+    {
+        lock (batchGate)
+        {
+            FlushLegacyBatchLocked();
+        }
+    }
+
+    private void FlushLegacyBatchLocked()
+    {
+        if (batchBuf.Count == 0)
+            return;
+        string[] burst = batchBuf.ToArray();
+        batchBuf.Clear();
+        batchBufBytes = 0;
+        foreach (var j in burst)
+            EwpOut.Emit(j);
     }
 
     /// <summary>R-3b-1：构建 legacy.line.spans（可选；仅 FE 声明 legacy.spans 且 text 未被
@@ -1285,14 +1340,24 @@ internal sealed class EwpHost
         int removed = Math.Min(count, liveLines.Count);
         long fromId = liveLines[liveLines.Count - removed].Id;
         liveLines.RemoveRange(liveLines.Count - removed, removed);
-        EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId
-            + ",\"count\":" + removed + "}");
+        // H5：缓冲进 legacy 族（与缓冲行保持次序 ⇒ FE 先收行再收 clear，语义自洽）。
+        if (!BufferOrEmit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId
+            + ",\"count\":" + removed + "}"))
+            EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId
+                + ",\"count\":" + removed + "}");
     }
 
     /// <summary>ClearDisplay 全量清场：清快照行/频道/段/栈，向 FE 发一条清空通知。
     /// v0.2 不发 channel.destroy；重连以无旧状态的 snapshot 为准。</summary>
     private void OnDisplayCleared()
     {
+        // H5：整屏换场——缓冲中的 legacy 事件属于已死场景，直接丢弃（防 clear 后幽灵行），
+        // 其后的 legacy.clear 也走缓冲（保序）。
+        lock (batchGate)
+        {
+            batchBuf.Clear();
+            batchBufBytes = 0;
+        }
         int count = liveLines.Count;
         long fromId = count > 0 ? liveLines[0].Id : -1;
         liveLines.Clear();
@@ -1329,7 +1394,11 @@ internal sealed class EwpHost
         if (hadIsland)
             EwpOut.Emit("{\"t\":\"overlay.island.clear\"}");
         if (count > 0)
-            EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId + ",\"count\":-1}");
+        {
+            string clearJson = "{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId + ",\"count\":-1}";
+            if (!BufferOrEmit(clearJson))
+                EwpOut.Emit(clearJson);
+        }
     }
 
     private void OnWaitInput()
@@ -1337,6 +1406,9 @@ internal sealed class EwpHost
         var console = GameConsole;
         if (console == null || console.inputReq == null)
             return;
+        // H5：输入边界兜底放行（原生 WaitInput 进场前 RefreshStrings(true) 已触发
+        // CliFramePainted；这里是同点保险，防 frame 节流跳过时 input.request 先于行到达）。
+        FlushLegacyBatch();
         // R-IMG-1a：输入边界兜底——CBG 变更后若没有重绘（无文本变化）也要把背景补发出去
         FlushBackground();
         // R-IMG-1b：失效事件同口径兜底（⛔ 让 FE 在没有重绘的场景漏收）
@@ -1411,6 +1483,8 @@ internal sealed class EwpHost
 
     private void OnTerminalState()
     {
+        // H5：终局前放行缓冲（FE 须能收到最后的行再收 meta.state/exit）。
+        FlushLegacyBatch();
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":" + J(GameConsole?.CliStateName ?? "Unknown") + "}");
     }
 
@@ -1974,6 +2048,8 @@ internal sealed class EwpHost
     private void DoState()
     {
         var console = GameConsole;
+        // H5：对账前先放行缓冲行（行先于 state 到达，FE 状态收敛后再对账）
+        FlushLegacyBatch();
         FlushBackground();
         // R-IMG-1b：对账前先把挂起的失效事件放出去（FE 拿到 state 时缓存已一致）
         FlushSpriteInvalidations();
@@ -2883,6 +2959,8 @@ internal sealed class EwpHost
     private void DoSnapshot()
     {
         var console = GameConsole;
+        // H5：snapshot 是全量对账面——先放行缓冲行（快照含同一批行，FE 以 snapshot 为准替换）
+        FlushLegacyBatch();
         FlushBackground();
         // R-IMG-1b：快照重建前先发失效（FE 会把缓存里 rev<=水位的条目丢掉，再按 spans 重取）
         FlushSpriteInvalidations();
