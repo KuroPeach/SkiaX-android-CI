@@ -55,6 +55,10 @@ namespace XEmuera.Droid
                 }
                 GlobalStatic.Reset();
                 MinorShift.Emuera.Content.AppContents.UnloadContents();
+                // Reset 会把 Sound.Factory 打回基类空壳，这里必须立刻恢复成 Android 实现，
+                // 否则本局一碰 BGM（如 STOPBGM）就空引用。
+                try { RestoreAndroidSoundFactory(); }
+                catch (Exception ex) { Android.Util.Log.Warn("EmueraHost", $"RestoreAndroidSoundFactory failed: {ex.Message}"); }
                 try
                 {
                     if (mainWindow != null)

@@ -89,21 +89,20 @@ namespace XEmuera.Droid
         }
 
         /// <summary>
-        /// 「返回游戏列表」——直接重启整个 App 进程。
+        /// 退出当前游戏并回到游戏列表。
         ///
-        /// 引擎是单例设计，状态散落在 GlobalStatic、资源缓存、音频对象、
-        /// Xamarin 控件树等多处。软清理 StopGame 要逐层复位，漏一处就会在
-        /// 下一局表现为 object 丢失 / 图标消失 / STOPBGM 空引用。
-        /// 重启进程能一次性清空全部残留，代价仅几百毫秒。
+        /// 曾尝试「重启整个 App」，但 Android 12+（本项目 targetSdk 34）禁止
+        /// 后台来源拉起 Activity：进程退出后 AlarmManager 触发的启动被系统拦截，
+        /// 实测表现为「App 直接关闭、不再起来」。这条路径不可行，改回软清理。
         ///
-        /// 用 AlarmManager 延迟拉起自身再退出，不用 Process.KillProcess
-        /// （前台被杀会被系统当成崩溃并弹「应用已停止」）。
+        /// 软清理要点：不仅结束引擎会话，还要把此前查到的两处真 bug 的防护
+        /// 一起走一遍（声音工厂恢复、界面 console 解绑、泄漏 View 复用）。
         /// </summary>
         private void OnBackToGameListRequested()
         {
             Device.BeginInvokeOnMainThread(async () =>
             {
-                // 引擎正在执行脚本时直接重启可能丢存档，先确认
+                // 引擎正在执行脚本时直接拆会话会丢存档，先确认
                 var console = host?.Console;
                 if (console != null && console.IsInProcess)
                 {
@@ -114,81 +113,18 @@ namespace XEmuera.Droid
                     if (!proceed) return;
                 }
 
-                try { host?.SaveLog(); } catch { }
+                flyoutPage.IsPresented = false;
 
-                RestartApp();
+                // 结束引擎会话：内含 Reset + 声音工厂恢复 + console 解绑
+                try { host?.StopGame(); }
+                catch (Exception ex) { Android.Util.Log.Warn("EmueraBack", $"StopGame failed: {ex.Message}"); }
+
+                // 切回游戏列表页；注意不要销毁 gamePage、不剥离 gameView
+                // （引擎 MainWindow 是单例，剥离后再挂回会造成控件树错乱）
+                flyoutPage.Detail = new NavigationPage(gameListPage);
+                menuPage.RefreshMenu(isInGame: false);
+                gameListPage.RefreshList();
             });
-        }
-
-        /// <summary>
-        /// 重启本应用：排一个延迟 Intent 拉起启动 Activity，
-        /// 再结束当前 Activity 并退出进程。
-        /// </summary>
-        private void RestartApp()
-        {
-            var activity = MainActivity.Instance;
-            if (activity == null)
-            {
-                Android.Util.Log.Warn("EmueraRestart", "activity is null, cannot restart");
-                return;
-            }
-
-            Android.App.PendingIntent pending = null;
-            Android.App.AlarmManager alarm = null;
-
-            try
-            {
-                var launchIntent = activity.PackageManager.GetLaunchIntentForPackage(activity.PackageName);
-                if (launchIntent != null && launchIntent.Component != null)
-                {
-                    launchIntent.AddFlags(Android.Content.ActivityFlags.NewTask
-                        | Android.Content.ActivityFlags.ClearTask);
-
-                    pending = Android.App.PendingIntent.GetActivity(
-                        activity, 0, launchIntent,
-                        Android.App.PendingIntentFlags.CancelCurrent
-                        | Android.App.PendingIntentFlags.Immutable);
-
-                    var ctx = (Android.Content.Context)activity;
-                    alarm = (Android.App.AlarmManager)ctx.GetSystemService(
-                        Android.Content.Context.AlarmService);
-                }
-            }
-            catch (Exception ex)
-            {
-                Android.Util.Log.Warn("EmueraRestart", string.Concat("prepare failed: ", ex.Message));
-            }
-
-            // 绝不能 StartActivity 之后再 Exit：新 Activity 会在同一个进程里打开，
-            // 随后的 Exit(0) 把它一并杀掉 —— 表现为「游戏列表闪一下、整个 App 消失」。
-            // 正确做法：拉起动作交给 AlarmManagerService（独立于本进程），
-            // 我们先退出；定时器在进程死后依然有效，会拉起一个全新进程。
-            var scheduled = false;
-            if (alarm != null && pending != null)
-            {
-                try
-                {
-                    alarm.Set(Android.App.AlarmType.ElapsedRealtime,
-                        Android.OS.SystemClock.ElapsedRealtime() + 600, pending);
-                    scheduled = true;
-                }
-                catch (Exception ex)
-                {
-                    Android.Util.Log.Warn("EmueraRestart", string.Concat("alarm.Set failed: ", ex.Message));
-                }
-            }
-
-            if (scheduled)
-            {
-                try { activity.FinishAffinity(); } catch { }
-                try { Java.Lang.JavaSystem.Exit(0); } catch { }
-                return;
-            }
-
-            // 兜底：调度失败就绝不杀进程，否则用户只会看到 App 直接消失。
-            Android.Util.Log.Warn("EmueraRestart", "alarm unavailable, do soft reset instead");
-            try { host?.StopGame(); } catch { }
-            try { activity.Finish(); } catch { }
         }
 
         private void OnSettingsRequested()
