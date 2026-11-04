@@ -908,6 +908,11 @@ internal sealed class EwpHost
         {
             if (button?.StrArray == null)
                 continue;
+            // G1（2026-11-05）：HTML `<button value='…'>` 的 span 导出。按钮元数据在
+            // ConsoleButtonString 上（IsButton/Inputs），节点循环只认节点 ⇒ 在按钮跨度
+            // 边界补一条 kind:"button"（value＋几何；样式/文本仍由 text/img spans 承担）。
+            // FE 命中即 input.submit；旧 FE 落 unsupported 计数（向后兼容）。
+            int btnStartCp = cp;
             foreach (var node in button.StrArray)
             {
                 if (node == null)
@@ -1074,6 +1079,20 @@ internal sealed class EwpHost
                 // 未知节点：保守当作不可绘制跨度（只推进码点，不画）。
                 spans.Add("{\"start\":" + start + ",\"end\":" + end + ",\"kind\":\"unsupported\"}");
             }
+            // G1：按钮跨度（value＋几何）。顶层行的 y＝行槽，FE 按 line_top 补。
+            if (button.IsButton && !string.IsNullOrEmpty(button.Inputs))
+            {
+                anyNonText = true;
+                var bb = new StringBuilder(128);
+                bb.Append("{\"start\":").Append(btnStartCp).Append(",\"end\":").Append(cp)
+                    .Append(",\"kind\":\"button\",\"x\":").Append(button.PointX)
+                    .Append(",\"advance\":").Append(button.Width)
+                    .Append(",\"value\":").Append(J(button.Inputs));
+                if (!string.IsNullOrEmpty(button.Title))
+                    bb.Append(",\"title\":").Append(J(button.Title));
+                bb.Append('}');
+                spans.Add(bb.ToString());
+            }
         }
         if (!anyNonText && !anyStyled && line.Align == DisplayLineAlignment.LEFT)
             return null;
@@ -1116,6 +1135,9 @@ internal sealed class EwpHost
                 {
                     if (button?.StrArray == null)
                         continue;
+                    // G1（2026-11-05）：div 子级按钮（400 页页签＝<div><button value=…>）。
+                    // 坐标系与 div 子级 spans 同源：x 相对内容框、y=lineY。
+                    int btnStartCp = cp;
                     foreach (var node in button.StrArray)
                     {
                         if (node == null)
@@ -1136,6 +1158,21 @@ internal sealed class EwpHost
                             truncated = true;
                         if (json != null)
                             list.Add(json);
+                    }
+                    if (budget > 0 && button.IsButton && !string.IsNullOrEmpty(button.Inputs))
+                    {
+                        budget--;
+                        var bb = new StringBuilder(160);
+                        bb.Append("{\"start\":").Append(btnStartCp).Append(",\"end\":").Append(cp)
+                            .Append(",\"kind\":\"button\",\"x\":").Append(button.PointX - contentXAbs)
+                            .Append(",\"y\":").Append(lineY)
+                            .Append(",\"advance\":").Append(button.Width)
+                            .Append(",\"value\":").Append(J(button.Inputs))
+                            .Append(",\"depth\":").Append(depth);
+                        if (!string.IsNullOrEmpty(button.Title))
+                            bb.Append(",\"title\":").Append(J(button.Title));
+                        bb.Append('}');
+                        list.Add(bb.ToString());
                     }
                 }
             }
