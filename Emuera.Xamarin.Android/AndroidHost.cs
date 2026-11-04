@@ -377,10 +377,39 @@ namespace XEmuera.Droid
 
         private void InitAudio()
         {
+            RestoreAndroidSoundFactory();
+
             GlobalStatic.Sound = new Sound[16];
             for (int i = 0; i < GlobalStatic.Sound.Length; i++)
                 GlobalStatic.Sound[i] = new AndroidSound();
             GlobalStatic.Bgm = new AndroidSound();
+        }
+
+        /// <summary>
+        /// 把 Sound.Factory 重新指回 Android 实现并重建声音对象。
+        ///
+        /// GlobalStatic.Reset() 内部把 Sound.Factory 写死成 ``() => new Sound()``
+        /// （基类壳子），桌面版靠 Program.Init 里再设成 NAudioSound 来纠正，
+        /// Android 端没有这一步。因此只要有代码调用 Reset（例如「返回游戏列表」），
+        /// 之后 Bgm / Sound[] 就全是基类空壳，STOPBGM 之类一碰就抛
+        /// "Object reference not set to an instance of an object"。
+        /// </summary>
+        private void RestoreAndroidSoundFactory()
+        {
+            MinorShift.Emuera.Runtime.Utils.Sound.Factory = () => new AndroidSound();
+
+            // 已经把对象建成空壳的，也要换成真实现，否则旧引用仍然不可用
+            if (GlobalStatic.Sound != null)
+            {
+                for (int i = 0; i < GlobalStatic.Sound.Length; i++)
+                {
+                    if (GlobalStatic.Sound[i] == null || !(GlobalStatic.Sound[i] is AndroidSound))
+                        GlobalStatic.Sound[i] = new AndroidSound();
+                }
+            }
+
+            if (GlobalStatic.Bgm == null || !(GlobalStatic.Bgm is AndroidSound))
+                GlobalStatic.Bgm = new AndroidSound();
         }
 
         private void InitMainWindow()
@@ -504,6 +533,11 @@ namespace XEmuera.Droid
 
             try { GlobalStatic.Reset(); }
             catch (Exception ex) { Android.Util.Log.Warn("EmueraHost", $"Reset failed: {ex.Message}"); }
+
+            // Reset 会把 Sound.Factory 打回基类壳子，必须立刻恢复成 Android 实现，
+            // 否则下一局一碰 BGM（如 STOPBGM）就空引用。
+            try { RestoreAndroidSoundFactory(); }
+            catch (Exception ex) { Android.Util.Log.Warn("EmueraHost", $"RestoreAndroidSoundFactory failed: {ex.Message}"); }
 
             try { MinorShift.Emuera.Content.AppContents.UnloadContents(); } catch { }
 

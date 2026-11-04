@@ -91,22 +91,42 @@ namespace XEmuera.Views
 				return null;
 
 			string resId = $"XEmuera.Resources.Images.{source}";
-			var stream = GameUtils.GetManifestResourceStream(resId);
-			if (stream == null)
+			var raw = GameUtils.GetManifestResourceStream(resId);
+			if (raw == null)
 				return null;
 
-			if (source.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+			// ImageSource.FromStream 的工厂可能被多次调用（首绘、重绘、导航后重新布局）。
+			// 原实现闭包捕获同一个流实例，第二次读取时已耗尽 → 图标消失但按钮仍可点。
+			// 改为先读入内存字节，工厂每次返回新的 MemoryStream。
+			byte[] bytes;
+			using (raw)
 			{
-				var picture = new SkiaSharp.Extended.Svg.SKSvg().Load(stream);
-				var image = SKImage.FromPicture(picture, new SKSizeI(200, 200));
-
-				stream = image.Encode().AsStream();
+				if (source.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+				{
+					var picture = new SkiaSharp.Extended.Svg.SKSvg().Load(raw);
+					var image = SKImage.FromPicture(picture, new SKSizeI(200, 200));
+					using var encoded = image.Encode();
+					bytes = encoded.ToArray();
+				}
+				else
+				{
+					using var ms0 = new MemoryStream();
+					raw.CopyTo(ms0);
+					bytes = ms0.ToArray();
+				}
 			}
 
 			if (TintColor != Color.Transparent)
-				stream = DrawTintColor(stream, TintColor);
+			{
+				using var inputStream = new MemoryStream(bytes);
+				using var tinted = DrawTintColor(inputStream, TintColor);
+				using var ms1 = new MemoryStream();
+				tinted.CopyTo(ms1);
+				bytes = ms1.ToArray();
+			}
 
-			return ImageSource.FromStream(() => stream);
+			var payload = bytes;
+			return ImageSource.FromStream(() => new MemoryStream(payload, writable: false));
 		}
 
 		private static void RefreshTintColor(BindableObject bindable, object oldvalue, object newvalue)
