@@ -53,7 +53,20 @@ sealed class JSONConfigData
 	[JsonPropertyName("UseNewRandom")]
 	public bool UseNewRandom { get; set; }
 
-	public bool UseScopedVariableInstruction { get; set; }
+	/// <summary>
+	/// 桌面版 Emuera.NET 的「作用域变量指令」开关：打开时会额外注册
+	/// VARI / VARS 两条指令，从而把这两个名字占为**指令名**。
+	///
+	/// 本移植端不采用这个语义：不少 era 游戏的脚本把 VARS 当普通变量用
+	/// （典型：eraAkumaMaid 的 `#DIMS VARS`），一旦按 setting.json 打开，
+	/// 就会触发「変数名 VARS はEmueraの変数もしくは命令で使われています」，
+	/// 进而在解析阶段抛异常、中断整个脚本加载（表现为后续 @函数 找不到）。
+	///
+	/// 因此这里固定为 false：始终用标准 SET / GET 语义，
+	/// 保证任何 era 游戏都能正常加载。
+	/// </summary>
+	[JsonIgnore]
+	public bool UseScopedVariableInstruction => false;
 
 	[JsonPropertyName("RenderingBackend")]
 	[JsonConverter(typeof(TolerantEnumConverter<RenderingBackend>))]

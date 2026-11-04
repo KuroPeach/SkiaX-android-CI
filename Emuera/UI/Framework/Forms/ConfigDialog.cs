@@ -1,4 +1,4 @@
-using MinorShift.Emuera.Runtime.Config;
+﻿using MinorShift.Emuera.Runtime.Config;
 using MinorShift.Emuera.Runtime.Config.JSON;
 using MinorShift.Emuera.Runtime.Utils.EvilMask;
 using System;
@@ -1084,7 +1084,10 @@ namespace MinorShift.Emuera.Forms
 
 		private void _useVAR_CheckedChanged(object sender, EventArgs e)
 		{
-			JSONConfig.Data.UseScopedVariableInstruction = _useVAR.Checked;
+			// 本移植端固定关闭「作用域变量指令」：打开会把 VARS/VARI 占为指令名，
+			// 与部分 era 游戏脚本里的同名变量冲突，导致脚本加载中断。
+			// 这里不再写回配置，若用户勾选则原样弹回。
+			_useVAR.Checked = JSONConfig.Data.UseScopedVariableInstruction;
 		}
 
 		private void checkBox36_CheckedChanged(object sender, EventArgs e)

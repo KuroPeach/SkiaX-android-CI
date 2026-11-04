@@ -1,4 +1,4 @@
-extern alias skviews;
+﻿extern alias skviews;
 
 using System;
 using System.Threading;
@@ -64,7 +64,6 @@ namespace XEmuera.Droid
         private Timer LongPressTimer;
         private bool IsLongPressed;
         private bool pressEnterKeyInProcess;
-        private int lastImeInsetHeight = -1;
 
         public AndroidMainWindow(Activity activity)
         {
@@ -74,65 +73,6 @@ namespace XEmuera.Droid
             LongPressTimer.Elapsed += LongPressTimer_Elapsed;
 
             BuildLayout();
-            AttachImeInsetsObserver();
-        }
-
-        /// <summary>
-        /// 监听软键盘高度，动态给界面留出底部空间。
-        /// 沉浸式全屏下 WindowSoftInputMode=AdjustResize 不一定会缩短窗口，
-        /// 因此另外用 WindowInsets 的 IME 高度作为兜底。
-        /// </summary>
-        private void AttachImeInsetsObserver()
-        {
-            if (activity?.Window?.DecorView == null)
-                return;
-
-            try
-            {
-                // GlobalLayout 是 EventHandler 签名，回调必须接收 (object, EventArgs)
-                activity.Window.DecorView.ViewTreeObserver.GlobalLayout += OnGlobalLayoutForIme;
-            }
-            catch (Exception ex)
-            {
-                Android.Util.Log.Warn("EmueraIme", $"AttachImeInsetsObserver failed: {ex.Message}");
-            }
-        }
-
-        private void OnGlobalLayoutForIme(object sender, EventArgs e)
-        {
-            if (activity?.Window?.DecorView == null || mainLayout == null)
-                return;
-
-            try
-            {
-                // 用「窗口可见区域」与「根视图高度」的差值推断键盘高度。
-                // 全 API 级别可用，不依赖 WindowInsets.Type（net8.0-android 绑定里
-                // 不可用，且项目未引入 AndroidX Core）。
-                var decor = activity.Window.DecorView;
-                var visible = new Android.Graphics.Rect();
-                decor.GetWindowVisibleDisplayFrame(visible);
-
-                int rootHeight = decor.RootView?.Height ?? 0;
-                if (rootHeight <= 0)
-                    return;
-
-                int imeHeight = Math.Max(0, rootHeight - visible.Bottom);
-
-                // 小于一定阈值时视为没有键盘（避免导航栏高度被误判）
-                if (imeHeight < rootHeight * 0.15)
-                    imeHeight = 0;
-
-                if (imeHeight == lastImeInsetHeight)
-                    return;
-                lastImeInsetHeight = imeHeight;
-
-                // 把主布局整体上移，让底部文本与输入栏都停在键盘上方。
-                mainLayout.Margin = new Thickness(0, 0, 0, imeHeight);
-            }
-            catch (Exception ex)
-            {
-                Android.Util.Log.Warn("EmueraIme", $"OnGlobalLayoutForIme failed: {ex.Message}");
-            }
         }
 
         public void UpdateStatus(string text)
