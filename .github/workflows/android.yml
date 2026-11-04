@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+          # runner 预装 .NET 10，会把 DOTNET_ROOT 指过去，导致 global.json 失效
+          dotnet-quality: 'ga'
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -37,8 +39,21 @@ jobs:
 
       - name: Show toolchain
         run: |
-          dotnet --info
+          echo "DOTNET_ROOT=$DOTNET_ROOT"
+          which dotnet
+          dotnet --version
+          dotnet --info | head -20
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+      - name: Guard SDK version
+        run: |
+          set -e
+          V=$(dotnet --version)
+          echo "SDK in use: $V"
+          case "$V" in
+            8.0.*) echo "OK: 使用 .NET 8 SDK" ;;
+            *) echo "::error::期望 .NET 8 SDK，实际 $V（global.json 未生效）"; exit 1 ;;
+          esac
 
       - name: Restore
         run: dotnet restore Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj
@@ -49,7 +64,8 @@ jobs:
             -c Release -f net8.0-android \
             -p:AndroidPackageFormat=apk \
             -p:AndroidKeyStore=false \
-            -p:RunAOTCompilation=false
+            -p:RunAOTCompilation=false \
+            -p:CheckEolWorkloads=false
 
       - name: Locate APK
         id: apk
