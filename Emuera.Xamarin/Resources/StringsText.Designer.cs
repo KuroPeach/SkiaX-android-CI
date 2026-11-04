@@ -241,6 +241,24 @@ namespace XEmuera.Resources {
         }
         
         /// <summary>
+        ///   查找类似 返回游戏列表 的本地化字符串。
+        /// </summary>
+        internal static string BackToGameList {
+            get {
+                return ResourceManager.GetString("BackToGameList", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 确定要退出当前游戏并返回游戏列表吗？ 的本地化字符串。
+        /// </summary>
+        internal static string BackToGameListConfirm {
+            get {
+                return ResourceManager.GetString("BackToGameListConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 游戏列表 的本地化字符串。
         /// </summary>
         internal static string GameList {

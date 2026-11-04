@@ -207,6 +207,12 @@
   <data name="Disabled" xml:space="preserve">
     <value>Disabled</value>
   </data>
+  <data name="BackToGameList" xml:space="preserve">
+    <value>Back to Game List</value>
+  </data>
+  <data name="BackToGameListConfirm" xml:space="preserve">
+    <value>Quit current game and return to game list?</value>
+  </data>
   <data name="GameList" xml:space="preserve">
     <value>Game List</value>
   </data>

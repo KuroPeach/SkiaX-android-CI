@@ -207,6 +207,12 @@
   <data name="Disabled" xml:space="preserve">
     <value>已禁用</value>
   </data>
+  <data name="BackToGameList" xml:space="preserve">
+    <value>返回游戏列表</value>
+  </data>
+  <data name="BackToGameListConfirm" xml:space="preserve">
+    <value>确定要退出当前游戏并返回游戏列表吗？</value>
+  </data>
   <data name="GameList" xml:space="preserve">
     <value>游戏列表</value>
   </data>

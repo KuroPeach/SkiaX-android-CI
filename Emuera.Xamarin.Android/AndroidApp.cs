@@ -24,6 +24,7 @@ namespace XEmuera.Droid
             menuPage = new AndroidMainMenuPage();
             menuPage.RebootRequested += OnRebootRequested;
             menuPage.GotoTitleRequested += OnGotoTitleRequested;
+            menuPage.BackToGameListRequested += OnBackToGameListRequested;
             menuPage.SettingsRequested += OnSettingsRequested;
             menuPage.LanguageRequested += OnLanguageRequested;
             menuPage.ViewLogRequested += OnViewLogRequested;
@@ -72,6 +73,38 @@ namespace XEmuera.Droid
         private void OnGotoTitleRequested()
         {
             GlobalStatic.MainWindow?.MainMenu_GotoTitle();
+        }
+
+        /// <summary>
+        /// 退出当前游戏并回到游戏列表。
+        /// 原先游戏内只有「重新加载」「返回标题界面」，想换游戏只能杀应用；
+        /// 这里补上真正的回列表动作：结束引擎会话 → 复位导航 → 刷新列表。
+        /// </summary>
+        private void OnBackToGameListRequested()
+        {
+            Device.BeginInvokeOnMainThread(async () =>
+            {
+                // 引擎正在执行脚本时直接拆会崩，先确认
+                var console = host?.Console;
+                if (console != null && console.IsInProcess)
+                {
+                    var proceed = await flyoutPage.DisplayAlert(
+                        StringsText.BackToGameList,
+                        StringsText.BackToGameListConfirm,
+                        "OK", "取消");
+                    if (!proceed) return;
+                }
+
+                flyoutPage.IsPresented = false;
+
+                host.StopGame();
+
+                // 切回游戏列表页（Detail 换成列表的 NavigationPage）
+                gamePage = null;
+                flyoutPage.Detail = new NavigationPage(gameListPage);
+                menuPage.RefreshMenu(isInGame: false);
+                gameListPage.RefreshList();
+            });
         }
 
         private void OnSettingsRequested()

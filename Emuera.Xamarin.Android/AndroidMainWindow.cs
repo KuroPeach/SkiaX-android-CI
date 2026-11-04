@@ -64,6 +64,7 @@ namespace XEmuera.Droid
         private Timer LongPressTimer;
         private bool IsLongPressed;
         private bool pressEnterKeyInProcess;
+        private int lastImeInsetHeight = -1;
 
         public AndroidMainWindow(Activity activity)
         {
@@ -73,6 +74,64 @@ namespace XEmuera.Droid
             LongPressTimer.Elapsed += LongPressTimer_Elapsed;
 
             BuildLayout();
+            AttachImeInsetsObserver();
+        }
+
+        /// <summary>
+        /// 监听软键盘高度，动态给界面留出底部空间。
+        /// 沉浸式全屏下 WindowSoftInputMode=AdjustResize 不一定会缩短窗口，
+        /// 因此另外用 WindowInsets 的 IME 高度作为兜底。
+        /// </summary>
+        private void AttachImeInsetsObserver()
+        {
+            if (activity?.Window?.DecorView == null)
+                return;
+
+            try
+            {
+                activity.Window.DecorView.ViewTreeObserver.GlobalLayout += OnGlobalLayoutForIme;
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("EmueraIme", $"AttachImeInsetsObserver failed: {ex.Message}");
+            }
+        }
+
+        private void OnGlobalLayoutForIme()
+        {
+            if (activity?.Window?.DecorView == null || mainLayout == null)
+                return;
+
+            try
+            {
+                int imeHeight = 0;
+                if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+                {
+                    var insets = activity.Window.DecorView.RootWindowInsets;
+                    if (insets != null)
+                        imeHeight = insets.GetInsets(WindowInsets.Type.Ime()).Bottom;
+                }
+                else
+                {
+                    // Android 10 及以下没有 WindowInsets.Type.Ime()，用可见区域差值估算
+                    var vis = new Android.Graphics.Rect();
+                    activity.Window.DecorView.GetWindowVisibleDisplayFrame(vis);
+                    int screenHeight = activity.Window.DecorView.RootView?.Height ?? 0;
+                    imeHeight = Math.Max(0, screenHeight - vis.Bottom);
+                }
+
+                if (imeHeight == lastImeInsetHeight)
+                    return;
+                lastImeInsetHeight = imeHeight;
+
+                // 输入栏本身由 entryLayout 承担，这里把主布局整体上移，
+                // 让底部文本与输入栏都停在键盘上方。
+                mainLayout.Margin = new Thickness(0, 0, 0, imeHeight);
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("EmueraIme", $"OnGlobalLayoutForIme failed: {ex.Message}");
+            }
         }
 
         public void UpdateStatus(string text)
@@ -439,6 +498,26 @@ namespace XEmuera.Droid
         {
             this.console = console;
             RefreshVirtualControllerState();
+        }
+
+        /// <summary>
+        /// 结束游戏会话时解绑 console，避免界面继续绘制已释放的引擎对象。
+        /// </summary>
+        internal void DetachConsole()
+        {
+            this.console = null;
+
+            try { entryLayout.IsVisible = false; } catch { }
+            try { textEntry.Text = ""; } catch { }
+            try { RefreshVirtualControllerState(); } catch { }
+
+            // 清掉残留在画布上的旧画面，回到列表页时不会闪出上一局内容
+            try
+            {
+                var a = activity;
+                a?.RunOnUiThread(() => { try { canvasView?.InvalidateSurface(); } catch { } });
+            }
+            catch { }
         }
 
         #region SKCanvasView Events

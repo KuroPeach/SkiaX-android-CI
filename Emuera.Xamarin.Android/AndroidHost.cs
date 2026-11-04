@@ -445,6 +445,39 @@ namespace XEmuera.Droid
         }
 
         /// <summary>
+        /// 结束当前游戏会话并清理引擎状态，供「返回游戏列表」使用。
+        /// 清理后再调用 StartGame 不会带着上一局的残留状态。
+        /// </summary>
+        internal void StopGame()
+        {
+            Android.Util.Log.Debug("EmueraHost", "StopGame: cleaning up session");
+            try { SaveLog(); } catch { }
+
+            if (console != null)
+            {
+                try { console.Quit(); } catch { }
+                try { console.Dispose(); } catch { }
+                console = null;
+            }
+
+            try { GlobalStatic.Reset(); }
+            catch (Exception ex) { Android.Util.Log.Warn("EmueraHost", $"Reset failed: {ex.Message}"); }
+
+            try { MinorShift.Emuera.Content.AppContents.UnloadContents(); } catch { }
+
+            // 让主窗口丢掉旧 console 引用，避免回列表后仍持有已释放对象
+            try
+            {
+                if (mainWindow != null)
+                    mainWindow.DetachConsole();
+            }
+            catch { }
+
+            engineInitialized = false;
+            Android.Util.Log.Debug("EmueraHost", "StopGame: cleanup complete");
+        }
+
+        /// <summary>
         /// 将 Android.Graphics.Bitmap 转换为 SkiaSharp SKBitmap
         /// 通过 PNG 中间格式确保像素格式正确
         /// </summary>

@@ -13,6 +13,7 @@ namespace XEmuera.Droid
 
         public event Action RebootRequested;
         public event Action GotoTitleRequested;
+        public event Action BackToGameListRequested;
         public event Action SettingsRequested;
         public event Action LanguageRequested;
         public event Action ViewLogRequested;
@@ -91,6 +92,8 @@ namespace XEmuera.Droid
             {
                 menuItems.Add(new MainMenuItem { Title = StringsText.Reboot, Action = "Reboot" });
                 menuItems.Add(new MainMenuItem { Title = StringsText.GotoTitle, Action = "GotoTitle" });
+                // 退出当前游戏并回到游戏列表，无需杀掉应用
+                menuItems.Add(new MainMenuItem { Title = StringsText.BackToGameList, Action = "BackToGameList" });
             }
 
             menuItems.Add(new MainMenuItem { Title = StringsText.Settings, Action = "Settings" });
@@ -112,6 +115,7 @@ namespace XEmuera.Droid
             {
                 case "Reboot": RebootRequested?.Invoke(); break;
                 case "GotoTitle": GotoTitleRequested?.Invoke(); break;
+                case "BackToGameList": BackToGameListRequested?.Invoke(); break;
                 case "Settings": SettingsRequested?.Invoke(); break;
                 case "Language": LanguageRequested?.Invoke(); break;
                 case "ViewLog": ViewLogRequested?.Invoke(); break;

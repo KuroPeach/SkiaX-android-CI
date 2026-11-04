@@ -17,7 +17,9 @@ namespace XEmuera.Droid
         MainLauncher = true,
         ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize,
         ScreenOrientation = ScreenOrientation.Sensor,
-        WindowSoftInputMode = SoftInput.AdjustNothing)]
+        // 软键盘弹出时让窗口让出空间。原为 AdjustNothing，导致固定在底部的
+        // 输入栏被输入法完全遮住；改为 AdjustResize 后由宿主 Activity 兜底。
+        WindowSoftInputMode = SoftInput.AdjustResize)]
     public class MainActivity : global::Xamarin.Forms.Platform.Android.FormsAppCompatActivity
     {
         public static Activity Instance { get; private set; }
