@@ -2,11 +2,30 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="79" android:versionName="0.79.0" package="Emuera.SkiaX" android:installLocation="auto">
 	<uses-sdk android:minSdkVersion="23" android:targetSdkVersion="34" />
 	<!-- usesCleartextTraffic:插件可自行配置 http 端点(如本地自建 API),targetSdk 28+ 默认禁止明文流量,需显式放开 -->
-	<application android:label="Emuera skiaX" android:theme="@style/MainTheme" android:requestLegacyExternalStorage="true" android:icon="@mipmap/icon" android:largeHeap="true" android:usesCleartextTraffic="true"></application>
+	<application android:label="Emuera skiaX" android:theme="@style/MainTheme" android:requestLegacyExternalStorage="true" android:icon="@mipmap/icon" android:largeHeap="true" android:usesCleartextTraffic="true">
+
+		<!-- 独立进程看门狗：主进程自杀后拉起新进程，随后自尽。
+		     process=":watchdog" 让它与主进程隔离；foregroundServiceType=specialUse
+		     满足 Android 14 前台服务类型声明（须配套下面的 PROPERTY_SPECIAL_USE）。
+		     name 必须与 [Service] 特性的 Name 完全一致。 -->
+		<service
+			android:name="XEmuera.Droid.RestartWatchdogService"
+			android:exported="false"
+			android:process=":watchdog"
+			android:foregroundServiceType="specialUse">
+			<property
+				android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+				android:value="restart_watchdog" />
+		</service>
+
+	</application>
 	<!-- INTERNET:插件与内核的网络访问。Debug 构建由工具链在 debuggable=true 时自动注入,Release 构建不会,必须显式声明 -->
 	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+	<!-- 前台服务：看门狗重启机制需要 -->
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 </manifest>
