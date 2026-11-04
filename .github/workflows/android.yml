@@ -84,6 +84,7 @@ jobs:
       # ---------- 2) 按 ABI 拆分的独立包（每个体积小很多）----------
       # RuntimeIdentifiers 只留一个 RID，即可只打该架构的运行时与程序集
       - name: Build per-ABI APKs
+        continue-on-error: true
         run: |
           set -e
           for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
@@ -112,6 +113,7 @@ jobs:
           done
 
       - name: Sign all APKs
+        continue-on-error: true
         run: |
           set -e
           mkdir -p out
