@@ -45,6 +45,7 @@ internal sealed class EwpSpriteExport
         long Failures,
         long LastRev,
         long RequestsIgnored,
+        long Invalidated,
         double CaptureMsLast,
         double CaptureMsP50,
         double CaptureMsP95,
@@ -71,6 +72,8 @@ internal sealed class EwpSpriteExport
     private long requests;
     private long failures;
     private long requestsIgnored;
+    /// <summary>R-IMG-1b：被 Invalidate/InvalidateAll 显式作废的快照数（诊断用）。</summary>
+    private long invalidated;
     private readonly Queue<double> captureTimes = new();
     private readonly Queue<double> encodeTimes = new();
     private double captureMsLast;
@@ -391,8 +394,74 @@ internal sealed class EwpSpriteExport
                 enabled, map.Count, cacheBytes, requests, failures,
                 System.Threading.Interlocked.Read(ref revSeq),
                 requestsIgnored,
+                System.Threading.Interlocked.Read(ref invalidated),
                 captureMsLast, captureP50, captureP95,
                 encodeMsLast, encodeP50, encodeP95);
+        }
+    }
+
+    /// <summary>R-IMG-1b：按名失效（`SPRITEDISPOSE` 的语义出口）。
+    /// 删该 texture 的**全部** rev（map／lru／lruNodes／cacheBytes 同步），并写入 `expired`
+    /// ⇒ 旧 rev 请求回 `expired`（⛔ `not_found`：FE 要区分「从未有过」与「被失效」）。
+    /// `revSeq` **不回退**（旧 rev 永不复用，符合 R-3a 的「rev 标识快照」契约）。
+    /// 返回值＝该名已作废快照的最大 rev（0＝该名从未导出过）。事件里的 `rev` 用它作**水位**：
+    /// FE 只丢 `rev <= 水位` 的缓存 ⇒ 失效之后新签发的 rev 不会被这条事件误删
+    /// （失效是即时执行的，而事件在帧边界才发，中间可能有新捕获）。
+    /// 线程安全：脚本线程可直接调（只碰 gate 下的账本，⛔ 不绘制、不碰 UI）。</summary>
+    public long Invalidate(string texture)
+    {
+        if (string.IsNullOrEmpty(texture))
+            return 0;
+        string key = texture.ToUpperInvariant();
+        lock (gate)
+        {
+            long floor = 0;
+            List<(string Texture, long Rev)> victims = null;
+            foreach (var k in map.Keys)
+            {
+                if (!string.Equals(k.Texture, key, StringComparison.Ordinal))
+                    continue;
+                (victims ??= new List<(string, long)>()).Add(k);
+                if (k.Rev > floor)
+                    floor = k.Rev;
+            }
+            // 已被 LRU 淘汰的 rev 也算进水位：FE 可能还留着那份纹理
+            foreach (var k in expired)
+            {
+                if (string.Equals(k.Texture, key, StringComparison.Ordinal) && k.Rev > floor)
+                    floor = k.Rev;
+            }
+            if (victims != null)
+            {
+                foreach (var k in victims)
+                    RemoveLocked(k);
+                invalidated += victims.Count;
+            }
+            return floor;
+        }
+    }
+
+    /// <summary>R-IMG-1b：`SPRITEDISPOSEALL` 的语义出口——清全表并把每个 rev 写进 `expired`。
+    /// 返回清场前快照的最大 rev（0＝没有快照）。线程安全同 Invalidate。
+    /// ⚠️ `expired` 上限 512：一次大批 DISPOSEALL 会挤掉更老的 key（协议已声明该边界）。</summary>
+    public long InvalidateAll()
+    {
+        lock (gate)
+        {
+            long floor = 0;
+            foreach (var snapshot in map.Values)
+            {
+                if (snapshot.Rev > floor)
+                    floor = snapshot.Rev;
+                MarkExpiredLocked((snapshot.Texture, snapshot.Rev));
+                snapshot.Bitmap?.Dispose();
+            }
+            invalidated += map.Count;
+            map.Clear();
+            lru.Clear();
+            lruNodes.Clear();
+            cacheBytes = 0;
+            return floor;
         }
     }
 
@@ -435,6 +504,18 @@ internal sealed class EwpSpriteExport
                 MarkExpiredLocked(oldKey);
             }
         }
+    }
+
+    /// <summary>删单个快照（map＋LRU 账本＋字节数同步），并写 expired（旧 rev ⇒ expired）。</summary>
+    private void RemoveLocked((string Texture, long Rev) key)
+    {
+        if (!map.Remove(key, out var snapshot))
+            return;
+        cacheBytes -= snapshot.Bytes;
+        snapshot.Bitmap?.Dispose();
+        if (lruNodes.Remove(key, out var node))
+            lru.Remove(node);
+        MarkExpiredLocked(key);
     }
 
     private void TouchLocked((string Texture, long Rev) key)

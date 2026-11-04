@@ -4,6 +4,34 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [17.1.0] — 运行期 sprite 失效面（R-IMG-1b）
+
+### Added
+
+- **`sprite.invalidate`**（并入 cap `sprite.export`，⛔ 新 cap、⛔ 不翻 `hello.proto`）：`{texture,rev}`／`{all:true,rev}`。`rev` 是**作废水位**——失效在脚本线程即时执行、事件按帧边界合并发送，中间可能已签发新 rev（`DISPOSE→CREATE→重新上屏`）；FE 只丢 `rev <= 水位` 的缓存，一刀切会误删刚收到的合法新图
+- `EwpSpriteExport.Invalidate(name)`／`InvalidateAll()`：按名／全量作废快照（`map`／LRU／字节账本同步，写 `expired`，`revSeq` **不回退**）；`sys.state.spriteExport.invalidated` 诊断计数
+- `AppContents` 静态事件 `SpriteDisposed`／`SpriteDisposedAll`：`SPRITEDISPOSE`／`SPRITEDISPOSEALL`、以及同名 `SPRITECREATE` 顶替旧条目时都发通知（后者为防御性，正常链走不到）
+
+### Changed
+
+- 失效快照的旧 rev 回 `sprite.data.fail{code:"expired"}`（⛔ `not_found`——后者是「从未建立」，FE 不重试）。`ClearDisplay`／`sys.title` 例外：快照与 `expired` 一起清空，旧 rev 回 `not_found` 且**不发**事件
+- `SPRITECREATE` 同名早退**保持不变**：同名重建必须显式 `SPRITEDISPOSE` 先行（eratw `MOB_SYSTEM` 即此写法；另注：引擎 `GraphicsImage` 按 GID 复用对象，只 `GDISPOSE` 不 `SPRITEDISPOSE` 时 `GCREATE` 会把画布复活到同一对象、`IsCreated` 又变 true ⇒ `SPRITECREATE` 仍早退）
+- **版本签名**：`Skiav17` → `Skiav17.1`
+
+### 未验收
+
+- 真实 `MOB_SYSTEM` 预览重建链的**人眼**确认（fixture 已用同形态 `SPRITEDISPOSE→GDISPOSE→GCREATE→SPRITECREATE` 链验收，三态＝旧图不残留／新图到达／无幽灵纹理）
+- Tier B 零调用族的 GUI 截屏（⑥ 阶段，人眼；像素锚点已由 `tierb` 门禁断言）
+
+### 验收（2026-11-04）
+
+- eraWire `rimg1b_sprite` **PASS**：spans rev `[1,2,3,4]` 严格递增；`CREATE=1`／`DUP-CREATE=0`／`DISPOSE=1`／`RECREATE=1`／`REBUILD=1`／`DISPOSEALL=1`；`invalidate{INV_RT,rev2}`＋`{rev3}`＋`{all:true,rev4}`；`rev1..4→expired`、`999999→not_found`；三阶段像素 `#C020A0`／`#20C060`／`#3060C0` 命中；`spriteExport.invalidated=4`；旧 FE 零事件
+- eraWire `rimg1b_fe` **PASS**（48 断言）；`tierb` **PASS**（六 API `RET=1`＋6 阶段像素锚点）
+- 回归 `t7_ci` **15 套件全 PASS**（含 `n2` 文本 hash 用本版引擎）
+- 协议增补＝`specs/EWP-v0.3-协议草案.md` §8B（事件／水位／同名重建口径／三态／边界／CBG depth 结论）
+
+***
+
 ## [17.0.0] — 内存优化与背景快照转正（累积 16.6.14／16.6.15）
 
 > 16.6.14／16.6.15 是 `develop-skiasharp` 上的开发版本，未单独出包；本版把这两段的改动一并对外发布，

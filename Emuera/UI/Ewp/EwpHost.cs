@@ -330,6 +330,11 @@ internal sealed class EwpHost
     private int bgDirty;
     /// <summary>FE 是否请求 bg（caps）；textbgc 事件随该 cap 一起启停。</summary>
     private volatile bool bgEnabled;
+    /// <summary>R-IMG-1b：待发给 FE 的按名失效事件（脚本线程入队，帧边界合并发送）。
+    /// 快照的物理删除在入队时就已完成（EwpSpriteExport 自带锁），这里只排队事件。</summary>
+    private readonly ConcurrentQueue<(string Texture, long Rev)> spriteInvalidations = new();
+    /// <summary>R-IMG-1b：待发的 all 失效水位（0＝无）。多批 DISPOSEALL 取最大水位。</summary>
+    private long spriteInvalidateAllRev;
 
     /// <summary>B②/S1 频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open/segments）。
     /// 脚本线程写（IntoFunction）、UI 线程读（snapshot/state）——lock 保护。</summary>
@@ -678,6 +683,9 @@ internal sealed class EwpHost
         console.CliImageLayerSet += OnImageLayerSet;
         console.CliImageLayerCleared += OnImageLayerCleared;
         console.CliImageLayersCleared += OnImageLayersCleared;
+        // R-IMG-1b：精灵销毁是静态账本（AppContents），不走 console 事件。
+        AppContents.SpriteDisposed += OnSpriteDisposed;
+        AppContents.SpriteDisposedAll += OnSpriteDisposedAll;
         console.CliIslandPrinted += OnIslandPrinted;
         console.CliIslandCleared += OnIslandCleared;
         console.CliFramePainted += OnFramePainted;
@@ -704,6 +712,8 @@ internal sealed class EwpHost
         pixel.OnFramePainted();
         // R-IMG-1a：背景脏标记在帧边界合并消费（一帧内多次 CBG 变更只捕获一次）
         FlushBackground();
+        // R-IMG-1b：失效事件同帧边界合并（快照已即时删除，这里只发事件）
+        FlushSpriteInvalidations();
     }
 
     /// <summary>R-IMG-1a：CBG/SETBGIMAGE/底色变更（脚本线程）——只置脏，⛔ 不在此捕获
@@ -1287,6 +1297,10 @@ internal sealed class EwpHost
         long fromId = count > 0 ? liveLines[0].Id : -1;
         liveLines.Clear();
         spriteExport.Clear();
+        // R-IMG-1b：ClearDisplay 已把快照与 expired 一起清空（旧 rev ⇒ not_found，非失效）
+        // ⇒ 挂起的 invalidate 事件失去意义，直接丢弃，免得 FE 收到无对应快照的失效。
+        spriteInvalidations.Clear();
+        Interlocked.Exchange(ref spriteInvalidateAllRev, 0);
         // EG-1b/EG-1d：ClearDisplay＝整屏换场（启动/GotoTitle/读档前），图层与 island 账本
         // 必须同源清空；否则新会话快照会带出已 Dispose 的旧 sprite（DrawTo 跳过但账本残留）。
         bool hadSprites = liveSprites.Count > 0;
@@ -1325,6 +1339,8 @@ internal sealed class EwpHost
             return;
         // R-IMG-1a：输入边界兜底——CBG 变更后若没有重绘（无文本变化）也要把背景补发出去
         FlushBackground();
+        // R-IMG-1b：失效事件同口径兜底（⛔ 让 FE 在没有重绘的场景漏收）
+        FlushSpriteInvalidations();
         var req = console.inputReq;
         // I3-b：Subscribe 期窗口若未完成布局，meta.metrics 的 renderW/H 会读到 0（最小化实测）。
         // 首个 input.request 时窗口必已就绪 ⇒ 补发一次，让 FE 在拿到 rect 之前就有画布尺寸。
@@ -1431,6 +1447,74 @@ internal sealed class EwpHost
     {
         liveSprites.Clear();
         EwpOut.Emit("{\"t\":\"sprite.clear\",\"all\":true}");
+    }
+
+    /// <summary>R-IMG-1b：`SPRITEDISPOSE` → 立刻作废该名快照（线程安全），事件留给帧边界合并发。
+    /// 旧 FE 未声明 `sprite.export` ⇒ 零事件、零账本开销（导出根本没启用）。</summary>
+    private void OnSpriteDisposed(string name)
+    {
+        if (!spriteExport.Enabled || string.IsNullOrEmpty(name))
+            return;
+        long floor = spriteExport.Invalidate(name);
+        if (floor <= 0)
+            return;   // 该名从未导出过快照 ⇒ 无需通知
+        spriteInvalidations.Enqueue((name.ToUpperInvariant(), floor));
+    }
+
+    /// <summary>R-IMG-1b：`SPRITEDISPOSEALL` → 作废全部快照，事件在帧边界合并成一条 `all:true`。</summary>
+    private void OnSpriteDisposedAll()
+    {
+        if (!spriteExport.Enabled)
+            return;
+        long floor = spriteExport.InvalidateAll();
+        if (floor <= 0)
+            return;
+        // 多批 DISPOSEALL 的水位单调：取大值（CompareExchange 循环避免丢更大水位）
+        long cur;
+        while ((cur = Interlocked.Read(ref spriteInvalidateAllRev)) < floor)
+        {
+            if (Interlocked.CompareExchange(ref spriteInvalidateAllRev, floor, cur) == cur)
+                break;
+        }
+    }
+
+    /// <summary>R-IMG-1b：帧边界把本帧的失效合并成事件（同名多次只发一条、取最大水位）。
+    /// 水位语义见 `EwpSpriteExport.Invalidate`：FE 只丢 `rev <= 水位` 的缓存，
+    /// ⇒ 失效之后新签发的 rev 不会被这条事件误删。</summary>
+    private void FlushSpriteInvalidations()
+    {
+        if (!spriteExport.Enabled)
+        {
+            spriteInvalidations.Clear();
+            Interlocked.Exchange(ref spriteInvalidateAllRev, 0);
+            return;
+        }
+        long allRev = Interlocked.Exchange(ref spriteInvalidateAllRev, 0);
+        if (allRev > 0)
+        {
+            // all 覆盖单名事件：本帧排队的名作废条目已无意义
+            spriteInvalidations.Clear();
+            EwpOut.Emit("{\"t\":\"sprite.invalidate\",\"all\":true,\"rev\":" + allRev + "}");
+            return;
+        }
+        if (spriteInvalidations.IsEmpty)
+            return;
+        var merged = new Dictionary<string, long>();
+        while (spriteInvalidations.TryDequeue(out var item))
+        {
+            if (merged.TryGetValue(item.Texture, out long prev))
+            {
+                if (item.Rev > prev)
+                    merged[item.Texture] = item.Rev;
+            }
+            else
+            {
+                merged[item.Texture] = item.Rev;
+            }
+        }
+        foreach (var kv in merged)
+            EwpOut.Emit("{\"t\":\"sprite.invalidate\",\"texture\":" + J(kv.Key)
+                + ",\"rev\":" + kv.Value + "}");
     }
 
     /// <summary>HTML_PRINT_ISLAND→overlay.island（v0 载荷＝原始 HTML 透传，A1-④ 单实例）。</summary>
@@ -1891,6 +1975,8 @@ internal sealed class EwpHost
     {
         var console = GameConsole;
         FlushBackground();
+        // R-IMG-1b：对账前先把挂起的失效事件放出去（FE 拿到 state 时缓存已一致）
+        FlushSpriteInvalidations();
         int channelCount;
         long mismatch;
         lock (channelGate)
@@ -1933,6 +2019,7 @@ internal sealed class EwpHost
             + ",\"failures\":" + spriteStats.Failures
             + ",\"lastRev\":" + spriteStats.LastRev
             + ",\"requestsIgnored\":" + spriteStats.RequestsIgnored
+            + ",\"invalidated\":" + spriteStats.Invalidated
             + ",\"captureMsLast\":" + D(spriteStats.CaptureMsLast)
             + ",\"captureMsP50\":" + D(spriteStats.CaptureMsP50)
             + ",\"captureMsP95\":" + D(spriteStats.CaptureMsP95)
@@ -2797,6 +2884,8 @@ internal sealed class EwpHost
     {
         var console = GameConsole;
         FlushBackground();
+        // R-IMG-1b：快照重建前先发失效（FE 会把缓存里 rev<=水位的条目丢掉，再按 spans 重取）
+        FlushSpriteInvalidations();
         var sb = new StringBuilder(4096);
         sb.Append("{\"t\":\"snapshot.full\",\"lineCount\":").Append(liveLines.Count)
             .Append(",\"generation\":").Append(currentGeneration)

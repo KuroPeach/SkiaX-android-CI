@@ -167,7 +167,12 @@ static class AppContents
 		imgName = imgName.ToUpper(CultureInfo.InvariantCulture);
 
 		SpriteG newSprite = new SpriteG(imgName, parent, rect, pos, destSize);
+		// eraWire R-IMG-1b：同名重建（eratw 的 GDISPOSE→SPRITECREATE 链）会把旧 sprite 顶掉，
+		// 旧快照必须一并作废，否则 FE 永远贴旧图。首次创建没有旧快照，Invalidate 自然返回 0。
+		bool replaced = activeSprites.ContainsKey(imgName);
 		activeSprites[imgName] = newSprite;
+		if (replaced)
+			NotifySpriteDisposed(imgName);
 	}
 
 	static public void CreateSpriteAnime(string imgName, int w, int h)
@@ -176,7 +181,10 @@ static class AppContents
 			return;
 		imgName = imgName.ToUpper(CultureInfo.InvariantCulture);
 		SpriteAnime anime = new SpriteAnime(imgName, new Size(w, h));
+		bool replaced = activeSprites.ContainsKey(imgName);
 		activeSprites[imgName] = anime;
+		if (replaced)
+			NotifySpriteDisposed(imgName);
 	}
 
 	public static bool CreateSpriteFromFileDynamic(string name, string filepath)
@@ -234,6 +242,9 @@ static class AppContents
 		{
 			sprite.Dispose();
 		}
+		// eraWire R-IMG-1b：不管物理上是否真的删掉了，ERB 声明「该名作废」就必须让 EWP 快照失效
+		//（同名重建＝DISPOSE→CREATE，此处漏发会让 FE 永远贴旧图）。
+		NotifySpriteDisposed(name);
 	}
 
 	static public long SpriteDisposeAll(bool delCsvImage)
@@ -245,7 +256,28 @@ static class AppContents
 
 		SharedBitmapCache.Clear();
 
+		// eraWire R-IMG-1b：全量作废（含 delCsvImage=false 的「只清运行期」语义）。
+		NotifySpriteDisposedAll();
+
 		return sprites;
+	}
+
+	/// <summary>
+	/// eraWire R-IMG-1b：精灵被 SPRITEDISPOSE 的通知（脚本线程/UI 线程都可能触发）。
+	/// 订阅方必须自行合并、只置脏/入队，⛔ 在回调里绘制或阻塞（可能被非 UI 路径调到）。
+	/// </summary>
+	public static event Action<string> SpriteDisposed;
+	/// <summary>eraWire R-IMG-1b：SPRITEDISPOSEALL 的通知（语义同上）。</summary>
+	public static event Action SpriteDisposedAll;
+
+	private static void NotifySpriteDisposed(string name)
+	{
+		try { SpriteDisposed?.Invoke(name); } catch { }
+	}
+
+	private static void NotifySpriteDisposedAll()
+	{
+		try { SpriteDisposedAll?.Invoke(); } catch { }
 	}
 
 	static public Exception LoadContents(bool reload)
