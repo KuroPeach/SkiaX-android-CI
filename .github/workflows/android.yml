@@ -3,7 +3,7 @@ name: Build SkiaX APK
 on:
   workflow_dispatch:
   push:
-    branches: [ feature/xamarin ]
+    branches: [ feature/xamarin, ux-fix ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -11,7 +11,7 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
@@ -58,7 +58,8 @@ jobs:
       - name: Restore
         run: dotnet restore Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj
 
-      - name: Build unsigned APK
+      # ---------- 1) 全 ABI 合一包（兼容所有设备，体积大）----------
+      - name: Build universal APK
         run: |
           dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
             -c Release -f net8.0-android \
@@ -67,37 +68,77 @@ jobs:
             -p:RunAOTCompilation=false \
             -p:CheckEolWorkloads=false
 
-      - name: Locate APK
-        id: apk
+      # ---------- 2) 按 ABI 拆分的独立包（每个体积小很多）----------
+      # RuntimeIdentifiers 只留一个 RID，即可只打该架构的运行时与程序集
+      - name: Build per-ABI APKs
         run: |
           set -e
-          DIR=Emuera.Xamarin.Android/bin/Release/net8.0-android
-          ls -la "$DIR"/*.apk || true
-          APK=$(find "$DIR" -maxdepth 1 -name '*.apk' ! -name '*-Signed.apk' | head -1)
-          if [ -z "$APK" ]; then APK=$(find "$DIR" -maxdepth 1 -name '*.apk' | head -1); fi
-          test -n "$APK" || { echo "未找到 APK"; exit 1; }
-          echo "path=$APK" >> "$GITHUB_OUTPUT"
-          echo "APK: $APK"
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            case "$ABI" in
+              arm64-v8a)   RID=android-arm64 ;;
+              armeabi-v7a) RID=android-arm   ;;
+              x86)         RID=android-x86   ;;
+              x86_64)      RID=android-x64   ;;
+            esac
+            echo "==== 构建 $ABI ($RID) ===="
+            dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
+              -c Release -f net8.0-android \
+              -p:AndroidPackageFormat=apk \
+              -p:AndroidKeyStore=false \
+              -p:RunAOTCompilation=false \
+              -p:CheckEolWorkloads=false \
+              -p:RuntimeIdentifiers="$RID" \
+              -o "perabi/$ABI"
+            find "perabi/$ABI" -maxdepth 2 -name '*.apk' -exec ls -la {} \;
+          done
 
-      - name: Sign APK
+      - name: Sign all APKs
         run: |
           set -e
-          APK="${{ steps.apk.outputs.path }}"
           mkdir -p out
           PASS=$(openssl rand -hex 16)
           keytool -genkeypair -v -keystore out/dev.keystore -storepass "$PASS" -keypass "$PASS" \
             -alias skiax -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=SkiaX CI, OU=Community Build, O=SkiaX, L=-, S=-, C=-"
           BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
-          "$BT/apksigner" sign --ks out/dev.keystore --ks-pass "pass:$PASS" \
-            --key-pass "pass:$PASS" --ks-key-alias skiax \
-            --out "out/Emuera.SkiaX-CI-signed.apk" "$APK"
-          "$BT/apksigner" verify --print-certs "out/Emuera.SkiaX-CI-signed.apk"
-          rm -f out/dev.keystore
 
-      - name: Upload APK
+          sign() {
+            local src="$1" dst="$2"
+            "$BT/apksigner" sign --ks out/dev.keystore --ks-pass "pass:$PASS" \
+              --key-pass "pass:$PASS" --ks-key-alias skiax \
+              --out "$dst" "$src"
+            echo "signed: $dst ($(du -h "$dst" | cut -f1))"
+          }
+
+          # 合一包
+          UNIV=$(find Emuera.Xamarin.Android/bin/Release/net8.0-android -maxdepth 1 -name '*.apk' ! -name '*-Signed.apk' | head -1)
+          if [ -z "$UNIV" ]; then
+            UNIV=$(find Emuera.Xamarin.Android/bin/Release/net8.0-android -maxdepth 1 -name '*.apk' | head -1)
+          fi
+          test -n "$UNIV" || { echo "::error::未找到合一包 APK"; exit 1; }
+          sign "$UNIV" out/Emuera.SkiaX-universal-signed.apk
+
+          # 分架构包
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            APK=$(find "perabi/$ABI" -maxdepth 2 -name '*.apk' ! -name '*-Signed.apk' | head -1)
+            if [ -z "$APK" ]; then
+              APK=$(find "perabi/$ABI" -maxdepth 2 -name '*.apk' | head -1)
+            fi
+            if [ -z "$APK" ]; then
+              echo "::warning::$ABI 未产出 APK，跳过"
+              continue
+            fi
+            sign "$APK" "out/Emuera.SkiaX-$ABI-signed.apk"
+          done
+
+          rm -f out/dev.keystore
+          echo "==== 最终产物 ===="
+          ls -la out/
+
+      - name: Upload all APKs
         uses: actions/upload-artifact@v4
         with:
           name: skiax-apk
-          path: out/Emuera.SkiaX-CI-signed.apk
+          path: out/*.apk
           retention-days: 30
+          if-no-files-found: error
