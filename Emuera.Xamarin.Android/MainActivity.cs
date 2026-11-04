@@ -137,7 +137,38 @@ namespace XEmuera.Droid
             if (!hasFocus)
                 return;
 
-            Window.DecorView.SystemUiVisibility = (StatusBarVisibility)EmueraUIOptions;
+            ApplyImmersiveUi();
+        }
+
+        /// <summary>
+        /// 重新应用沉浸式全屏。
+        /// 原实现只在 OnCreate 时用当时的 SystemUiVisibility 拼一次快照，
+        /// 之后每次焦点变化都套用这个**固定快照**。返回游戏列表再进入游戏时，
+        /// 页面切换会改变系统 UI 标志，套用旧快照会造成顶部区域错位、
+        /// 工具栏图标逐个消失。改为每次基于当前真实状态重新计算。
+        /// </summary>
+        private void ApplyImmersiveUi()
+        {
+            try
+            {
+                var decor = Window?.DecorView;
+                if (decor == null) return;
+
+                var flags = (StatusBarVisibility)(
+                    (int)decor.SystemUiVisibility
+                    | (int)SystemUiFlags.HideNavigation
+                    | (int)SystemUiFlags.LayoutHideNavigation
+                    | (int)SystemUiFlags.Fullscreen
+                    | (int)SystemUiFlags.LayoutFullscreen
+                    | (int)SystemUiFlags.LayoutStable
+                    | (int)SystemUiFlags.ImmersiveSticky);
+
+                decor.SystemUiVisibility = flags;
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("EmueraUi", $"ApplyImmersiveUi failed: {ex.Message}");
+            }
         }
     }
 }

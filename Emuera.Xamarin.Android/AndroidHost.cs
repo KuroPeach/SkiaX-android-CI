@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -24,6 +24,11 @@ namespace XEmuera.Droid
         private AndroidMainWindow mainWindow;
         private bool engineInitialized;
 
+        // 会话代次：每次 StartGame/StopGame 递增。
+        // 用于丢弃上一轮尚未完成的异步初始化结果，避免返回列表后
+        // 重进游戏时两个会话同时初始化造成对象丢失。
+        private volatile int sessionGen;
+
         internal MainWindow MainWindow => mainWindow;
         internal EmueraConsole Console => console;
 
@@ -36,6 +41,9 @@ namespace XEmuera.Droid
 
         public void StartGame(string gamePath, bool debugMode = false)
         {
+            // 新会话：递增代次，使上一轮遗留的异步任务失效
+            var myGen = ++sessionGen;
+
             if (engineInitialized)
             {
                 Android.Util.Log.Debug("EmueraHost", "StartGame: cleaning up previous session");
@@ -47,6 +55,12 @@ namespace XEmuera.Droid
                 }
                 GlobalStatic.Reset();
                 MinorShift.Emuera.Content.AppContents.UnloadContents();
+                try
+                {
+                    if (mainWindow != null)
+                        mainWindow.DetachConsole();
+                }
+                catch { }
                 engineInitialized = false;
                 Android.Util.Log.Debug("EmueraHost", "StartGame: cleanup complete, re-initializing");
             }
@@ -91,8 +105,17 @@ namespace XEmuera.Droid
 
             Task.Run(() =>
             {
+                // 若期间用户已返回列表或切换到别的游戏，本轮作废
+                bool Stale() => myGen != sessionGen;
+
                 try
                 {
+                    if (Stale())
+                    {
+                        Android.Util.Log.Debug("EmueraHost", $"StartGame(gen {myGen}) superseded, abort init");
+                        return;
+                    }
+
                     Android.Util.Log.Debug("EmueraHost", "Calling Program.Init()...");
                     mainWindow.UpdateStatus("Program.Init()...");
                     if (!Program.Init())
@@ -144,9 +167,26 @@ namespace XEmuera.Droid
                         Android.Util.Log.Debug("EmueraHost", "SetConsole done (fallback)");
                     }
 
+                    if (Stale())
+                    {
+                        // 本会话已被取代：把刚建好的 console 回收掉，不要挂到界面
+                        try { console.Quit(); } catch { }
+                        try { console.Dispose(); } catch { }
+                        console = null;
+                        Android.Util.Log.Debug("EmueraHost", $"StartGame(gen {myGen}) superseded before Initialize");
+                        return;
+                    }
+
                     Android.Util.Log.Debug("EmueraHost", "Calling console.Initialize()...");
                     mainWindow.UpdateStatus("Console.Initialize()...");
                     console.Initialize();
+
+                    if (Stale())
+                    {
+                        Android.Util.Log.Debug("EmueraHost", $"StartGame(gen {myGen}) superseded after Initialize");
+                        return;
+                    }
+
                     Android.Util.Log.Debug("EmueraHost", "Initialize done");
 
                     engineInitialized = true;
@@ -450,6 +490,8 @@ namespace XEmuera.Droid
         /// </summary>
         internal void StopGame()
         {
+            // 让尚未完成的异步初始化失效
+            sessionGen++;
             Android.Util.Log.Debug("EmueraHost", "StopGame: cleaning up session");
             try { SaveLog(); } catch { }
 

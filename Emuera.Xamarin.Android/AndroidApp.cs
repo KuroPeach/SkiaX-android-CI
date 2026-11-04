@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using MinorShift.Emuera;
 using MinorShift.Emuera.UI.Framework.Forms;
 using XEmuera.Resources;
@@ -52,12 +52,24 @@ namespace XEmuera.Droid
 
             var gameView = mainWindow.GetView();
 
-            gamePage = new ContentPage
+            // 关键：mainWindow 只创建一次，GetView() 永远返回同一个 mainLayout 实例。
+            // 若每次都 new ContentPage 再把同一个 View 塞进去，Xamarin.Forms 会把它
+            // 从原父级剥离，导致顶部工具栏图标逐个消失、渲染对象失效
+            // （表现为返回列表后重进新游戏出现 object 丢失一类异常）。
+            // 因此只在首次创建页面，之后复用。
+            if (gamePage == null)
             {
-                Title = "Emuera",
-                Content = gameView,
-            };
-            NavigationPage.SetHasNavigationBar(gamePage, false);
+                gamePage = new ContentPage
+                {
+                    Title = "Emuera",
+                    Content = gameView,
+                };
+                NavigationPage.SetHasNavigationBar(gamePage, false);
+            }
+            else if (gamePage.Content == null)
+            {
+                gamePage.Content = gameView;
+            }
 
             flyoutPage.Detail = new NavigationPage(gamePage);
             flyoutPage.IsPresented = false;
@@ -97,10 +109,12 @@ namespace XEmuera.Droid
 
                 flyoutPage.IsPresented = false;
 
+                // 只结束引擎会话，不销毁 gamePage、不剥离 gameView。
+                // 引擎的 MainWindow 是单例，剥离后再挂回会造成控件树错乱
+                // （表现为返回列表后重进游戏丢失图标、渲染对象失效）。
                 host.StopGame();
 
                 // 切回游戏列表页（Detail 换成列表的 NavigationPage）
-                gamePage = null;
                 flyoutPage.Detail = new NavigationPage(gameListPage);
                 menuPage.RefreshMenu(isInGame: false);
                 gameListPage.RefreshList();
