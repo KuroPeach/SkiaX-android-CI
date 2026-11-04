@@ -1,0 +1,87 @@
+name: Build SkiaX APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ feature/xamarin ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Enable Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          dotnet workload install android --skip-manifest-update
+
+      - name: Show toolchain
+        run: |
+          dotnet --info
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+      - name: Restore
+        run: dotnet restore Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj
+
+      - name: Build unsigned APK
+        run: |
+          dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
+            -c Release -f net8.0-android \
+            -p:AndroidPackageFormat=apk \
+            -p:AndroidKeyStore=false \
+            -p:RunAOTCompilation=false
+
+      - name: Locate APK
+        id: apk
+        run: |
+          set -e
+          DIR=Emuera.Xamarin.Android/bin/Release/net8.0-android
+          ls -la "$DIR"/*.apk || true
+          APK=$(find "$DIR" -maxdepth 1 -name '*.apk' ! -name '*-Signed.apk' | head -1)
+          if [ -z "$APK" ]; then APK=$(find "$DIR" -maxdepth 1 -name '*.apk' | head -1); fi
+          test -n "$APK" || { echo "未找到 APK"; exit 1; }
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "APK: $APK"
+
+      - name: Sign APK
+        run: |
+          set -e
+          APK="${{ steps.apk.outputs.path }}"
+          mkdir -p out
+          PASS=$(openssl rand -hex 16)
+          keytool -genkeypair -v -keystore out/dev.keystore -storepass "$PASS" -keypass "$PASS" \
+            -alias skiax -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=SkiaX CI, OU=Community Build, O=SkiaX, L=-, S=-, C=-"
+          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" sign --ks out/dev.keystore --ks-pass "pass:$PASS" \
+            --key-pass "pass:$PASS" --ks-key-alias skiax \
+            --out "out/Emuera.SkiaX-CI-signed.apk" "$APK"
+          "$BT/apksigner" verify --print-certs "out/Emuera.SkiaX-CI-signed.apk"
+          rm -f out/dev.keystore
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: skiax-apk
+          path: out/Emuera.SkiaX-CI-signed.apk
+          retention-days: 30

@@ -1,0 +1,12 @@
+# PolyForm Noncommercial License 1.0.0
+
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
+
+本许可**仅**适用于本仓库中由本仓库维护者新增的部分，即：
+
+- `.github/workflows/` 下的 CI 配置文件
+- `README-CI.md` 及本仓库新增的构建说明文档
+- 对 `Emuera.Xamarin.Core/Emuera.Xamarin.Core.csproj` 的 `TargetFrameworks`
+  条件化修改（仅为让 Linux/CI 构建成为可能而附加的改动）
+
+**上游引擎与移植代码不适用本许可，见 `NOTICE.md` 的分层说明。**
