@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Android.App;
 using Android.Content;
 using Android.Content.PM;
@@ -17,9 +17,11 @@ namespace XEmuera.Droid
         MainLauncher = true,
         ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize,
         ScreenOrientation = ScreenOrientation.Sensor,
-        // 保持 AdjustNothing：改成 AdjustResize 后会让整个布局被压缩，
-        // 实测导致顶部图标消失、键盘弹出白屏。改为只上移输入栏本身。
-        WindowSoftInputMode = SoftInput.AdjustNothing)]
+        // 键盘弹出时压缩布局。之前误以为 AdjustResize 会导致图标消失/白屏，
+        // 实际真凶是 TintImageButton 的流复用 bug（已修），与窗口模式无关。
+        // 现在输入框已改为独立底行（见 AndroidMainWindow.BuildLayout），
+        // 配合 AdjustResize 键盘会把画布行压缩、把输入框顶到键盘上方。
+        WindowSoftInputMode = SoftInput.AdjustResize)]
     public class MainActivity : global::Xamarin.Forms.Platform.Android.FormsAppCompatActivity
     {
         public static Activity Instance { get; private set; }

@@ -404,33 +404,43 @@ namespace XEmuera.Droid
 
             BuildVirtualController();
 
+            // 画布层：canvasView + 各覆盖层（工具栏 / 状态 / 虚拟控制器）。
+            // 输入框不再放这里——见下方 mainLayout 的说明。
             var canvasGrid = new Grid
             {
-                // entryLayout 放在 canvasGrid 中作为覆盖层，
-                // 不压缩 canvasView（与 XEmuera 的 FlexLayout 布局等效）
                 Children =
                 {
                     canvasView,
                     uiLayout,
                     statusLabel,
                     virtualControllerLayout,
+                },
+            };
+
+            // 关键：把输入框从画布遮罩层里挪出来，作为 mainLayout 的独立底行。
+            // 这样配合 WindowSoftInputMode=AdjustResize，键盘弹出时系统会压缩
+            // 上面的画布行、把输入框这行顶到键盘上方，不再遮挡底部文字。
+            // （XEmuera 的 FlexLayout Column 也是同样的「画布 + 独立输入行」结构，
+            //   也是它能正常显示输入框的原因。）
+            mainLayout = new Grid
+            {
+                BackgroundColor = Xamarin.Forms.Color.Black,
+                RowDefinitions =
+                {
+                    new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
+                    new RowDefinition { Height = GridLength.Auto },
+                },
+                Children =
+                {
+                    canvasGrid,
                     entryLayout,
                 },
             };
 
-            // entryLayout 定位在 canvasGrid 底部
-            Grid.SetRow(entryLayout, 0);
-            Xamarin.Forms.Grid.SetRow(entryLayout, 0);
-            entryLayout.VerticalOptions = LayoutOptions.End;
-
-            mainLayout = new Grid
-            {
-                BackgroundColor = Xamarin.Forms.Color.Black,
-                Children =
-                {
-                    canvasGrid,
-                },
-            };
+            // canvasGrid 占据第 0 行（画布，随键盘压缩），
+            // entryLayout 占据第 1 行（固定高度输入框，始终留在键盘上方）
+            Grid.SetRow(canvasGrid, 0);
+            Grid.SetRow(entryLayout, 1);
         }
 
         public XFView GetView() => mainLayout;
