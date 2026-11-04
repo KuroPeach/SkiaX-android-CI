@@ -68,6 +68,19 @@ jobs:
             -p:RunAOTCompilation=false \
             -p:CheckEolWorkloads=false
 
+      # 合一包先另存，后面分架构构建会清空 bin/obj
+      - name: Keep universal APK
+        run: |
+          set -e
+          mkdir -p keep
+          UNIV=$(find Emuera.Xamarin.Android/bin/Release/net8.0-android -maxdepth 1 -name '*.apk' ! -name '*-Signed.apk' | head -1)
+          if [ -z "$UNIV" ]; then
+            UNIV=$(find Emuera.Xamarin.Android/bin/Release/net8.0-android -maxdepth 1 -name '*.apk' | head -1)
+          fi
+          test -n "$UNIV" || { echo "::error::未找到合一包 APK"; exit 1; }
+          cp "$UNIV" keep/Emuera.SkiaX-universal.apk
+          ls -la keep/
+
       # ---------- 2) 按 ABI 拆分的独立包（每个体积小很多）----------
       # RuntimeIdentifiers 只留一个 RID，即可只打该架构的运行时与程序集
       - name: Build per-ABI APKs
@@ -81,6 +94,10 @@ jobs:
               x86_64)      RID=android-x64   ;;
             esac
             echo "==== 构建 $ABI ($RID) ===="
+            # 每次换 RID 前必须清掉中间产物：多 RID 的 obj/ 残留会让
+            # GetAssemblyAttributes 找不到目标 RID 下的 dll（MSB4018）
+            rm -rf Emuera.Xamarin.Android/obj Emuera.Xamarin.Android/bin \
+                   Emuera.Xamarin.Core/obj Emuera.Xamarin.Core/bin
             dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
               -c Release -f net8.0-android \
               -p:AndroidPackageFormat=apk \
@@ -110,13 +127,9 @@ jobs:
             echo "signed: $dst ($(du -h "$dst" | cut -f1))"
           }
 
-          # 合一包
-          UNIV=$(find Emuera.Xamarin.Android/bin/Release/net8.0-android -maxdepth 1 -name '*.apk' ! -name '*-Signed.apk' | head -1)
-          if [ -z "$UNIV" ]; then
-            UNIV=$(find Emuera.Xamarin.Android/bin/Release/net8.0-android -maxdepth 1 -name '*.apk' | head -1)
-          fi
-          test -n "$UNIV" || { echo "::error::未找到合一包 APK"; exit 1; }
-          sign "$UNIV" out/Emuera.SkiaX-universal-signed.apk
+          # 合一包（前面已另存到 keep/）
+          test -f keep/Emuera.SkiaX-universal.apk || { echo "::error::合一包未保存"; exit 1; }
+          sign keep/Emuera.SkiaX-universal.apk out/Emuera.SkiaX-universal-signed.apk
 
           # 分架构包
           for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
