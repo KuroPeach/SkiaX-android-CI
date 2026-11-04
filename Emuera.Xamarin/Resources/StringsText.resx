@@ -212,8 +212,8 @@
   </data>
   <data name="BackToGameListConfirm" xml:space="preserve">
     <value>请先在游戏内保存进度。
-
-引擎是单例设计，返回列表可能残留上一局数据；若后续加载出现异常，请完全退出并重新打开本应用。</value>
+引擎为单例设计，返回列表可能残留对局数据。
+若加载异常，请关闭并重启本应用。</value>
   </data>
   <data name="GameList" xml:space="preserve">
     <value>游戏列表</value>
