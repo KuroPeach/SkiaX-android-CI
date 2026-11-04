@@ -127,7 +127,14 @@ internal sealed partial class EmueraConsole : IDisposable
 		//1.713 この段階でsetStBarを使用してはいけない
 		//setStBar(StaticConfig.DrawLineString);
 		state = ConsoleState.Initializing;
-		if (Config.FPS > 0)
+		// eraWire（2026-11-04）：EWP 模式下没有窗口重绘，Config.FPS 只服务于 GUI 动画/防抖。
+		// 沿用 config 的 `FPS:3` 会让 RefreshStrings 的时间节流把每行 PRINT 卡满
+		// 1000/FPS = 333ms，实测真实游戏加载日志 gap p50=333.0ms（一行一行地 pop）；
+		// 临时把 FPS 改成 60 后 p50=16.0ms，因果确证。EWP 下固定 60fps 上限＝16ms，
+		// 保留防抖（⛔ 不设 0，否则 OnPaint/离屏捕获会被每行触发）但不拖慢行输出。
+		if (MinorShift.Emuera.Program.EwpMode)
+			msPerFrame = 1000 / 60u;
+		else if (Config.FPS > 0)
 			msPerFrame = 1000 / (uint)Config.FPS;
 		displayLineList = [];
 		printBuffer = new PrintStringBuffer(this);
