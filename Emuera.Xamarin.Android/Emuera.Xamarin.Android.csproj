@@ -68,7 +68,6 @@
     <Compile Include="AndroidLanguagePage.cs" />
     <Compile Include="AndroidLogPage.cs" />
     <Compile Include="DroidPlatformService.cs" />
-    <Compile Include="RestartWatchdogService.cs" />
   </ItemGroup>
 
   <ItemGroup>

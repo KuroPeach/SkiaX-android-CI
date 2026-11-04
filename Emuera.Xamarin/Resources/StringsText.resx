@@ -211,7 +211,9 @@
     <value>返回游戏列表</value>
   </data>
   <data name="BackToGameListConfirm" xml:space="preserve">
-    <value>确定要退出当前游戏并返回游戏列表吗？</value>
+    <value>请先在游戏内保存进度。
+
+引擎是单例设计，返回列表可能残留上一局数据；若后续加载出现异常，请完全退出并重新打开本应用。</value>
   </data>
   <data name="GameList" xml:space="preserve">
     <value>游戏列表</value>

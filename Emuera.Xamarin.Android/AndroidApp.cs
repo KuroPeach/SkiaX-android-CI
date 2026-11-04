@@ -1,6 +1,5 @@
 ﻿using System;
 using Android.Content;
-using Android.OS;
 using MinorShift.Emuera;
 using MinorShift.Emuera.UI.Framework.Forms;
 using XEmuera.Resources;
@@ -90,94 +89,39 @@ namespace XEmuera.Droid
         }
 
         /// <summary>
-        /// 「返回游戏列表」= 重启整个 App。
+        /// 退出当前游戏并回到游戏列表。
         ///
-        /// 为什么放弃软清理：
-        /// 引擎是单例、游戏与游戏库同进程，外源 dll 是进程级全局加载，
-        /// 软件清理卸载不掉已加载的程序集。换游戏时上一局的 dll / 静态状态
-        /// 残留，会触发大量「object 丢失」类报错。这些是结构性的，补清理
-        /// 永远补不完。
+        /// 曾尝试「重启整个 App」，但 Android 12+（本项目 targetSdk 34）禁止
+        /// 后台来源拉起 Activity：进程退出后 AlarmManager 触发的启动被系统拦截，
+        /// 实测表现为「App 直接关闭、不再起来」。这条路径不可行，改回软清理。
         ///
-        /// 最终方案：独立进程看门狗（RestartWatchdogService，android:process=":watchdog"）。
-        /// 1. 启动看门狗，让它延迟拉起主界面
-        /// 2. 结束主进程；看门狗独立进程仍活着
-        /// 3. 看门狗到点 startActivity 拉起全新主进程，随后自尽
-        ///
-        /// 这样游戏进程彻底消亡，dll、native 堆、静态变量全部释放。
+        /// 软清理要点：不仅结束引擎会话，还要把此前查到的两处真 bug 的防护
+        /// 一起走一遍（声音工厂恢复、界面 console 解绑、泄漏 View 复用）。
         /// </summary>
         private void OnBackToGameListRequested()
         {
             Device.BeginInvokeOnMainThread(async () =>
             {
-                // 引擎正在执行脚本时直接重启可能丢存档，先确认
-                var console = host?.Console;
-                if (console != null && console.IsInProcess)
-                {
-                    var proceed = await flyoutPage.DisplayAlert(
-                        StringsText.BackToGameList,
-                        StringsText.BackToGameListConfirm,
-                        "OK", "取消");
-                    if (!proceed) return;
-                }
+                // 返回列表前**总是**弹确认窗：提醒先存档、警告可能残留脏数据、
+                // 建议异常时完全重启应用。无论引擎是否正在执行脚本都提示。
+                var proceed = await flyoutPage.DisplayAlert(
+                    StringsText.BackToGameList,
+                    StringsText.BackToGameListConfirm,
+                    "确定", "取消");
+                if (!proceed) return;
 
-                try { host?.SaveLog(); } catch { }
+                flyoutPage.IsPresented = false;
 
-                RestartViaWatchdog();
+                // 结束引擎会话：内含 Reset + 声音工厂恢复 + console 解绑
+                try { host?.StopGame(); }
+                catch (Exception ex) { Android.Util.Log.Warn("EmueraBack", $"StopGame failed: {ex.Message}"); }
+
+                // 切回游戏列表页；注意不要销毁 gamePage、不剥离 gameView
+                // （引擎 MainWindow 是单例，剥离后再挂回会造成控件树错乱）
+                flyoutPage.Detail = new NavigationPage(gameListPage);
+                menuPage.RefreshMenu(isInGame: false);
+                gameListPage.RefreshList();
             });
-        }
-
-        /// <summary>
-        /// 通过前台服务看门狗重启：先启动看门狗服务（独立进程），
-        /// 再结束主进程。看门狗会在主进程死后拉起主界面。
-        /// </summary>
-        private void RestartViaWatchdog()
-        {
-            var activity = MainActivity.Instance;
-            if (activity == null)
-            {
-                Android.Util.Log.Warn("EmueraRestart", "activity is null, cannot restart");
-                return;
-            }
-
-            try
-            {
-                // 看门狗需要前台服务身份才能在主进程死后拉起 Activity
-                // 看门狗拉起延迟必须 > 主进程退出耗时（约 900ms）。
-                // 之前传 600ms，看门狗会在主进程还没死时就尝试拉起，与旧任务栈打架。
-                // 这里改成 2500ms：主进程约 900ms 先退出，看门狗随后才拉起新实例。
-                var svc = new Intent(activity, typeof(RestartWatchdogService));
-                svc.PutExtra(RestartWatchdogService.ExtraDelayMs, 2500);
-
-                if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
-                {
-                    activity.StartForegroundService(svc);
-                }
-                else
-                {
-                    activity.StartService(svc);
-                }
-            }
-            catch (Exception ex)
-            {
-                Android.Util.Log.Warn("EmueraRestart", $"start watchdog failed: {ex.Message}");
-            }
-
-            // 关键时序：不能立即 Exit(0)！
-            // StartForegroundService 只是发 Intent，方法返回时看门狗进程可能还没
-            // 跑起来、更没执行到 StartForeground 挂上「前台身份」。若主进程此刻
-            // 立刻退出，看门狗会被系统当孤儿进程一起回收，导致 App 直接退回桌面。
-            //
-            // 正确做法：
-            //   1) 先 FinishAffinity 把本 Activity 收掉（仍在主进程内）
-            //   2) 延迟约 900ms 再 Exit(0)，给看门狗挂前台身份的时间
-            //   3) 看门狗侧在更长的延迟后才拉起新实例（见 RestartWatchdogService）
-            try { activity.FinishAffinity(); } catch { }
-
-            var handler = new Android.OS.Handler(Android.OS.Looper.MainLooper);
-            handler.PostDelayed(() =>
-            {
-                try { Java.Lang.JavaSystem.Exit(0); } catch { }
-            }, 900);
         }
 
         private void OnSettingsRequested()

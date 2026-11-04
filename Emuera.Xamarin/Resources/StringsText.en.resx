@@ -211,7 +211,9 @@
     <value>Back to Game List</value>
   </data>
   <data name="BackToGameListConfirm" xml:space="preserve">
-    <value>Quit current game and return to game list?</value>
+    <value>Please save your progress in-game first.
+
+The engine is a singleton; returning to the list may leave residual data. If the next game misbehaves, fully quit and reopen the app.</value>
   </data>
   <data name="GameList" xml:space="preserve">
     <value>Game List</value>

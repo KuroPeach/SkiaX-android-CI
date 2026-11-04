@@ -211,7 +211,9 @@
     <value>ゲーム一覧に戻る</value>
   </data>
   <data name="BackToGameListConfirm" xml:space="preserve">
-    <value>現在のゲームを終了してゲーム一覧に戻りますか？</value>
+    <value>先にゲーム内で進捗を保存してください。
+
+エンジンは単一インスタンスのため、一覧に戻ると前のゲームのデータが残る場合があります。次のゲームで不具合が出た場合は、アプリを完全に終了して開き直してください。</value>
   </data>
   <data name="GameList" xml:space="preserve">
     <value>游戏列表</value>
