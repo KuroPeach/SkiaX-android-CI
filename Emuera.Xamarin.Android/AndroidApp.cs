@@ -142,8 +142,11 @@ namespace XEmuera.Droid
             try
             {
                 // 看门狗需要前台服务身份才能在主进程死后拉起 Activity
+                // 看门狗拉起延迟必须 > 主进程退出耗时（约 900ms）。
+                // 之前传 600ms，看门狗会在主进程还没死时就尝试拉起，与旧任务栈打架。
+                // 这里改成 2500ms：主进程约 900ms 先退出，看门狗随后才拉起新实例。
                 var svc = new Intent(activity, typeof(RestartWatchdogService));
-                svc.PutExtra(RestartWatchdogService.ExtraDelayMs, 600);
+                svc.PutExtra(RestartWatchdogService.ExtraDelayMs, 2500);
 
                 if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
                 {
@@ -159,9 +162,22 @@ namespace XEmuera.Droid
                 Android.Util.Log.Warn("EmueraRestart", $"start watchdog failed: {ex.Message}");
             }
 
-            // 结束主进程：看门狗独立进程继续跑，会拉起新主进程
+            // 关键时序：不能立即 Exit(0)！
+            // StartForegroundService 只是发 Intent，方法返回时看门狗进程可能还没
+            // 跑起来、更没执行到 StartForeground 挂上「前台身份」。若主进程此刻
+            // 立刻退出，看门狗会被系统当孤儿进程一起回收，导致 App 直接退回桌面。
+            //
+            // 正确做法：
+            //   1) 先 FinishAffinity 把本 Activity 收掉（仍在主进程内）
+            //   2) 延迟约 900ms 再 Exit(0)，给看门狗挂前台身份的时间
+            //   3) 看门狗侧在更长的延迟后才拉起新实例（见 RestartWatchdogService）
             try { activity.FinishAffinity(); } catch { }
-            try { Java.Lang.JavaSystem.Exit(0); } catch { }
+
+            var handler = new Android.OS.Handler(Android.OS.Looper.MainLooper);
+            handler.PostDelayed(() =>
+            {
+                try { Java.Lang.JavaSystem.Exit(0); } catch { }
+            }, 900);
         }
 
         private void OnSettingsRequested()
