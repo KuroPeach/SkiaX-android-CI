@@ -2566,10 +2566,6 @@ internal sealed partial class EmueraConsole : IDisposable
 	public bool AlwaysRefresh;
 	#endregion
 
-	#region EM_私家版_描画拡張
-	int[] dummy = [0];
-	#endregion
-
 	/// <summary>
 	/// 在一次绘制边界内维持指向态：清掉世代不符的 <c>pointingStrings</c>，再按最近的鼠标位置
 	/// 重算命中（<see cref="MoveMouse"/>）。
@@ -2601,6 +2597,188 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (IsInProcess)
 			return;
 		MoveMouse(lastMousePoint.Value);
+	}
+
+	/// <summary>
+	/// 命中几何的调用口径。全部由调用点显式给出——几何本身不读也不写指向/选中状态。
+	/// </summary>
+	readonly struct HitPolicy
+	{
+		/// <summary>屏底行（含）。绘制侧传 <c>ScrollValue-1</c>（跟真实视口）；导出/oracle 侧传
+		/// <c>displayLineList.Count-1</c>（对齐"重绘后用户能点到的那一屏"）。两条口径不同是设计。</summary>
+		public readonly int BottomLineNo;
+		/// <summary>true＝收集鼠标下所有重叠按钮（悬停蒙版）；false＝命中首个行内按钮即收。</summary>
+		public readonly bool CollectOverlaps;
+		/// <summary>true＝div 覆盖层按 depth 降序、自顶向下查（只读 oracle 的既有口径）。</summary>
+		public readonly bool DivTopDown;
+
+		HitPolicy(int bottomLineNo, bool collectOverlaps, bool divTopDown)
+		{
+			BottomLineNo = bottomLineNo;
+			CollectOverlaps = collectOverlaps;
+			DivTopDown = divTopDown;
+		}
+
+		/// <summary>绘制侧口径。屏底跟真实视口；<paramref name="canSelect"/> 同时决定是否收集重叠
+		/// （不可选中时在首个行内按钮命中处即收，与 <c>MoveMouse</c> 的既有早退同义）。</summary>
+		public static HitPolicy Pointer(int bottomLineNo, bool canSelect)
+			=> new(bottomLineNo, canSelect, divTopDown: false);
+
+		/// <summary>只读 oracle 口径（<see cref="HitTestButtonAt"/>）：只问"点到了谁"，不收集重叠；
+		/// div 层自顶向下查。</summary>
+		public static HitPolicy Oracle(int bottomLineNo)
+			=> new(bottomLineNo, collectOverlaps: false, divTopDown: true);
+	}
+
+	/// <summary>命中几何的结果。只描述"命中了谁"，不含任何选择/指向语义。</summary>
+	struct ButtonHit
+	{
+		/// <summary>普通行主指向：首个按钮命中；本次扫描无按钮命中时取末个非按钮命中。</summary>
+		public ConsoleButtonString RowPointing;
+		/// <summary>div 覆盖层主指向：首个 div 按钮命中；无按钮命中时取末个非按钮子命中。</summary>
+		public ConsoleButtonString DivPointing;
+		public bool RowHitButton;
+		public bool DivHitButton;
+		/// <summary>扫描中最后一次普通行 part 命中的行顶 y；无命中＝-1（rikaichan 定位用）。</summary>
+		public int LineY;
+	}
+
+	/// <summary>
+	/// 命中几何的<b>唯一</b>实现：给定 render 逻辑坐标与调用点给的屏底行，回答"命中了谁"。
+	/// <para>
+	/// 遍历顺序固定为「普通行（自下而上、行内自右向左）→ div 覆盖层」。除把命中按钮写入调用方给的
+	/// <paramref name="overlaps"/> 外没有任何副作用——不碰 <c>pointingString</c>／<c>selectingButton</c>／
+	/// rikaichan／tooltip，那些仍由 <see cref="MoveMouse"/> 赋值。
+	/// </para>
+	/// <para>
+	/// ⚠️ 屏底行两种口径都是设计：绘制侧跟真实视口，导出侧对齐"重绘后能点到的那个一屏"（见
+	/// <see cref="HitPolicy"/>）。正因如此屏底行由调用点显式传入，⛔ 不在本方法内自行取。
+	/// </para>
+	/// </summary>
+	ButtonHit HitTestButtons(int pointX, int pointY, in HitPolicy policy, ICollection<ConsoleButtonString> overlaps)
+	{
+		var hit = new ButtonHit { LineY = -1 };
+		if (window == null || displayLineList.Count == 0)
+			return hit;
+
+		int bottomLineNo = policy.BottomLineNo;
+		if (displayLineList.Count - 1 < bottomLineNo)
+			bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
+		int topLineNo = bottomLineNo - (window.RenderHeight / Config.LineHeight);
+		if (topLineNo < 0)
+			topLineNo = 0;
+		int relPointY = pointY - window.RenderHeight;
+
+		// 普通の行のパーツ：下から上へ探索
+		for (int i = bottomLineNo; i >= topLineNo; i--)
+		{
+			relPointY += Config.LineHeight;
+			ConsoleDisplayLine curLine = displayLineList[i];
+			for (int b = 0; b < curLine.Buttons.Length; b++)
+			{
+				ConsoleButtonString button = curLine.Buttons[curLine.Buttons.Length - b - 1];
+				if (button == null || button.StrArray == null)
+					continue;
+				if (button.PointX > pointX || button.PointX + button.Width < pointX)
+					continue;
+				foreach (AConsoleDisplayNode part in button.StrArray)
+				{
+					if (part == null || part is ConsoleDivPart)
+						continue;
+					if (part.PointX > pointX || part.PointX + part.Width < pointX
+						|| relPointY < part.Top || relPointY > part.Bottom)
+						continue;
+
+					hit.LineY = window.RenderHeight - Config.LineHeight * (bottomLineNo - i + 1);
+					// 主指向只由首个按钮命中定调；无按钮命中时取末个非按钮命中（与旧行为逐字一致）
+					if (!hit.RowHitButton)
+						hit.RowPointing = button;
+					if (!button.IsButton)
+						continue;
+					hit.RowHitButton = true;
+					// 只问"点到了谁"：命中首个按钮即收，也不把它算进重叠集合
+					if (!policy.CollectOverlaps)
+						return hit;
+					overlaps?.Add(button);
+					break;
+				}
+			}
+			// 首命中之后超过一屏（100 行）不再往下收集：长列表整屏扫描的止损
+			if (hit.RowHitButton && bottomLineNo - i > 100)
+				break;
+		}
+
+		// 行範囲を超えたパーツ（div ＝ HTML 覆盖层）
+		if (ConsoleEscapedParts.Changed || !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
+		{
+			escapedParts ??= [];
+			ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
+		}
+		if (escapedParts == null || escapedParts.Count == 0)
+			return hit;
+
+		int[] depths = escapedParts.Keys.ToArray();
+		Array.Sort(depths);
+		int bottomLineBase = window.RenderHeight - Config.LineHeight;
+		var correction = lineNo > Config.MaxLog ? lineNo - Config.MaxLog : 0;
+		if (policy.DivTopDown)
+		{
+			// depth 大的在上层：自顶向下查＝把升序的 depths 反着走
+			for (int d = depths.Length - 1; d >= 0; d--)
+			{
+				foreach (var part in escapedParts[depths[d]])
+				{
+					if (part is not ConsoleDivPart div)
+						continue;
+					if (div.Parent?.ParentLine == null)
+						continue;
+					var lineY = bottomLineBase + (div.Parent.ParentLine.LineNo - bottomLineNo - correction) * Config.LineHeight;
+					if (pointY < lineY + div.Top - 200 || pointY > lineY + div.Bottom + 200)
+						continue;
+					var child = div.TestChildHitbox(pointX, pointY, lineY);
+					if (child == null || !child.IsButton)
+						continue;
+					hit.DivPointing = child;
+					hit.DivHitButton = true;
+					return hit;
+				}
+			}
+			return hit;
+		}
+		foreach (int depth in depths)
+		{
+			foreach (var part in escapedParts[depth])
+			{
+				if (part is ConsoleDivPart div)
+				{
+					if (div.Parent?.ParentLine == null)
+						continue;
+					// Y 轴剪枝：div 所在基础行的屏幕绝对 Y，上下各放宽 200px 容忍 margin/padding
+					var lineY = bottomLineBase + (div.Parent.ParentLine.LineNo - bottomLineNo - correction) * Config.LineHeight;
+					if (pointY < lineY + div.Top - 200 || pointY > lineY + div.Bottom + 200)
+						continue;
+					var child = div.TestChildHitbox(pointX, pointY, lineY);
+					if (child == null)
+						continue;
+					hit.DivPointing = child;
+					if (!child.IsButton)
+						continue;
+					hit.DivHitButton = true;
+					return hit;
+				}
+				if (part.PointX <= pointX && part.PointX + part.Width >= pointX
+					&& relPointY >= part.Top && relPointY <= part.Bottom)
+				{
+					hit.DivPointing = part.Parent;
+					if (hit.DivPointing != null && hit.DivPointing.IsButton)
+					{
+						hit.DivHitButton = true;
+						return hit;
+					}
+				}
+			}
+		}
+		return hit;
 	}
 
 	/// <summary>
@@ -2657,7 +2835,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		ConsoleButtonString pointing = null;
 		int prevPointingStringsLen = pointingStrings.Count;
 		pointingStrings.Clear();
-		bool firstPointngSelected = false;
 		bool canSelect = false;
 		//数値か文字列の入力待ち状態でなければ選択中にはならない
 		if (state == ConsoleState.Error)
@@ -2669,142 +2846,14 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (IsInProcess && AlwaysRefresh == false)
 			#endregion
 			goto end;
-		//履歴表示中は無視
-		//if (window.ScrollValue != window.ScrollMaximum)
-		//	goto end;
-		int pointX = point.X;
-		int pointY = point.Y;
-		ConsoleDisplayLine curLine;
 
-		int bottomLineNo = window.ScrollValue - 1;
-		if (displayLineList.Count - 1 < bottomLineNo)
-			bottomLineNo = displayLineList.Count - 1;//1820 この処理不要な気がするけどエラー報告があったので入れとく
-		int topLineNo = bottomLineNo - (window.RenderHeight / Config.LineHeight);
-		if (topLineNo < 0)
-			topLineNo = 0;
-		int relPointY = pointY - window.RenderHeight;
-		//下から上へ探索し発見次第打ち切り
-		#region EM_私家版_描画拡張
-		if (ConsoleEscapedParts.Changed || !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
-		{
-			if (escapedParts == null) escapedParts = [];
-			ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
-		}
-		var edepth = escapedParts == null || escapedParts.Keys.Count == 0 ? dummy : escapedParts.Keys.ToArray();
-		Array.Sort(edepth);
-		int eidx = 0;
-		bool zeroTested = false;
-		var bottomLineBase = window.RenderHeight - Config.LineHeight;
-		while (eidx < edepth.Length)
-		{
-			var depth = edepth[eidx];
-			if (!zeroTested && depth >= 0)
-			{
-				depth = 0;
-				zeroTested = true;
-				// 普通のパーツのヒットテスト
-				for (int i = bottomLineNo; i >= topLineNo; i--)
-				{
-					relPointY += Config.LineHeight;
-					curLine = displayLineList[i];
+		// 命中几何只有一处实现（HitTestButtons）。屏底行由本调用点显式给出：绘制侧跟真实视口。
+		// canSelect=false 时几何在首个行内按钮命中处即收、且不收集重叠，与既有早退同义。
+		var hit = HitTestButtons(point.X, point.Y,
+			HitPolicy.Pointer(window.ScrollValue - 1, canSelect), pointingStrings);
+		pointing = hit.DivPointing ?? hit.RowPointing;
+		curLineY = hit.LineY;
 
-					for (int b = 0; b < curLine.Buttons.Length; b++)
-					{
-						ConsoleButtonString button = curLine.Buttons[curLine.Buttons.Length - b - 1];
-						if (button == null || button.StrArray == null)
-							continue;
-						if ((button.PointX <= pointX) && (button.PointX + button.Width >= pointX))
-						{
-							//if (relPointY >= 0 && relPointY <= Config.Config.FontSize)
-							//{
-							//	pointing = button;
-							//	if(pointing.IsButton)
-							//		goto breakfor;
-							//}
-							foreach (AConsoleDisplayNode part in button.StrArray)
-							{
-								if (part == null || part is ConsoleDivPart)
-									continue;
-								if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
-									&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
-								{
-									curLineY = window.RenderHeight - Config.LineHeight * (bottomLineNo - i + 1);
-									if (!firstPointngSelected)
-										pointing = button;
-									if (button.IsButton)
-									{
-										if (!canSelect)
-										{
-											goto breakfor;
-										}
-										pointingStrings.Add(button);
-										firstPointngSelected = true;
-										break; //退出button.StrArray的for循环
-									}
-								}
-							}
-						}
-					}
-					if (firstPointngSelected && bottomLineNo - i > 100)
-					{
-						break;
-					}
-				}
-			}
-			if (eidx < edepth.Length && edepth[eidx] == depth)
-			{
-				// 行範囲を超えたパーツのヒットテスト
-				var correction = lineNo > Config.MaxLog ? lineNo - Config.MaxLog : 0;
-				if (depth != 0 || escapedParts.ContainsKey(depth))
-					foreach (var part in escapedParts[depth])
-					{
-						if (part is ConsoleDivPart div)
-						{
-							// Y轴剪枝
-							// 计算该 div 所在基础行的屏幕绝对 Y 坐标
-							var lineY = bottomLineBase + (div.Parent.ParentLine.LineNo - bottomLineNo - correction) * Config.LineHeight;
-							// div.Top 和 div.Bottom 是相对偏移量 (ypos 和 ypos+height)。
-							// lineY + div.Top 即为该 div 在屏幕上的大致绝对 Y 坐标。
-							// 考虑到 margin/padding 可能带来的额外偏移，上下各放宽 200px 的容错范围。
-							if (pointY < lineY + div.Top - 200 || pointY > lineY + div.Bottom + 200)
-								continue;
-
-							var childPointing = div.TestChildHitbox(pointX, pointY, lineY);
-							if (childPointing != null)
-							{
-								pointing = childPointing;
-								if (pointing.IsButton)
-									goto breakfor;
-							}
-						}
-						else if ((part.PointX <= pointX) && (part.PointX + part.Width >= pointX)
-							&& (relPointY >= part.Top) && (relPointY <= part.Bottom))
-						{
-							pointing = part.Parent;
-							if (pointing.IsButton)
-								goto breakfor;
-						}
-					}
-				eidx++;
-			}
-		}
-	#endregion
-
-
-	//int posy_bottom2up = window.RenderHeight - pointY;
-	//int logNum = window.ScrollMaximum - window.ScrollValue;
-	////表示中の一番下の行番号
-	//int curBottomLineNo = displayLineList.Count - logNum;
-	//int curPointingLineNo = curBottomLineNo - (posy_bottom2up / Config.LineHeight + 1);
-	//if ((curPointingLineNo < 0) || (curPointingLineNo >= displayLineList.Count))
-	//	curLine = null;
-	//else
-	//	curLine =  displayLineList[curPointingLineNo];
-	//if (curLine == null)
-	//	goto end;
-
-	//pointing = curLine.GetPointingButton(pointX);
-	breakfor:
 		#region EE_ボタン判定の改善
 		if (pointingStrings.Count > 0)
 		{
@@ -3547,81 +3596,18 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	/// <summary>
 	/// 命中测试（只读，无副作用）：给定 render 逻辑坐标，返回该点命中的按钮（无则 null）。
-	/// 几何判据与 <c>MoveMouse</c> 内的 hit-test 分支同源：普通行按 <c>relPointY</c> 自下而上累加，
-	/// div 覆盖层走 <see cref="ConsoleDivPart.TestChildHitbox"/>。<c>MoveMouse</c> 另担选中态副作用
-	/// （pointingString/selectingButton），本方法只答「命中了谁」，故**不带** IsInProcess 早退
+	/// 几何走唯一实现 <see cref="HitTestButtons"/> 的 <see cref="HitPolicy.Oracle"/> 口径——
+	/// 屏底行取 <c>displayLineList.Count-1</c>，理由见 <see cref="GetSelectableButtonRects"/> 上方注释。
+	/// 本方法只答「命中了谁」，不设 pointingString/selectingButton，故**不带** IsInProcess 早退
 	/// （那是鼠标交互的限制，不是几何限制）。
-	/// ⚠️ 改 <c>MoveMouse</c> 的几何判据必须同步改这里——rect 自检依赖它。
 	/// </summary>
 	internal ConsoleButtonString HitTestButtonAt(int pointX, int pointY)
 	{
-		if (window == null || displayLineList.Count == 0)
-			return null;
-		// 与 GetSelectableButtonRects 同源＝显示列表真底（Count-1），理由见其注释。
-		// 稳态下与 MoveMouse 的 ScrollValue-1 相等；输入等待前的陈旧窗口里，自检 oracle 必须
-		// 对齐「重绘后用户实际能点到的那一屏」，否则会把刚打印完、尚未重绘的按钮面全判不可点。
-		int bottomLineNo = displayLineList.Count - 1;
-		int topLineNo = bottomLineNo - (window.RenderHeight / Config.LineHeight);
-		if (topLineNo < 0)
-			topLineNo = 0;
-		int relPointY = pointY - window.RenderHeight;
-
-		// 普通行：自下而上、行内自右向左（与 MoveMouse 同）
-		for (int i = bottomLineNo; i >= topLineNo; i--)
-		{
-			relPointY += Config.LineHeight;
-			ConsoleDisplayLine curLine = displayLineList[i];
-			for (int b = 0; b < curLine.Buttons.Length; b++)
-			{
-				ConsoleButtonString button = curLine.Buttons[curLine.Buttons.Length - b - 1];
-				if (button == null || button.StrArray == null || !button.IsButton)
-					continue;
-				if (button.PointX > pointX || button.PointX + button.Width < pointX)
-					continue;
-				foreach (AConsoleDisplayNode part in button.StrArray)
-				{
-					if (part == null || part is ConsoleDivPart)
-						continue;
-					if (part.PointX <= pointX && part.PointX + part.Width >= pointX
-						&& relPointY >= part.Top && relPointY <= part.Bottom)
-						return button;
-				}
-			}
-		}
-
-		// div（HTML 覆盖层）：与 MoveMouse 同口径（含 200px 容错剪枝）
-		if (ConsoleEscapedParts.Changed
-			|| !ConsoleEscapedParts.TestedInRange(topLineNo, bottomLineNo, lastButtonGeneration))
-		{
-			escapedParts ??= [];
-			ConsoleEscapedParts.GetPartsInRange(topLineNo, bottomLineNo, lastButtonGeneration, escapedParts);
-		}
-		if (escapedParts != null && escapedParts.Count > 0)
-		{
-			var bottomLineBase = window.RenderHeight - Config.LineHeight;
-			var correction = lineNo > Config.MaxLog ? lineNo - Config.MaxLog : 0;
-			var depths = escapedParts.Keys.ToArray();
-			Array.Sort(depths);
-			// depth 大的在上层：自顶向下查
-			for (int d = depths.Length - 1; d >= 0; d--)
-			{
-				foreach (var part in escapedParts[depths[d]])
-				{
-					if (part is not ConsoleDivPart div)
-						continue;
-					if (div.Parent?.ParentLine == null)
-						continue;
-					var lineY = bottomLineBase
-						+ (div.Parent.ParentLine.LineNo - bottomLineNo - correction) * Config.LineHeight;
-					if (pointY < lineY + div.Top - 200 || pointY > lineY + div.Bottom + 200)
-						continue;
-					var child = div.TestChildHitbox(pointX, pointY, lineY);
-					if (child != null && child.IsButton)
-						return child;
-				}
-			}
-		}
-		return null;
+		var hit = HitTestButtons(pointX, pointY, HitPolicy.Oracle(displayLineList.Count - 1), null);
+		// 行内按钮优先：与绘制侧 breakfor 段「掩码命中覆盖 div 层指向」的既有结果一致
+		if (hit.RowHitButton)
+			return hit.RowPointing;
+		return hit.DivHitButton ? hit.DivPointing : null;
 	}
 
 	/// <summary>
