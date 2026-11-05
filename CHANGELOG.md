@@ -4,6 +4,40 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [17.2.0] — EWP 按钮面与重绘时序（G1／H5）＋ 悬停保活
+
+### Added
+
+- **HTML 按钮 span**（`legacy.spans` 内加法，⛔ 新 cap、⛔ 不翻 `hello.proto`）：顶层 `BuildSpans` 与 div 子级 `BuildDivChildrenCore` 在按钮跨度边界发 `kind:"button"{start,end,x,advance,value[,title]}`；div 子级另带 `y` 与 `depth`，`x` 相对 div 内容框。样式与文本仍由 text spans 承担，旧 FE 落 `unsupported` 计数
+- **`REDRAW 0` 期间 legacy 事件缓冲**（H5）：`line`／`clear` 族不直发，在原生重绘点（`CliFramePainted`）／输入边界（`OnWaitInput`）／`snapshot`／`sys.state`／终局前整批放行；阀门 4096 条·16 MB，`ClearDisplay` 丢弃死场景缓冲
+
+### Changed
+
+- **缓冲放行顺序加固**（H5-2）：直发前先 flush 积压批（`REDRAW 1` 的新行不得先于积压行到达）；`OnWaitInput` 的兜底放行移到 `inputReq` 判空之前；`batchBufBytes` 改按 UTF-8 实际字节计数
+- **`--ewp`／`--ewp-headless` 不再受 `Config.FPS` 重绘节流**：`msPerFrame` 固定 `1000/60`，保留防抖，GUI 模式行为不变
+- **div 按钮面按可见行范围收集**：`CollectSelectableButtons` 只取屏幕内的 div 按钮，滚动区外的历史按钮不再进 `input.request.buttons`（全量形态留给 CLI screen／诊断）
+- **`<div align=…>` 接受并忽略**（`left`／`center`／`right`）：此前未知属性会丢弃整行 HTML；几何仍由 `xpos`／`width`／`height` 决定
+- **版本签名**：`Skiav17.1` → `Skiav17.2`
+
+### Fixed
+
+- **悬停高亮跨整屏重排保活**：`ButtonIsPointing` 判对象引用，重排（`CLEARLINE`＋重印／HTML 重建）重建按钮对象后 `pointingStrings` 只剩上一代对象，高亮要到下次鼠标移动才恢复；无 `Timelimit` 的等待里原本没有任何兜底。改为在 `RefreshStrings` 的绘制边界（`verticalScrollBarUpdate()` 之后、`window.Refresh()` 之前）按世代清理并重算命中，命中输入用 `MoveMouse` 缓存的**逻辑**坐标，无窗（`EwpHeadlessMode`）早退
+- **tooltip 判据改内容键**（`Title`＋按钮自身文本＋`PointX,Width`）：此前按引用判等，整屏重排的界面上气泡每帧复位、400 ms 延时永远等不到；`lastPointingString` 仍按引用供 rikaichan
+- **删除 `endTimer`×2／`InputMouseKey`／`endMacro` 的 `MoveMouse` 兜底**：它们只在 `inputReq.NeedValue` 下触发且读物理坐标，统一由绘制边界承担
+
+### 未验收
+
+- 悬停／tooltip 的 GUI 人眼细验（用户已冒烟：动态地图高亮常亮、tooltip 正常）
+- Android 真机（SkiaX 侧只验双 TFM 构建，APK 未重打）
+
+### 验收（2026-11-05）
+
+- `dotnet build Emuera.sln -c Debug` 0 error（971 条既有 CA 警告）；`Emuera.Headless` Debug 0 error
+- eraWire `g1_button_gate`（6 rect＋点 102/999 端到端）、`h5_redraw_gate`（含 lineId 到达序单调）、`g3_sprite_rt_gate`、`g4_title_img_gate`、`imgset6_fe_probe`（14/14 drawn）全 PASS；`t7_docs_audit` PASS
+- eraWire `pixel_frame_gate --headless` PASS（8 帧、`frame.commit` 守恒 30:30）
+
+***
+
 ## [17.1.0] — 运行期 sprite 失效面（R-IMG-1b）
 
 ### Added
