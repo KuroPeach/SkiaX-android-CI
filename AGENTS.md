@@ -39,3 +39,4 @@
 3. **内核修改回流分类**：改动前先判定 A（应回流 upstream）/ B（需 PlatformInterop 抽象）/ C（不回流）三类 → `.trae\rules\kernel\modification-classification.md` ＋ [kernel-audit.md](file:///d:/emuera/shared-trae/knowledge/lazyloading/kernel-audit.md)。
 4. **新增/修改 ERB 内置函数 = 两个提交**：① 引擎侧（实现 + 版本 + 日志）② 文档侧（`emuera.em.doc-1` 三语参考页 + 摘要 + 日志 + 索引）。表达式函数 3 文件、命令型 7+ 文件 —— 见 [skia-engine-dev-workflow.md](file:///d:/emuera/shared-trae/knowledge/erabasic/skia-engine-dev-workflow.md)。
 5. **分支单向流**：`develop-skiasharp` → `feature/xamarin`（SkiaX）；A 类修复经 cherry-pick 回流 upstream。详见 [branch-strategy.md](file:///d:/emuera/shared-trae/knowledge/lazyloading/branch-strategy.md)。
+6. **注释口径**：注释只写**代码事实**（契约、约束、不变量、坑），⛔ 不写改动史——「本轮／上一轮／已下沉／原先 X／为什么改成 Y」一律归 `git log`；注释里不出现任务编号、MR 号、日期、版本号。
