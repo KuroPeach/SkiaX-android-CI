@@ -6,9 +6,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 
-// eraWire R-IMG-1a：CBG 静态快照导出。
+// CBG 静态快照导出。
 // 语义：CBG（GCREATE/GDRAWSPRITE/CBGSETG 合成结果）＋SETBGIMAGE 烘焙层 ＝ 一张不可语义化的
-// 运行期位图。EWP 不重实现 G 系（R-IMG-0 §2.1 Tier C 边界），只在 CBG 变更后按帧边界导出
+// 运行期位图。EWP 不重实现 G 系（§2.1 Tier C 边界），只在 CBG 变更后按帧边界导出
 // 「最终合成快照」：PaintBackgroundOnly 与 OnPaint 同源绘制 → PNG → bg.set/bg.data。
 // 频率：背景变化少，捕获只在变更帧做；内容未变（像素逐字节相同）则不发事件。
 // 编码在独立线程（1280×720 PNG ~20-40ms，⛔ 占 UI 线程）；单槽丢旧保新。

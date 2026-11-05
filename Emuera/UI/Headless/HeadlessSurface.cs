@@ -14,7 +14,7 @@ internal sealed class HeadlessSurface : IConsoleSurface
 	// 桌面 MainWindow.Render* = mainPicBox（ClientSize 减去垂直滚动条/菜单等 chrome）。
 	// 无窗没有控件，但游戏布局读 CLIENTWIDTH/HEIGHT 时仍应看到与桌面一致的 render 画布；
 	// 这里按 EWP 最小化窗口实测的 insets 固定（1280x720 client → 1262x667 render）。
-	// N1-c 若需要在不同 FE/平台调整，可改为宿主参数。
+	// 若需要在不同 FE/平台调整，可做成宿主参数。
 	private const int ChromeWidth = 18;
 	private const int ChromeHeight = 53;
 

@@ -27,7 +27,7 @@ internal static class HeadlessHost
 		var ewp = new EwpHost(surface, Program.EwpPort);
 		if (Program.EwpPort > 0)
 		{
-			// G3（2026-10-30）：TCP 模式必须先握手再启动游戏——否则首帧 legacy.line /
+			// TCP 模式必须先握手再启动游戏——否则首帧 legacy.line /
 			// input.request 早于 AcceptLoop 的 Subscribe（钩子未挂、无补发），FE 永远
 			// 拿不到 reqId。console 提前注入，让 Subscribe 在 Initialize 之前完成。
 			ewp.AttachConsole(console);
