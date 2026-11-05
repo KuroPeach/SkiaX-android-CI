@@ -372,7 +372,9 @@ internal sealed class EwpHost
     // force_Paint 穿透 REDRAW 0）一次性上屏——「瞬间到最新行」。EWP 过去逐行直发 ⇒ FE 逐行
     // 渲染，与原生观感背离（title／存档页的「一行一行 pop」）。这里把 legacy 族事件（line/
     // clear，含次序）按原生重绘点整批放行：CliFramePainted／OnWaitInput／snapshot／sys.state／
-    // 终局前；4096 条·16MB 阀门防「REDRAW 0 无重绘长循环」无限积压。family 语义不变（旧 FE
+    // 终局前；4096 条·16MB（UTF-8 字节）阀门防「REDRAW 0 无重绘长循环」无限积压。
+    // H5-2（2026-11-05）：非缓冲路径直发前先 FlushLegacyBatch（防行序倒挂）；OnWaitInput
+    // 的兜底放行在 inputReq 判空之前（无 inputReq 的 WAIT 也要放行）。family 语义不变（旧 FE
     // 只感知「行到得晚了」，顺序与内容逐字节一致）。
     private readonly object batchGate = new object();
     private readonly List<string> batchBuf = new List<string>();
@@ -864,11 +866,19 @@ internal sealed class EwpHost
     {
         var console = attachedConsole ?? GameConsole;
         if (console == null || console.Redraw != ConsoleRedraw.None)
+        {
+            // H5-2（2026-11-05）：直发前必须先放行积压批——⛔ 否则新行先于缓冲行到达 FE
+            // （SetRedraw 只有 (i&2) 才 force 重绘，REDRAW 1 本身不画；此刻 batchBuf 可能
+            // 仍非空，直接 Emit 会让行序倒挂）。
+            FlushLegacyBatch();
             return false;
+        }
         lock (batchGate)
         {
             batchBuf.Add(json);
-            batchBufBytes += json.Length;
+            // H5-2：按 UTF-8 实际字节计数（json.Length 是 UTF-16 字符数，会把 16MB 阀门
+            // 放宽到约 32MB 内存）。⚠️ 仅阀门口径，不影响事件内容/顺序。
+            batchBufBytes += Encoding.UTF8.GetByteCount(json);
             if (batchBuf.Count >= BatchCapEvents || batchBufBytes >= BatchCapBytes)
                 FlushLegacyBatchLocked();
         }
@@ -1441,11 +1451,15 @@ internal sealed class EwpHost
     private void OnWaitInput()
     {
         var console = GameConsole;
-        if (console == null || console.inputReq == null)
+        if (console == null)
             return;
         // H5：输入边界兜底放行（原生 WaitInput 进场前 RefreshStrings(true) 已触发
         // CliFramePainted；这里是同点保险，防 frame 节流跳过时 input.request 先于行到达）。
+        // H5-2（2026-11-05）：⛔ 必须放在 inputReq 判空之前——没有 inputReq 的 WAIT
+        // 也要放行缓冲行，否则该场景的行会被扣到下一次重绘/终局才到。
         FlushLegacyBatch();
+        if (console.inputReq == null)
+            return;
         // R-IMG-1a：输入边界兜底——CBG 变更后若没有重绘（无文本变化）也要把背景补发出去
         FlushBackground();
         // R-IMG-1b：失效事件同口径兜底（⛔ 让 FE 在没有重绘的场景漏收）
