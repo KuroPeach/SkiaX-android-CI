@@ -4,6 +4,109 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [17.2.0] — EWP 按钮面与重绘时序（G1／H5）＋ 悬停保活
+
+### Added
+
+- **HTML 按钮 span**（`legacy.spans` 内加法，⛔ 新 cap、⛔ 不翻 `hello.proto`）：顶层 `BuildSpans` 与 div 子级 `BuildDivChildrenCore` 在按钮跨度边界发 `kind:"button"{start,end,x,advance,value[,title]}`；div 子级另带 `y` 与 `depth`，`x` 相对 div 内容框。样式与文本仍由 text spans 承担，旧 FE 落 `unsupported` 计数
+- **`REDRAW 0` 期间 legacy 事件缓冲**（H5）：`line`／`clear` 族不直发，在原生重绘点（`CliFramePainted`）／输入边界（`OnWaitInput`）／`snapshot`／`sys.state`／终局前整批放行；阀门 4096 条·16 MB，`ClearDisplay` 丢弃死场景缓冲
+
+### Changed
+
+- **缓冲放行顺序加固**（H5-2）：直发前先 flush 积压批（`REDRAW 1` 的新行不得先于积压行到达）；`OnWaitInput` 的兜底放行移到 `inputReq` 判空之前；`batchBufBytes` 改按 UTF-8 实际字节计数
+- **`--ewp`／`--ewp-headless` 不再受 `Config.FPS` 重绘节流**：`msPerFrame` 固定 `1000/60`，保留防抖，GUI 模式行为不变
+- **div 按钮面按可见行范围收集**：`CollectSelectableButtons` 只取屏幕内的 div 按钮，滚动区外的历史按钮不再进 `input.request.buttons`（全量形态留给 CLI screen／诊断）
+- **`<div align=…>` 接受并忽略**（`left`／`center`／`right`）：此前未知属性会丢弃整行 HTML；几何仍由 `xpos`／`width`／`height` 决定
+- **版本签名**：`Skiav17.1` → `Skiav17.2`
+
+### Fixed
+
+- **悬停高亮跨整屏重排保活**：`ButtonIsPointing` 判对象引用，重排（`CLEARLINE`＋重印／HTML 重建）重建按钮对象后 `pointingStrings` 只剩上一代对象，高亮要到下次鼠标移动才恢复；无 `Timelimit` 的等待里原本没有任何兜底。改为在 `RefreshStrings` 的绘制边界（`verticalScrollBarUpdate()` 之后、`window.Refresh()` 之前）按世代清理并重算命中，命中输入用 `MoveMouse` 缓存的**逻辑**坐标，无窗（`EwpHeadlessMode`）早退
+- **tooltip 判据改内容键**（`Title`＋按钮自身文本＋`PointX,Width`）：此前按引用判等，整屏重排的界面上气泡每帧复位、400 ms 延时永远等不到；`lastPointingString` 仍按引用供 rikaichan
+- **删除 `endTimer`×2／`InputMouseKey`／`endMacro` 的 `MoveMouse` 兜底**：它们只在 `inputReq.NeedValue` 下触发且读物理坐标，统一由绘制边界承担
+
+### 未验收
+
+- 悬停／tooltip 的 GUI 人眼细验（用户已冒烟：动态地图高亮常亮、tooltip 正常）
+- Android 真机（SkiaX 侧只验双 TFM 构建，APK 未重打）
+
+### 验收（2026-11-05）
+
+- `dotnet build Emuera.sln -c Debug` 0 error（971 条既有 CA 警告）；`Emuera.Headless` Debug 0 error
+- eraWire `g1_button_gate`（6 rect＋点 102/999 端到端）、`h5_redraw_gate`（含 lineId 到达序单调）、`g3_sprite_rt_gate`、`g4_title_img_gate`、`imgset6_fe_probe`（14/14 drawn）全 PASS；`t7_docs_audit` PASS
+- eraWire `pixel_frame_gate --headless` PASS（8 帧、`frame.commit` 守恒 30:30）
+
+***
+
+## [17.1.0] — 运行期 sprite 失效面（R-IMG-1b）
+
+### Added
+
+- **`sprite.invalidate`**（并入 cap `sprite.export`，⛔ 新 cap、⛔ 不翻 `hello.proto`）：`{texture,rev}`／`{all:true,rev}`。`rev` 是**作废水位**——失效在脚本线程即时执行、事件按帧边界合并发送，中间可能已签发新 rev（`DISPOSE→CREATE→重新上屏`）；FE 只丢 `rev <= 水位` 的缓存，一刀切会误删刚收到的合法新图
+- `EwpSpriteExport.Invalidate(name)`／`InvalidateAll()`：按名／全量作废快照（`map`／LRU／字节账本同步，写 `expired`，`revSeq` **不回退**）；`sys.state.spriteExport.invalidated` 诊断计数
+- `AppContents` 静态事件 `SpriteDisposed`／`SpriteDisposedAll`：`SPRITEDISPOSE`／`SPRITEDISPOSEALL`、以及同名 `SPRITECREATE` 顶替旧条目时都发通知（后者为防御性，正常链走不到）
+
+### Changed
+
+- 失效快照的旧 rev 回 `sprite.data.fail{code:"expired"}`（⛔ `not_found`——后者是「从未建立」，FE 不重试）。`ClearDisplay`／`sys.title` 例外：快照与 `expired` 一起清空，旧 rev 回 `not_found` 且**不发**事件
+- `SPRITECREATE` 同名早退**保持不变**：同名重建必须显式 `SPRITEDISPOSE` 先行（eratw `MOB_SYSTEM` 即此写法；另注：引擎 `GraphicsImage` 按 GID 复用对象，只 `GDISPOSE` 不 `SPRITEDISPOSE` 时 `GCREATE` 会把画布复活到同一对象、`IsCreated` 又变 true ⇒ `SPRITECREATE` 仍早退）
+- **版本签名**：`Skiav17` → `Skiav17.1`
+
+### 未验收
+
+- 真实 `MOB_SYSTEM` 预览重建链的**人眼**确认（fixture 已用同形态 `SPRITEDISPOSE→GDISPOSE→GCREATE→SPRITECREATE` 链验收，三态＝旧图不残留／新图到达／无幽灵纹理）
+- Tier B 零调用族的 GUI 截屏（⑥ 阶段，人眼；像素锚点已由 `tierb` 门禁断言）
+
+### 验收（2026-11-04）
+
+- eraWire `rimg1b_sprite` **PASS**：spans rev `[1,2,3,4]` 严格递增；`CREATE=1`／`DUP-CREATE=0`／`DISPOSE=1`／`RECREATE=1`／`REBUILD=1`／`DISPOSEALL=1`；`invalidate{INV_RT,rev2}`＋`{rev3}`＋`{all:true,rev4}`；`rev1..4→expired`、`999999→not_found`；三阶段像素 `#C020A0`／`#20C060`／`#3060C0` 命中；`spriteExport.invalidated=4`；旧 FE 零事件
+- eraWire `rimg1b_fe` **PASS**（48 断言）；`tierb` **PASS**（六 API `RET=1`＋6 阶段像素锚点）
+- 回归 `t7_ci` **15 套件全 PASS**（含 `n2` 文本 hash 用本版引擎）
+- 协议增补＝`specs/EWP-v0.3-协议草案.md` §8B（事件／水位／同名重建口径／三态／边界／CBG depth 结论）
+
+***
+
+## [17.0.0] — 内存优化与背景快照转正（累积 16.6.14／16.6.15）
+
+> 16.6.14／16.6.15 是 `develop-skiasharp` 上的开发版本，未单独出包；本版把这两段的改动一并对外发布，
+> 逐条细节仍见下方 16.6.14／16.6.15 两段（保留原文便于对照）。
+
+### Added
+
+- **CBG 合成快照导出**（16.6.15，cap `bg`）：`bg.set`／`bg.data`／`bg.fail`／`bg.clear` 事件、FE→VM `bg.req` 按 rev 重取、`legacy.textbgc` 全局底色事件、`sys.state.bg`／`snapshot.full.bg` 加法字段。快照只含「清底色＋SETBGIMAGE 烘焙层＋CBG」，⛔ 不含文字行、行内 `escapedParts`、`SETIMAGELAYER` 图层（由 EWP 语义事件单独承载）
+- `meta.metrics` 增 `bgDropped`／`bgSkippedIdentical`（bg 导出诊断计数，命名与 pixel 的 `dropped`／`writeDropped` 区分）
+- **信用窗 ack 即醒**：`NoteAck` 增 `Monitor.PulseAll(ackGate)`，写手不再空等 250 ms 超时（突发帧下吞吐不再涓流化）
+
+### Changed
+
+- **内存优化**：ERB/CSV 编译完成后 `Preload.ClearAndCompact()`（清源码缓存＋一次完整压缩 GC＋LOH `CompactOnce`；eraTW 实测标题界面工作集 1.08 GB → 0.67 GB、读档后 1.36 GB → 1.01 GB）；`SharedBitmapCache` 由「最多 200 张」改为 256 MB 硬字节预算 LRU；`AnimSpriteCache` 增 256 MB 帧字节预算；`SKBitmap.Decode` 移出全局锁（并发重复解码由同 key 检查去重）
+- **版本签名**：`Skiav16.6.15` → `Skiav17`（`1824+v24+EMv18+EEv56+Skiav17`）
+
+### 未验收（develop 暂存，归引擎启动面待查）
+
+- GUI `Emuera.exe --ewp`＋最小化启动的 boot 竞态（`meta.state` 停在 boot，~50% 复现；与 bg 特征无关）。GUI 三方对拍机制本身已验证（desktop↔`bg.data`↔`pixel.frame` diff=0/84544）
+
+### 验收（2026-11-04）
+
+- `dotnet build Emuera.sln -c Debug` 0 error（950 条既有 CA 警告）；eraWire `rimg1a_bg_gate` PASS（`bg.set`×20／`bg.data` 8 rev／`bgDropped=14`／`bgSkippedIdentical 0→2`／`pending` 正例／旧 FE 零事件）
+- eraWire `t7_ci` 12 套件功能全 PASS（`n2` 文本 hash 用本版 GUI 引擎跑通，顺带覆盖 `Preload.ClearAndCompact` 与位图缓存预算）
+- headless 真实 staging（4100 ERB）首行 7.7 s、工作集 732 MiB（无渲染口径）
+- 音频听感／GUI 截图／VN 体感仍由用户冒烟
+
+***
+
+## [16.6.15] — R-IMG-1a 验收轮：bg 快照转正 / bg 诊断计数 / 信用窗 ack 即醒
+
+### Added
+
+- **R-IMG-1a：CBG 合成快照导出验收通过**（cap `bg`，`488eb2de` ＋ 审查修复 `cb00aa0a`）。验收覆盖：P0-2 引擎门禁（丢新不拆配对 `bgDropped=13`／同像素去重 `bgSkippedIdentical`／`pending` 正例 ×2）、P0-3 真机链（含退出路径无 `ObjectDisposedException`/`encode_error`）、P0-4 resize 旧 rev 回旧尺寸＋SETBGIMAGE 烘焙层非 16:9 校正、P1-1 临时索引真地点链（parity diff=0/83923）、P1-2 真 UI 读档→shop 页→[778] `@快速测试` 钩子→读档会话内 `snapshot.bg.has=true`→`bg.req` 重建（`tools/rimg1a_load_gate.py`）、P1-4 真实 `FLAG:時間停止` 灰化（bad=0/13272）、P1-5 FE 六断言、旧 FE 零事件零字段。证据＝`tools/R-IMG-1a-artifacts/`＋`docs/cards/R-IMG-1a-验收收尾任务卡.md` §4.1
+- `meta.metrics` 增 `bgDropped`／`bgSkippedIdentical`（P2-1，bg 导出诊断计数；与 pixel 的 dropped/writeDropped 命名区分；joggle/订阅时机重发）
+- `NoteAck` 增 `Monitor.PulseAll(ackGate)`（信用窗写手由 250ms 轮询改 ack 即醒；突发帧下吞吐不再涓流化）
+
+### 未验收（develop 暂存，归引擎启动面待查）
+
+- GUI `Emuera.exe --ewp`＋最小化启动的 boot 竞态（meta.state 停在 boot，~50% 复现；P1-3 GUI 三方对拍机制已验证——desktop↔bg.data↔pixel.frame diff=0/84544——竞态归引擎启动面待查）
+
 ## [16.6.14] — 内存优化：源码缓存释放 / 位图缓存字节预算 / 动画缓存预算
 
 ### Changed
@@ -12,10 +115,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `SharedBitmapCache` 由「最多 200 张」改为「256 MB 硬字节预算」的 LRU，LRU 节点字典化（命中 O(1)）。eraTW 素材平均 13.9 MB/张，旧上限最坏可达 2.8 GB；不再保留条目下限（否则 32 张大图即可突破 445 MB），实测 40 张 9 MB 图解码后常驻约 256 MB，被淘汰条目再次取用可正常重解码。淘汰按入缓存时记录的字节数结算，不再二次读取位图；同 key 重入与 LRU 节点失步都有防御
 - `AnimSpriteCache` 在原有 6 个上限外增加 256 MB 帧字节预算：超预算时淘汰 1 秒内未被绘制的动画（至少保留 1 个），避免大动画互相挤兑导致每帧重解码；同一文件路径的新实例接管缓存时先淘汰旧实例。现有素材（单动画 ≤36 MB、6 个上限≈216 MB）不会触发该预算，属安全网
 - `SharedBitmapCache.Get` 的 `SKBitmap.Decode` 移出全局锁（字节预算下命中率下降、该路径更常走），并发重复解码由 `add` 的同 key 检查去重；`CroppedImage.GraphicsDraw` 的颜色过滤器引用改为 `finally` 清理（原实现异常路径会把已释放的 filter 留在共享 `SKPaint` 上）
-
-### 未验收（develop 暂存，⛔ 不随 16.6.14 发版）
-
-- **R-IMG-1a：CBG 合成快照导出**（cap `bg`，提交 `488eb2de`，作者标注「在建功能，未验收」）：`bg.set`／`bg.data`／`bg.clear`／`bg.fail` 事件、`bg.req` 按 rev 重取、`legacy.textbgc` 全局底色事件、`sys.state.bg`／`snapshot.full.bg` 加法字段。限制：快照只含「清底色＋SETBGIMAGE 烘焙层＋CBG（zdepth≠0）」，⛔ 不含文字行、行内 `escapedParts`、`SETIMAGELAYER` 图层（由 EWP 语义事件单独承载）
 
 ## [16.6.13] — EWP audio v1（P3-E：AudioLedger v2 / 6 ERB 内建）
 

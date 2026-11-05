@@ -31,7 +31,16 @@
 ## 2. 本仓死规矩
 
 1. **worktree 纪律**：本仓的提交直接落在 `feature/xamarin` 分支上，主工作区可见。改内核前先确认"这个改动属于内核（回流）还是移植端专有"，避免把平台专有代码提交进内核分支。
-2. **ADB 调试**：包名 `Emuera.SkiaX`；APK 必须 `EmbedAssembliesIntoApk` 开启；渲染诊断看 logcat tag `EmueraRender` / `EmueraHost`；引擎初始化顺序 `FontModel.Load()` 必须在 `Program.Init()` 之前，且 **AOT 必须禁用**。详见 [adb-testing.md](file:///d:/emuera/shared-trae/knowledge/skiax/adb-testing.md) 与 [android-engine-init.md](file:///d:/emuera/shared-trae/knowledge/skiax/android-engine-init.md)。
-3. **坐标系**：物理像素 / 逻辑像素混用是渲染偏移与点击不准的主因；`pointY` 语义变更需补偿 `LineHeight`；`FontSize` / `LineHeight` **不乘 density**。详见 [coordinate-system.md](file:///d:/emuera/shared-trae/knowledge/skiax/coordinate-system.md)。
-4. **禁止改 `XEmuera` / `emuera.em`**：前者是上游原型（仅参考），后者是上游原版（对照基线）。
-5. **ERB 死规矩同样适用**：本仓附带可运行脚本与调试用 ERB，见 [L1 §3](file:///d:/emuera/shared-trae/AGENTS.md)。
+2. **版本签名**：只需改 `Emuera/Emuera.csproj` 的 `<InformationalVersion>`，运行时经 `PlatformInterop.GetProductVersion()` 自动读取。
+   - 段位：`1824`（Emuera 原版）/ `v24`（私家改编）为历史段不再递增；功能版本走 `Skiav` 段；上游同步走 `EMv` / `EEv` 段。
+   - **禁止**改 `Sys.cs` 的 `EmueraVersionText`、`Program.cs` 的 `GetProductVersion` 委托。
+   - Android 版本独立维护 `AndroidManifest.xml` 的 `versionCode` / `versionName`。
+   - 改完**同步更新 README 标题签名与页脚版本**（见 [branch-strategy.md §版本签名](file:///d:/emuera/shared-trae/knowledge/lazyloading/branch-strategy.md)）。
+3. **内核修改回流分类**：改动前先判定 A（应回流 upstream）/ B（需 PlatformInterop 抽象）/ C（不回流）三类 → `.trae\rules\kernel\modification-classification.md` ＋ [kernel-audit.md](file:///d:/emuera/shared-trae/knowledge/lazyloading/kernel-audit.md)。
+4. **新增/修改 ERB 内置函数 = 两个提交**：① 引擎侧（实现 + 版本 + 日志）② 文档侧（`emuera.em.doc-1` 三语参考页 + 摘要 + 日志 + 索引）。表达式函数 3 文件、命令型 7+ 文件 —— 见 [skia-engine-dev-workflow.md](file:///d:/emuera/shared-trae/knowledge/erabasic/skia-engine-dev-workflow.md)。
+5. **分支单向流**：`develop-skiasharp` → `feature/xamarin`（SkiaX）；A 类修复经 cherry-pick 回流 upstream。详见 [branch-strategy.md](file:///d:/emuera/shared-trae/knowledge/lazyloading/branch-strategy.md)。
+6. **注释口径**：注释只写**代码事实**（契约、约束、不变量、坑），⛔ 不写改动史——「本轮／上一轮／已下沉／原先 X／为什么改成 Y」一律归 `git log`；注释里不出现任务编号、MR 号、日期、版本号。
+7. **ADB 调试**：包名 `Emuera.SkiaX`；APK 必须 `EmbedAssembliesIntoApk` 开启；渲染诊断看 logcat tag `EmueraRender` / `EmueraHost`；引擎初始化顺序 `FontModel.Load()` 必须在 `Program.Init()` 之前，且 **AOT 必须禁用**。详见 [adb-testing.md](file:///d:/emuera/shared-trae/knowledge/skiax/adb-testing.md) 与 [android-engine-init.md](file:///d:/emuera/shared-trae/knowledge/skiax/android-engine-init.md)。
+8. **坐标系**：物理像素 / 逻辑像素混用是渲染偏移与点击不准的主因；`pointY` 语义变更需补偿 `LineHeight`；`FontSize` / `LineHeight` **不乘 density**。详见 [coordinate-system.md](file:///d:/emuera/shared-trae/knowledge/skiax/coordinate-system.md)。
+9. **禁止改 `XEmuera` / `emuera.em`**：前者是上游原型（仅参考），后者是上游原版（对照基线）。
+10. **ERB 死规矩同样适用**：本仓附带可运行脚本与调试用 ERB，见 [L1 §3](file:///d:/emuera/shared-trae/AGENTS.md)。

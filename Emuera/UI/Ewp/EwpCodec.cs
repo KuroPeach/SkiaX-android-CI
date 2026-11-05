@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 
-// eraWire B3: L0.5 编码抽象（EWP §2）。JSON-Lines＝换行定界（B1/B2 现行，哑前端/抓包零依赖）；
+// 编码抽象（EWP §2）。JSON-Lines＝换行定界（哑前端/抓包零依赖）；
 // MessagePack＝4 字节大端长度前缀帧。引擎不引 MessagePack 包依赖——本文件手写双方子集：
 // 编码面＝JsonElement 递归（nil/bool/int/float/str/map/array）；解码面在解码器开头列全格式清单。
 // pixel.frame 在 MsgPack 模式下直构 map（data 为 bin），不经 JSON 往返。
@@ -25,7 +25,7 @@ internal interface IEwpCodec
 {
     void WriteText(Stream s, string json);
     void WritePixel(Stream s, EwpPixelPayload px);
-    /// <summary>R-IMG-1a：bg 事件（文本型 bg.set/bg.clear/bg.fail 与二进制型 bg.data 共用出口，
+    /// <summary>bg 事件（文本型 bg.set/bg.clear/bg.fail 与二进制型 bg.data 共用出口，
     /// 保证 set 先于 data）。</summary>
     void WriteBg(Stream s, EwpBgPayload bg);
     IEwpCommandReader CreateReader(Stream s);
