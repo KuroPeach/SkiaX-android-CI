@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`--ewp`／`--ewp-headless` 不再受 `Config.FPS` 重绘节流**：`msPerFrame` 固定 `1000/60`，保留防抖，GUI 模式行为不变
 - **div 按钮面按可见行范围收集**：`CollectSelectableButtons` 只取屏幕内的 div 按钮，滚动区外的历史按钮不再进 `input.request.buttons`（全量形态留给 CLI screen／诊断）
 - **`<div align=…>` 接受并忽略**（`left`／`center`／`right`）：此前未知属性会丢弃整行 HTML；几何仍由 `xpos`／`width`／`height` 决定
+- **命中几何单一化**：`MoveMouse` 与 `HitTestButtonAt` 各自写了一套「点 → 命中按钮」的行／div 遍历，合并为 `HitTestButtons`（`HitPolicy` 三个口径开关：屏底行／重叠收集／div 层序），绘制侧与 rect 自检面走同一实现；可见行为不变
 - **版本签名**：`Skiav17.1` → `Skiav17.2`
 
 ### Fixed
@@ -35,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `dotnet build Emuera.sln -c Debug` 0 error（971 条既有 CA 警告）；`Emuera.Headless` Debug 0 error
 - eraWire `g1_button_gate`（6 rect＋点 102/999 端到端）、`h5_redraw_gate`（含 lineId 到达序单调）、`g3_sprite_rt_gate`、`g4_title_img_gate`、`imgset6_fe_probe`（14/14 drawn）全 PASS；`t7_docs_audit` PASS
 - eraWire `pixel_frame_gate --headless` PASS（8 帧、`frame.commit` 守恒 30:30）
+- 命中几何单一化后复跑：`Emuera.csproj` Debug 0 error／942 警告（＝基线）、`Emuera.Headless` 0 error／23 警告；`g1_button_gate`／`h5_redraw_gate`／`pixel_frame_gate --headless` 全 PASS
 
 ***
 
