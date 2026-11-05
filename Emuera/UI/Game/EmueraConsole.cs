@@ -93,7 +93,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	public bool strictFontFallback = false;
 
 	private Color? _textBackgroundColor;
-	/// <summary>eraWire R-IMG-1a：TEXT_BGC 的全局整行底色。引擎在**绘制时**读它（不是逐行存），
+	/// <summary>TEXT_BGC 的全局整行底色。引擎在**绘制时**读它（不是逐行存），
 	/// 所以换色会连已上屏的老行一起变色——EWP 侧因此按「全局状态事件」导出，⛔ 不逐行快照。</summary>
 	public Color? TextBackgroundColor
 	{
@@ -110,7 +110,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// <summary>TEXT_BGC 状态变化（脚本线程触发；参数为 null ⇒ 关闭）。</summary>
 	public event Action<Color?> CliTextBackgroundChanged;
 
-	/// <summary>eraWire R-IMG-1a：是否存在背景层（CBG 或 SETBGIMAGE 烘焙层）。
+	/// <summary>是否存在背景层（CBG 或 SETBGIMAGE 烘焙层）。
 	/// false ⇒ EWP 发 bg.clear（⛔ 发一张纯底色快照冒充背景）。</summary>
 	public bool HasBackgroundLayers
 	{
@@ -127,10 +127,9 @@ internal sealed partial class EmueraConsole : IDisposable
 		//1.713 この段階でsetStBarを使用してはいけない
 		//setStBar(StaticConfig.DrawLineString);
 		state = ConsoleState.Initializing;
-		// eraWire（2026-11-04）：EWP 模式下没有窗口重绘，Config.FPS 只服务于 GUI 动画/防抖。
-		// 沿用 config 的 `FPS:3` 会让 RefreshStrings 的时间节流把每行 PRINT 卡满
-		// 1000/FPS = 333ms，实测真实游戏加载日志 gap p50=333.0ms（一行一行地 pop）；
-		// 临时把 FPS 改成 60 后 p50=16.0ms，因果确证。EWP 下固定 60fps 上限＝16ms，
+		// EWP 模式下没有窗口重绘，Config.FPS 只服务于 GUI 动画/防抖。
+		// config 的 `FPS:3` 会让 RefreshStrings 的时间节流把每行 PRINT 卡到 1000/FPS = 333ms
+		// （实测加载日志 gap p50=333ms，一行一行地 pop）；EWP 下固定 60fps 上限＝16ms，
 		// 保留防抖（⛔ 不设 0，否则 OnPaint/离屏捕获会被每行触发）但不拖慢行输出。
 		if (MinorShift.Emuera.Program.EwpMode)
 			msPerFrame = 1000 / 60u;
@@ -190,7 +189,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		}
 	}
 	/// <summary>
-	/// eraWire R-IMG-1a：背景层（清底色＋SETBGIMAGE 烘焙层＋CBG）视觉变更信号。
+	/// 背景层（清底色＋SETBGIMAGE 烘焙层＋CBG）视觉变更信号。
 	/// 引擎在脚本线程/UI 线程触发，可能一帧内多次；订阅方必须自行合并（⛔ 逐次捕获）。
 	/// </summary>
 	public event Action CliBackgroundChanged;
@@ -325,7 +324,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	public int ClientWidth { get { return window.RenderWidth; } }
 	public int ClientHeight { get { return window.RenderHeight; } }
 
-	#region eraWire R-IMG-1a：背景层合成导出
+	#region 背景层合成导出
 	/// <summary>
 	/// 只画「背景层」＝清底色 ＋ SETBGIMAGE 烘焙层 ＋ 全部 CBG（zdepth≠0）。
 	/// ⛔ 不画文字（depth==0）、行内 escapedParts、SETIMAGELAYER 图层——那些由 EWP 语义事件
@@ -393,7 +392,7 @@ internal sealed partial class EmueraConsole : IDisposable
 		int width, int height, int opacity, float[]? colorMatrix, bool followScroll)
 	{
 		int currentScrollY = window.ScrollValue * Config.LineHeight;
-		// EWP WireHost：仅在实际添加成功（sprite 存在）时通知；colormatrix 留 v1（A1-③）
+		// EWP WireHost：仅在实际添加成功（sprite 存在）时通知；colormatrix 留 v1
 		var layer = _imageLayerManager.SetLayer(spriteName, depth, x, y, width, height, opacity, colorMatrix, followScroll, currentScrollY);
 		if (layer != null)
 			CliImageLayerSet?.Invoke(layer);
@@ -1993,12 +1992,12 @@ internal sealed partial class EmueraConsole : IDisposable
 			RepointMouseAfterLayout();
 			window.Refresh();//OnPaint発行
 			//window.MainPicBox.Refresh();
-			// eraWire B3: 帧信号（EWP §8）——RefreshStrings 的有效通过点＝离屏像素流捕获点；订阅方自理异常
+			// 帧信号（EWP §8）——RefreshStrings 的有效通过点＝离屏像素流捕获点；订阅方自理异常
 			try { CliFramePainted?.Invoke(); } catch { }
 		});
 	}
 
-	/// <summary>eraWire B3: RefreshStrings 发出重绘时通知（UI 线程）。早退路径（redraw=None/无变化/帧限频）不会到达这里。</summary>
+	/// <summary>RefreshStrings 发出重绘时通知（UI 线程）。早退路径（redraw=None/无变化/帧限频）不会到达这里。</summary>
 	public event Action CliFramePainted;
 
 	#region EM_私家版_描画拡張
@@ -2093,14 +2092,14 @@ internal sealed partial class EmueraConsole : IDisposable
 			foreach (var depth in allDepths)
 			{
 				// Draw ImageLayers at this depth
-				// eraWire E4-B（2026-10-27）：图层布局必须与文字/CBG 同源——都用 window.RenderHeight。
-				// 曾用 LocalClipBounds（桌面 SKControl 实测 1802x923 ≠ render 1782x921）⇒ 图层整体 +2px，
-				// 与 sprite.set 的 y+renderH-h 语义不一致（V8-B 77.8% 残留之一）。
+				// 图层布局必须与文字/CBG 同源——都用 window.RenderHeight。
+				// LocalClipBounds 在桌面 SKControl 实测 1802x923 ≠ render 1782x921，用它会让图层整体 +2px，
+				// 与 sprite.set 的 y+renderH-h 语义不一致。
 				_imageLayerManager.DrawLayersAtDepth(graph, window.RenderWidth, window.RenderHeight, window.ScrollValue * Config.LineHeight, depth);
 
 				if (cidx < cbgList.Count && cbgList[cidx].zdepth == depth)
 				{
-					// 先にCBGを描画（R-IMG-1a：快照与屏幕共用同一绘制函数）
+					// 先にCBGを描画（快照与屏幕共用同一绘制函数）
 					DrawClientBackGround(graph, cbgList[cidx], window.RenderHeight, true);
 					cidx++;
 				}
@@ -3281,7 +3280,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// <c>LineIndex</c>＝该按钮所属 <c>displayLineList</c> 下标；div 覆盖层按钮记 <c>-1</c>（不属普通行）。
 	/// <para>
 	/// <c>LineIndex</c>＝该按钮所属 <c>displayLineList</c> 下标；div 覆盖层按钮记 <c>-1</c>，
-	/// 并用 <c>Div</c>／<c>ChildRow</c> 给出所属 div 与 div 内行号（I3-d 的 rect 导出用）。
+	/// 并用 <c>Div</c>／<c>ChildRow</c> 给出所属 div 与 div 内行号（rect 导出用）。
 	/// </para>
 	/// ⚠️ 顺序敏感：普通行倒序 → div（CollectDivParts 再倒序）→ 末尾一次 Reverse，改动会改变 wire 按钮顺序。
 	/// </summary>
@@ -3320,7 +3319,18 @@ internal sealed partial class EmueraConsole : IDisposable
 		// div（HTML rect 覆盖层）内のボタンは displayLineList ではなく
 		// ConsoleEscapedParts に登録される（BINPUT / *Button の検証経路と同じ）。
 		// 本体側は下→上に集めて最後に反転する流儀なので、div も画面位置の下から積む。
-		var divParts = ConsoleEscapedParts.CollectDivParts();
+		// 按可见行范围收集（原生 GetPartsInRange 同口径）；全量收集会把滚出可视区的 div 按钮带进可选集合。
+		int divBottom = displayLineList.Count;
+		int divTop = divBottom;
+		try
+		{
+			int lineH = Config.LineHeight;
+			int renderH = window?.RenderHeight ?? 0;
+			if (lineH > 0 && renderH > 0)
+				divTop = divBottom - (renderH / lineH + 1);
+		}
+		catch { }
+		var divParts = ConsoleEscapedParts.CollectDivParts(divTop, divBottom);
 		for (int i = divParts.Count - 1; i >= 0; i--)
 		{
 			if (divParts[i] is not ConsoleDivPart div)
@@ -3357,7 +3367,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	}
 
 	/// <summary>
-	/// rect 导出诊断计数（W2a，<see cref="GetSelectableButtonRects"/> 每次调用先清零＝「最近一次
+	/// rect 导出诊断计数（<see cref="GetSelectableButtonRects"/> 每次调用先清零＝「最近一次
 	/// input.request」的分布）。EWP <c>sys.state.rectDiag</c> 暴露，用于回答「这一屏为什么没 rect」；
 	/// ⛔ 不是门禁语义（门禁语义＝EwpHost 的 rectSelfCheckFailed 累计护栏）。
 	/// </summary>
@@ -3372,12 +3382,12 @@ internal sealed partial class EmueraConsole : IDisposable
 	int rectDiagRenderW, rectDiagRenderH, rectDiagBottomLine, rectDiagScrollBottom, rectDiagLineCount;
 
 	/// <summary>
-	/// 同 <see cref="GetSelectableButtons"/>，另给每个按钮的<b>本宿主几何</b>（EWP <c>buttons[].rect</c>，I3-a）。
+	/// 同 <see cref="GetSelectableButtons"/>，另给每个按钮的<b>本宿主几何</b>（EWP <c>buttons[].rect</c>）。
 	/// 坐标系＝<c>MainWindow.RenderWidth</c>×<c>RenderHeight</c> 的 render 逻辑像素（与鼠标 hit-test 同源；
 	/// 全屏已由 <c>ToLogicalPoint</c>/<c>RenderWidth</c> 除过 scale，⛔ 再除一次）；
 	/// <c>x</c> 已含 <c>Config.DrawingParam_ShapePositionShift</c>（绘制统一偏移），纵向滚动已隐含在行 y 里。
-	/// div 覆盖层按钮（<c>LineIndex=-1</c>）本轮<b>不给</b>矩形（<c>HasRect=false</c>）：
-	/// 其绘制矩形与 <c>TestChildHitbox</c> 本就分叉（I3 设计卡 §3.3），⛔ 用包围盒冒充。
+	/// div 覆盖层按钮（<c>LineIndex=-1</c>）<b>不给</b>矩形（<c>HasRect=false</c>）：
+	/// 其绘制矩形与 <c>TestChildHitbox</c> 本就分叉（设计卡 §3.3），⛔ 用包围盒冒充。
 	/// </summary>
 	public List<(ConsoleButtonString Button, string Text, string Value, bool IsInteger, bool HasRect, Rectangle Rect, bool HitTestOracle)> GetSelectableButtonRects()
 	{
@@ -3388,11 +3398,11 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (items.Count == 0)
 			return result;
 
-		// W2a：rect 导出与 FE 网格同源＝**显示列表真底**（Count-1）。
+		// rect 导出与 FE 网格同源＝**显示列表真底**（Count-1）。
 		// ⛔ 不用 ScrollValue-1：verticalScrollBarUpdate 只在重绘/ClearDisplay 同步 ScrollMaximum，
 		// WaitInput 入口把 ScrollValue 强滚到的是**陈旧**的 ScrollMaximum——最后一批未重绘的行
 		// （实测真实状态屏差 41 行、存档列表差 50 行）会被算到屏幕外，hit-test 也够不到，
-		// 生产自检随之全部扣发（fixture 日志浅无陈旧窗口，故 I3 门禁此前全绿）。
+		// 生产自检随之全部扣发。
 		// FE 侧网格永远底锚定到最后一行（ledger 同源），用 Count-1 才与 FE 的命中映射一致。
 		// 稳态（重绘后 ScrollValue==ScrollMaximum==Count）下两者相等，MoveMouse 手感不受影响。
 		int bottomLineNo = displayLineList.Count - 1;
@@ -3410,7 +3420,7 @@ internal sealed partial class EmueraConsole : IDisposable
 			rectDiagRenderH = window?.RenderHeight ?? 0;
 		}
 		catch { }
-		// 窗口未完成布局（启动竞态，I3-b metrics 时序坑的 rect 面）：渲染面无效 ⇒ 本轮不发
+		// 窗口未完成布局（启动竞态，rect 导出的时序面）：渲染面无效 ⇒ 该次调用不发
 		// 普通行 rect（自检 oracle 的 topLineNo 会退化成单行），计数后干净降级，FE 回退文本/值。
 		bool renderInvalid = rectDiagRenderW <= 0 || rectDiagRenderH <= 0;
 
@@ -3460,7 +3470,7 @@ internal sealed partial class EmueraConsole : IDisposable
 					}
 					else
 					{
-						// I3-d：div 按钮的 rect 由**绘制**矩形推出（GetContentRect，与 DrawTo 同源），
+						// div 按钮的 rect 由**绘制**矩形推出（GetContentRect，与 DrawTo 同源），
 						// ⛔ 不用 TestChildHitbox——绝对定位下它与绘制分叉（§3.3）。
 						// <div> 默认 isRelative=true（HtmlManager.cs:1202），相对定位要用父行屏幕 y。
 						// 绝对定位的 Y 依赖 MainPicBox.Height（物理）；全屏时它与 render 逻辑高度不同名 ⇒ 不冒充。
@@ -3539,13 +3549,13 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// div 覆盖层走 <see cref="ConsoleDivPart.TestChildHitbox"/>。<c>MoveMouse</c> 另担选中态副作用
 	/// （pointingString/selectingButton），本方法只答「命中了谁」，故**不带** IsInProcess 早退
 	/// （那是鼠标交互的限制，不是几何限制）。
-	/// ⚠️ 改 <c>MoveMouse</c> 的几何判据必须同步改这里——I3-c 的 rect 自检依赖它。
+	/// ⚠️ 改 <c>MoveMouse</c> 的几何判据必须同步改这里——rect 自检依赖它。
 	/// </summary>
 	internal ConsoleButtonString HitTestButtonAt(int pointX, int pointY)
 	{
 		if (window == null || displayLineList.Count == 0)
 			return null;
-		// W2a：与 GetSelectableButtonRects 同源＝显示列表真底（Count-1），理由见其注释。
+		// 与 GetSelectableButtonRects 同源＝显示列表真底（Count-1），理由见其注释。
 		// 稳态下与 MoveMouse 的 ScrollValue-1 相等；输入等待前的陈旧窗口里，自检 oracle 必须
 		// 对齐「重绘后用户实际能点到的那一屏」，否则会把刚打印完、尚未重绘的按钮面全判不可点。
 		int bottomLineNo = displayLineList.Count - 1;
@@ -3613,7 +3623,7 @@ internal sealed partial class EmueraConsole : IDisposable
 	}
 
 	/// <summary>
-	/// rect 自检（I3-c）：在 rect 与既有 hit-test 的**共同覆盖区**内取中心＋四角，逐点跑
+	/// rect 自检：在 rect 与既有 hit-test 的**共同覆盖区**内取中心＋四角，逐点跑
 	/// <see cref="HitTestButtonAt"/>，要求全部命中同一按钮。用于 <c>input.request</c> 发 rect
 	/// 前的生产护栏：自检不过 ⇒ 该按钮不发 rect（FE 回退文本/值），⛔ 不放大成"点得到但点错"。
 	/// <para>

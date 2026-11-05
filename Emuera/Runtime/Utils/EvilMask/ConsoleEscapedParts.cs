@@ -27,7 +27,7 @@ internal sealed class ConsoleEscapedParts
 		}
 	}
 	
-	// 修正 3: 指定初始容量 256，减少 List 早期扩容的内存开销
+	// 指定初始容量 256，减少 List 早期扩容的内存开销
 	static readonly List<EscapedPartRecord> records = new List<EscapedPartRecord>(256);
 	
 	static bool getOnce;
@@ -79,9 +79,18 @@ internal sealed class ConsoleEscapedParts
 	/// </summary>
 	public static List<AConsoleDisplayNode> CollectDivParts()
 	{
+		// 全量形态供诊断/离线读取；可选中按钮必须用带行范围的形态，否则滚出可视区的 div 按钮也会被收集。
+		return CollectDivParts(int.MinValue / 2, int.MaxValue / 2);
+	}
+
+	/// <summary>按可见行范围收集 div 部件（与 <see cref="GetPartsInRange"/> 同行范围判据
+	/// 「r.Top &lt;= bottom + 1 &amp;&amp; r.Bottom &gt;= top」）。
+	/// ⛔ 不要按 generation 过滤：div 记录没有代际语义，gen 只是缓存键。</summary>
+	public static List<AConsoleDisplayNode> CollectDivParts(int top, int bottom)
+	{
 		var tmp = new List<EscapedPartRecord>();
 		foreach (var r in records)
-			if (r.Part is ConsoleDivPart)
+			if (r.Part is ConsoleDivPart && r.Top <= bottom + 1 && r.Bottom >= top)
 				tmp.Add(r);
 		tmp.Sort((a, b) => a.Top != b.Top ? a.Top.CompareTo(b.Top) : a.Line.CompareTo(b.Line));
 		var list = new List<AConsoleDisplayNode>(tmp.Count);
@@ -102,7 +111,7 @@ internal sealed class ConsoleEscapedParts
 		if (rmap == null) return;
 		rmap.Clear();
 
-		// 修正 2: 抛弃 LINQ，使用原生 foreach 遍历，速度最快
+		// 原生 foreach 遍历（不引入 LINQ 的额外分配）
 		foreach (var r in records)
 		{
 			if ((r.DivType & 2) != 0 || (r.Top <= bottom + 1 && r.Bottom >= top && 

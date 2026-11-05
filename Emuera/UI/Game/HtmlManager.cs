@@ -1306,6 +1306,16 @@ internal static class HtmlManager
 							else if (attrValue.Equals("absolute-leftbottom", StringComparison.OrdinalIgnoreCase)) { isRelative = false; divDisplayMode = DisplayMode.AbsoluteLeftBottom; }
 							else throw new CodeEE(string.Format(trerror.CanNotInterpretAttribute.Text, attrValue));
 						}
+						else if (word.Code.Equals("align", StringComparison.OrdinalIgnoreCase))
+						{
+							// div 的 align 只接受 left/center/right 并忽略：ConsoleDivPart 没有对齐字段，
+							// 几何仍由 xpos/width/height 决定。⛔ 不要抛错（抛错会让整行 HTML 判死）；
+							// ⛔ 不要改 state.Alignment（那是 <p> 的语义）。
+							if (!attrValue.Equals("left", StringComparison.OrdinalIgnoreCase)
+								&& !attrValue.Equals("center", StringComparison.OrdinalIgnoreCase)
+								&& !attrValue.Equals("right", StringComparison.OrdinalIgnoreCase))
+								throw new CodeEE(string.Format(trerror.CanNotInterpretAttribute.Text, attrValue));
+						}
 						else if (!TryParseStyledBoxModel(ref box, tag, word.Code, attrValue))
 							throw new CodeEE(string.Format(trerror.CanNotInterpretAttributeName.Text, tag, word.Code));
 					}
