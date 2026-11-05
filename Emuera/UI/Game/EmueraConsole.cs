@@ -757,6 +757,31 @@ internal sealed partial class EmueraConsole : IDisposable
 	public bool ButtonIsPointing(ConsoleButtonString button) { return pointingStrings.Contains(button); }
 
 	/// <summary>
+	/// 悬停目标的<b>内容键</b>：<c>Title</c> ＋ 按钮自身文本 ＋ 行内位置。
+	/// 用于判断「悬停目标是否同一」——整屏重排会重建 <see cref="ConsoleButtonString"/>，
+	/// 对象引用不能跨帧比较，可见内容可以。
+	/// <para>
+	/// 文本取节点的 <see cref="AConsoleDisplayNode.Text"/>（已是解析后纯文本），并跳过
+	/// <see cref="ConsoleDivPart"/>：它的 ToString 会拼出整个 div 的全部子行。
+	/// ⛔ 不要用 <c>ClipboardProcessor.StripHTML</c> 剥标签——它受 <c>CBIgnoreTags</c> 门控，是剪贴板语义。
+	/// </para>
+	/// </summary>
+	static string GetHoverKey(ConsoleButtonString button)
+	{
+		if (button == null)
+			return null;
+		// 与 MoveMouse 的命中遍历同口径：跳过 div 容器
+		var sb = new StringBuilder(32);
+		foreach (var part in button.StrArray)
+		{
+			if (part == null || part is ConsoleDivPart)
+				continue;
+			sb.Append(part.Text);
+		}
+		return $"{button.Title}\u0001{sb}\u0001{button.PointX},{button.Width}";
+	}
+
+	/// <summary>
 	/// ToolTip表示したフラグ
 	/// </summary>
 	bool tooltipUsed;
@@ -767,10 +792,16 @@ internal sealed partial class EmueraConsole : IDisposable
 	ConsoleButtonString pointingString;
 	// pointingStrings记录鼠标下所有Button图像。当多个Button重叠时，被鼠标划到的图像都会变化
 	HashSet<ConsoleButtonString> pointingStrings = [];
+	// 最近一次命中输入的**逻辑**坐标（即 MoveMouse 的入参）。复算命中只能用它：
+	// IConsoleSurface.MousePosition 是物理坐标，全屏缩放下的换算在 MainWindow.ToLogicalPoint，
+	// 直接用它会把高亮指错行。
+	Point? lastMousePoint;
 	#region EE_MOUSEB
 	public ConsoleButtonString PointingSring { get { return pointingString; } }
 	#endregion
 	ConsoleButtonString lastPointingString;
+	// 上次 tooltip 判定时的悬停内容键（null＝无悬停）。lastPointingString 仍按引用给 rikaichan 用。
+	string lastPointingKey;
 	#endregion
 
 	#region Input & Timer系
@@ -1173,12 +1204,6 @@ internal sealed partial class EmueraConsole : IDisposable
 			#region EE_INPUTMOUSEKEY拡張
 			// InputMouseKey(4, 0, 0, 0, 0);
 			InputMouseKey(4, 0, 0, 0, 0, 0);
-			if (IsWaitInputState && inputReq.NeedValue)
-			{
-				Point point = window.MousePosition;
-				if (window.PicClientRectangle.Contains(point))
-					MoveMouse(point);
-			}
 			RefreshStrings(true);
 			#endregion
 			return;
@@ -1190,15 +1215,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		window.Invoke(() =>
 		{
 			RunEmueraProgram("");//ディフォルト入力の処理はcallEmueraProgram側で
-			if (IsWaitInputState && inputReq.NeedValue)
-			{
-				window.Invoke(() =>
-				{
-					Point point = window.MousePosition;
-					if (window.PicClientRectangle.Contains(point))
-						MoveMouse(point);
-				});
-			}
 			RefreshStrings(true);
 		});
 	}
@@ -1525,12 +1541,6 @@ internal sealed partial class EmueraConsole : IDisposable
 		{
 			//1823 Escキーもマクロも右クリックも不可。単純に押されたキーを送るのみ。
 			RunEmueraProgram(null);
-			if (IsWaitInputState && inputReq.NeedValue)
-			{
-				Point point = window.MousePosition;
-				if (window.PicClientRectangle.Contains(point))
-					MoveMouse(point);
-			}
 		}
 		finally
 		{
@@ -1661,12 +1671,6 @@ internal sealed partial class EmueraConsole : IDisposable
 
 		void endMacro()
 		{
-			if (IsWaitInputState && inputReq.NeedValue)
-			{
-				Point point = window.MousePosition;
-				if (window.PicClientRectangle.Contains(point))
-					MoveMouse(point);
-			}
 			RefreshStrings(true);
 		}
 	}
@@ -1985,6 +1989,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		window.Invoke(() =>
 		{
 			verticalScrollBarUpdate();
+			// 悬停命中在重绘前重算：此时 scrollbar 已同步，按钮对象已是本帧的世代
+			RepointMouseAfterLayout();
 			window.Refresh();//OnPaint発行
 			//window.MainPicBox.Refresh();
 			// eraWire B3: 帧信号（EWP §8）——RefreshStrings 的有效通过点＝离屏像素流捕获点；订阅方自理异常
@@ -2192,7 +2198,12 @@ internal sealed partial class EmueraConsole : IDisposable
 		}
 
 		//ToolTip描画
-		if (lastPointingString != pointingString || lastSelectingCBGButtonInt != selectingCBGButtonInt)
+		// 悬停目标按内容键判等：整屏重排会重建按钮对象，引用不能跨帧比较。
+		// 静态界面上 pointingString 引用不变，直接沿用上次的键。
+		string pointingKey = ReferenceEquals(pointingString, lastPointingString) && pointingString != null
+			? lastPointingKey
+			: GetHoverKey(pointingString);
+		if (pointingKey != lastPointingKey || lastSelectingCBGButtonInt != selectingCBGButtonInt)
 		{
 			if (tooltipUsed)
 				window.ToolTipRemoveAll();
@@ -2226,7 +2237,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				{
 					Task.Run(async () =>
 					{
-						ConsoleButtonString savedPointingString = pointingString;
+						string savedPointingKey = pointingKey;
 						if (window.ToolTipInitialDelay != 0)
 							await Task.Delay(window.ToolTipInitialDelay);
 						context.Post((state) =>
@@ -2234,8 +2245,8 @@ internal sealed partial class EmueraConsole : IDisposable
 							if (window.IsDisposed)
 								return;
 
-							MoveMouse(window.MousePosition);
-							if (lastPointingString == savedPointingString)
+							// 延时期间悬停目标换过就不弹
+							if (GetHoverKey(pointingString) == savedPointingKey)
 							{
 								Point mousePos = window.MousePosition;
 								int cursorHeight = window.CursorHeight;
@@ -2257,6 +2268,7 @@ internal sealed partial class EmueraConsole : IDisposable
 				tooltipUsed = true;
 			}
 			lastPointingString = pointingString;
+			lastPointingKey = pointingKey;
 			lastSelectingCBGButtonInt = selectingCBGButtonInt;
 		}
 		if (isBackLog)
@@ -2556,6 +2568,40 @@ internal sealed partial class EmueraConsole : IDisposable
 	#region EM_私家版_描画拡張
 	int[] dummy = [0];
 	#endregion
+
+	/// <summary>
+	/// 在一次绘制边界内维持指向态：清掉世代不符的 <c>pointingStrings</c>，再按最近的鼠标位置
+	/// 重算命中（<see cref="MoveMouse"/>）。
+	/// <para>
+	/// <see cref="ButtonIsPointing"/> 判的是对象引用，而整屏重排（CLEARLINE＋重印／HTML 重建）
+	/// 会重建按钮对象 ⇒ 不重算则 <c>pointingStrings</c> 里只剩上一代对象，高亮要到下次鼠标移动
+	/// 才恢复。只清 <c>pointingStrings</c>：<c>pointingString</c> 的语义是「世代無視・履歴中も表示」。
+	/// </para>
+	/// <para>
+	/// 必须在 UI 线程、<c>verticalScrollBarUpdate()</c> <b>之后</b>调用：<c>MoveMouse</c> 的屏底行
+	/// 取 <c>window.ScrollValue - 1</c>，而 <c>ScrollMaximum</c> 只在重绘时与
+	/// <c>displayLineList.Count</c> 同步。
+	/// </para>
+	/// </summary>
+	void RepointMouseAfterLayout()
+	{
+		// 世代清理：与 selectingButton 的「選択肢が最新でないなら無効」同判据
+		if (pointingStrings.Count > 0)
+			pointingStrings.RemoveWhere(p => p == null || p.Generation != lastButtonGeneration);
+
+		// EWP 无窗：MousePosition 恒 Point.Empty 且落在 PicClientRectangle 内（Contains 挡不住），
+		// 按它重算会点亮屏底行首个按钮；Config.UseMouse 实测全为 YES，同样挡不住。
+		if (Program.EwpHeadlessMode)
+			return;
+		// 没有鼠标位置（未收到过鼠标事件／已离开画布）＝没有可保活的目标
+		if (lastMousePoint == null)
+			return;
+		// IsInProcess 时 MoveMouse 会主动清空指向（Running/Sleep 期间重算只会把高亮抹掉）
+		if (IsInProcess)
+			return;
+		MoveMouse(lastMousePoint.Value);
+	}
+
 	/// <summary>
 	/// マウス位置をボタンの選択状態に反映させる
 	/// </summary>
@@ -2563,6 +2609,8 @@ internal sealed partial class EmueraConsole : IDisposable
 	/// <returns>この後でRefreshStringsが必要かどうか</returns>
 	public bool MoveMouse(Point point)
 	{
+		// 缓存的逻辑坐标供 RepointMouseAfterLayout 复用：这里是唯一拿到逻辑坐标的入口
+		lastMousePoint = point;
 		#region EmuEra-Rikaichan
 		int curLineY = -1;
 		#endregion
@@ -2835,6 +2883,8 @@ internal sealed partial class EmueraConsole : IDisposable
 				rikaichan.strpos = i;
 			}
 
+			// 这里按引用判等（不是 tooltip 用的内容键）：内容判等会让「换格同名词条」不刷新；
+			// 代价是整屏重排时 lastPointingString 常停在旧对象 ⇒ 多算一次 rikaichan（方向安全）。
 			if (pointingString == lastPointingString && rikaichan.strpos == rikaichan.laststrpos) goto rikaichan_end;
 
 			rikaichan.css = css;
@@ -2873,6 +2923,8 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public void LeaveMouse()
 	{
+		// 鼠标已离开画布：不得再用旧点复算命中
+		lastMousePoint = null;
 		bool needRefresh = selectingButton != null || pointingString != null;
 		selectingButton = null;
 		pointingString = null;
