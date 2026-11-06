@@ -702,19 +702,52 @@ internal sealed class EwpHost
         console.CliFramePainted += OnFramePainted;
         console.CliBackgroundChanged += OnBackgroundChanged;
         console.CliTextBackgroundChanged += OnTextBackgroundChanged;
+        console.CliTooltipConfig += OnTooltipConfig;
         if (tcpPort > 0)
         {
             // TCP：EmitMetrics 会调 FontFactory（无锁静态缓存），⛔ 不能在 transport 线程
             // 与 init/渲染并发（实测 InvalidOperationException）；改走 UI 泵
             // （HeadlessHost 在启动门前持续泵，故不会悬空）。
-            try { win.Invoke(new Action(EmitMetrics)); } catch { }
+            // ALIGN-13：初始 tooltip 快照同批走 UI 线程——实测在 transport 线程直接发会卡住
+            // 启动门（Subscribe 未走到 subscribedDone ⇒ 游戏不启动、FE 120s 超时）。
+            try { win.Invoke(new Action(() => { EmitMetrics(); OnTooltipConfig(); })); } catch { }
         }
         else
         {
             EmitMetrics();
+            OnTooltipConfig();
         }
+        // ALIGN-13：初始 tooltip 配置快照（纯字段读，无字体工厂 ⇒ 不挑线程）。
         Volatile.Write(ref subscribedDone, 1);
         MaybeReleaseGameStart();
+    }
+
+    /// <summary>ALIGN-13：tooltip 全局参数 → <c>overlay.tooltip</c>（8 个 TOOLTIP_SET* 任一变化即发，
+    /// 外加 Subscribe 时的一次初始快照）。参数是引擎全局状态，前端必须拿同一份值才能复刻
+    /// 延迟/时长/配色，⛔ 不能各自硬编码默认。引擎侧不渲染 tooltip（headless 下全 no-op），
+    /// 本通道只保证「前端拿得到」。颜色走 ARGB（与 meta.metrics/overlay.island 同口径）。</summary>
+    private void OnTooltipConfig()
+    {
+        var console = attachedConsole ?? GameConsole;
+        if (console == null)
+            return;
+        try
+        {
+            EmueraConsole.TooltipConfig t = console.GetTooltipConfig();
+            EwpOut.Emit("{\"t\":\"overlay.tooltip\",\"tooltip\":{"
+                + "\"delay\":" + t.InitialDelay
+                + ",\"duration\":" + t.Duration
+                + ",\"autoPopDelay\":" + t.AutoPopDelay
+                + ",\"ownerDraw\":" + (t.OwnerDraw ? "true" : "false")
+                + ",\"fore\":" + J(HtmlManager.GetColorToStringArgb(t.ForeColor))
+                + ",\"back\":" + J(HtmlManager.GetColorToStringArgb(t.BackColor))
+                + ",\"font\":" + J(t.FontName ?? "")
+                + ",\"fontSize\":" + t.FontSize
+                + ",\"format\":" + t.Format
+                + ",\"img\":" + (t.Img ? "true" : "false")
+                + "}}");
+        }
+        catch { }
     }
 
     /// <summary>RefreshStrings 有效通过点（UI 线程，像素流帧信号；仅 mode.pixel=true 时实做捕获）。</summary>
