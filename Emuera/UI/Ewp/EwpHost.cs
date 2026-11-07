@@ -1096,7 +1096,10 @@ internal sealed class EwpHost
                     int budget = MaxDivChildSpans;
                     var sb = new StringBuilder(256);
                     sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
-                        .Append(",\"kind\":\"div\",\"x\":").Append(div.PointX);
+                        .Append(",\"kind\":\"div\",\"x\":").Append(div.PointX)
+                        // 层叠序 z＝div 的 depth（绘制按 depth 降序：值大者先画、在下；文字本体固定在 depth 0 槽）。
+                        // 键名用 z 而非 depth——children 嵌套的 "depth" 已是递归层级，撞名会污染语义。
+                        .Append(",\"z\":").Append(div.Depth);
                     int picHeight = GameConsole?.ClientHeight ?? 0;
                     var content = div.GetContentRect(picHeight, 0);
                     var children = BuildDivChildrenCore(div, start, 0, content.X, content.Y,

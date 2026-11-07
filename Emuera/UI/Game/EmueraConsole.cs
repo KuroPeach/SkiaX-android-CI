@@ -2756,7 +2756,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		var correction = lineNo > Config.MaxLog ? lineNo - Config.MaxLog : 0;
 		if (policy.DivTopDown)
 		{
-			// depth 大的在上层：自顶向下查＝把升序的 depths 反着走
+			// oracle 口径：depth 大的先查（DivTopDown 专属）；与绘制序相反——绘制按 depth 降序，
+			// 值大者先画＝在下层，故真实视觉是「depth 小的在上」。桌面 Pointer 走下方升序分支。
 			for (int d = depths.Length - 1; d >= 0; d--)
 			{
 				foreach (var part in escapedParts[depths[d]])
