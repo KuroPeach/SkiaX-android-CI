@@ -33,8 +33,9 @@ internal sealed class HeadlessSurface : IConsoleSurface
 	private int scrollMaximum;
 	private bool scrollEnabled;
 	private bool toolTipOwnerDraw;
-	private int toolTipInitialDelay;
-	private int toolTipAutoPopDelay;
+	// 初始值与桌面 WinForms ToolTip 默认对齐（500/5000）：默认 0 会让「ERB 没调 SETDELAY」与「明确 SETDELAY 0」在初始快照里不可区分
+	private int toolTipInitialDelay = 500;
+	private int toolTipAutoPopDelay = 5000;
 	private Color toolTipForeColor = Color.Black;
 	private Color toolTipBackColor = Color.White;
 
