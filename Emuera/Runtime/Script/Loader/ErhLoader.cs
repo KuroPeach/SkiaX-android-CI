@@ -311,7 +311,9 @@ internal sealed class ErhLoader
 							key = data.Name.ToUpper(CultureInfo.InvariantCulture);
 							if (erdFileNames.TryGetValue(key, out var info1))
 							{
-								GlobalStatic.ConstantData.UserDefineLoadData(info1, data.Name, data.Lengths[0], Config.Config.DisplayReport, dimline.SC);
+								var files = WithoutConstTable(info1, data.ConstTablePath);
+								if (files != null)
+									GlobalStatic.ConstantData.UserDefineLoadData(files, data.Name, data.Lengths[0], Config.Config.DisplayReport, dimline.SC);
 							}
 							PlatformInterop.DoEvents();
 						}
@@ -322,7 +324,9 @@ internal sealed class ErhLoader
 								key = data.Name.ToUpper(CultureInfo.InvariantCulture) + "@" + dim;
 								if (erdFileNames.TryGetValue(key, out var info2))
 								{
-									GlobalStatic.ConstantData.UserDefineLoadData(info2, data.Name + "@" + dim, data.Lengths[dim - 1], Config.Config.DisplayReport, dimline.SC);
+									var files = WithoutConstTable(info2, data.ConstTablePath);
+									if (files != null)
+										GlobalStatic.ConstantData.UserDefineLoadData(files, data.Name + "@" + dim, data.Lengths[dim - 1], Config.Config.DisplayReport, dimline.SC);
 								}
 								PlatformInterop.DoEvents();
 							}
@@ -334,13 +338,23 @@ internal sealed class ErhLoader
 								key = data.Name.ToUpper(CultureInfo.InvariantCulture) + "@" + dim;
 								if (erdFileNames.TryGetValue(key, out var info3))
 								{
-									GlobalStatic.ConstantData.UserDefineLoadData(info3, data.Name + "@" + dim, data.Lengths[dim - 1], Config.Config.DisplayReport, dimline.SC);
+									var files = WithoutConstTable(info3, data.ConstTablePath);
+									if (files != null)
+										GlobalStatic.ConstantData.UserDefineLoadData(files, data.Name + "@" + dim, data.Lengths[dim - 1], Config.Config.DisplayReport, dimline.SC);
 								}
 								PlatformInterop.DoEvents();
 							}
 						}
 					}
 					#endregion
+					if (data.ConstTableNames != null)
+					{
+						foreach (string nameError in ConstArrayTable.LoadErdNames(data.Name, data.Lengths, data.ConstTableNames))
+							ParserMediator.Warn(nameError, dimline.SC, 1);
+						GlobalStatic.ConstantData.RegisterConstArrayNames(data.Name, data.Dimension, data.ConstTableNames);
+						if (Config.Config.DisplayReport)
+							output.PrintSystemLine(string.Format(trsl.LoadingFile.Text, data.ConstTablePath));
+					}
 
 				}
 				catch (IdentifierNotFoundCodeEE e)
@@ -369,6 +383,18 @@ internal sealed class ErhLoader
 		return noError;
 	}
 	#region EE_ERD
+
+	/// <summary>常数表 CSV 由专用解析器处理，不再交给 ERD 当名称表重复解析。</summary>
+	private static List<string> WithoutConstTable(List<string> list, string constPath)
+	{
+		if (list == null || constPath == null)
+			return list;
+		var ret = new List<string>();
+		foreach (string path in list)
+			if (!string.Equals(path, constPath, StringComparison.OrdinalIgnoreCase))
+				ret.Add(path);
+		return ret.Count == 0 ? null : ret;
+	}
 
 	private Dictionary<string, List<string>> erdFileNames;
 

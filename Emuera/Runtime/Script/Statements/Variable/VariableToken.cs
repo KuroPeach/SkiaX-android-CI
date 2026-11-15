@@ -2066,19 +2066,32 @@ internal sealed partial class VariableData
 			size.x = data.Lengths[0];
 			size.y = data.Lengths[1];
 			IsStatic = true;
-			//array = new Int64[sizes[0], sizes[1]];
+			defArray = data.DefaultInt;
 		}
 		(int x, int y) size = (0, 0);
 		long[,] array;
+		readonly long[] defArray;
 
 		void IfNullInitArray()
 		{
-			array ??= new long[sizes[0], sizes[1]];
+			if (array != null)
+				return;
+			array = new long[sizes[0], sizes[1]];
+			RestoreDefault();
 		}
 		public override void SetDefault()
 		{
 			IfNullInitArray();
+			RestoreDefault();
+		}
+		void RestoreDefault()
+		{
 			Array.Clear(array, 0, totalSize);
+			if (defArray == null)
+				return;
+			int n = Math.Min(defArray.Length, totalSize);
+			for (int k = 0; k < n; k++)
+				array[k / sizes[1], k % sizes[1]] = defArray[k];
 		}
 		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
 		{
@@ -2275,23 +2288,33 @@ internal sealed partial class VariableData
 			size.x = data.Lengths[0];
 			size.y = data.Lengths[1];
 			IsStatic = true;
-			//array = new string[sizes[0], sizes[1]];
+			defArray = data.DefaultStr;
 		}
 		string[,] array;
 		(int x, int y) size;
+		readonly string[] defArray;
 
 		void IfNullInitArray()
 		{
-			if (array == null)
-			{
-				array = new string[size.x, size.y];
-			}
+			if (array != null)
+				return;
+			array = new string[size.x, size.y];
+			RestoreDefault();
 		}
 
 		public override void SetDefault()
 		{
 			IfNullInitArray();
+			RestoreDefault();
+		}
+		void RestoreDefault()
+		{
 			Array.Clear(array, 0, totalSize);
+			if (defArray == null)
+				return;
+			int n = Math.Min(defArray.Length, totalSize);
+			for (int k = 0; k < n; k++)
+				array[k / sizes[1], k % sizes[1]] = defArray[k];
 		}
 		public override string GetStrValue(ExpressionMediator exm, long[] arguments)
 		{
@@ -2759,6 +2782,175 @@ internal sealed partial class VariableData
 		public override void ScopeOut() { }
 	}
 
+	private sealed class StaticFloat2DVariableToken : UserDefinedVariableToken
+	{
+		public StaticFloat2DVariableToken(UserDefinedVariableData data)
+			: base(VariableCode.VARS2D, data, new VariableDescriptor
+			{
+				Code = VariableCode.VARS2D,
+				Kind = VariableKind.Float,
+				Dimension = VariableDimension.Array2D,
+				Attributes = VariableAttribute.None
+			})
+		{
+			IsStatic = true;
+			defArray = data.DefaultFloat;
+		}
+		double[,] array;
+		readonly double[] defArray;
+
+		void IfNullInitArray()
+		{
+			if (array != null)
+				return;
+			array = new double[sizes[0], sizes[1]];
+			RestoreDefault();
+		}
+		public override void SetDefault()
+		{
+			IfNullInitArray();
+			RestoreDefault();
+		}
+		void RestoreDefault()
+		{
+			Array.Clear(array, 0, totalSize);
+			if (defArray == null)
+				return;
+			int n = Math.Min(defArray.Length, totalSize);
+			for (int k = 0; k < n; k++)
+				array[k / sizes[1], k % sizes[1]] = defArray[k];
+		}
+		public override double GetFloatValue(ExpressionMediator exm, long[] arguments)
+		{
+			IfNullInitArray();
+			return array[arguments[0], arguments[1]];
+		}
+		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
+		{
+			IfNullInitArray();
+			return (long)array[arguments[0], arguments[1]];
+		}
+		public override void SetValue(double value, long[] arguments)
+		{
+			IfNullInitArray();
+			array[arguments[0], arguments[1]] = value;
+		}
+		public override void SetValue(double[] values, long[] arguments)
+		{
+			IfNullInitArray();
+			int start = (int)arguments[1];
+			int end = start + values.Length;
+			for (int i = start; i < end; i++)
+				array[arguments[0], i] = values[i - start];
+		}
+		public override void SetValueAll(double value, int start, int end, int charaPos)
+		{
+			IfNullInitArray();
+			for (int i = 0; i < array.GetLength(0); i++)
+				for (int j = 0; j < array.GetLength(1); j++)
+					array[i, j] = value;
+		}
+		public override object GetArray()
+		{
+			IfNullInitArray();
+			return array;
+		}
+		public override double PlusValue(double value, long[] arguments)
+		{
+			IfNullInitArray();
+			array[arguments[0], arguments[1]] += value;
+			return array[arguments[0], arguments[1]];
+		}
+		public override void ScopeIn() { }
+		public override void ScopeOut() { }
+	}
+
+	private sealed class StaticFloat3DVariableToken : UserDefinedVariableToken
+	{
+		public StaticFloat3DVariableToken(UserDefinedVariableData data)
+			: base(VariableCode.VARS3D, data, new VariableDescriptor
+			{
+				Code = VariableCode.VARS3D,
+				Kind = VariableKind.Float,
+				Dimension = VariableDimension.Array3D,
+				Attributes = VariableAttribute.None
+			})
+		{
+			IsStatic = true;
+			defArray = data.DefaultFloat;
+		}
+		double[,,] array;
+		readonly double[] defArray;
+
+		void IfNullInitArray()
+		{
+			if (array != null)
+				return;
+			array = new double[sizes[0], sizes[1], sizes[2]];
+			RestoreDefault();
+		}
+		public override void SetDefault()
+		{
+			IfNullInitArray();
+			RestoreDefault();
+		}
+		void RestoreDefault()
+		{
+			Array.Clear(array, 0, totalSize);
+			if (defArray == null)
+				return;
+			int n = Math.Min(defArray.Length, totalSize);
+			int d1 = sizes[1];
+			int d2 = sizes[2];
+			for (int k = 0; k < n; k++)
+				array[k / (d1 * d2), (k / d2) % d1, k % d2] = defArray[k];
+		}
+		public override double GetFloatValue(ExpressionMediator exm, long[] arguments)
+		{
+			IfNullInitArray();
+			return array[arguments[0], arguments[1], arguments[2]];
+		}
+		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
+		{
+			IfNullInitArray();
+			return (long)array[arguments[0], arguments[1], arguments[2]];
+		}
+		public override void SetValue(double value, long[] arguments)
+		{
+			IfNullInitArray();
+			array[arguments[0], arguments[1], arguments[2]] = value;
+		}
+		public override void SetValue(double[] values, long[] arguments)
+		{
+			IfNullInitArray();
+			int start = (int)arguments[2];
+			int end = start + values.Length;
+			for (int i = start; i < end; i++)
+				array[arguments[0], arguments[1], i] = values[i - start];
+		}
+		public override void SetValueAll(double value, int start, int end, int charaPos)
+		{
+			IfNullInitArray();
+			for (int i = 0; i < array.GetLength(0); i++)
+				for (int j = 0; j < array.GetLength(1); j++)
+					for (int k = 0; k < array.GetLength(2); k++)
+						array[i, j, k] = value;
+		}
+		public override object GetArray()
+		{
+			IfNullInitArray();
+			return array;
+		}
+		public override double PlusValue(double value, long[] arguments)
+		{
+			IfNullInitArray();
+			array[arguments[0], arguments[1], arguments[2]] += value;
+			return array[arguments[0], arguments[1], arguments[2]];
+		}
+		public override void ScopeIn() { }
+		public override void ScopeOut() { }
+	}
+
 	private sealed class PrivateFloat1DVariableToken : UserDefinedVariableToken
 	{
 		public PrivateFloat1DVariableToken(UserDefinedVariableData data)
@@ -2829,6 +3021,133 @@ internal sealed partial class VariableData
 			{
 				array = arrayStack.Pop();
 			}
+			else
+				array = null;
+		}
+	}
+
+	private sealed class PrivateFloat2DVariableToken : UserDefinedVariableToken
+	{
+		public PrivateFloat2DVariableToken(UserDefinedVariableData data)
+			: base(VariableCode.VARS2D, data, new VariableDescriptor
+			{
+				Code = VariableCode.VARS2D,
+				Kind = VariableKind.Float,
+				Dimension = VariableDimension.Array2D,
+				Attributes = VariableAttribute.None
+			})
+		{
+			IsStatic = false;
+			arrayStack = [];
+		}
+		readonly Stack<double[,]> arrayStack;
+		double[,] array;
+		public override void SetDefault() { }
+		public override double GetFloatValue(ExpressionMediator exm, long[] arguments)
+		{
+			return array[arguments[0], arguments[1]];
+		}
+		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
+		{
+			return (long)array[arguments[0], arguments[1]];
+		}
+		public override void SetValue(double value, long[] arguments)
+		{
+			array[arguments[0], arguments[1]] = value;
+		}
+		public override void SetValue(double[] values, long[] arguments)
+		{
+			int start = (int)arguments[1];
+			int end = start + values.Length;
+			for (int i = start; i < end; i++)
+				array[arguments[0], i] = values[i - start];
+		}
+		public override void SetValueAll(double value, int start, int end, int charaPos)
+		{
+			for (int i = 0; i < array.GetLength(0); i++)
+				for (int j = 0; j < array.GetLength(1); j++)
+					array[i, j] = value;
+		}
+		public override object GetArray() { return array; }
+		public override double PlusValue(double value, long[] arguments)
+		{
+			array[arguments[0], arguments[1]] += value;
+			return array[arguments[0], arguments[1]];
+		}
+		public override void ScopeIn()
+		{
+			if (array != null)
+				arrayStack.Push(array);
+			array = new double[sizes[0], sizes[1]];
+		}
+		public override void ScopeOut()
+		{
+			if (arrayStack.Count > 0)
+				array = arrayStack.Pop();
+			else
+				array = null;
+		}
+	}
+
+	private sealed class PrivateFloat3DVariableToken : UserDefinedVariableToken
+	{
+		public PrivateFloat3DVariableToken(UserDefinedVariableData data)
+			: base(VariableCode.VARS3D, data, new VariableDescriptor
+			{
+				Code = VariableCode.VARS3D,
+				Kind = VariableKind.Float,
+				Dimension = VariableDimension.Array3D,
+				Attributes = VariableAttribute.None
+			})
+		{
+			IsStatic = false;
+			arrayStack = [];
+		}
+		readonly Stack<double[,,]> arrayStack;
+		double[,,] array;
+		public override void SetDefault() { }
+		public override double GetFloatValue(ExpressionMediator exm, long[] arguments)
+		{
+			return array[arguments[0], arguments[1], arguments[2]];
+		}
+		public override long GetIntValue(ExpressionMediator exm, long[] arguments)
+		{
+			return (long)array[arguments[0], arguments[1], arguments[2]];
+		}
+		public override void SetValue(double value, long[] arguments)
+		{
+			array[arguments[0], arguments[1], arguments[2]] = value;
+		}
+		public override void SetValue(double[] values, long[] arguments)
+		{
+			int start = (int)arguments[2];
+			int end = start + values.Length;
+			for (int i = start; i < end; i++)
+				array[arguments[0], arguments[1], i] = values[i - start];
+		}
+		public override void SetValueAll(double value, int start, int end, int charaPos)
+		{
+			for (int i = 0; i < array.GetLength(0); i++)
+				for (int j = 0; j < array.GetLength(1); j++)
+					for (int k = 0; k < array.GetLength(2); k++)
+						array[i, j, k] = value;
+		}
+		public override object GetArray() { return array; }
+		public override double PlusValue(double value, long[] arguments)
+		{
+			array[arguments[0], arguments[1], arguments[2]] += value;
+			return array[arguments[0], arguments[1], arguments[2]];
+		}
+		public override void ScopeIn()
+		{
+			if (array != null)
+				arrayStack.Push(array);
+			array = new double[sizes[0], sizes[1], sizes[2]];
+		}
+		public override void ScopeOut()
+		{
+			if (arrayStack.Count > 0)
+				array = arrayStack.Pop();
 			else
 				array = null;
 		}

@@ -25,6 +25,10 @@ internal sealed class UserDefinedVariableData
 	public bool Private;
 	public bool CharaData;
 	public bool Const;
+	/// <summary>声明为常数表：值与名称由同名的 CSV/ERD 表提供，不走内联初始值。</summary>
+	public bool ConstTable;
+	public string ConstTablePath;
+	public Dictionary<string, int>[] ConstTableNames;
 
 	public static UserDefinedVariableData CreateRefScalar(WordCollection wc, bool isStr, bool isFloat, bool isPrivate, ScriptPosition? sc)
 	{
@@ -91,7 +95,26 @@ internal sealed class UserDefinedVariableData
 			//TODO ifの数があたまわるい なんとかしたい
 			switch (keyword)
 			{
+				case var s when s.Equals("CONSTTABLE", cmp) || s.Equals("常数表", cmp) || s.Equals("常数数组", cmp):
+					if (ret.CharaData)
+						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "CHARADATA"), sc);
+					if (ret.Global)
+						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "GLOBAL"), sc);
+					if (ret.Save)
+						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "SAVEDATA"), sc);
+					if (ret.Reference)
+						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "REF"), sc);
+					if (staticDefined && !ret.Static)
+						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "DYNAMIC"), sc);
+					if (ret.Const)
+						throw new CodeEE(string.Format(trerror.DuplicateKeyword.Text, keyword), sc);
+					ret.ConstTable = true;
+					ret.Const = true;
+					ret.Static = true;
+					break;
 				case var s when s.Equals("CONST", cmp):
+					if (ret.ConstTable)
+						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "CONSTTABLE"), sc);
 					if (ret.CharaData)
 						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "CHARADATA"), sc);
 					if (ret.Global)
@@ -227,6 +250,14 @@ internal sealed class UserDefinedVariableData
 	whilebreak:
 		if (ret.Name == null)
 			throw new CodeEE(string.Format(trerror.NotVarAfterKeyword.Text, keyword), sc);
+		string constTablePath = null;
+		List<string[]> constTableRows = null;
+		if (ret.ConstTable)
+		{
+			constTablePath = ConstArrayTable.FindFile(ret.Name, out constTableRows, out string constTableError);
+			if (constTablePath == null)
+				throw new CodeEE("常数表声明 " + ret.Name + " 不可用：" + constTableError, sc);
+		}
 		if (Config.Config.UseERD && Config.Config.CheckDuplicateIdentifier)
 			GlobalStatic.ConstantData.isDefinedErd(ret.Name, sc);
 		string errMes = "";
@@ -246,6 +277,9 @@ internal sealed class UserDefinedVariableData
 		List<int> sizeNum = [];
 		if (wc.EOL)//サイズ省略
 		{
+			// 常数表的尺寸同时决定越界判定（表里超出尺寸的值会被丢弃），省略会让整表变成 1 个元素。
+			if (ret.ConstTable)
+				throw new CodeEE("常数表声明必须写明尺寸：" + ret.Name + "（一维如 ,7，二维如 ,7,5）", sc);
 			if (ret.Const)
 				throw new CodeEE(trerror.ConstHasNotInitialValue.Text);
 			sizeNum.Add(1);
@@ -288,11 +322,14 @@ internal sealed class UserDefinedVariableData
 
 		if (wc.Current.Type != '=')//初期値指定なし
 		{
-			if (ret.Const)
+			if (ret.Const && !ret.ConstTable)
 				throw new CodeEE(trerror.ConstHasNotInitialValue.Text);
 		}
 		else//初期値指定あり
 		{
+			// 常数表的值只来自同名表；允许内联初始值会造成“写了却不生效”的静默覆盖。
+			if (ret.ConstTable)
+				throw new CodeEE("常数表的值来自同名表，不能写内联初始值：" + ret.Name, sc);
 			if (((OperatorWord)wc.Current).Code != OperatorCode.Assignment)
 				throw new CodeEE(trerror.UnexpectedOp.Text);
 			if (ret.Reference)
@@ -352,7 +389,11 @@ internal sealed class UserDefinedVariableData
 			throw new CodeEE(trerror.WrongFormat.Text, sc);
 
 		if (sizeNum.Count == 0)
+		{
+			if (ret.ConstTable)
+				throw new CodeEE("常数表声明必须写明尺寸：" + ret.Name, sc);
 			sizeNum.Add(1);
+		}
 
 		ret.Private = isPrivate;
 		if (ret.Out)
@@ -362,8 +403,10 @@ internal sealed class UserDefinedVariableData
 			return ret;
 		}
 		ret.Dimension = sizeNum.Count;
-		if (ret.Const && ret.Dimension > 1)
+		if (ret.Const && ret.Dimension > 1 && !ret.ConstTable)
 			throw new CodeEE(trerror.CanNotDeclareConstArray.Text);
+		if (ret.ConstTable && ret.Dimension > 2)
+			throw new CodeEE("常数表只支持一维与二维数组", sc);
 		if (ret.CharaData && ret.Dimension > 2)
 			throw new CodeEE(trerror.CharaVarCanNotDeclareMoreThan3D.Text, sc);
 		if (ret.Dimension > 3)
@@ -379,6 +422,20 @@ internal sealed class UserDefinedVariableData
 		}
 		if (totalBytes <= 0 || totalBytes > 1000000)
 			throw new CodeEE(trerror.OoRDefinable.Text, sc);
+		if (ret.ConstTable)
+		{
+			int valueKind = dimf ? ConstArrayTable.KindFloat : dims ? ConstArrayTable.KindStr : ConstArrayTable.KindInt;
+			if (!ConstArrayTable.TryLoad(constTablePath, constTableRows, ret.Lengths, valueKind, out var tableNames, out object tableValues, out string tableError))
+				throw new CodeEE(constTablePath + "：" + tableError, sc);
+			ret.ConstTablePath = constTablePath;
+			ret.ConstTableNames = tableNames;
+			if (tableValues is long[] intValues)
+				ret.DefaultInt = intValues;
+			else if (tableValues is string[] strValues)
+				ret.DefaultStr = strValues;
+			else
+				ret.DefaultFloat = (double[])tableValues;
+		}
 		if (!isPrivate && ret.Save && !Config.Config.SystemSaveInBinary)
 		{
 			if (dims && ret.Dimension > 1)

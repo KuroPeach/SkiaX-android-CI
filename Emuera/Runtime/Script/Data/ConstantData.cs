@@ -129,6 +129,9 @@ internal sealed class ConstantData
 	private readonly string[][] names = new string[(int)VariableCode.__COUNT_CSV_STRING_ARRAY_1D__ + 1][]; // 元より1増やす
 	private readonly Dictionary<string, int>[] aliases = new Dictionary<string, int>[(int)VariableCode.__COUNT_CSV_STRING_ARRAY_1D__ + 1];
 	private readonly Dictionary<string, Dictionary<string, int>> erdNameToIntDics = [];
+	/// <summary>由常数表注册的数组名。名称查表对这些数组不依赖 UseERD 开关。</summary>
+	// 变量名比较方式跟随 Config.StrComper，与 varTokenDic 等保持同一套标识符规则。
+	private readonly HashSet<string> constArrayVarNames = new(Config.Config.StrComper);
 	#endregion
 	#region 尊尼获加_ERD_PRESET
 	/// <summary>
@@ -1081,6 +1084,29 @@ internal sealed class ConstantData
 	}
 
 	/// <summary>
+	/// 注册常数表解析出的维度名称。与 ERD 共用逆引字典。
+	/// 冲突时以值表（CSV/ERD 常数表）中的名称为准：ERD 名称表只补空缺，
+	/// 这样无论 USE ERD 是否开启，同一份数据得到的名称映射都相同。
+	/// </summary>
+	public void RegisterConstArrayNames(string varname, int dimension, Dictionary<string, int>[] namesByDim)
+	{
+		constArrayVarNames.Add(varname);
+		for (int d = 0; d < dimension; d++)
+		{
+			string key = dimension == 1 ? varname : varname + "@" + (d + 1);
+			if (!erdNameToIntDics.TryGetValue(key, out var dic))
+			{
+				dic = new Dictionary<string, int>();
+				erdNameToIntDics.Add(key, dic);
+			}
+			if (namesByDim == null || namesByDim[d] == null)
+				continue;
+			foreach (var pair in namesByDim[d])
+				dic[pair.Key] = pair.Value;
+		}
+	}
+
+	/// <summary>
 	/// 为用户定义变量加载 ALS 别名文件，将别名注入 erdNameToIntDics 字典。
 	/// 与系统变量的 loadAliases 不同，系统变量写入 aliases[targetIndex] 数组，
 	/// 而用户变量没有 VariableCode 枚举索引，只能写入 erdNameToIntDics[varname] 字典。
@@ -1478,7 +1504,8 @@ internal sealed class ConstantData
 		}
 
 		#region EE_ERD
-		if (ret == null && Config.Config.UseERD)
+		// 常数表的名称不依赖 ERD 开关；其余仍按原设置。
+		if (ret == null && (Config.Config.UseERD || (!string.IsNullOrEmpty(varname) && constArrayVarNames.Contains(varname))))
 		{
 			if (string.IsNullOrEmpty(varname))
 				return ret;
