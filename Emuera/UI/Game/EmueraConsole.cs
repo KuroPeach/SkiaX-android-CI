@@ -1079,6 +1079,15 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public int AnimeTimer => redrawTimer.Enabled ? (int)redrawTimer.Interval : 0;
 
+	/// <summary>アニメーションタイマー有効値の変化（setRedrawTimer＝唯一写点から発火；
+	/// EWP overlay.anime 用、tooltip 系イベントと同型）。</summary>
+	public event Action CliAnimeTimerChanged;
+
+	void NotifyAnimeTimerChanged()
+	{
+		try { CliAnimeTimerChanged?.Invoke(); } catch { }
+	}
+
 	private void tickRedrawTimer(object sender, EventArgs e)
 	{
 		if (!redrawTimer.Enabled)
@@ -1099,12 +1108,14 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (tickcount <= 0)
 		{
 			redrawTimer.Enabled = false;
+			NotifyAnimeTimerChanged();
 			return;
 		}
 		if (tickcount < 10)
 			tickcount = 10;
 		redrawTimer.Interval = tickcount;
 		redrawTimer.Enabled = true;
+		NotifyAnimeTimerChanged();
 	}
 
 
@@ -2291,16 +2302,19 @@ internal sealed partial class EmueraConsole : IDisposable
 	public void CustomToolTip(bool b)
 	{
 		window.SetCustomToolTip(b);
+		NotifyTooltipConfig();
 	}
 
 	public void SetToolTipColor(Color foreColor, Color backColor)
 	{
 		window.ToolTipForeColor = foreColor;
 		window.ToolTipBackColor = backColor;
+		NotifyTooltipConfig();
 	}
 	public void SetToolTipDelay(int delay)
 	{
 		window.ToolTipInitialDelay = delay;
+		NotifyTooltipConfig();
 	}
 
 	int tooltip_duration;
@@ -2317,26 +2331,58 @@ internal sealed partial class EmueraConsole : IDisposable
 	internal long TooltipFormat => tooltip_format;
 	internal Size TooltipSize { get => tooltip_size; set => tooltip_size = value; }
 
+	/// <summary>ALIGN-13：tooltip 全局参数快照（EWP <c>overlay.tooltip</c> 的数据源）。
+	/// 引擎的 tooltip 参数是**全局状态**（TOOLTIP_SET* 改一次影响后续所有 tip），
+	/// 前端必须拿到同一份值才能复刻延迟/时长/配色，⛔ 不能各自硬编码默认。</summary>
+	public readonly record struct TooltipConfig(
+		int InitialDelay, int Duration, int AutoPopDelay, bool OwnerDraw,
+		Color ForeColor, Color BackColor, string FontName, long FontSize, long Format, bool Img);
+
+	public TooltipConfig GetTooltipConfig() => new(
+		window.ToolTipInitialDelay,
+		tooltip_duration,
+		window.ToolTipAutoPopDelay,
+		window.ToolTipOwnerDraw,
+		window.ToolTipForeColor,
+		window.ToolTipBackColor,
+		tooltip_fontname,
+		tooltip_fontsize,
+		tooltip_format,
+		tooltip_img);
+
+	/// <summary>tooltip 全局参数变化（8 个 TOOLTIP_SET* 任一被调用即触发）。</summary>
+	public event Action CliTooltipConfig;
+
+	void NotifyTooltipConfig()
+	{
+		try { CliTooltipConfig?.Invoke(); } catch { }
+	}
+
 	public void SetToolTipDuration(int duration)
 	{
 		tooltip_duration = duration;
 		window.ToolTipAutoPopDelay = duration;
+		NotifyTooltipConfig();
 	}
 	public void SetToolTipFontName(string fn)
 	{
 		tooltip_fontname = fn;
+		NotifyTooltipConfig();
 	}
 	public void SetToolTipFontSize(long fs)
 	{
 		tooltip_fontsize = fs;
+		NotifyTooltipConfig();
 	}
 	public void SetToolTipFormat(long f)
 	{
 		tooltip_format = f;
+		NotifyTooltipConfig();
 	}
 	public void SetToolTipImg(bool b)
 	{
 		tooltip_img = b;
+		NotifyTooltipConfig();
 	}
 
 	//private Graphics getGraphics()
@@ -2723,7 +2769,8 @@ internal sealed partial class EmueraConsole : IDisposable
 		var correction = lineNo > Config.MaxLog ? lineNo - Config.MaxLog : 0;
 		if (policy.DivTopDown)
 		{
-			// depth 大的在上层：自顶向下查＝把升序的 depths 反着走
+			// oracle 口径：depth 大的先查（DivTopDown 专属）；与绘制序相反——绘制按 depth 降序，
+			// 值大者先画＝在下层，故真实视觉是「depth 小的在上」。桌面 Pointer 走下方升序分支。
 			for (int d = depths.Length - 1; d >= 0; d--)
 			{
 				foreach (var part in escapedParts[depths[d]])
