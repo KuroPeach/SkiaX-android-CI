@@ -1077,6 +1077,15 @@ internal sealed partial class EmueraConsole : IDisposable
 
 	public int AnimeTimer => redrawTimer.Enabled ? (int)redrawTimer.Interval : 0;
 
+	/// <summary>アニメーションタイマー有効値の変化（setRedrawTimer＝唯一写点から発火；
+	/// EWP overlay.anime 用、tooltip 系イベントと同型）。</summary>
+	public event Action CliAnimeTimerChanged;
+
+	void NotifyAnimeTimerChanged()
+	{
+		try { CliAnimeTimerChanged?.Invoke(); } catch { }
+	}
+
 	private void tickRedrawTimer(object sender, EventArgs e)
 	{
 		if (!redrawTimer.Enabled)
@@ -1097,12 +1106,14 @@ internal sealed partial class EmueraConsole : IDisposable
 		if (tickcount <= 0)
 		{
 			redrawTimer.Enabled = false;
+			NotifyAnimeTimerChanged();
 			return;
 		}
 		if (tickcount < 10)
 			tickcount = 10;
 		redrawTimer.Interval = tickcount;
 		redrawTimer.Enabled = true;
+		NotifyAnimeTimerChanged();
 	}
 
 

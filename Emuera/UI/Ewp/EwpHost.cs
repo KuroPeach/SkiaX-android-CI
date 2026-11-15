@@ -309,8 +309,9 @@ internal sealed class EwpHost
     }
     /// <summary>仍存活的行（lineId/文本/归属；仅 UI 线程访问，频道元数据在 channelGate 下）。</summary>
     private readonly List<LiveLine> liveLines = new();
-    /// <summary>活着的 sprite 图层（与引擎同语义：同深度可叠多层、按深度清）。snapshot 数据源。</summary>
-    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow, long Rev)> liveSprites = new();
+    /// <summary>活着的 sprite 图层（与引擎同语义：同深度可叠多层、按深度清）。snapshot 数据源。
+    /// Anim＝动画层帧表 JSON（sprite.set.anim 同形；静态层 null。ALIGN-18）。</summary>
+    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow, long Rev, string Anim)> liveSprites = new();
     /// <summary>运行期图层不可变快照（UI 线程；FE 声明 sprite.export 后才启用）。</summary>
     private readonly EwpSpriteExport spriteExport = new();
     /// <summary>当前 island 的原始 HTML（null＝无 island）。v0 单实例。</summary>
@@ -371,7 +372,10 @@ internal sealed class EwpHost
     // 一次性上屏。缓冲事件按原生重绘点整批放行：CliFramePainted／OnWaitInput／snapshot／sys.state／
     // 终局前。4096 条·16MB（UTF-8 字节）阀门防「REDRAW 0 无重绘长循环」无限积压。
     // 非缓冲路径直发前先 FlushLegacyBatch（否则新行会先于积压行到达）；OnWaitInput 的兜底
-    // 放行在 inputReq 判空之前（无 inputReq 的 WAIT 也要放行）。事件内容与顺序逐字节不变。
+    // 放行在 inputReq 判空之前（无 inputReq 的 WAIT 也要放行）。事件 JSON 内容不变；
+    // 保序覆盖跨族：channel 控制事件（EmitChannel→BufferOrEmit）与 legacy 族同入本缓冲，
+    // 按追加序同批放行 ⇒ begin < 该 rev 段全部内容行 < commit（legacy.line 无频道字段，
+    // wire 顺序是 FE 归属唯一依据）。
     private readonly object batchGate = new object();
     private readonly List<string> batchBuf = new List<string>();
     private int batchBufBytes;
@@ -554,7 +558,8 @@ internal sealed class EwpHost
 
     /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}+新段；
     /// end=commit{rev}（与配对 begin 同 rev 定稿）；clear=clear{id}（清段不清频道，
-    /// rev/open/行 owner 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。</summary>
+    /// rev/open/行 owner 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。
+    /// 控制事件经 EmitChannel 与 legacy 族同域保序（REDRAW 0 期间同入批缓冲）。</summary>
     private void OnChannelMacro(string macro, string id, string kind)
     {
         // FE 未声明 channel 时只停发 wire 事件，不改变 ERB 宏本身的空展开行为。
@@ -576,7 +581,7 @@ internal sealed class EwpHost
                     {
                         st = new ChannelState { Kind = kind };
                         channels[id] = st;
-                        EwpOut.Emit("{\"t\":\"channel.create\",\"id\":" + J(id)
+                        EmitChannel("{\"t\":\"channel.create\",\"id\":" + J(id)
                             + ",\"kind\":" + J(kind) + ",\"tier\":\"grid-locked\"}");
                     }
                     // 同 id 重复 begin＝移栈顶＋rev++，不形成嵌套。
@@ -585,7 +590,7 @@ internal sealed class EwpHost
                     st.Rev++;
                     st.Open = true;
                     st.Segments.Add(new ChannelSegment { Rev = st.Rev, Committed = false });
-                    EwpOut.Emit("{\"t\":\"channel.begin\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
+                    EmitChannel("{\"t\":\"channel.begin\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
                 }
                 break;
             case "end":
@@ -598,7 +603,7 @@ internal sealed class EwpHost
                         var seg = st.Segments.Find(s => s.Rev == st.Rev);
                         if (seg != null)
                             seg.Committed = true;
-                        EwpOut.Emit("{\"t\":\"channel.commit\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
+                        EmitChannel("{\"t\":\"channel.commit\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
                     }
                     else
                         channelMismatch++;
@@ -611,13 +616,24 @@ internal sealed class EwpHost
                     {
                         // 清内容不清频道：段清空，rev/open 与行 owner 保持。
                         st.Segments.Clear();
-                        EwpOut.Emit("{\"t\":\"channel.clear\",\"id\":" + J(id) + "}");
+                        EmitChannel("{\"t\":\"channel.clear\",\"id\":" + J(id) + "}");
                     }
                     else
                         channelMismatch++;
                 }
                 break;
         }
+    }
+
+    /// <summary>channel 控制事件（create/begin/commit/clear）发送：与 legacy 族共用同一有序
+    /// 发送域（BufferOrEmit）。保序不变量：REDRAW 0 期间控制事件与缓冲内容行同入 batchBuf、
+    /// 按追加序同批放行 ⇒ wire 上 create < begin < 该 rev 段全部 legacy.line < commit；
+    /// 非缓冲路径直发前由 BufferOrEmit 先放行积压批，跨族序同样成立。
+    /// legacy.line 无频道字段，wire 顺序是 FE 归属唯一依据，commit 先于内容行到达必然错归。</summary>
+    private void EmitChannel(string json)
+    {
+        if (!BufferOrEmit(json))
+            EwpOut.Emit(json);
     }
 
     private EmueraConsole GameConsole => GlobalStatic.Console;
@@ -703,6 +719,7 @@ internal sealed class EwpHost
         console.CliBackgroundChanged += OnBackgroundChanged;
         console.CliTextBackgroundChanged += OnTextBackgroundChanged;
         console.CliTooltipConfig += OnTooltipConfig;
+        console.CliAnimeTimerChanged += OnAnimeTimer;
         if (tcpPort > 0)
         {
             // TCP：EmitMetrics 会调 FontFactory（无锁静态缓存），⛔ 不能在 transport 线程
@@ -710,12 +727,13 @@ internal sealed class EwpHost
             // （HeadlessHost 在启动门前持续泵，故不会悬空）。
             // ALIGN-13：初始 tooltip 快照同批走 UI 线程——实测在 transport 线程直接发会卡住
             // 启动门（Subscribe 未走到 subscribedDone ⇒ 游戏不启动、FE 120s 超时）。
-            try { win.Invoke(new Action(() => { EmitMetrics(); OnTooltipConfig(); })); } catch { }
+            try { win.Invoke(new Action(() => { EmitMetrics(); OnTooltipConfig(); OnAnimeTimer(); })); } catch { }
         }
         else
         {
             EmitMetrics();
             OnTooltipConfig();
+            OnAnimeTimer();
         }
         // ALIGN-13：初始 tooltip 配置快照（纯字段读，无字体工厂 ⇒ 不挑线程）。
         Volatile.Write(ref subscribedDone, 1);
@@ -746,6 +764,23 @@ internal sealed class EwpHost
                 + ",\"format\":" + t.Format
                 + ",\"img\":" + (t.Img ? "true" : "false")
                 + "}}");
+        }
+        catch { }
+    }
+
+    /// <summary>ALIGN-16：动画时钟有效值 → <c>overlay.anime</c>（SETANIMETIMER 唯一写点变化即发，
+    /// 外加 Subscribe 时的一次初始快照）。值＝redrawTimer 有效间隔（0＝停止自主重绘），
+    /// 是「INPUT 等待期自主重绘间隔」，与帧 delays 无关。旧 FE 未声明 sprite.export ⇒ 零事件。</summary>
+    private void OnAnimeTimer()
+    {
+        if (!spriteExport.Enabled)
+            return;
+        var console = attachedConsole ?? GameConsole;
+        if (console == null)
+            return;
+        try
+        {
+            EwpOut.Emit("{\"t\":\"overlay.anime\",\"interval\":" + console.AnimeTimer + "}");
         }
         catch { }
     }
@@ -889,8 +924,8 @@ internal sealed class EwpHost
             EwpOut.Emit(json);
     }
 
-    /// <summary>REDRAW 0 期间把 legacy 族 JSON 缓冲（返回 true）；否则直发（返回 false）。
-    /// 阀门（条数/字节）触发即时放行，防无重绘长循环积压。</summary>
+    /// <summary>REDRAW 0 期间把 legacy 族与 channel 控制事件（EmitChannel）JSON 缓冲（返回 true）；
+    /// 否则直发（返回 false）。阀门（条数/字节）触发即时放行，防无重绘长循环积压。</summary>
     private bool BufferOrEmit(string json)
     {
         var console = attachedConsole ?? GameConsole;
@@ -914,7 +949,7 @@ internal sealed class EwpHost
         return true;
     }
 
-    /// <summary>把缓冲的 legacy 事件按序整批放行（任意线程；原生重绘点/输入边界/
+    /// <summary>把缓冲的 legacy／channel 控制事件按序整批放行（任意线程；原生重绘点/输入边界/
     /// snapshot/sys.state/终局前调用）。</summary>
     private void FlushLegacyBatch()
     {
@@ -1572,13 +1607,20 @@ internal sealed class EwpHost
     }
 
     /// <summary>SETIMAGELAYER(L)→sprite.set（EWP §4.3；colormatrix 留 v1）。
-    /// 先用实际 ImageLayer 对象同步冻结快照，再发事件；rev 只在启用导出时出现。</summary>
+    /// 先用实际 ImageLayer 对象同步冻结快照，再发事件；rev 只在启用导出时出现。
+    /// ALIGN-18：动画层（SpriteAnime/SpriteAnimated）静态快照必 fail（CaptureCore not_exportable/
+    /// animated）——不签静态 rev，改发帧表 anim{count,delays}（与行内 span.anim 同形、TryAnimInfo
+    /// 统一口径），FE 按帧 sprite.req 负 rev 取纹理。旧 FE（未声明 sprite.export）零 anim、零 rev。</summary>
     private void OnImageLayerSet(ImageLayer layer)
     {
-        long rev = spriteExport.Capture(layer);
+        int animCount = 0;
+        int[] animDelays = null;
+        bool animated = spriteExport.Enabled && TryAnimInfo(layer.Image, out animCount, out animDelays);
+        long rev = animated ? 0 : spriteExport.Capture(layer);
         string tex = layer.Image?.Name ?? "";
+        string animJson = animated ? AnimTableJson(animCount, animDelays) : null;
         liveSprites.Add((layer.Depth, tex, layer.X, layer.Y, layer.Width, layer.Height,
-            layer.Opacity, layer.FollowScroll, rev));
+            layer.Opacity, layer.FollowScroll, rev, animJson));
         var sb = new StringBuilder(160);
         sb.Append("{\"t\":\"sprite.set\",\"depth\":").Append(layer.Depth)
             .Append(",\"texture\":").Append(J(tex))
@@ -1590,8 +1632,27 @@ internal sealed class EwpHost
             .Append(",\"follow\":").Append(layer.FollowScroll ? "true" : "false");
         if (rev > 0)
             sb.Append(",\"rev\":").Append(rev);
+        if (animJson != null)
+            sb.Append(",\"anim\":").Append(animJson);
         sb.Append('}');
         EwpOut.Emit(sb.ToString());
+    }
+
+    /// <summary>ALIGN-18：帧表 JSON（count/delays），与行内 span.anim 载荷同形。</summary>
+    private static string AnimTableJson(int count, int[] delays)
+    {
+        var sb = new StringBuilder(32 + (delays?.Length ?? 0) * 4);
+        sb.Append("{\"count\":").Append(count).Append(",\"delays\":[");
+        if (delays != null)
+        {
+            for (int i = 0; i < delays.Length; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append(delays[i]);
+            }
+        }
+        sb.Append("]}");
+        return sb.ToString();
     }
 
     private void OnImageLayerCleared(long depth)
@@ -1975,6 +2036,13 @@ internal sealed class EwpHost
                 }));
             }
             catch { }
+        }
+        // ALIGN-16：握手即补发动画时钟有效值——Subscribe 时的初始发射被 cap 门挡住
+        // （sprite.export 在 hello.ok 才就绪＝初始发不出，FE 缺初值）。旧 FE（未声明
+        // sprite.export）此处仍是零发射（OnAnimeTimer 自门控）。
+        if (spriteExport.Enabled)
+        {
+            try { win.Invoke(new Action(() => OnAnimeTimer())); } catch { }
         }
         // 握手完成——与 Subscribe 一起放行 TCP 启动门（stdio 无人在等，置位无副作用）。
         Volatile.Write(ref helloOkSeen, 1);
@@ -3084,6 +3152,9 @@ internal sealed class EwpHost
                 .Append(",\"follow\":").Append(s.Follow ? "true" : "false");
             if (s.Rev > 0)
                 sb.Append(",\"rev\":").Append(s.Rev);
+            // ALIGN-18：动画层帧表（重连恢复帧请求面；静态层无此键——旧 FE 快照逐字节不变）。
+            if (s.Anim != null)
+                sb.Append(",\"anim\":").Append(s.Anim);
             sb.Append('}');
         }
         sb.Append("],\"island\":").Append(liveIslandHtml != null ? J(liveIslandHtml) : "null");
@@ -3166,6 +3237,10 @@ internal sealed class EwpHost
             // 旧 FE 未声明 bg ⇒ 零键（⛔ 不能无条件追加，否则旧 FE 快照逐字节变化）。
             if (bgEnabled)
                 sb.Append(",\"bg\":").Append(BackgroundStateJson());
+            // ALIGN-16：动画时钟有效值（重连恢复「是否自主重绘」）。
+            // 旧 FE（caps 未声明 sprite.export）零键——⛔ 不能无条件追加，否则旧 FE 快照逐字节变化。
+            if (spriteExport.Enabled)
+                sb.Append(",\"animeTimer\":").Append(console?.AnimeTimer ?? 0);
             sb.Append('}');
         }
         EwpOut.Emit(sb.ToString());
