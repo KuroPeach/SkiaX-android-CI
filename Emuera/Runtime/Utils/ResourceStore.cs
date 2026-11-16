@@ -165,10 +165,57 @@ internal static class ResourceStore
 		}
 	}
 
-	/// <summary>CSV 枚举（P1 才用）：包内以 suffix 结尾的相对路径。</summary>
+	/// <summary>
+	/// CSV 枚举（P1）：包内以 <paramref name="suffix"/> 结尾的相对路径（posix 分隔符，不含 resources/ 前缀）。
+	/// 大小写按 OrdinalIgnoreCase 匹配；退化态同样可用。
+	/// </summary>
 	public static IEnumerable<string> EnumerateRelative(string suffix)
 	{
-		return Array.Empty<string>();
+		EnsureOpen();
+
+		var result = new List<string>();
+		if (index != null)
+		{
+			foreach (var entryName in index.Keys)
+			{
+				if (entryName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+					result.Add(entryName.Substring(EntryPrefix.Length));
+			}
+		}
+		else if (zipEntries != null)
+		{
+			foreach (var entryName in zipEntries.Keys)
+			{
+				if (entryName.StartsWith(EntryPrefix, StringComparison.OrdinalIgnoreCase)
+					&& entryName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+					result.Add(entryName.Substring(EntryPrefix.Length));
+			}
+		}
+		return result;
+	}
+
+	/// <summary>诊断用：包内条目数（不含索引条目本身；无包为 0）。</summary>
+	internal static int PakEntryCount
+	{
+		get
+		{
+			EnsureOpen();
+			if (index != null)
+				return index.Count;
+			if (zipEntries != null)
+				return zipEntries.Count - (zipEntries.ContainsKey(IndexEntryName) ? 1 : 0);
+			return 0;
+		}
+	}
+
+	/// <summary>诊断用：包文件体积（字节；无包为 0）。</summary>
+	internal static long PakSizeBytes
+	{
+		get
+		{
+			EnsureOpen();
+			return pakStream != null ? pakStream.Length : 0;
+		}
 	}
 
 	/// <summary>诊断用：当前态与条目数。</summary>
