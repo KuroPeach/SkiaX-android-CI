@@ -129,8 +129,10 @@ internal sealed class ConstantData
 	private readonly string[][] names = new string[(int)VariableCode.__COUNT_CSV_STRING_ARRAY_1D__ + 1][]; // 元より1増やす
 	private readonly Dictionary<string, int>[] aliases = new Dictionary<string, int>[(int)VariableCode.__COUNT_CSV_STRING_ARRAY_1D__ + 1];
 	private readonly Dictionary<string, Dictionary<string, int>> erdNameToIntDics = [];
-	/// <summary>由常数表注册的数组名。名称查表对这些数组不依赖 UseERD 开关。</summary>
-	// 变量名比较方式跟随 Config.StrComper，与 varTokenDic 等保持同一套标识符规则。
+	/// <summary>
+	/// 由常数表注册的数组名。名称查表对这些数组不依赖 UseERD 开关。
+	/// 变量名比较方式跟随 Config.StrComper，与 varTokenDic 等保持同一套标识符规则。
+	/// </summary>
 	private readonly HashSet<string> constArrayVarNames = new(Config.Config.StrComper);
 	#endregion
 	#region 尊尼获加_ERD_PRESET
@@ -1094,13 +1096,18 @@ internal sealed class ConstantData
 		for (int d = 0; d < dimension; d++)
 		{
 			string key = dimension == 1 ? varname : varname + "@" + (d + 1);
+			if (namesByDim == null || namesByDim[d] == null)
+				continue;
+			// 常数表的名称集合就是最终结果（值表 + 名称表 + .als 已在 Load 里合并完）。
+			// 先清空再重建：EE_ERD 可能已按 [编号,名称] 往同一个键里塞过一份，不清会留下
+			// 「同一索引两个名字」的旧映射。
 			if (!erdNameToIntDics.TryGetValue(key, out var dic))
 			{
 				dic = new Dictionary<string, int>();
 				erdNameToIntDics.Add(key, dic);
 			}
-			if (namesByDim == null || namesByDim[d] == null)
-				continue;
+			else
+				dic.Clear();
 			foreach (var pair in namesByDim[d])
 				dic[pair.Key] = pair.Value;
 		}

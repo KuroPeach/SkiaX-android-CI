@@ -2063,12 +2063,9 @@ internal sealed partial class VariableData
 		public StaticInt2DVariableToken(UserDefinedVariableData data)
 			: base(VariableCode.VAR2D, data)
 		{
-			size.x = data.Lengths[0];
-			size.y = data.Lengths[1];
 			IsStatic = true;
 			defArray = data.DefaultInt;
 		}
-		(int x, int y) size = (0, 0);
 		long[,] array;
 		readonly long[] defArray;
 
@@ -2081,8 +2078,11 @@ internal sealed partial class VariableData
 		}
 		public override void SetDefault()
 		{
-			IfNullInitArray();
-			RestoreDefault();
+			// 数组刚建出来时 IfNullInitArray 已经按默认值填过，不必再填一遍。
+			if (array == null)
+				IfNullInitArray();
+			else
+				RestoreDefault();
 		}
 		void RestoreDefault()
 		{
@@ -2143,13 +2143,8 @@ internal sealed partial class VariableData
 		public StaticInt3DVariableToken(UserDefinedVariableData data)
 			: base(VariableCode.VAR3D, data)
 		{
-			size.x = data.Lengths[0];
-			size.y = data.Lengths[1];
-			size.z = data.Lengths[2];
 			IsStatic = true;
-			//array = new Int64[sizes[0], sizes[1], sizes[2]];
 		}
-		(int x, int y, int z) size = (0, 0, 0);
 		long[,,] array;
 		void IfNullInitArray()
 		{
@@ -2304,8 +2299,11 @@ internal sealed partial class VariableData
 
 		public override void SetDefault()
 		{
-			IfNullInitArray();
-			RestoreDefault();
+			// 数组刚建出来时 IfNullInitArray 已经按默认值填过，不必再填一遍。
+			if (array == null)
+				IfNullInitArray();
+			else
+				RestoreDefault();
 		}
 		void RestoreDefault()
 		{
@@ -2808,8 +2806,11 @@ internal sealed partial class VariableData
 		}
 		public override void SetDefault()
 		{
-			IfNullInitArray();
-			RestoreDefault();
+			// 数组刚建出来时 IfNullInitArray 已经按默认值填过，不必再填一遍。
+			if (array == null)
+				IfNullInitArray();
+			else
+				RestoreDefault();
 		}
 		void RestoreDefault()
 		{
@@ -2891,8 +2892,11 @@ internal sealed partial class VariableData
 		}
 		public override void SetDefault()
 		{
-			IfNullInitArray();
-			RestoreDefault();
+			// 数组刚建出来时 IfNullInitArray 已经按默认值填过，不必再填一遍。
+			if (array == null)
+				IfNullInitArray();
+			else
+				RestoreDefault();
 		}
 		void RestoreDefault()
 		{

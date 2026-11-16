@@ -27,8 +27,13 @@ internal sealed class UserDefinedVariableData
 	public bool Const;
 	/// <summary>声明为常数表：值与名称由同名的 CSV/ERD 表提供，不走内联初始值。</summary>
 	public bool ConstTable;
+	/// <summary>主表路径（CSV 优先）。</summary>
 	public string ConstTablePath;
 	public Dictionary<string, int>[] ConstTableNames;
+	/// <summary>补充表冲突等 Lv1 提示，加载由 ErhLoader 统一报告。</summary>
+	public List<string> ConstTableWarnings;
+	/// <summary>已被常数表消费（作主表、值扩展或名称表）的文件，不再交给 EE_ERD 重复解析。</summary>
+	public List<string> ConstTableConsumed;
 
 	public static UserDefinedVariableData CreateRefScalar(WordCollection wc, bool isStr, bool isFloat, bool isPrivate, ScriptPosition? sc)
 	{
@@ -96,6 +101,9 @@ internal sealed class UserDefinedVariableData
 			switch (keyword)
 			{
 				case var s when s.Equals("CONSTTABLE", cmp) || s.Equals("常数表", cmp) || s.Equals("常数数组", cmp):
+					// 名称下标在 ErhLoader 注册；函数内声明没有对应注册路径，不能只让数值下标可用。
+					if (isPrivate)
+						throw new CodeEE(keyword + " 只能在 ERH 中声明，不能在函数内使用", sc);
 					if (ret.CharaData)
 						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "CHARADATA"), sc);
 					if (ret.Global)
@@ -229,6 +237,9 @@ internal sealed class UserDefinedVariableData
 				case var s when s.Equals("CHARADATA", cmp):
 					if (isPrivate)
 						throw new CodeEE(string.Format(trerror.CanNotUseKeywordLocalVar.Text, keyword), sc);
+					// 角色浮点变量没有对应的 token：直接拒绝这个组合，避免被当成整数角色变量处理。
+					if (dimf)
+						throw new CodeEE("#DIMF 不支持 CHARADATA（角色浮点变量尚未实现）", sc);
 					if (ret.Reference)
 						throw new CodeEE(string.Format(trerror.CanNotSpecifiedWith.Text, keyword, "REF"), sc);
 					if (ret.Const)
@@ -250,14 +261,6 @@ internal sealed class UserDefinedVariableData
 	whilebreak:
 		if (ret.Name == null)
 			throw new CodeEE(string.Format(trerror.NotVarAfterKeyword.Text, keyword), sc);
-		string constTablePath = null;
-		List<string[]> constTableRows = null;
-		if (ret.ConstTable)
-		{
-			constTablePath = ConstArrayTable.FindFile(ret.Name, out constTableRows, out string constTableError);
-			if (constTablePath == null)
-				throw new CodeEE("常数表声明 " + ret.Name + " 不可用：" + constTableError, sc);
-		}
 		if (Config.Config.UseERD && Config.Config.CheckDuplicateIdentifier)
 			GlobalStatic.ConstantData.isDefinedErd(ret.Name, sc);
 		string errMes = "";
@@ -425,16 +428,21 @@ internal sealed class UserDefinedVariableData
 		if (ret.ConstTable)
 		{
 			int valueKind = dimf ? ConstArrayTable.KindFloat : dims ? ConstArrayTable.KindStr : ConstArrayTable.KindInt;
-			if (!ConstArrayTable.TryLoad(constTablePath, constTableRows, ret.Lengths, valueKind, out var tableNames, out object tableValues, out string tableError))
-				throw new CodeEE(constTablePath + "：" + tableError, sc);
-			ret.ConstTablePath = constTablePath;
-			ret.ConstTableNames = tableNames;
-			if (tableValues is long[] intValues)
+			// 尺寸要到解析出 Lengths 之后才知道，所以候选表的适配检查放在这里；
+			// 主表缺失或不适配时退回下一份同名候选，其余同名表作为补充合并（冲突只警告）。
+			ConstArrayTable.Result table = ConstArrayTable.Load(ret.Name, ret.Lengths, valueKind, out string tableError);
+			if (table == null)
+				throw new CodeEE("常数表声明 " + ret.Name + " 不可用：" + tableError, sc);
+			ret.ConstTablePath = table.Path;
+			ret.ConstTableNames = table.Names;
+			ret.ConstTableWarnings = table.Warnings;
+			ret.ConstTableConsumed = table.ConsumedPaths;
+			if (table.Values is long[] intValues)
 				ret.DefaultInt = intValues;
-			else if (tableValues is string[] strValues)
+			else if (table.Values is string[] strValues)
 				ret.DefaultStr = strValues;
 			else
-				ret.DefaultFloat = (double[])tableValues;
+				ret.DefaultFloat = (double[])table.Values;
 		}
 		if (!isPrivate && ret.Save && !Config.Config.SystemSaveInBinary)
 		{
