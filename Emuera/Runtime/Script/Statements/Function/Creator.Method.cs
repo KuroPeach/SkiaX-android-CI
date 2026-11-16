@@ -7888,10 +7888,19 @@ internal static partial class FunctionMethodCreator
 					else
 						filepath = Program.ContentDir + filename;
 				}
-				if (!File.Exists(filepath))
+				if (!ResourceStore.Exists(filepath))
 					return 0;
 				#region EM_私家版_webp
-				bmp = SKBitmap.Decode(filepath);
+				var pakBytes = ResourceStore.ReadAllBytes(filepath);
+				if (pakBytes != null)
+				{
+					using var data = SKData.CreateCopy(pakBytes);
+					bmp = SKBitmap.Decode(data);
+				}
+				else
+				{
+					bmp = SKBitmap.Decode(filepath);
+				}
 				//bmp = Utils.LoadImage(filepath);
 				if (bmp == null) return 0;
 				#endregion

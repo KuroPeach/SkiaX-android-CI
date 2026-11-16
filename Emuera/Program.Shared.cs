@@ -51,6 +51,9 @@ static partial class Program
 		ContentDir = Path.Combine(ExeDir, "resources") + Path.DirectorySeparatorChar;
 		FontDir = Path.Combine(ExeDir, "font") + Path.DirectorySeparatorChar;
 		MusicDir = Path.Combine(ExeDir, "sound") + Path.DirectorySeparatorChar;
+
+		// resources.pak 读取层（RPK P0）：这里只记路径，包在首次查询时打开
+		ResourceStore.Configure(ExeDir, ContentDir);
 	}
 
 	/// <summary>大小写不敏感文件查找。找到则 filepath 更新为实际路径，返回 true。</summary>

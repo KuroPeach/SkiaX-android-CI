@@ -115,7 +115,7 @@ static class AppContents
 			for (int i = 1; i < rows.Count; i++)
 			{
 				var r = rows[i];
-				if (!File.Exists(r.FilePath)) continue;
+				if (!ResourceStore.Exists(r.FilePath)) continue;
 
 				if (!sharedConstImages.TryGetValue(r.FilePath, out ConstImage img))
 				{
@@ -132,7 +132,7 @@ static class AppContents
 		else
 		{
 			var r = rows[0];
-			if (!File.Exists(r.FilePath)) return null;
+			if (!ResourceStore.Exists(r.FilePath)) return null;
 
 			if (AnimatedImageHelper.GetAnimInfo(r.FilePath, out int w, out int h, out int fCount, out int[] delays))
 			{
@@ -196,7 +196,7 @@ static class AppContents
 		if (activeSprites.TryGetValue(name, out _))
 			return true;
 
-		if (!File.Exists(filepath))
+		if (!ResourceStore.Exists(filepath))
 			return false;
 
 		ASprite newSprite = null;

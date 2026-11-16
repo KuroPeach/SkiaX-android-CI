@@ -1,3 +1,4 @@
+using MinorShift.Emuera.Runtime.Utils;
 using SkiaSharp;
 using System.Collections.Generic;
 using System.IO;
@@ -11,9 +12,10 @@ namespace MinorShift.Emuera.UI.Game.Image
             width = height = frameCount = 0;
             delays = null;
 
-            if (!File.Exists(filepath)) return false;
-
-            using var codec = SKCodec.Create(filepath);
+            // 包内图片：整条读到内存再解；未命中（含磁盘优先／两侧都没有）时 codec 为 null
+            var pakBytes = ResourceStore.ReadAllBytes(filepath);
+            using var data = pakBytes != null ? SKData.CreateCopy(pakBytes) : null;
+            using var codec = data != null ? SKCodec.Create(data) : SKCodec.Create(filepath);
             if (codec == null) return false;
 
             width = codec.Info.Width;
@@ -35,9 +37,9 @@ namespace MinorShift.Emuera.UI.Game.Image
 
         public static List<(SKBitmap Bitmap, int Delay)> Decode(string filepath)
         {
-            if (!File.Exists(filepath)) return null;
-
-            using var codec = SKCodec.Create(filepath);
+            var pakBytes = ResourceStore.ReadAllBytes(filepath);
+            using var data = pakBytes != null ? SKData.CreateCopy(pakBytes) : null;
+            using var codec = data != null ? SKCodec.Create(data) : SKCodec.Create(filepath);
             if (codec == null || codec.FrameCount <= 1)
                 return null;
 
