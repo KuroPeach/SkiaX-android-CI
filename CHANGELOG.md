@@ -4,7 +4,26 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [17.4.0] — 文件编码探测使用只读访问（开发构建，未发布）
+## [17.4.0] — 资源包单文件化（resources.pak）＋ 文件编码探测只读访问（开发构建，未发布）
+
+### Added
+
+- **`resources.pak` 单文件资源包（RPK）**：新增 `Runtime/Utils/ResourceStore.cs`，把 `resources/` 下的图片与 CSV 收进一个 ZIP 容器随包分发。查找顺序＝**磁盘 → 包**，磁盘有同名文件时一律返回未命中、由调用方走原路径，包只补磁盘缺口；无包时所有接口返回未命中，行为与接入前逐字节一致。
+  - `ToEntryName` 归一：`\`→`/`、前缀比较 `OrdinalIgnoreCase`、拒绝 `..` 越界段。CSV 里实测有写 `infoThumb\blank.webp` 的，包内条目是 `infoThumb/blank.webp`，不归一即静默缺图。
+  - 两种运行态：**索引态**＝启动读一次包内 `.rpk-index.bin`（magic `RPKI` v1，20 B 头＋26 B/条＋UTF-8 名表），之后 `RandomAccess.Read` 直读、`ArrayPool` 复用缓冲、无锁，UI 与 ERB 线程可并发；**退化态**＝索引缺失或损坏（第三方重打包）时持 `ZipArchive`＋全局锁整条读，语义与索引态逐条等价。
+  - 探测顺序 `resources.pak` → `resources.zip`；`Configure(exeDir, contentDir)` 只记路径，包在首次查询时才打开（无图场景不占句柄）。
+  - `ERATW_FORCE_PAK=1` 跳过「磁盘优先」强制查包，用于在散图仍在磁盘的开发目录上验证包路径本身（条目名归一、大小写）；只读环境变量，不写 config。
+  - 诊断：`MemoryDiagnostic` 新增「resources.pak 条目数」「resources.pak 体积」两行。
+- **图片层接入**（桌面 6 组 8 处读取点）：`SharedBitmapCache.Get`／`GetInfo`、`AnimatedImageHelper.GetAnimInfo`／`Decode`、`AppContents` 三处 `File.Exists`、`GCREATEFROMFILE` 全部改为「包内字节优先、磁盘路径兜底」；包内条目整条读成字节后用 `SKData`／`SKCodec` 解，编码仍走 `EncodingHandler`。`GetInfo` 先取索引宽高（**0 I/O**：建 200 个 `ConstImage` 3~4 ms／112 KiB，磁盘态 103~125 ms），索引未填尺寸才回退解码读头。
+- **CSV 入包**：`AppContents.LoadContents` 的 CSV 来源改为「磁盘 ∪ 包内」，按整条绝对路径 `OrdinalIgnoreCase` 去重且磁盘优先；包内 CSV 走 `MemoryStream` ＋ `EncodingHandler.DetectEncoding(Stream)` 解析（⛔ 不直接 UTF-8 解码，CP932 的 CSV 会乱码）。`ResourceStore.EnumerateRelative(suffix)` 返回 posix 相对名供枚举，调用方负责合成绝对路径（`Path.GetDirectoryName` 依赖它）。
+- **`SpriteMeta` 内存化**：`AppContents` 的内存 SQLite（建表＋逐行 `INSERT OR REPLACE`＋事务）换为 `Dictionary<string, List<MetaRow>>`（`StringComparer.Ordinal`，对齐旧实现的「大写后精确匹配」）。行序＝CSV 行序，与旧 `ORDER BY FrameIndex` 逐行等价；`metaRowCount` 口径仍是**行数**（不是名字数）。磁盘场景端到端装载 590/633/845 → 320/323/397 ms（交错 6 轮，中位 −46%）。
+- **Android 端同步接入**（SkiaX `feature/xamarin`，安卓版本 0.80.0）：`Platform/Content/{ConstImage,AnimatedImageHelper,AppContents}.cs` 与两处 `PlatformInterop` 的四回退委托改为「字节优先、路径兜底」（`Func<byte[], string, …>`，bytes 为 null 时只有磁盘路径）；`AndroidHost` 在 `PathProvider` 构造之后注入 `ResourceStore.Configure`。`FileUtils` 本体未改（它服务于 ERB／存档等非资源路径）。
+- 新增 `tests/EncodingHandler.Tests`，直接引用构建后的引擎程序集，覆盖编码、只读文件、I/O 异常、流位置，以及磁盘／pak 资源装载与 CSV 错误回显。
+
+### Changed
+
+- `AppContents.LoadContents` 的早退条件由「`ContentDir` 不存在」改为「`ContentDir` 不存在 **且** 无可用包」——发布包里 `resources/` 可以只剩一份说明文件，CSV 全部来自包。
+- `GCREATEFROMFILE` 的判存在由 `File.Exists` 换 `ResourceStore.Exists`（磁盘 ∪ 包内，是前者的超集）。
 
 ### Fixed
 

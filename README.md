@@ -18,6 +18,7 @@
 | **渲染引擎** | SkiaSharp 替代 GDI+，OpenGL 硬件加速 + 自动降级，SRGB 色彩空间修复；F11 全屏比例缩放；GDI 字体回退（MS Gothic 等光栅字体） |
 | **HTML 渲染** | 统一 depth 绘制管线，`<div>` 容器/定位/层级/ARGB 透明/`height` auto/自闭合、`<font size/valign>` 垂直对齐、`<img>` 颜色矩阵 + `display` 绝对定位 |
 | **图像图层** | `SETIMAGELAYER` 独立图层系统（多精灵同层）、`SETIMAGELAYERL` 行相对定位、`GETLINEY` 物理 Y 坐标；`SPRITECREATE`/`SPRITECREATEFROMFILE` 偏移与目标尺寸；`CBGSETSPRITE` 缩放/透明度/颜色矩阵；视口裁剪、动图离窗暂停 |
+| **资源包** | `resources.pak` 单文件资源包（RPK）：立绘/表情/差分/背景与图片 CSV 收进一个 ZIP 容器，磁盘同名文件优先、包只补缺口；索引态 `RandomAccess` 直读（宽高 0 I/O），索引缺失或损坏自动退化 `ZipArchive`；`ERATW_FORCE_PAK=1` 强制查包；`SpriteMeta` 内存字典化（装载中位 −46%）；`MemoryDiagnostic` 增 pak 条目数与体积 |
 | **浮点类型** | `#DIMF` / `#FUNCTIONF` / `LOCALF` / `ARGF` / `RESULTF`；`TOSTRF` / `TOFLOAT` / `TOINT` 转换；POWER/SQRT/ABS 等函数根据参数动态返回 Integer/Float；存档双精度 |
 | **数学扩展** | 三角函数（`SIN`/`COS`/`TAN`/`ASIN`/`ACOS`/`ATAN`）、取整（`FLOOR`/`CEIL`/`ROUND`）、`UNCHECKED_*` 回环溢出 |
 | **变量系统** | ExecutionContext 栈式函数上下文（修复 ARG 递归覆写）、SparseArray 稀疏存储、SafeArithmetic 溢出保护、ERD 用户定义变量 `.als` 别名（按变量域隔离）、ALS 多对一映射 |
