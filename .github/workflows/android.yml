@@ -82,35 +82,24 @@ jobs:
           ls -la keep/
 
       # ---------- 2) 按 ABI 拆分的独立包（每个体积小很多）----------
-      # RuntimeIdentifiers 只留一个 RID，即可只打该架构的运行时与程序集
-      - name: Build per-ABI APKs
+      # 不再逐个 RID 重新 publish：.NET 8 + Android workload 下重复 publish
+      # 会因 obj/ 布局与 GetAssemblyAttributes 期望不一致而报 MSB4018
+      # （obj/Release/net8.0/<rid>/XEmuera.Core.dll 找不到），且每架构重编
+      # 一次要 4 倍时间。直接在合一包上裁掉其它架构的 lib/<abi>/ 即可，
+      # assemblies/*.blob 保留全部（约 7 MB，删错会导致运行时缺程序集）。
+      - name: Split per-ABI APKs
         continue-on-error: true
         run: |
           set -e
+          SRC=keep/Emuera.SkiaX-universal.apk
+          test -f "$SRC" || { echo "::error::未找到合一包，无法拆分"; exit 1; }
           for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
-            case "$ABI" in
-              arm64-v8a)   RID=android-arm64 ;;
-              armeabi-v7a) RID=android-arm   ;;
-              x86)         RID=android-x86   ;;
-              x86_64)      RID=android-x64   ;;
-            esac
-            echo "==== 构建 $ABI ($RID) ===="
-            # 每次换 RID 前必须清掉中间产物：多 RID 的 obj/ 残留会让
-            # GetAssemblyAttributes 找不到目标 RID 下的 dll（MSB4018）
-            rm -rf Emuera.Xamarin.Android/obj Emuera.Xamarin.Android/bin \
-                   Emuera.Xamarin.Core/obj Emuera.Xamarin.Core/bin
-            dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
-              -c Release -f net8.0-android \
-              -p:AndroidPackageFormat=apk \
-              -p:AndroidKeyStore=false \
-              -p:RunAOTCompilation=false \
-              -p:CheckEolWorkloads=false \
-              -p:RuntimeIdentifiers="$RID"
-            find Emuera.Xamarin.Android/bin/Release -name '*.apk' -exec ls -la {} \;
-            # 把本架构产物挪到独立目录，供签名阶段使用
+            echo "==== 拆分 $ABI ===="
             mkdir -p "perabi/$ABI"
-            find Emuera.Xamarin.Android/bin/Release -name '*.apk' -exec cp {} "perabi/$ABI/" \;
+            python3 scripts/split_apk_abi.py "$SRC" \
+              "perabi/$ABI/Emuera.SkiaX-$ABI-unsigned.apk" "$ABI"
           done
+          find perabi -name '*.apk' -exec ls -la {} \;
 
       - name: Sign all APKs
         continue-on-error: true
@@ -125,9 +114,14 @@ jobs:
 
           sign() {
             local src="$1" dst="$2"
+            # 拆分出来的包是重新打包的，条目偏移已不再对齐（resources.arsc
+            # 必须 4 字节对齐，Android 12+ 对未压缩 .so 还要 4K 页对齐），
+            # 所以签名前一律 zipalign 一遍；合一包本来就是对齐的，无害。
+            "$BT/zipalign" -f -p 4 "$src" "$dst.aligned"
             "$BT/apksigner" sign --ks out/dev.keystore --ks-pass "pass:$PASS" \
               --key-pass "pass:$PASS" --ks-key-alias skiax \
-              --out "$dst" "$src"
+              --out "$dst" "$dst.aligned"
+            rm -f "$dst.aligned"
             echo "signed: $dst ($(du -h "$dst" | cut -f1))"
           }
 

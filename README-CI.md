@@ -7,9 +7,10 @@
 |:---|:---|
 | 上游 | `gitgud.io/minus010001/emuera_lazyloading_selfmodified_version` |
 | 分支 | `feature/xamarin` |
-| 基点提交 | `b7345b6` — `build(android): 0.79.0（内核 Skiav17）` |
-| 内核版本 | Emuera 1824 + v24 + EMv18 + EEv56 + **Skiav17** |
-| 产物 | `Emuera.SkiaX-CI-signed.apk`（约 70–80 MB） |
+| 基点提交 | `be44a9a` — `docs(release): 18.0 转正式版标记` |
+| 内核版本 | Emuera 1824 + v24 + EMv18 + EEv56 + **Skiav18.0** |
+| 应用版本 | `versionCode 81` / `versionName 0.81.0` |
+| 产物 | `Emuera.SkiaX-universal-signed.apk`（约 70 MB）<br>`Emuera.SkiaX-<abi>-signed.apk` × 4（各约 50 MB） |
 
 ## 为什么有这个仓库
 
@@ -27,24 +28,41 @@
 2. `dotnet workload install android`（runner 自带 Android SDK，不另装）
 3. `dotnet publish -c Release -f net8.0-android -p:AndroidKeyStore=false`
    —— 出未签名 APK
-4. CI 内临时生成 keystore 并用 `apksigner` 签名（用完即删，不进产物）
-5. 上传 artifact `skiax-apk`，保留 30 天
+4. 从合一包里裁掉其它架构的 `lib/<abi>/`，得到 4 个单架构包
+   （`scripts/split_apk_abi.py`，纯裁剪不重编，秒级完成）
+5. `zipalign -p 4` 对齐后，CI 内临时生成 keystore 并用 `apksigner` 签名
+   （keystore 用完即删，不进产物）
+6. 上传 artifact `skiax-apk`（合一包 + 4 个单架构包），保留 30 天
+
+### 为什么按 ABI 拆分是「裁剪」而不是「重编」
+
+早先的写法是循环 `dotnet publish -p:RuntimeIdentifiers=<单个 RID>`，
+每架构重编一遍。在 .NET 8 + Android workload 下这条路会撞两个坑：
+
+1. **MSB4018**：重复 publish 后 `Emuera.Xamarin.Core/obj` 的布局变成
+   `obj/Release/net8.0/<rid>/XEmuera.Core.dll`，而 `GetAssemblyAttributes`
+   仍在老路径找，直接 `FileNotFoundException`；
+2. 每架构重编一次，CI 时间 ×4。
+
+现在的做法是在已编好的合一包上剪枝，`assemblies/*.blob` 全部保留（约 7 MB）
+——按架构分片的 blob 删错会导致运行时缺程序集，不值得为这点体积冒险。
 
 ## 安装注意
 
 - **CI 签名证书与上游官方包不同**。若设备上装过官方 SkiaX，必须先卸载再装
   （不同签名的 APK 无法覆盖安装）。
-- 本仓库只出 **arm64-v8a / x86_64 等全 RID 合一包**（`RuntimeIdentifiers` 未裁剪），
-  体积大但兼容。
+- 产物有两类：**合一包**（四架构全含，兼容所有设备，约 70 MB）与
+  **单架构包**（只含一个 ABI，约 50 MB）。绝大多数手机装 `arm64-v8a` 那个即可。
+- 所有包都由 `zipalign -p 4` 对齐后再签名。
 - 应用包名 `Emuera.SkiaX`，显示名 `Emuera skiaX`。
 
 ## 与上游保持同步
 
 ```bash
 git remote add upstream https://gitgud.io/minus010001/emuera_lazyloading_selfmodified_version.git
-git fetch upstream feature/xamarin
-git merge upstream/feature/xamarin    # 本仓库改动只有 3 处，冲突极低
-git push origin feature/xamarin
+git fetch upstream '+refs/heads/*:refs/remotes/upstream/*'
+git merge upstream/feature/xamarin    # 本仓库自己的改动很少，冲突极低
+git push origin ux-fix
 ```
 
 ## 许可
