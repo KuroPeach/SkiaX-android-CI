@@ -59,16 +59,11 @@ jobs:
         run: dotnet restore Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj
 
       # ---------- 1) 首选：只编 arm64-v8a ----------
-      # 两个坑叠在一起，必须同时处理：
-      #   a) Android csproj 里写死了 <RuntimeIdentifiers>android-arm;android-x86;
-      #      android-x64;android-arm64</RuntimeIdentifiers>，只给 -r 的话
-      #      打包仍按这个列表来，产物照样是四架构（静默失败，体积一点没小）。
-      #      → 必须再用 -p:RuntimeIdentifiers=android-arm64 覆盖它。
-      #   b) 用 -p:RuntimeIdentifiers=<单个 RID> 覆盖后，Core 的 TargetPath 会
-      #      带上 rid 子目录（obj/<cfg>/<tfm>/<rid>/），而实际编译产物落在无
-      #      rid 目录 → GetAssemblyAttributes 报 MSB4018 FileNotFound。
-      #      → 加 -p:AppendRuntimeIdentifierToOutputPath=false 让两边对齐。
-      # 最后再校验产物里真的只有 arm64，不是就判失败走兜底（防止再次静默）。
+      # csproj 里的 <RuntimeIdentifiers> 写死四架构，直接用 -p: 覆盖它会触发
+      # MSB4018（Core 的 TargetPath 带上 rid 子目录，产物却落在无 rid 目录）。
+      # 所以改成 csproj 支持 SkiaXSingleAbi 开关：设了就把列表换成单个 RID，
+      # MSBuild 从头到尾只有这一个架构，路径自洽，不会再打架。
+      # 编完仍用 check_apk_abi.py 验产物，防止再次静默出多架构包。
       - name: Build arm64 APK
         id: build_arm64
         continue-on-error: true
@@ -77,8 +72,7 @@ jobs:
           dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
             -c Release -f net8.0-android \
             -r android-arm64 \
-            -p:RuntimeIdentifiers=android-arm64 \
-            -p:AppendRuntimeIdentifierToOutputPath=false \
+            -p:SkiaXSingleAbi=android-arm64 \
             -p:AndroidPackageFormat=apk \
             -p:AndroidKeyStore=false \
             -p:RunAOTCompilation=false \
@@ -88,10 +82,8 @@ jobs:
                   ! -name '*-Signed.apk' | head -1)
           test -n "$APK" || { echo "::warning::没出 APK"; exit 1; }
           echo "取自：$APK"
-
           echo "==== 校验产物架构 ===="
           python3 scripts/check_apk_abi.py "$APK" arm64-v8a
-
           cp "$APK" keep/Emuera.SkiaX-arm64-v8a.apk
           ls -la keep/
 

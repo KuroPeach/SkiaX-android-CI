@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0-android</TargetFramework>
@@ -42,7 +42,10 @@
     <MandroidI18n>CJK</MandroidI18n>
     <RunAOTCompilation>false</RunAOTCompilation>
     <ServerGarbageCollection>true</ServerGarbageCollection>
-    <RuntimeIdentifiers>android-arm;android-x86;android-x64;android-arm64</RuntimeIdentifiers>
+    <!-- CI 只出 arm64 时用 -p:SkiaXSingleAbi=android-arm64 覆盖；
+         不传则保持四架构列表（桌面上按需全出）。 -->
+    <RuntimeIdentifiers Condition="'$(SkiaXSingleAbi)' == ''">android-arm;android-x86;android-x64;android-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(SkiaXSingleAbi)' != ''">$(SkiaXSingleAbi)</RuntimeIdentifiers>
     <AndroidKeyStore>true</AndroidKeyStore>
     <AndroidSigningKeyStore>xemuera.keystore</AndroidSigningKeyStore>
     <AndroidSigningKeyAlias>xemuera</AndroidSigningKeyAlias>

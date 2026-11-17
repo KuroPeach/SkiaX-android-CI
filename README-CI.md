@@ -47,39 +47,41 @@
 `android-x64`。也可以同时保留多个（`-r android-arm64 -r android-x64`），
 MSBuild 会按 RID 各出一个包。
 
-### 单架构编译：三个坑要一起处理（实测复盘）
+### 单架构编译：实测三次才走通（复盘）
 
-`Emuera.Xamarin.Android.csproj:45` 写死了四个 RID：
+`Emuera.Xamarin.Android.csproj` 原本写死四架构：
 
 ```xml
 <RuntimeIdentifiers>android-arm;android-x86;android-x64;android-arm64</RuntimeIdentifiers>
 ```
 
-由此引出一连串坑，**踩过两次才全打通**：
+围绕这一行踩了三次坑，值得记下来：
 
-1. **只给 `-r android-arm64` 会静默失败**。`-r` 只设 `RuntimeIdentifier`，
-   打包仍按 `RuntimeIdentifiers` 列表来，产物还是四架构——而且 CI 报成功，
-   文件名却叫 `arm64-v8a`，体积一点没小。所以必须**再用
-   `-p:RuntimeIdentifiers=android-arm64` 覆盖列表**。
-2. **光覆盖列表会报 MSB4018**。`-p:RuntimeIdentifiers=<单个 RID>` 让 Core
-   的 `TargetPath` 带上 rid 子目录（`obj/<cfg>/<tfm>/<rid>/`），而实际编译
-   产物落在无 rid 目录 → `GetAssemblyAttributes` `FileNotFoundException`。
-   解法：加 `-p:AppendRuntimeIdentifierToOutputPath=false` 把两边对齐。
-3. **所以必须验产物**。光看步骤成功不够，编完用
-   `scripts/check_apk_abi.py <apk> arm64-v8a` 检查 `lib/` 里真的只有一个
-   ABI，不是就判失败转兜底。
+| 尝试 | 结果 |
+| --- | --- |
+| 只加 `-r android-arm64` | **静默失败**：只设了单数 `RuntimeIdentifier`，打包仍按 `RuntimeIdentifiers` 列表来，产物还是四架构，CI 报成功、文件名却叫 arm64，体积一点没小 |
+| 再加 `-p:RuntimeIdentifiers=android-arm64` 强覆盖 | **MSB4018**：`GetAssemblyAttributes` 找不到 `obj/Release/net8.0/android-arm64/XEmuera.Core.dll` —— 覆盖后 Core 的 `TargetPath` 带上 rid 子目录，实际产物却落在无 rid 目录 |
+| 补 `-p:AppendRuntimeIdentifierToOutputPath=false` | 仍 **MSB4018**，同一路径 |
+| **改 csproj 加 `SkiaXSingleAbi` 开关** | ✅ 正解 |
 
-完整命令：
+正解的做法是让架构列表本身可变，而不是从命令行硬覆盖：
+
+```xml
+<RuntimeIdentifiers Condition="'$(SkiaXSingleAbi)' == ''">android-arm;android-x86;android-x64;android-arm64</RuntimeIdentifiers>
+<RuntimeIdentifiers Condition="'$(SkiaXSingleAbi)' != ''">$(SkiaXSingleAbi)</RuntimeIdentifiers>
+```
+
+CI 里传 `-r android-arm64 -p:SkiaXSingleAbi=android-arm64`，整个构建图从头到尾
+只有这一个 RID，路径自洽。
+
+**另外无论哪种方式，编完都要验产物**：
 
 ```bash
-dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
-  -c Release -f net8.0-android \
-  -r android-arm64 \
-  -p:RuntimeIdentifiers=android-arm64 \
-  -p:AppendRuntimeIdentifierToOutputPath=false \
-  -p:AndroidPackageFormat=apk -p:AndroidKeyStore=false \
-  -p:RunAOTCompilation=false -p:CheckEolWorkloads=false
+python3 scripts/check_apk_abi.py <apk> arm64-v8a
 ```
+
+检查 `lib/` 下真的只有一个 ABI，不符就判失败转兜底。第一次的静默失败正是因
+为只看「步骤成功」而没看产物内容。
 
 背景：`$(AndroidCreatePackagePerAbi)` 自 .NET 9 起弃用（dotnet/android
 PR #9586），官方推荐改用 `-r` 逐个编译。
