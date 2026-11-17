@@ -15,11 +15,11 @@ public static class EncodingHandler
 	{
 		try
 		{
-			using var file = File.Open(filePath, FileMode.Open);
+			using var file = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.None);
 			Span<byte> bom = stackalloc byte[3];
-			_ = file.Read(bom);
+			int bytesRead = file.Read(bom);
 			file.Close();
-			if (bom.SequenceEqual<byte>([0xEF, 0xBB, 0xBF]))
+			if (bytesRead == bom.Length && bom.SequenceEqual<byte>([0xEF, 0xBB, 0xBF]))
 			{
 				return UTF8BOMEncoding;
 			}
@@ -39,7 +39,7 @@ public static class EncodingHandler
 			sr.Dispose();
 			return UTF8Encoding;
 		}
-		catch
+		catch (DecoderFallbackException)
 		{
 			return shiftjisEncoding;
 		}
@@ -54,18 +54,18 @@ public static class EncodingHandler
 			sr.Peek();
 			if (!UTF8Encoding.Equals(sr.CurrentEncoding))
 			{
-				stream.Seek(pos, SeekOrigin.Begin);
 				return sr.CurrentEncoding;
 			}
 			sr.ReadToEnd();
-			sr.Dispose();
-			stream.Seek(pos, SeekOrigin.Begin);
 			return UTF8Encoding;
 		}
-		catch
+		catch (DecoderFallbackException)
+		{
+			return shiftjisEncoding;
+		}
+		finally
 		{
 			stream.Seek(pos, SeekOrigin.Begin);
-			return shiftjisEncoding;
 		}
 	}
 	public static Encoding GetEncoding(int codePage)

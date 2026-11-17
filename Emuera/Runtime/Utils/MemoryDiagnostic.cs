@@ -199,8 +199,19 @@ internal static class MemoryDiagnostic
 						totalSize += new FileInfo(csvFile).Length;
 						fileCount++;
 					}
-					writer.WriteLine($"  resources/ CSV 文件数:            {fileCount}");
+					writer.WriteLine($"  resources/ CSV 文件数 (磁盘):      {fileCount}");
 					writer.WriteLine($"  resources/ CSV 总大小 (磁盘):     {FormatBytes(totalSize)}");
+				}
+			}
+			catch { }
+
+			// 资源包（resources.pak／resources.zip）：包体积 + 条目数（含非媒体条目）
+			try
+			{
+				if (ResourceStore.Enabled)
+				{
+					writer.WriteLine($"  resources.pak 条目数:              {ResourceStore.PakEntryCount}");
+					writer.WriteLine($"  resources.pak 体积:                {FormatBytes(ResourceStore.PakSizeBytes)}");
 				}
 			}
 			catch { }

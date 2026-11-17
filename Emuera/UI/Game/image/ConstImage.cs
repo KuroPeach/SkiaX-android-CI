@@ -1,3 +1,4 @@
+using MinorShift.Emuera.Runtime.Utils;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -50,7 +51,17 @@ public static class SharedBitmapCache
 		SKBitmap decoded;
 		try
 		{
-			decoded = SKBitmap.Decode(filepath);
+			// 包内图片：整条读到内存再解；未命中（含磁盘优先）走原路径
+			var pakBytes = ResourceStore.ReadAllBytes(filepath);
+			if (pakBytes != null)
+			{
+				using var data = SKData.CreateCopy(pakBytes);
+				decoded = SKBitmap.Decode(data);
+			}
+			else
+			{
+				decoded = SKBitmap.Decode(filepath);
+			}
 			if (decoded == null) return null;
 		}
 		catch
@@ -151,6 +162,21 @@ public static class SharedBitmapCache
 
 		try
 		{
+			// 索引态命中即 0 I/O；退化态／未命中则解码读头（包内条目同样支持）
+			if (ResourceStore.TryGetInfo(filepath, out width, out height))
+				return true;
+
+			var pakBytes = ResourceStore.ReadAllBytes(filepath);
+			if (pakBytes != null)
+			{
+				using var data = SKData.CreateCopy(pakBytes);
+				using var pakCodec = SKCodec.Create(data);
+				if (pakCodec == null) return false;
+				width = pakCodec.Info.Width;
+				height = pakCodec.Info.Height;
+				return true;
+			}
+
 			using var codec = SKCodec.Create(filepath);
 			if (codec != null)
 			{
