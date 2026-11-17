@@ -7982,10 +7982,20 @@ internal static partial class FunctionMethodCreator
 				// Android/Linux 下 ENUMFILES 结果按反斜杠惯例返回，可能被脚本直接拼进文件名，
 				// 统一把反斜杠归一化为平台分隔符再访问文件系统（Windows 上为无操作）。
 				filepath = filepath.Replace('\\', Path.DirectorySeparatorChar);
-				if (!File.Exists(filepath))
+				// ResourceStore.Exists ＝ 磁盘 ∪ 包内（P0），是 File.Exists 的超集
+				if (!ResourceStore.Exists(filepath))
 					return 0;
 				#region EM_私家版_webp
-				bmp = SKBitmap.Decode(filepath);
+				var pakBytes = ResourceStore.ReadAllBytes(filepath);
+				if (pakBytes != null)
+				{
+					using var data = SKData.CreateCopy(pakBytes);
+					bmp = SKBitmap.Decode(data);
+				}
+				else
+				{
+					bmp = SKBitmap.Decode(filepath);
+				}
 				//bmp = Utils.LoadImage(filepath);
 				if (bmp == null) return 0;
 				#endregion

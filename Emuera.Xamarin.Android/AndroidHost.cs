@@ -81,6 +81,11 @@ namespace XEmuera.Droid
             GlobalStatic.PathProvider = new AndroidPathProvider(context, gamePath);
             Android.Util.Log.Debug("EmueraHost", $"PathProvider set: ExeDir={GlobalStatic.PathProvider.ExeDir}");
 
+            // resources.pak 读取层（RPK P3）：只记路径，包在首次查询时打开。
+            // 必须用 PathProvider 的目录（Program.ContentDir 就是它），否则包前缀匹配不上。
+            ResourceStore.Configure(GlobalStatic.PathProvider.ExeDir, GlobalStatic.PathProvider.ContentDir);
+            Android.Util.Log.Debug("EmueraHost", $"ResourceStore configured: ContentDir={GlobalStatic.PathProvider.ContentDir}");
+
             CopyExternalConfigIfNeeded(context, gamePath);
             ApplyLanguagePreference(gamePath);
 
@@ -325,12 +330,15 @@ namespace XEmuera.Droid
             };
 
             // 图片解码回退：Android BitmapFactory 原生支持 WebP（API 14+）
-            PlatformInterop.DecodeBitmapFallback = (filepath) =>
+            // 字节优先（包内条目没有磁盘文件）、路径兜底（bytes 为 null）
+            PlatformInterop.DecodeBitmapFallback = (bytes, filepath) =>
             {
                 try
                 {
                     var options = new BitmapFactory.Options { InJustDecodeBounds = false };
-                    var androidBmp = BitmapFactory.DecodeFile(filepath, options);
+                    var androidBmp = bytes != null
+                        ? BitmapFactory.DecodeByteArray(bytes, 0, bytes.Length, options)
+                        : BitmapFactory.DecodeFile(filepath, options);
                     if (androidBmp == null) return null;
 
                     var skBmp = AndroidBitmapToSKBitmap(androidBmp);
@@ -341,12 +349,15 @@ namespace XEmuera.Droid
                 catch { return null; }
             };
 
-            PlatformInterop.GetBitmapInfoFallback = (filepath) =>
+            PlatformInterop.GetBitmapInfoFallback = (bytes, filepath) =>
             {
                 try
                 {
                     var options = new BitmapFactory.Options { InJustDecodeBounds = true };
-                    BitmapFactory.DecodeFile(filepath, options);
+                    if (bytes != null)
+                        BitmapFactory.DecodeByteArray(bytes, 0, bytes.Length, options);
+                    else
+                        BitmapFactory.DecodeFile(filepath, options);
                     if (options.OutWidth > 0 && options.OutHeight > 0)
                         return (options.OutWidth, options.OutHeight);
                 }
@@ -354,13 +365,16 @@ namespace XEmuera.Droid
                 return null;
             };
 
-            PlatformInterop.GetAnimInfoFallback = (filepath) =>
+            PlatformInterop.GetAnimInfoFallback = (bytes, filepath) =>
             {
                 try
                 {
-                    // Android BitmapFactory 不支持动画帧信息，仅返回静态尺寸
+                    // Android BitmapFactory 不支持动画帧信息，仅按字节／路径取边界
                     var options = new BitmapFactory.Options { InJustDecodeBounds = true };
-                    BitmapFactory.DecodeFile(filepath, options);
+                    if (bytes != null)
+                        BitmapFactory.DecodeByteArray(bytes, 0, bytes.Length, options);
+                    else
+                        BitmapFactory.DecodeFile(filepath, options);
                     if (options.OutWidth > 0 && options.OutHeight > 0)
                     {
                         // 无法获取帧数，返回 null 表示不支持动画
@@ -371,7 +385,7 @@ namespace XEmuera.Droid
                 return null;
             };
 
-            PlatformInterop.DecodeAnimatedFallback = (filepath) =>
+            PlatformInterop.DecodeAnimatedFallback = (bytes, filepath) =>
             {
                 // Android BitmapFactory 不支持动画帧解码
                 // 静态 WebP 会由 DecodeBitmapFallback 处理

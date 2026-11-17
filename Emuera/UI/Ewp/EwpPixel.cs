@@ -6,10 +6,10 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
 
-// eraWire B3: 离屏像素流（EWP §4.4 pixel.frame；spec §8 落点＝console.OnPaint 离屏直调）。
+// 离屏像素流（EWP §4.4 pixel.frame；spec §8 落点＝console.OnPaint 离屏直调）。
 // 管线：UI 线程（CliFramePainted，RefreshStrings 有效通过点）渲染离屏 raster surface →
 // ReadPixels 拷贝（脱离 surface 生命周期）→ 编码线程 PNG → EwpOut.EmitPixel（写出队列丢新计数）。
-// v0 整帧、无 dirty-rect（A1-⑥ 已冻）；过载策略＝捕获队列丢旧保新（EWP §6.3 像素流单独计数，
+// v0 整帧、无 dirty-rect；过载策略＝捕获队列丢旧保新（EWP §6.3 像素流单独计数，
 // 编码跟不上时宁可丢中间帧也绝不阻塞 UI/脚本线程——与文本信用窗背压刻意不同）。
 namespace MinorShift.Emuera.UI.Ewp;
 
@@ -77,7 +77,7 @@ internal sealed class EwpPixelStreamer : IDisposable
         int w = win.RenderWidth, h = win.RenderHeight;
         if (w <= 0 || h <= 0)
         {
-            // 一次性诊断（B3 调试期）：定位最小化窗口布局未落地的静默早退
+            // 一次性诊断：定位最小化窗口布局未落地的静默早退
             if (!zeroSizeWarned)
             {
                 zeroSizeWarned = true;

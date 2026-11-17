@@ -4,6 +4,254 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [18.0.0] — 常数表声明（CONSTTABLE）与 `#DIMF` 多维；一维数组存档长度保底
+
+- **`#DIM` / `#DIMS` / `#DIMF` 的 `CONSTTABLE` 声明**（别名 `常数表` / `常数数组`）：值与维度名称从同名文件读取，无需内联初始值，支持一维与二维数组，编译期按常量折叠，可用名称下标访问。原生 `CONST` 的语义与错误检查不变。
+- **值表格式**：二维表用 `@1` / `@2` 两个定位单元格决定纵横维度方向；纵向标记下方与横向标记右方分别读取橙色注册数、蓝色注册名，夹出的灰色区域为数值。**标记必须放在 (2,1) 与 (1,2) 两处**（哪个标记在哪一处均可）：位置写错时这张表不会被当成二维表，而会按一维表解读（`@1` 落在注册数列就按「不是非负整数」的坏格报出来）。一维表为 `[注册数, 注册名, 值]`。空行与 `;` 注释行忽略，越界索引不读；**写了注册名就必须写注册数**，只有注册数与注册名都留空的格子才按前一格顺延，否则主表报出「第 N 个有效行、第 M 列写了注册名「X」却没有注册数」并失败，补充表只警告并跳过该行/该列；**留空的单元格就是默认值**（整数 `0`、浮点 `0.0`、字符串 `""`），三种类型一致。
+- **字段切分只有一套规则，就是 CSV 那套**（RFC 4180 的读取侧）：逗号是分隔符，但**以双引号开头的字段按引号字段解析**——引号内的逗号属于值本身、`""` 表示一个字面双引号，其余字段原样取到下一个逗号。所以标记、注册数、注册名照常裸写、不需要引号（加了也等价）；值里要带逗号就写 `"a,b"`；值中间位置的双引号可以直接写（`他说"你好"`），只有值**以引号开头**或**引号后还接着内容**时才要写成 `""`（如 `"""冷静""特质"`）。没有反斜杠转义，单引号与反斜杠都是普通字符。引号没闭合、或结束引号后还有内容，按格式错误报出「第几个有效行、第几个字段」并给出按规则应当的写法。所有字段（含引号内）首尾空白一律去掉。**没有「引号模式」开关**：旧表里 (2,2)、或一维表首行第 2 格写的 `""` 现在只是一个空格子，不影响结果，也不再需要写。
+- **值里裸写逗号的提示**：值被挤到声明宽度之外时给一条 Lv1 警告，说明值里的逗号要用双引号把整个值包住、否则后面各列会整体错位。数据行比表头长本身不报警告——表头故意留空靠顺延列扩展是合法写法，两者无法从数据上分辨，只能靠越界判定。
+- **两列 ERD 名称表不再被当成坏值表吞掉**：`ERB/**/<名称>.ERD` 既可能是值表候选、也可能是 `[编号,名称]` 名称表。此前它被候选阶段判为「不足 3 列」后直接记入已消费，名称表循环又因「已消费」跳过它，于是**一维无后缀名称表的名字与它的 `.als` 全部丢失**，EE_ERD 侧也因 `WithoutConstTable` 被剔除而补不回来。现在先把它当名称表读，真读到 `[编号,名称]` 行才记为已消费并加载同名 `.als`；「不是可用的常数表」的警告延后到名称表阶段之后，只对既不是值表也不是名称表的文件发。反向的情况同样堵住：**含 `@1` / `@2` 布局标记的文件只可能是二维值表**，一维声明下即使维度不适配，也不会被当成名称表读走行名，而是静默记为已消费（EE_ERD 也不会再按名称表读它）。名称表只从 `ERB/**` 读，所以 **CSV 目录下的同名文件必须是三列值表，两列的 CSV 不会被当作名称表**。
+- **值表来源**：`CSV/<名称>.csv`、`CSV/<名称>.erd`、`ERB/**/<名称>.ERD`（大小写不敏感）；`ERB/**/<名称>.ERD` / `@1.ERD` / `@2.ERD` 等 EE_ERD 名称表由常数表自行合并注册，不依赖 `USE ERD` 开关。
+- **`#DIMF` 支持一至三维**：与 `#DIM` / `#DIMS` 一致，普通浮点变量、`SAVEDATA`、`GLOBAL` 与函数内静态 / 动态局部变量均可用 2D/3D；新增 `StaticFloat3DVariableToken`、`PrivateFloat2DVariableToken`、`PrivateFloat3DVariableToken`，存档槽位沿用 `(维度-1)*3+2`（2D→5、3D→8），写读两侧的 `double[,]` / `double[,,]` 分支原本已存在。二维字符串、二维浮点 token 同时支持默认值回填，常数表据此填值。
+- **名称下标不依赖 `USE ERD`**：`VariableStrArgTerm.Restructure` 解析名称下标时把所属变量名传给 `GetKeywordDictionary`；此前传 null，`USE ERD:NO` 下 `数组:名称:名称` 会在解析期报「不能以字符串指定元素」。变量名集合改用 `Config.StrComper` 比较，大小写规则与其它标识符一致。
+- **声明约束**：常数表必须写明尺寸（`#DIM CONSTTABLE x` 此前静默退化为 1 个元素、整表值越界失效），且不得写内联初始值（此前会被表值静默覆盖），两种写法现在直接报错。
+- **同名表按预设变量的规则合并**：`CSV/<名称>.csv` 是主表，`CSV/<名称>.erd` 与 `ERB/**/<名称>.ERD` 是同类表的补充来源，不再是「选一份、其余丢弃」。主表没写的格子、没命名的索引由补充表填入；同索引不同名、同名不同索引、同一格不同值都只给 Lv1 警告并以主表为准，不中断加载。主表缺失或不适配声明尺寸（同名的 1D 表挡住 2D 声明、标记位置写错等）时，按 `CSV/*.csv` → `CSV/*.erd` → `ERB/**/*.ERD` 的顺序退到下一份候选当主表，尺寸检查因此移到尺寸解析之后。**内容写错的主表不会被降级成补充表**：它在严格校验阶段就整份作废，不会再把坏格跳过、其余数据并进备份主表的结果里。
+- **名称补充只补空位**：与预设变量一致，一个索引只保留一个名字。补充表给已占用索引起的第二个名字会被拒并警告（想加同义名请用 `.als`），补充表里重复出现的名字也只认第一个。
+- **同一索引两个名字直接报错**：主表里两行写同一个索引、各起一个名字（如 `0,甲,1` 与 `0,乙,2`），报「索引 0 已有名字「甲」，不能再取名「乙」」，不再让两个名字都能当下标；补充表里出现同样情况只警告并保留先出现的名字。
+- **转置写法的补充表**：补充表的 `@1` / `@2` 与主表方向相反时，行列是颠倒的。合并前已按「维度编号」把两种摆法展平成同一套索引，所以方向相反照样能补值、补名，不需要额外规则。
+- **格式边界**：空文件或只有注释行的表按「空文件，或只有空行与注释行」说明（此前会冒出内部异常文本）；行尾逗号等于最后一格留空，与 `Split(',')` 对齐。全空字段的行（`,,`）按视觉分隔处理、不占「第 N 个有效行」的行号——值表、名称表、别名表三处口径一致，警告里的行号可以互相对照。补充表整份被拒时，它此前的坏格警告不再输出。浮点表的 `NaN` 与 `NaN` 视为同值，不再反复报「值不同」；名称表首行的 BOM 不再吃掉第一条名称。
+- **候选的问题都会报出来**：同名文件连基本表格式都不合规（列数不足、首列不是编号、空文件）时，即使另有可用候选，也会给一条 Lv1 警告写明路径与原因；只是维度或标记位置不适配的候选属于正常的多候选场景，静默回退。
+- **主表写错报错、补充表写错警告**：这里的「写错」只指**非空却解析不了**的内容（如 `1O`、`oops`），空格仍是默认值、不算错。主表里出现这种格子时报出「第几个有效行 / 第几列」并指出是注册数还是值：还有其它同名候选时整份作废、改用下一份，并给一条 Lv1 警告说明原因；没有可用候选时才作为声明失败报出。补充表里的同类问题只记一条带位置的警告并跳过该行/该格，其余数据照常合并。找不到文件与「找到但格式不合规」分开报（后者带路径与原因），名称表读取失败也给警告，不再静默吞异常。
+- **`CONSTTABLE` 只能写在 ERH**：函数内 `#DIM CONSTTABLE` 此前会被接受，但名称表注册只发生在 `ErhLoader`，`数组:名称` 在解析期照旧报错、ERD 名称补充也被跳过；现在声明处直接拒绝并说明原因。
+- **`#DIMF CHARADATA` 显式拒绝**：角色浮点 token 尚不存在，此前会落进整数分支，把 `#DIMF` 静默变成整数角色变量；现在声明处报错。整数 `CHARADATA` 不受影响。
+- **目录索引可失效**：重新解析 ERH 时清空常数表的 CSV / ERB 文件索引（常数表声明只在 ERH 里读，所以挂在 `LoadHeaderFiles` 入口），新增或改名的表文件不会被旧索引挡住。单独重载 ERB 不会重新读常数表声明。
+- **`.als` 与常数表**：`.als` 是别名表，常数表会自动加载与已消费文件同目录、同名的 `.als`（一维 `名称.als`，二维 `名称@N.als`），格式与 EE_ERD 一致（`索引,别名`），正式名优先、别名不覆盖已有名字。常数表接管这些 CSV/ERD 后不再走 `UserDefineLoadData`，所以别名在常数表内部合并，写 `.als` 的同义名可以正常当下标。`.erd` 是同类名称表，与 `.csv` 互为补充、不是别名载体：值表 `CSV/<名称>.erd` 与 `ERB/**/<名称>.ERD` 都认，维度名称表 `<名称>@N.ERD` 只从 `ERB/**` 读取（与 EE_ERD 惯例一致）。
+- **名称表 / 别名表与值表共用同一套切分**：`[编号,名称]` 名称表与 `.als` 也走 CSV 规则，名称里带逗号时用双引号包住（`0,"甲,乙"`），写成 `"丙"` 时引号被去掉。此前这两处仍是 `Split(',')`，名称里的逗号会被切开、引号会留在名字里。全空字段的行（`,,`）按视觉分隔处理，与值表丢弃空行的口径一致，不再算坏行；只写了编号、没写名称/别名的行也静默跳过。格式不对的行不再静默跳过：每份文件给一条警告，写明跳过了几个有效行、首个坏行在第几行以及具体原因（引号没闭合、首列不是编号等，与值表同款提示）；整份都不是名称表时不发这条，避免和「不是可用的常数表」重复。
+- **名称集合以常数表为准**：注册名称前先清空该变量的旧映射再写入。EE_ERD 可能已按 `[编号,名称]` 塞过一份，不清会留下「同一索引两个名字」；清空后结果也不随 `USE ERD` 开关变化。
+- **整表顺延**：注册数与注册名都留空的整表合法（首行落到索引 0），不再被判成「没有数据行」；旧写法里一维表首行的 `,""` 表现如今按空行忽略，`0,"",值` 这种首格有编号的行照旧按数据读入。
+- **启动开销**：CSV / ERB 目录改为按文件名建一次索引，值表与名称表共用；此前每个常数表声明都递归枚举 ERB 目录，并把同一文件读两遍。
+
+**二维值表示例**（`CSV/测试常数数组.csv`）：
+
+| 行＼列 | A | B | C | D | E | F |
+|---|---|---|---|---|---|---|
+| 1 |  | `@2` | 1 | 2 | 3 | 4 |
+| 2 | `@1` |  | 变量列名1 | 变量列名2 | 变量列名3 | 变量列名4 |
+| 3 | 0 | 变量名1 | 1 | 3 | 5 | 7 |
+| 4 | 2 | 变量名2 | 2 | 7 | 9 | 11 |
+| 5 | 3 | 变量名3 | 9 | 12 | 15 | 18 |
+
+`@2` 落在 (1,2)、`@1` 落在 (2,1)：纵向读数决定第 1 维（注册数 `0/2/3`、注册名 `变量名N`），横向读数决定第 2 维（注册数 `1,2,3,4`、注册名 `变量列名N`），中间区域是值；空行与 `;` 注释行跳过。配对声明 `#DIM CONSTTABLE 测试常数数组,7,5` 后，`测试常数数组:变量名3:变量列名4` 与 `测试常数数组:3:4` 均为 `18`，未写值的 `测试常数数组:0:0` 为 `0`。
+
+**一维值表示例**（`CSV/测试常数数组2.csv`，每行 `注册数, 注册名, 值`；不含 `@1` / `@2` 定位标记）：
+
+| 注册数 | 注册名 | 值 |
+|---|---|---|
+| 1 | 变量列名1 | 1 |
+| 3 | 变量列名3 | 9 |
+
+配对 `#DIM CONSTTABLE 测试常数数组2,7` 后，`测试常数数组2:变量列名3` 与 `测试常数数组2:3` 均为 `9`。
+
+**值写法对照**（字符串表 `#DIMS`）：切分规则与 CSV 一致，没有开关，也不需要表头行。
+
+值里带逗号却不加引号，`CSV/范例表.csv`：
+
+| 行＼列 | A | B | C | D |
+|---|---|---|---|---|
+| 1 |  | `@2` | 1 | 2 |
+| 2 | `@1` |  | 变量列名1 | 变量列名2 |
+| 3 | 0 | 变量名1 | a,b | c |
+| 4 | 1 | 变量名2 | d | e |
+
+`a,b` 里的逗号照样是分隔符：这一行被切成 5 格，`变量名1` 的两个值变成 `a` 和 `b`，原来的 `c` 被挤到声明宽度之外丢掉，并给一条 Lv1 警告（「值超出声明宽度」）。字段数变多本身不单独提示——它和「表头故意留空、靠顺延列扩展」的合法写法在数据上无法区分，只能靠越界判定间接发现，所以还是那句话：值里带逗号就用引号包住。
+
+推荐写法，只给含逗号的值加引号：
+
+| 行＼列 | A | B | C | D |
+|---|---|---|---|---|
+| 1 |  | `@2` | 1 | 2 |
+| 2 | `@1` |  | 变量列名1 | 变量列名2 |
+| 3 | 0 | 变量名1 | `"a,b"` | `"c"` |
+| 4 | 1 | 变量名2 | `"d"` | `"e"` |
+
+配对 `#DIMS CONSTTABLE 范例表,2,3` 后，`范例表:变量名1:变量列名1` 为 `a,b`、`范例表:变量名1:变量列名2` 为 `c`，四个值各就各位。引号只用在需要的地方：标记、注册数、注册名照常裸写；不带逗号的值加不加引号等价（`"c"` 与 `c` 相同）。
+
+**引号内怎么写字面引号**（只有一种转义：把引号写成两个，没有反斜杠转义）：
+
+| 想要的值 | 表里怎么写 |
+|---|---|
+| `a,b` | `"a,b"` |
+| `"`（只有一个引号） | `""""` |
+| `"abc` | `"""abc"` |
+| `abc"` | `"abc"""` |
+| `a"b` | `"a""b"` |
+| `他说"你好"` | `他说"你好"`（中间位置的引号不用转义，也不用加外层引号） |
+| `it's`、`C:\temp` | `it's`、`C:\temp`（单引号和反斜杠都是普通字符） |
+
+> 只有「字段的第一个非空白字符是 `"`」时，引号才算语法。所以 `"冷静"特质` 会被读成「引号字段 `冷静` 后面还接着内容」并报错，要写成 `"""冷静""特质"`；报错信息里会直接给出这个写法。
+
+> 引号只决定逗号算不算分隔符，不改变类型：含逗号的值只能是 `#DIMS` 的字符串；`#DIM` / `#DIMF` 的值必须是数字，`"1,2"` 在整数表里仍然是 `1,2`、照样报「值不是有效的整数」。
+
+一维表同理，不需要表头行，`CSV/引号一维.csv`：
+
+| 行＼列 | A | B | C |
+|---|---|---|---|
+| 1 | 0 | 变量列名1 | `"a,b"` |
+| 2 | 1 | 变量列名2 | `"c"` |
+
+配对 `#DIMS CONSTTABLE 引号一维,2` 后，`引号一维:0` 为 `a,b`、`引号一维:变量列名2` 为 `c`。
+
+一维表固定三列，值里含逗号却没加引号时会被切成第 4 列并直接报错：`第 1 个有效行有 4 列，多于一维表固定的 3 列：值里含逗号时要用双引号把整个值包住（如 "a,b"）`。引号本身写坏也报错，例如值只写了开引号：`第 3 个有效行的第 3 个字段的双引号没有闭合（值里的引号要写成两个双引号，整段值也要用一对双引号包住）`；值以引号开头、结束后又接着内容：`第 1 个有效行的第 3 个字段在结束引号后还有内容（值里的引号要写成两个双引号）；按这个规则整段值要写成 """冷静""特质"`。这类失败只影响当前候选：还有同名文件时会继续试下一份，全部不合格才让声明失败。
+
+> 注意：名称下标里的行名 / 列名不要用单个英文字母（如 `A`），会取不到值；这是名称下标本来的行为，与常数表无关。
+
+### Fixed
+
+- **声明区间内的数组元素不再被旧档长度截断**：`VariableData` 为一维内置数组登记 VariableSize.CSV 的声明长度；`SaveToStreamBinary` / `SaveGlobalToStreamBinary` 的写入长度，以及 `LoadVariableBinary` 读档后的 `SparseArray.Length`，均取 `max(运行时长度, 声明长度)`。此前读取长度较小的旧档会把 `SparseArray.Length` 覆盖为旧档长度，之后保存只写出旧档长度，声明区间内下标更大的元素（例如 ITEM:1165）在存档中丢失。用户定义变量未登记，行为不变。
+
+- **Android 版本**：`0.80.0` → `0.81.0`（versionCode 80 → 81，对应内核 Skiav18.0）
+
+***
+
+## [17.4.0] — 资源包单文件化（resources.pak）＋ 文件编码探测只读访问（开发构建，未发布）
+
+### Added
+
+- **`resources.pak` 单文件资源包（RPK）**：新增 `Runtime/Utils/ResourceStore.cs`，把 `resources/` 下的图片与 CSV 收进一个 ZIP 容器随包分发。查找顺序＝**磁盘 → 包**，磁盘有同名文件时一律返回未命中、由调用方走原路径，包只补磁盘缺口；无包时所有接口返回未命中，行为与接入前逐字节一致。
+  - `ToEntryName` 归一：`\`→`/`、前缀比较 `OrdinalIgnoreCase`、拒绝 `..` 越界段。CSV 里实测有写 `infoThumb\blank.webp` 的，包内条目是 `infoThumb/blank.webp`，不归一即静默缺图。
+  - 两种运行态：**索引态**＝启动读一次包内 `.rpk-index.bin`（magic `RPKI` v1，20 B 头＋26 B/条＋UTF-8 名表），之后 `RandomAccess.Read` 直读、`ArrayPool` 复用缓冲、无锁，UI 与 ERB 线程可并发；**退化态**＝索引缺失或损坏（第三方重打包）时持 `ZipArchive`＋全局锁整条读，语义与索引态逐条等价。
+  - 探测顺序 `resources.pak` → `resources.zip`；`Configure(exeDir, contentDir)` 只记路径，包在首次查询时才打开（无图场景不占句柄）。
+  - `ERATW_FORCE_PAK=1` 跳过「磁盘优先」强制查包，用于在散图仍在磁盘的开发目录上验证包路径本身（条目名归一、大小写）；只读环境变量，不写 config。
+  - 诊断：`MemoryDiagnostic` 新增「resources.pak 条目数」「resources.pak 体积」两行。
+- **图片层接入**（桌面 6 组 8 处读取点）：`SharedBitmapCache.Get`／`GetInfo`、`AnimatedImageHelper.GetAnimInfo`／`Decode`、`AppContents` 三处 `File.Exists`、`GCREATEFROMFILE` 全部改为「包内字节优先、磁盘路径兜底」；包内条目整条读成字节后用 `SKData`／`SKCodec` 解，编码仍走 `EncodingHandler`。`GetInfo` 先取索引宽高（**0 I/O**：建 200 个 `ConstImage` 3~4 ms／112 KiB，磁盘态 103~125 ms），索引未填尺寸才回退解码读头。
+- **CSV 入包**：`AppContents.LoadContents` 的 CSV 来源改为「磁盘 ∪ 包内」，按整条绝对路径 `OrdinalIgnoreCase` 去重且磁盘优先；包内 CSV 走 `MemoryStream` ＋ `EncodingHandler.DetectEncoding(Stream)` 解析（⛔ 不直接 UTF-8 解码，CP932 的 CSV 会乱码）。`ResourceStore.EnumerateRelative(suffix)` 返回 posix 相对名供枚举，调用方负责合成绝对路径（`Path.GetDirectoryName` 依赖它）。
+- **`SpriteMeta` 内存化**：`AppContents` 的内存 SQLite（建表＋逐行 `INSERT OR REPLACE`＋事务）换为 `Dictionary<string, List<MetaRow>>`（`StringComparer.Ordinal`，对齐旧实现的「大写后精确匹配」）。行序＝CSV 行序，与旧 `ORDER BY FrameIndex` 逐行等价；`metaRowCount` 口径仍是**行数**（不是名字数）。磁盘场景端到端装载 590/633/845 → 320/323/397 ms（交错 6 轮，中位 −46%）。
+- **Android 端同步接入**（SkiaX `feature/xamarin`，安卓版本 0.80.0）：`Platform/Content/{ConstImage,AnimatedImageHelper,AppContents}.cs` 与两处 `PlatformInterop` 的四回退委托改为「字节优先、路径兜底」（`Func<byte[], string, …>`，bytes 为 null 时只有磁盘路径）；`AndroidHost` 在 `PathProvider` 构造之后注入 `ResourceStore.Configure`。`FileUtils` 本体未改（它服务于 ERB／存档等非资源路径）。
+- 新增 `tests/EncodingHandler.Tests`，直接引用构建后的引擎程序集，覆盖编码、只读文件、I/O 异常、流位置，以及磁盘／pak 资源装载与 CSV 错误回显。
+
+### Changed
+
+- `AppContents.LoadContents` 的早退条件由「`ContentDir` 不存在」改为「`ContentDir` 不存在 **且** 无可用包」——发布包里 `resources/` 可以只剩一份说明文件，CSV 全部来自包。
+- `GCREATEFROMFILE` 的判存在由 `File.Exists` 换 `ResourceStore.Exists`（磁盘 ∪ 包内，是前者的超集）。
+
+### Fixed
+
+- 编码探测仅请求读取权限，保持原有独占共享模式；可读但不可写的资源 CSV 不再因多余的写访问请求而装载失败。
+- 文件与流探测仅在 UTF-8 解码失败时回退 CP932；文件不存在、拒绝访问及其他 I/O 错误原样上抛，不跳过 CSV 或把资源装载失败报告为成功。
+- 流探测在成功与异常路径均恢复调用方位置并保持流打开；短文件的 BOM 判断只比较实际读到的完整前缀。
+- CSV 错误源行回显从 CSV 目录探测编码，与实际读取的文件保持一致。
+
+### 验证
+
+- 新增 `tests/EncodingHandler.Tests`，直接引用构建后的引擎程序集，覆盖编码、只读文件、I/O 异常、流位置，以及磁盘／pak 资源装载与 CSV 错误回显。
+- 2026-11-17：Release-x64 回归 303 项通过、0 失败；开发仓 267 CSV、39,975 个精灵名与 40,829 条元数据逐项一致，背景和立绘各一张实际解码通过。
+- 2026-11-17：用户对开发仓 17.4 的窗口启动／立绘／背景冒烟回复「测试通过」。此为人工验收回执，不将程序集测试改记为 GUI 测试；正式发布包尚未按本版重打。
+
+## [17.2.0] — EWP 按钮面与重绘时序（G1／H5）＋ 悬停保活
+
+### Added
+
+- **HTML 按钮 span**（`legacy.spans` 内加法，⛔ 新 cap、⛔ 不翻 `hello.proto`）：顶层 `BuildSpans` 与 div 子级 `BuildDivChildrenCore` 在按钮跨度边界发 `kind:"button"{start,end,x,advance,value[,title]}`；div 子级另带 `y` 与 `depth`，`x` 相对 div 内容框。样式与文本仍由 text spans 承担，旧 FE 落 `unsupported` 计数
+- **`REDRAW 0` 期间 legacy 事件缓冲**（H5）：`line`／`clear` 族不直发，在原生重绘点（`CliFramePainted`）／输入边界（`OnWaitInput`）／`snapshot`／`sys.state`／终局前整批放行；阀门 4096 条·16 MB，`ClearDisplay` 丢弃死场景缓冲
+
+### Changed
+
+- **缓冲放行顺序加固**（H5-2）：直发前先 flush 积压批（`REDRAW 1` 的新行不得先于积压行到达）；`OnWaitInput` 的兜底放行移到 `inputReq` 判空之前；`batchBufBytes` 改按 UTF-8 实际字节计数
+- **`--ewp`／`--ewp-headless` 不再受 `Config.FPS` 重绘节流**：`msPerFrame` 固定 `1000/60`，保留防抖，GUI 模式行为不变
+- **div 按钮面按可见行范围收集**：`CollectSelectableButtons` 只取屏幕内的 div 按钮，滚动区外的历史按钮不再进 `input.request.buttons`（全量形态留给 CLI screen／诊断）
+- **`<div align=…>` 接受并忽略**（`left`／`center`／`right`）：此前未知属性会丢弃整行 HTML；几何仍由 `xpos`／`width`／`height` 决定
+- **命中几何单一化**：`MoveMouse` 与 `HitTestButtonAt` 各自写了一套「点 → 命中按钮」的行／div 遍历，合并为 `HitTestButtons`（`HitPolicy` 三个口径开关：屏底行／重叠收集／div 层序），绘制侧与 rect 自检面走同一实现；可见行为不变
+- **版本签名**：`Skiav17.1` → `Skiav17.2`
+
+### Fixed
+
+- **悬停高亮跨整屏重排保活**：`ButtonIsPointing` 判对象引用，重排（`CLEARLINE`＋重印／HTML 重建）重建按钮对象后 `pointingStrings` 只剩上一代对象，高亮要到下次鼠标移动才恢复；无 `Timelimit` 的等待里原本没有任何兜底。改为在 `RefreshStrings` 的绘制边界（`verticalScrollBarUpdate()` 之后、`window.Refresh()` 之前）按世代清理并重算命中，命中输入用 `MoveMouse` 缓存的**逻辑**坐标，无窗（`EwpHeadlessMode`）早退
+- **tooltip 判据改内容键**（`Title`＋按钮自身文本＋`PointX,Width`）：此前按引用判等，整屏重排的界面上气泡每帧复位、400 ms 延时永远等不到；`lastPointingString` 仍按引用供 rikaichan
+- **删除 `endTimer`×2／`InputMouseKey`／`endMacro` 的 `MoveMouse` 兜底**：它们只在 `inputReq.NeedValue` 下触发且读物理坐标，统一由绘制边界承担
+
+### 未验收
+
+- 悬停／tooltip 的 GUI 人眼细验（用户已冒烟：动态地图高亮常亮、tooltip 正常）
+- Android 真机（SkiaX 侧只验双 TFM 构建，APK 未重打）
+
+### 验收（2026-11-05）
+
+- `dotnet build Emuera.sln -c Debug` 0 error（971 条既有 CA 警告）；`Emuera.Headless` Debug 0 error
+- eraWire `g1_button_gate`（6 rect＋点 102/999 端到端）、`h5_redraw_gate`（含 lineId 到达序单调）、`g3_sprite_rt_gate`、`g4_title_img_gate`、`imgset6_fe_probe`（14/14 drawn）全 PASS；`t7_docs_audit` PASS
+- eraWire `pixel_frame_gate --headless` PASS（8 帧、`frame.commit` 守恒 30:30）
+- 命中几何单一化后复跑：`Emuera.csproj` Debug 0 error／942 警告（＝基线）、`Emuera.Headless` 0 error／23 警告；`g1_button_gate`／`h5_redraw_gate`／`pixel_frame_gate --headless` 全 PASS
+
+***
+
+## [17.1.0] — 运行期 sprite 失效面（R-IMG-1b）
+
+### Added
+
+- **`sprite.invalidate`**（并入 cap `sprite.export`，⛔ 新 cap、⛔ 不翻 `hello.proto`）：`{texture,rev}`／`{all:true,rev}`。`rev` 是**作废水位**——失效在脚本线程即时执行、事件按帧边界合并发送，中间可能已签发新 rev（`DISPOSE→CREATE→重新上屏`）；FE 只丢 `rev <= 水位` 的缓存，一刀切会误删刚收到的合法新图
+- `EwpSpriteExport.Invalidate(name)`／`InvalidateAll()`：按名／全量作废快照（`map`／LRU／字节账本同步，写 `expired`，`revSeq` **不回退**）；`sys.state.spriteExport.invalidated` 诊断计数
+- `AppContents` 静态事件 `SpriteDisposed`／`SpriteDisposedAll`：`SPRITEDISPOSE`／`SPRITEDISPOSEALL`、以及同名 `SPRITECREATE` 顶替旧条目时都发通知（后者为防御性，正常链走不到）
+
+### Changed
+
+- 失效快照的旧 rev 回 `sprite.data.fail{code:"expired"}`（⛔ `not_found`——后者是「从未建立」，FE 不重试）。`ClearDisplay`／`sys.title` 例外：快照与 `expired` 一起清空，旧 rev 回 `not_found` 且**不发**事件
+- `SPRITECREATE` 同名早退**保持不变**：同名重建必须显式 `SPRITEDISPOSE` 先行（eratw `MOB_SYSTEM` 即此写法；另注：引擎 `GraphicsImage` 按 GID 复用对象，只 `GDISPOSE` 不 `SPRITEDISPOSE` 时 `GCREATE` 会把画布复活到同一对象、`IsCreated` 又变 true ⇒ `SPRITECREATE` 仍早退）
+- **版本签名**：`Skiav17` → `Skiav17.1`
+
+### 未验收
+
+- 真实 `MOB_SYSTEM` 预览重建链的**人眼**确认（fixture 已用同形态 `SPRITEDISPOSE→GDISPOSE→GCREATE→SPRITECREATE` 链验收，三态＝旧图不残留／新图到达／无幽灵纹理）
+- Tier B 零调用族的 GUI 截屏（⑥ 阶段，人眼；像素锚点已由 `tierb` 门禁断言）
+
+### 验收（2026-11-04）
+
+- eraWire `rimg1b_sprite` **PASS**：spans rev `[1,2,3,4]` 严格递增；`CREATE=1`／`DUP-CREATE=0`／`DISPOSE=1`／`RECREATE=1`／`REBUILD=1`／`DISPOSEALL=1`；`invalidate{INV_RT,rev2}`＋`{rev3}`＋`{all:true,rev4}`；`rev1..4→expired`、`999999→not_found`；三阶段像素 `#C020A0`／`#20C060`／`#3060C0` 命中；`spriteExport.invalidated=4`；旧 FE 零事件
+- eraWire `rimg1b_fe` **PASS**（48 断言）；`tierb` **PASS**（六 API `RET=1`＋6 阶段像素锚点）
+- 回归 `t7_ci` **15 套件全 PASS**（含 `n2` 文本 hash 用本版引擎）
+- 协议增补＝`specs/EWP-v0.3-协议草案.md` §8B（事件／水位／同名重建口径／三态／边界／CBG depth 结论）
+
+***
+
+## [17.0.0] — 内存优化与背景快照转正（累积 16.6.14／16.6.15）
+
+> 16.6.14／16.6.15 是 `develop-skiasharp` 上的开发版本，未单独出包；本版把这两段的改动一并对外发布，
+> 逐条细节仍见下方 16.6.14／16.6.15 两段（保留原文便于对照）。
+
+### Added
+
+- **CBG 合成快照导出**（16.6.15，cap `bg`）：`bg.set`／`bg.data`／`bg.fail`／`bg.clear` 事件、FE→VM `bg.req` 按 rev 重取、`legacy.textbgc` 全局底色事件、`sys.state.bg`／`snapshot.full.bg` 加法字段。快照只含「清底色＋SETBGIMAGE 烘焙层＋CBG」，⛔ 不含文字行、行内 `escapedParts`、`SETIMAGELAYER` 图层（由 EWP 语义事件单独承载）
+- `meta.metrics` 增 `bgDropped`／`bgSkippedIdentical`（bg 导出诊断计数，命名与 pixel 的 `dropped`／`writeDropped` 区分）
+- **信用窗 ack 即醒**：`NoteAck` 增 `Monitor.PulseAll(ackGate)`，写手不再空等 250 ms 超时（突发帧下吞吐不再涓流化）
+
+### Changed
+
+- **内存优化**：ERB/CSV 编译完成后 `Preload.ClearAndCompact()`（清源码缓存＋一次完整压缩 GC＋LOH `CompactOnce`；eraTW 实测标题界面工作集 1.08 GB → 0.67 GB、读档后 1.36 GB → 1.01 GB）；`SharedBitmapCache` 由「最多 200 张」改为 256 MB 硬字节预算 LRU；`AnimSpriteCache` 增 256 MB 帧字节预算；`SKBitmap.Decode` 移出全局锁（并发重复解码由同 key 检查去重）
+- **版本签名**：`Skiav16.6.15` → `Skiav17`（`1824+v24+EMv18+EEv56+Skiav17`）
+
+### 未验收（develop 暂存，归引擎启动面待查）
+
+- GUI `Emuera.exe --ewp`＋最小化启动的 boot 竞态（`meta.state` 停在 boot，~50% 复现；与 bg 特征无关）。GUI 三方对拍机制本身已验证（desktop↔`bg.data`↔`pixel.frame` diff=0/84544）
+
+### 验收（2026-11-04）
+
+- `dotnet build Emuera.sln -c Debug` 0 error（950 条既有 CA 警告）；eraWire `rimg1a_bg_gate` PASS（`bg.set`×20／`bg.data` 8 rev／`bgDropped=14`／`bgSkippedIdentical 0→2`／`pending` 正例／旧 FE 零事件）
+- eraWire `t7_ci` 12 套件功能全 PASS（`n2` 文本 hash 用本版 GUI 引擎跑通，顺带覆盖 `Preload.ClearAndCompact` 与位图缓存预算）
+- headless 真实 staging（4100 ERB）首行 7.7 s、工作集 732 MiB（无渲染口径）
+- 音频听感／GUI 截图／VN 体感仍由用户冒烟
+
+***
+
+## [16.6.15] — R-IMG-1a 验收轮：bg 快照转正 / bg 诊断计数 / 信用窗 ack 即醒
+
+### Added
+
+- **R-IMG-1a：CBG 合成快照导出验收通过**（cap `bg`，`488eb2de` ＋ 审查修复 `cb00aa0a`）。验收覆盖：P0-2 引擎门禁（丢新不拆配对 `bgDropped=13`／同像素去重 `bgSkippedIdentical`／`pending` 正例 ×2）、P0-3 真机链（含退出路径无 `ObjectDisposedException`/`encode_error`）、P0-4 resize 旧 rev 回旧尺寸＋SETBGIMAGE 烘焙层非 16:9 校正、P1-1 临时索引真地点链（parity diff=0/83923）、P1-2 真 UI 读档→shop 页→[778] `@快速测试` 钩子→读档会话内 `snapshot.bg.has=true`→`bg.req` 重建（`tools/rimg1a_load_gate.py`）、P1-4 真实 `FLAG:時間停止` 灰化（bad=0/13272）、P1-5 FE 六断言、旧 FE 零事件零字段。证据＝`tools/R-IMG-1a-artifacts/`＋`docs/cards/R-IMG-1a-验收收尾任务卡.md` §4.1
+- `meta.metrics` 增 `bgDropped`／`bgSkippedIdentical`（P2-1，bg 导出诊断计数；与 pixel 的 dropped/writeDropped 命名区分；joggle/订阅时机重发）
+- `NoteAck` 增 `Monitor.PulseAll(ackGate)`（信用窗写手由 250ms 轮询改 ack 即醒；突发帧下吞吐不再涓流化）
+
+### 未验收（develop 暂存，归引擎启动面待查）
+
+- GUI `Emuera.exe --ewp`＋最小化启动的 boot 竞态（meta.state 停在 boot，~50% 复现；P1-3 GUI 三方对拍机制已验证——desktop↔bg.data↔pixel.frame diff=0/84544——竞态归引擎启动面待查）
+
 ## [16.6.14] — 内存优化：源码缓存释放 / 位图缓存字节预算 / 动画缓存预算
 
 ### Changed
@@ -12,10 +260,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `SharedBitmapCache` 由「最多 200 张」改为「256 MB 硬字节预算」的 LRU，LRU 节点字典化（命中 O(1)）。eraTW 素材平均 13.9 MB/张，旧上限最坏可达 2.8 GB；不再保留条目下限（否则 32 张大图即可突破 445 MB），实测 40 张 9 MB 图解码后常驻约 256 MB，被淘汰条目再次取用可正常重解码。淘汰按入缓存时记录的字节数结算，不再二次读取位图；同 key 重入与 LRU 节点失步都有防御
 - `AnimSpriteCache` 在原有 6 个上限外增加 256 MB 帧字节预算：超预算时淘汰 1 秒内未被绘制的动画（至少保留 1 个），避免大动画互相挤兑导致每帧重解码；同一文件路径的新实例接管缓存时先淘汰旧实例。现有素材（单动画 ≤36 MB、6 个上限≈216 MB）不会触发该预算，属安全网
 - `SharedBitmapCache.Get` 的 `SKBitmap.Decode` 移出全局锁（字节预算下命中率下降、该路径更常走），并发重复解码由 `add` 的同 key 检查去重；`CroppedImage.GraphicsDraw` 的颜色过滤器引用改为 `finally` 清理（原实现异常路径会把已释放的 filter 留在共享 `SKPaint` 上）
-
-### 未验收（develop 暂存，⛔ 不随 16.6.14 发版）
-
-- **R-IMG-1a：CBG 合成快照导出**（cap `bg`，提交 `488eb2de`，作者标注「在建功能，未验收」）：`bg.set`／`bg.data`／`bg.clear`／`bg.fail` 事件、`bg.req` 按 rev 重取、`legacy.textbgc` 全局底色事件、`sys.state.bg`／`snapshot.full.bg` 加法字段。限制：快照只含「清底色＋SETBGIMAGE 烘焙层＋CBG（zdepth≠0）」，⛔ 不含文字行、行内 `escapedParts`、`SETIMAGELAYER` 图层（由 EWP 语义事件单独承载）
 
 ## [16.6.13] — EWP audio v1（P3-E：AudioLedger v2 / 6 ERB 内建）
 

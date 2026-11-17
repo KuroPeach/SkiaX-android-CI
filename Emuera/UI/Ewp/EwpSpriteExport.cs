@@ -10,7 +10,7 @@ using System.Drawing;
 namespace MinorShift.Emuera.UI.Ewp;
 
 /// <summary>
-/// EWP R-3a：SETIMAGELAYER 时冻结图层像素的不可变快照。
+/// SETIMAGELAYER 时冻结图层像素的不可变快照。
 /// rev 标识一次快照，不标识 ASprite 对象；旧 rev 永远返回旧像素，快照淘汰只回 expired。
 /// 所有 Capture/TryEncode/Clear 都在逻辑 UI 线程调用（EwpHost Dispatch / ImageLayer 回调）。
 /// </summary>
@@ -22,7 +22,7 @@ internal sealed class EwpSpriteExport
     private const long DefaultMaxPixels = 8_388_608;
     private const int DefaultMaxEncodedBytes = 4 * 1024 * 1024;
     private const int ExpiredKeyLimit = 512;
-    /// <summary>EG-1b：耗时统计环形窗口（最近 N 次）。</summary>
+    /// <summary>耗时统计环形窗口（最近 N 次）。</summary>
     private const int PerfWindow = 128;
 
     private sealed class Snapshot
@@ -45,6 +45,7 @@ internal sealed class EwpSpriteExport
         long Failures,
         long LastRev,
         long RequestsIgnored,
+        long Invalidated,
         double CaptureMsLast,
         double CaptureMsP50,
         double CaptureMsP95,
@@ -71,6 +72,8 @@ internal sealed class EwpSpriteExport
     private long requests;
     private long failures;
     private long requestsIgnored;
+    /// <summary>被 Invalidate/InvalidateAll 显式作废的快照数（诊断用）。</summary>
+    private long invalidated;
     private readonly Queue<double> captureTimes = new();
     private readonly Queue<double> encodeTimes = new();
     private double captureMsLast;
@@ -103,9 +106,9 @@ internal sealed class EwpSpriteExport
         return CaptureCore(sprite, w, h, layer.ColorMatrix);
     }
 
-    /// <summary>R-3b-2b：行内 img（运行期 G 名）像素快照。在构建 spans 时（UI 线程）调用，
+    /// <summary>行内 img（运行期 G 名）像素快照。在构建 spans 时（UI 线程）调用，
     /// 冻结当时的像素；FE 以 (src,rev) 请求，旧 rev 永不返回新图。
-    /// W0：色彩矩阵必须传入——带 cm 的图仍分配 rev，但请求时明确回 color_matrix fail，
+    /// 色彩矩阵必须传入——带 cm 的图仍分配 rev，但请求时明确回 color_matrix fail，
     /// ⛔ 不得以「未滤镜成功图」冒充。</summary>
     public long CaptureInline(ASprite sprite, int w, int h, float[] colorMatrix)
     {
@@ -190,7 +193,7 @@ internal sealed class EwpSpriteExport
         return rev;
     }
 
-    /// <summary>R-3c：把动态 webp（SpriteAnimated）的指定帧导出为快照（复用同一 LRU/rev/失败码）。
+    /// <summary>把动态 webp（SpriteAnimated）的指定帧导出为快照（复用同一 LRU/rev/失败码）。
     /// 帧索引由 FE 按 span.anim.delays 驱动；同一帧重复请求得到新 rev，内容不可变。</summary>
     public long CaptureAnimatedFrame(ASprite sprite, int frameIndex, int w, int h)
     {
@@ -292,7 +295,7 @@ internal sealed class EwpSpriteExport
     }
 
     /// <summary>按 (texture,rev) 取快照并编码 PNG。不返回近似图；淘汰/未知/不支持全部失败。
-    /// EG-1b：外层计时（环形窗口），核心逻辑在 TryEncodeCore。</summary>
+    /// 外层计时（环形窗口），核心逻辑在 TryEncodeCore。</summary>
     public bool TryEncode(string texture, long rev, out byte[] png, out int width, out int height,
         out string code, out string detail)
     {
@@ -391,8 +394,74 @@ internal sealed class EwpSpriteExport
                 enabled, map.Count, cacheBytes, requests, failures,
                 System.Threading.Interlocked.Read(ref revSeq),
                 requestsIgnored,
+                System.Threading.Interlocked.Read(ref invalidated),
                 captureMsLast, captureP50, captureP95,
                 encodeMsLast, encodeP50, encodeP95);
+        }
+    }
+
+    /// <summary>按名失效（`SPRITEDISPOSE` 的语义出口）。
+    /// 删该 texture 的**全部** rev（map／lru／lruNodes／cacheBytes 同步），并写入 `expired`
+    /// ⇒ 旧 rev 请求回 `expired`（⛔ `not_found`：FE 要区分「从未有过」与「被失效」）。
+    /// `revSeq` **不回退**（旧 rev 永不复用，符合「rev 标识快照」契约）。
+    /// 返回值＝该名已作废快照的最大 rev（0＝该名从未导出过）。事件里的 `rev` 用它作**水位**：
+    /// FE 只丢 `rev <= 水位` 的缓存 ⇒ 失效之后新签发的 rev 不会被这条事件误删
+    /// （失效是即时执行的，而事件在帧边界才发，中间可能有新捕获）。
+    /// 线程安全：脚本线程可直接调（只碰 gate 下的账本，⛔ 不绘制、不碰 UI）。</summary>
+    public long Invalidate(string texture)
+    {
+        if (string.IsNullOrEmpty(texture))
+            return 0;
+        string key = texture.ToUpperInvariant();
+        lock (gate)
+        {
+            long floor = 0;
+            List<(string Texture, long Rev)> victims = null;
+            foreach (var k in map.Keys)
+            {
+                if (!string.Equals(k.Texture, key, StringComparison.Ordinal))
+                    continue;
+                (victims ??= new List<(string, long)>()).Add(k);
+                if (k.Rev > floor)
+                    floor = k.Rev;
+            }
+            // 已被 LRU 淘汰的 rev 也算进水位：FE 可能还留着那份纹理
+            foreach (var k in expired)
+            {
+                if (string.Equals(k.Texture, key, StringComparison.Ordinal) && k.Rev > floor)
+                    floor = k.Rev;
+            }
+            if (victims != null)
+            {
+                foreach (var k in victims)
+                    RemoveLocked(k);
+                invalidated += victims.Count;
+            }
+            return floor;
+        }
+    }
+
+    /// <summary>`SPRITEDISPOSEALL` 的语义出口——清全表并把每个 rev 写进 `expired`。
+    /// 返回清场前快照的最大 rev（0＝没有快照）。线程安全同 Invalidate。
+    /// ⚠️ `expired` 上限 512：一次大批 DISPOSEALL 会挤掉更老的 key（协议已声明该边界）。</summary>
+    public long InvalidateAll()
+    {
+        lock (gate)
+        {
+            long floor = 0;
+            foreach (var snapshot in map.Values)
+            {
+                if (snapshot.Rev > floor)
+                    floor = snapshot.Rev;
+                MarkExpiredLocked((snapshot.Texture, snapshot.Rev));
+                snapshot.Bitmap?.Dispose();
+            }
+            invalidated += map.Count;
+            map.Clear();
+            lru.Clear();
+            lruNodes.Clear();
+            cacheBytes = 0;
+            return floor;
         }
     }
 
@@ -435,6 +504,18 @@ internal sealed class EwpSpriteExport
                 MarkExpiredLocked(oldKey);
             }
         }
+    }
+
+    /// <summary>删单个快照（map＋LRU 账本＋字节数同步），并写 expired（旧 rev ⇒ expired）。</summary>
+    private void RemoveLocked((string Texture, long Rev) key)
+    {
+        if (!map.Remove(key, out var snapshot))
+            return;
+        cacheBytes -= snapshot.Bytes;
+        snapshot.Bitmap?.Dispose();
+        if (lruNodes.Remove(key, out var node))
+            lru.Remove(node);
+        MarkExpiredLocked(key);
     }
 
     private void TouchLocked((string Texture, long Rev) key)

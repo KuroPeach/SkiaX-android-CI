@@ -21,17 +21,16 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 
-// eraWire B1/B2/B3: EWP/0 host (JSON-Lines default or MessagePack via --ewp-msgpack; stdio or single TCP client).
-// Spec: $EMUERA_WS/emuera/eraWire/specs/EWP-v0-协议草案.md
-// Kernel hooks: CliLineAdded/CliWaitInputEntered/CliTerminalStateEntered (CliDebug set)
-// plus CliLinesRemoved (B2 kernel ledger #1) for legacy.clear, sprite/island 5 events (B2 #2),
-// and CliFramePainted (B3 #3, RefreshStrings 有效通过点) for pixel.frame.
-// B3 additions: pixel stream (offscreen SKSurface -> console.OnPaint -> PNG on encode thread),
-// codec abstraction (EwpCodec.cs), pixel negotiation via hello.ok mode.pixel.
-// Remaining: channel/node (waits D-track macros); colormatrix/followScroll (v1).
+// EWP/0 host（JSON-Lines 默认 / MessagePack 经 --ewp-msgpack；stdio 或单 TCP 客户端）。
+// 协议正本：$EMUERA_WS/emuera/eraWire/specs/EWP-v0-协议草案.md
+// 引擎钩子：CliLineAdded／CliWaitInputEntered／CliTerminalStateEntered（CliDebug 集合）、
+// CliLinesRemoved（legacy.clear）、sprite/island 事件、CliFramePainted（RefreshStrings 有效通过点，
+// 像素帧与 legacy 批量放行的边界）。
+// 像素流：离屏 SKSurface → console.OnPaint → 编码线程 PNG；codec 抽象见 EwpCodec.cs；
+// hello.ok mode.pixel 协商。未实现：channel/node（等 D 轨宏）、colormatrix／followScroll（v1）。
 namespace MinorShift.Emuera.UI.Ewp;
 
-/// <summary>Static output layer: text queue + pixel queue + codec + single writer thread (B3).
+/// <summary>Static output layer: text queue + pixel queue + codec + single writer thread.
 /// 文本事件走 8192 有界队列（满则阻塞生产者＝信用窗背压）；像素事件走独立小队列
 /// （满则丢新帧计数，EWP §6.3 像素流单独计数——与文本背压刻意不同：像素流可丢，行不可丢）。</summary>
 internal static class EwpOut
@@ -47,7 +46,7 @@ internal static class EwpOut
     {
         public string Json;           // 文本事件（完整 JSON 对象，无换行）
         public EwpPixelPayload Pixel; // 像素事件（与 Json 互斥）
-        public EwpBgPayload Bg;       // R-IMG-1a：bg 事件（文本型或 PNG 型，与上面两者互斥）
+        public EwpBgPayload Bg;       // bg 事件（文本型或 PNG 型，与上面两者互斥）
     }
 
     private static BlockingCollection<Payload> queue;
@@ -64,10 +63,10 @@ internal static class EwpOut
     private static int ackTimeouts;
     private static long pixelWritten;
     private static long pixelDropped;
-    /// <summary>R-IMG-1a：bg 队列满而丢新的计数（见 EmitBg 注释）。</summary>
+    /// <summary>bg 队列满而丢新的计数（见 EmitBg 注释）。</summary>
     private static long bgDropped;
 
-    /// <summary>L0.5 编码器（B3）：JSON-Lines（默认）或 MessagePack（--ewp-msgpack）。</summary>
+    /// <summary>编码器：JSON-Lines（默认）或 MessagePack（--ewp-msgpack）。</summary>
     public static IEwpCodec Codec { get; private set; } = new EwpJsonCodec();
 
     public static int AckTimeouts => Volatile.Read(ref ackTimeouts);
@@ -76,7 +75,7 @@ internal static class EwpOut
     public static int PendingFrames => Volatile.Read(ref pendingFrames);
     public static long PixelWritten => Interlocked.Read(ref pixelWritten);
     public static long PixelDropped => Interlocked.Read(ref pixelDropped);
-    /// <summary>R-IMG-1a：bg 队列满而丢新的累计数（诊断用；FE 按 rev 差重取即可自愈）。</summary>
+    /// <summary>bg 队列满而丢新的累计数（诊断用；FE 按 rev 差重取即可自愈）。</summary>
     public static long BgDropped => Interlocked.Read(ref bgDropped);
 
     /// <summary>deferWriter=true（TCP 模式）：只建队列，写手线程等 AttachStream 再启动，
@@ -143,7 +142,7 @@ internal static class EwpOut
         }
     }
 
-    /// <summary>R-IMG-1a：bg 事件入队。bg.set/bg.clear/bg.fail 与 bg.data 共用此队列
+    /// <summary>bg 事件入队。bg.set/bg.clear/bg.fail 与 bg.data 共用此队列
     /// ⇒ 写出顺序＝产生顺序（⛔ 分队列会让 FE 先收到 data）。
     /// 队列满时**丢新**（⛔ 不丢最旧）：淘汰已入队的元素会拆散 set→data 配对
     /// （丢了 set 的 data 无主、丢了 data 的 set 永远悬空）。丢新则 FE 靠 rev 差发现并按 bg.req 重取。</summary>
@@ -300,9 +299,9 @@ internal sealed class EwpHost
     {
         public long Id;
         public string Text;
-        /// <summary>R-3b-1：预构建的 spans JSON 数组（null＝该行不含 spans）。</summary>
+        /// <summary>预构建的 spans JSON 数组（null＝该行不含 spans）。</summary>
         public string Spans;
-        /// <summary>W0：保留行对象用于 snapshot 重建 spans（重捕获行内像素并签发新 rev）。
+        /// <summary>保留行对象用于 snapshot 重建 spans（重捕获行内像素并签发新 rev）。
         /// 仅 UI 线程访问；行清理（CLEARLINE/ClearDisplay）时随 liveLines 一并释放。</summary>
         public ConsoleDisplayLine Line;
         public string Owner = "";
@@ -310,11 +309,12 @@ internal sealed class EwpHost
     }
     /// <summary>仍存活的行（lineId/文本/归属；仅 UI 线程访问，频道元数据在 channelGate 下）。</summary>
     private readonly List<LiveLine> liveLines = new();
-    /// <summary>活着的 sprite 图层（与引擎同语义：同深度可叠多层、按深度清）。snapshot 数据源。</summary>
-    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow, long Rev)> liveSprites = new();
-    /// <summary>R-3a：运行期图层不可变快照（UI 线程；FE 声明 sprite.export 后才启用）。</summary>
+    /// <summary>活着的 sprite 图层（与引擎同语义：同深度可叠多层、按深度清）。snapshot 数据源。
+    /// Anim＝动画层帧表 JSON（sprite.set.anim 同形；静态层 null。ALIGN-18）。</summary>
+    private readonly List<(long Depth, string Tex, int X, int Y, int W, int H, int Op, bool Follow, long Rev, string Anim)> liveSprites = new();
+    /// <summary>运行期图层不可变快照（UI 线程；FE 声明 sprite.export 后才启用）。</summary>
     private readonly EwpSpriteExport spriteExport = new();
-    /// <summary>当前 island 的原始 HTML（null＝无 island）。v0 单实例（A1-④）。</summary>
+    /// <summary>当前 island 的原始 HTML（null＝无 island）。v0 单实例。</summary>
     private string liveIslandHtml;
     /// <summary>hello.ok 里 FE 上报的视口（窗体句柄未建时暂存，Subscribe 时经 UI 线程应用）。</summary>
     private int pendingVpW, pendingVpH;
@@ -322,16 +322,21 @@ internal sealed class EwpHost
     // read on the UI thread (dispatched input.submit) - no cross-thread races.
     private long currentReqId = -1;
     private int currentGeneration = -1;
-    /// <summary>B3 离屏像素流（hello.ok mode.pixel=true 才启用；帧信号=CliFramePainted）。</summary>
+    /// <summary>离屏像素流（hello.ok mode.pixel=true 才启用；帧信号=CliFramePainted）。</summary>
     private readonly EwpPixelStreamer pixel;
-    /// <summary>R-IMG-1a：CBG/SETBGIMAGE 合成快照导出（hello.ok.caps 含 bg 才启用）。</summary>
+    /// <summary>CBG/SETBGIMAGE 合成快照导出（hello.ok.caps 含 bg 才启用）。</summary>
     private readonly EwpBgExport bgExport;
     /// <summary>背景脏标记（脚本线程置位；UI 线程在帧边界消费并合并）。</summary>
     private int bgDirty;
     /// <summary>FE 是否请求 bg（caps）；textbgc 事件随该 cap 一起启停。</summary>
     private volatile bool bgEnabled;
+    /// <summary>待发给 FE 的按名失效事件（脚本线程入队，帧边界合并发送）。
+    /// 快照的物理删除在入队时就已完成（EwpSpriteExport 自带锁），这里只排队事件。</summary>
+    private readonly ConcurrentQueue<(string Texture, long Rev)> spriteInvalidations = new();
+    /// <summary>待发的 all 失效水位（0＝无）。多批 DISPOSEALL 取最大水位。</summary>
+    private long spriteInvalidateAllRev;
 
-    /// <summary>B②/S1 频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open/segments）。
+    /// <summary>频道状态（ChannelHooks 名挂钩维护；id → kind/rev/open/segments）。
     /// 脚本线程写（IntoFunction）、UI 线程读（snapshot/state）——lock 保护。</summary>
     private sealed class ChannelSegment
     {
@@ -352,16 +357,31 @@ internal sealed class EwpHost
     private long channelMismatch;
     /// <summary>FE 的 hello.ok.caps 是否包含 channel；缺省 caps 按旧 FE 常开处理。</summary>
     private volatile bool channelEnabled = true;
-    /// <summary>FE 的 hello.ok.caps 是否包含 input.rect（I3-b）：缺省 false ⇒ input.request 的
+    /// <summary>FE 的 hello.ok.caps 是否包含 input.rect：缺省 false ⇒ input.request 的
     /// buttons[] 不带 rect 键（⛔ 发 null 或空对象，FE 侧统一按「无 rect 回退文本/值」处理）。
-    /// 引擎 hello.caps 自报暂不含 input.rect：声明即承诺，等 I3-c 真机门禁通过后再加。</summary>
+    /// 引擎 hello.caps 自报暂不含 input.rect：声明即承诺，未经真机门禁验证前不加。</summary>
     private volatile bool rectEnabled;
-    /// <summary>FE 的 hello.ok.caps 是否包含 legacy.spans（R-3b-1）：缺省 false ⇒
+    /// <summary>FE 的 hello.ok.caps 是否包含 legacy.spans：缺省 false ⇒
     /// legacy.line/snapshot.full 不含 spans 键（旧 FE 逐字节不变）。</summary>
     private volatile bool spansEnabled;
     private long spansEmitted;
     private long spansSkipped;
-    // R-3b-3（W1）div.children：有界递归／载荷上限（旧 FE 忽略 children 键）。
+
+    // REDRAW 0 期间 legacy.line／legacy.clear 必须缓冲：原生在 redraw==None 时 RefreshStrings
+    // 早退，行只在 REDRAW 1／AWAIT／输入边界（RefreshStrings(true)，force_Paint 穿透 REDRAW 0）
+    // 一次性上屏。缓冲事件按原生重绘点整批放行：CliFramePainted／OnWaitInput／snapshot／sys.state／
+    // 终局前。4096 条·16MB（UTF-8 字节）阀门防「REDRAW 0 无重绘长循环」无限积压。
+    // 非缓冲路径直发前先 FlushLegacyBatch（否则新行会先于积压行到达）；OnWaitInput 的兜底
+    // 放行在 inputReq 判空之前（无 inputReq 的 WAIT 也要放行）。事件 JSON 内容不变；
+    // 保序覆盖跨族：channel 控制事件（EmitChannel→BufferOrEmit）与 legacy 族同入本缓冲，
+    // 按追加序同批放行 ⇒ begin < 该 rev 段全部内容行 < commit（legacy.line 无频道字段，
+    // wire 顺序是 FE 归属唯一依据）。
+    private readonly object batchGate = new object();
+    private readonly List<string> batchBuf = new List<string>();
+    private int batchBufBytes;
+    private const int BatchCapEvents = 4096;
+    private const int BatchCapBytes = 16 * 1024 * 1024;
+    // div.children：有界递归／载荷上限（旧 FE 忽略 children 键）。
     private const int MaxDivChildSpans = 512;
     private const int MaxDivNesting = 1;
     private long spansChildNodes;
@@ -372,13 +392,13 @@ internal sealed class EwpHost
     private int metricsRenderW;
     private int metricsRenderH;
     private bool metricsRenderResent;
-    /// <summary>rect 自检失败累计（I3-c 生产护栏）：几何自检不过的按钮不发 rect，只计数。
+    /// <summary>rect 自检失败累计（生产护栏）：几何自检不过的按钮不发 rect，只计数。
     /// <c>sys.state.rectSelfCheckFailed</c> 可观测；门禁断言 == 0。</summary>
     private long rectSelfCheckFailed;
 
-    /// <summary>R-AUD-4：逻辑通道账本（v0.2 模式）。</summary>
+    /// <summary>逻辑通道账本（v0.2 模式）。</summary>
     private AudioLedger audioLedger;
-    /// <summary>R-AUD-8：v1 账本（audio.instances；握手前作 shadow 记录晚连接意图）。</summary>
+    /// <summary>v1 账本（audio.instances；握手前作 shadow 记录晚连接意图）。</summary>
     private AudioV1Ledger audioV1Ledger;
     private volatile bool audioEnabled;
     private volatile bool feedbackEnabled;
@@ -388,8 +408,8 @@ internal sealed class EwpHost
     private bool audioMetaCap;
     private bool audioSyncPending;
 
-    // G3（2026-10-30）：TCP headless 启动门——FE hello.ok + Subscribe 完成前不启动游戏。
-    // 背景：HeadlessHost 在 Start() 后立即 Initialize()，首帧 legacy.line / input.request
+    // TCP headless 启动门：FE hello.ok + Subscribe 完成前不启动游戏。
+    // HeadlessHost 在 Start() 后立即 Initialize()，首帧 legacy.line / input.request
     // 会早于 AcceptLoop 的 Subscribe（钩子未挂、无补发），FE 拿不到 reqId 只能干等。
     private readonly ManualResetEventSlim gameStart = new(false);
     private EmueraConsole attachedConsole;
@@ -431,7 +451,7 @@ internal sealed class EwpHost
     public void Start()
     {
         ChannelHooks.Handler = OnChannelMacro;
-        // R-AUD-4/R-AUD-8：账本与事件出口在 hello 前装好；FE 声明 audio 前 Enabled=false（原生路径不变）。
+        // 账本与事件出口在 hello 前装好；FE 声明 audio 前 Enabled=false（原生路径不变）。
         audioLedger = new AudioLedger();
         audioV1Ledger = new AudioV1Ledger();
         AudioHooks.Attach(audioLedger, audioV1Ledger, OnAudioEvent, OnAudioV1Event);
@@ -452,13 +472,13 @@ internal sealed class EwpHost
 
     /// <summary>metrics 在字体系统就绪后（Subscribe 时）以 meta.metrics 补发——
     /// Start 期测宽会在 FontFactory 初始化前触碰 SKFont，污染字体状态触发引擎
-    /// 「不適正なフォント→強制終了」守卫（2026-10-24 pixtest 实锤）。cellW 与
+    /// 「不適正なフォント→強制終了」守卫（pixtest 实测）。cellW 与
     /// PRINTC 同走 StringMeasure.GetDisplayLength（半角空格×2）。</summary>
     private void EmitMetrics()
     {
         int cellW = 0;
         try { cellW = StringMeasure.GetDisplayLength(" ", Config.DefaultFont) * 2; } catch { }
-        // I3-b：renderW/renderH 与 sys.state.client 同源（console.ClientWidth/Height
+        // renderW/renderH 与 sys.state.client 同源（console.ClientWidth/Height
         // ＝ MainWindow.RenderWidth/RenderHeight，即 rect 的坐标画布＝render 逻辑像素）。
         // 这里重复一次是为了让 FE 在网格基准旁直接拿到画布尺寸；⛔ 与 hello.ok.viewport
         // （FE 期望的 ClientSize，含滚动条/边框）不是一个量。
@@ -466,16 +486,21 @@ internal sealed class EwpHost
         try { renderW = win.RenderWidth; renderH = win.RenderHeight; } catch { }
         metricsRenderW = renderW;
         metricsRenderH = renderH;
-        // R-3b-0（2026-10-28）：把引擎的绘制原点/基线/默认色同源给 FE。
+        // 把引擎的绘制原点/基线/默认色同源给 FE。
         // - originX＝ConsoleStyledString/ConsoleImagePart/ConsoleRectangleShapePart 的 +3px 位移
         //   （ConsoleDivPart.DrawTo 不加，FE 侧必须按 span 类型区分）。
         // - baselineOffset＝|font ascent|（Skia Ascent 为负；引擎 DrawTo 里 Offset(0,-Ascent)）。
-        // - foreColor/BackColor＝引擎实际默认色（FE 旧值 0.86 与 #C0C0C0 不一致）。
+        // - foreColor/BackColor＝引擎实际默认色（FE 侧默认 0.86 与 #C0C0C0 不同，必须以引擎值为准）。
         int originX = Config.DrawingParam_ShapePositionShift;
         float baselineOffset = Config.FontSize;
         try { baselineOffset = -Config.DefaultFont.Metrics.Ascent; } catch { }
         var foreColor = HtmlManager.GetColorToStringArgb(Config.ForeColor);
         var backColor = HtmlManager.GetColorToStringArgb(Config.BackColor);
+        // bg 导出诊断计数。命名与 pixel 的 dropped/writeDropped 区分（bgDropped）。
+        // bgExport 在 Subscribe 前可能未建（EmitMetrics 首发早于构造完成）——容错取值。
+        long bgDroppedCtr = EwpOut.BgDropped;
+        long bgSkippedCtr = 0;
+        try { if (bgExport != null) bgSkippedCtr = bgExport.Stats().SkippedIdentical; } catch { }
         EwpOut.Emit("{\"t\":\"meta.metrics\",\"metrics\":{\"cellW\":" + cellW
             + ",\"cellH\":" + Config.FontSize
             + ",\"lineH\":" + Config.LineHeight
@@ -486,7 +511,9 @@ internal sealed class EwpHost
             + ",\"originX\":" + originX
             + ",\"baselineOffset\":" + D(baselineOffset)
             + ",\"foreColor\":" + J(foreColor)
-            + ",\"bgColor\":" + J(backColor) + "}}");
+            + ",\"bgColor\":" + J(backColor)
+            + ",\"bgDropped\":" + bgDroppedCtr
+            + ",\"bgSkippedIdentical\":" + bgSkippedCtr + "}}");
     }
 
     private static string SafeVersion()
@@ -514,7 +541,7 @@ internal sealed class EwpHost
         // 先发 exit 再清像素流：像素流 Dispose 若抛异常也不能把 exit 吞掉。
         try
         {
-            // R-AUD-4 测试诊断（stderr，⛔ 业务事件）：Q1 静音与 mixer 是否被原生路径初始化。
+            // 测试诊断（stderr，⛔ 业务事件）：静音与 mixer 是否被原生路径初始化。
             var st = audioLedger?.Stats();
             Console.Error.WriteLine("[ewp-audio] enabled=" + (audioEnabled ? 1 : 0)
                 + " nativeSuppressed=" + (st?.NativeSuppressed ?? 0)
@@ -531,10 +558,11 @@ internal sealed class EwpHost
 
     /// <summary>频道宏（脚本线程，EwpChannel 转发）：begin=create(首见)+begin{rev}+新段；
     /// end=commit{rev}（与配对 begin 同 rev 定稿）；clear=clear{id}（清段不清频道，
-    /// rev/open/行 owner 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。</summary>
+    /// rev/open/行 owner 保持）。未配对 end/clear 静默忽略并计 channelMismatch（state 可观测）。
+    /// 控制事件经 EmitChannel 与 legacy 族同域保序（REDRAW 0 期间同入批缓冲）。</summary>
     private void OnChannelMacro(string macro, string id, string kind)
     {
-        // H4：FE 未声明 channel 时只停发 wire 事件，不改变 ERB 宏本身的空展开行为。
+        // FE 未声明 channel 时只停发 wire 事件，不改变 ERB 宏本身的空展开行为。
         if (!channelEnabled)
             return;
         switch (macro)
@@ -553,7 +581,7 @@ internal sealed class EwpHost
                     {
                         st = new ChannelState { Kind = kind };
                         channels[id] = st;
-                        EwpOut.Emit("{\"t\":\"channel.create\",\"id\":" + J(id)
+                        EmitChannel("{\"t\":\"channel.create\",\"id\":" + J(id)
                             + ",\"kind\":" + J(kind) + ",\"tier\":\"grid-locked\"}");
                     }
                     // 同 id 重复 begin＝移栈顶＋rev++，不形成嵌套。
@@ -562,7 +590,7 @@ internal sealed class EwpHost
                     st.Rev++;
                     st.Open = true;
                     st.Segments.Add(new ChannelSegment { Rev = st.Rev, Committed = false });
-                    EwpOut.Emit("{\"t\":\"channel.begin\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
+                    EmitChannel("{\"t\":\"channel.begin\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
                 }
                 break;
             case "end":
@@ -575,7 +603,7 @@ internal sealed class EwpHost
                         var seg = st.Segments.Find(s => s.Rev == st.Rev);
                         if (seg != null)
                             seg.Committed = true;
-                        EwpOut.Emit("{\"t\":\"channel.commit\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
+                        EmitChannel("{\"t\":\"channel.commit\",\"id\":" + J(id) + ",\"rev\":" + st.Rev + "}");
                     }
                     else
                         channelMismatch++;
@@ -588,13 +616,24 @@ internal sealed class EwpHost
                     {
                         // 清内容不清频道：段清空，rev/open 与行 owner 保持。
                         st.Segments.Clear();
-                        EwpOut.Emit("{\"t\":\"channel.clear\",\"id\":" + J(id) + "}");
+                        EmitChannel("{\"t\":\"channel.clear\",\"id\":" + J(id) + "}");
                     }
                     else
                         channelMismatch++;
                 }
                 break;
         }
+    }
+
+    /// <summary>channel 控制事件（create/begin/commit/clear）发送：与 legacy 族共用同一有序
+    /// 发送域（BufferOrEmit）。保序不变量：REDRAW 0 期间控制事件与缓冲内容行同入 batchBuf、
+    /// 按追加序同批放行 ⇒ wire 上 create < begin < 该 rev 段全部 legacy.line < commit；
+    /// 非缓冲路径直发前由 BufferOrEmit 先放行积压批，跨族序同样成立。
+    /// legacy.line 无频道字段，wire 顺序是 FE 归属唯一依据，commit 先于内容行到达必然错归。</summary>
+    private void EmitChannel(string json)
+    {
+        if (!BufferOrEmit(json))
+            EwpOut.Emit(json);
     }
 
     private EmueraConsole GameConsole => GlobalStatic.Console;
@@ -671,35 +710,94 @@ internal sealed class EwpHost
         console.CliImageLayerSet += OnImageLayerSet;
         console.CliImageLayerCleared += OnImageLayerCleared;
         console.CliImageLayersCleared += OnImageLayersCleared;
+        // 精灵销毁是静态账本（AppContents），不走 console 事件。
+        AppContents.SpriteDisposed += OnSpriteDisposed;
+        AppContents.SpriteDisposedAll += OnSpriteDisposedAll;
         console.CliIslandPrinted += OnIslandPrinted;
         console.CliIslandCleared += OnIslandCleared;
         console.CliFramePainted += OnFramePainted;
         console.CliBackgroundChanged += OnBackgroundChanged;
         console.CliTextBackgroundChanged += OnTextBackgroundChanged;
+        console.CliTooltipConfig += OnTooltipConfig;
+        console.CliAnimeTimerChanged += OnAnimeTimer;
         if (tcpPort > 0)
         {
             // TCP：EmitMetrics 会调 FontFactory（无锁静态缓存），⛔ 不能在 transport 线程
             // 与 init/渲染并发（实测 InvalidOperationException）；改走 UI 泵
             // （HeadlessHost 在启动门前持续泵，故不会悬空）。
-            try { win.Invoke(new Action(EmitMetrics)); } catch { }
+            // ALIGN-13：初始 tooltip 快照同批走 UI 线程——实测在 transport 线程直接发会卡住
+            // 启动门（Subscribe 未走到 subscribedDone ⇒ 游戏不启动、FE 120s 超时）。
+            try { win.Invoke(new Action(() => { EmitMetrics(); OnTooltipConfig(); OnAnimeTimer(); })); } catch { }
         }
         else
         {
             EmitMetrics();
+            OnTooltipConfig();
+            OnAnimeTimer();
         }
+        // ALIGN-13：初始 tooltip 配置快照（纯字段读，无字体工厂 ⇒ 不挑线程）。
         Volatile.Write(ref subscribedDone, 1);
         MaybeReleaseGameStart();
     }
 
-    /// <summary>RefreshStrings 有效通过点（UI 线程，B3 像素流帧信号；仅 mode.pixel=true 时实做捕获）。</summary>
-    private void OnFramePainted()
+    /// <summary>ALIGN-13：tooltip 全局参数 → <c>overlay.tooltip</c>（8 个 TOOLTIP_SET* 任一变化即发，
+    /// 外加 Subscribe 时的一次初始快照）。参数是引擎全局状态，前端必须拿同一份值才能复刻
+    /// 延迟/时长/配色，⛔ 不能各自硬编码默认。引擎侧不渲染 tooltip（headless 下全 no-op），
+    /// 本通道只保证「前端拿得到」。颜色走 ARGB（与 meta.metrics/overlay.island 同口径）。</summary>
+    private void OnTooltipConfig()
     {
-        pixel.OnFramePainted();
-        // R-IMG-1a：背景脏标记在帧边界合并消费（一帧内多次 CBG 变更只捕获一次）
-        FlushBackground();
+        var console = attachedConsole ?? GameConsole;
+        if (console == null)
+            return;
+        try
+        {
+            EmueraConsole.TooltipConfig t = console.GetTooltipConfig();
+            EwpOut.Emit("{\"t\":\"overlay.tooltip\",\"tooltip\":{"
+                + "\"delay\":" + t.InitialDelay
+                + ",\"duration\":" + t.Duration
+                + ",\"autoPopDelay\":" + t.AutoPopDelay
+                + ",\"ownerDraw\":" + (t.OwnerDraw ? "true" : "false")
+                + ",\"fore\":" + J(HtmlManager.GetColorToStringArgb(t.ForeColor))
+                + ",\"back\":" + J(HtmlManager.GetColorToStringArgb(t.BackColor))
+                + ",\"font\":" + J(t.FontName ?? "")
+                + ",\"fontSize\":" + t.FontSize
+                + ",\"format\":" + t.Format
+                + ",\"img\":" + (t.Img ? "true" : "false")
+                + "}}");
+        }
+        catch { }
     }
 
-    /// <summary>R-IMG-1a：CBG/SETBGIMAGE/底色变更（脚本线程）——只置脏，⛔ 不在此捕获
+    /// <summary>ALIGN-16：动画时钟有效值 → <c>overlay.anime</c>（SETANIMETIMER 唯一写点变化即发，
+    /// 外加 Subscribe 时的一次初始快照）。值＝redrawTimer 有效间隔（0＝停止自主重绘），
+    /// 是「INPUT 等待期自主重绘间隔」，与帧 delays 无关。旧 FE 未声明 sprite.export ⇒ 零事件。</summary>
+    private void OnAnimeTimer()
+    {
+        if (!spriteExport.Enabled)
+            return;
+        var console = attachedConsole ?? GameConsole;
+        if (console == null)
+            return;
+        try
+        {
+            EwpOut.Emit("{\"t\":\"overlay.anime\",\"interval\":" + console.AnimeTimer + "}");
+        }
+        catch { }
+    }
+
+    /// <summary>RefreshStrings 有效通过点（UI 线程，像素流帧信号；仅 mode.pixel=true 时实做捕获）。</summary>
+    private void OnFramePainted()
+    {
+        // 原生重绘点＝缓冲行的放行点（REDRAW 1 / AWAIT / 输入边界的 force_Paint 都到这）。
+        FlushLegacyBatch();
+        pixel.OnFramePainted();
+        // 背景脏标记在帧边界合并消费（一帧内多次 CBG 变更只捕获一次）
+        FlushBackground();
+        // 失效事件同帧边界合并（快照已即时删除，这里只发事件）
+        FlushSpriteInvalidations();
+    }
+
+    /// <summary>CBG/SETBGIMAGE/底色变更（脚本线程）——只置脏，⛔ 不在此捕获
     /// （一次背景打印会连发 CBGCLEAR＋CBGSETG，逐次捕获＝白画两张）。</summary>
     private void OnBackgroundChanged()
     {
@@ -736,7 +834,7 @@ internal sealed class EwpHost
     }
 
     /// <summary>应用 FE 视口（UI 线程）。⚠️ 最小化窗口上 ClientSize 不会触发子控件锚定布局
-    /// （2026-10-25 fixture 实测 render=0x0 而 client=1000x640，mainPicBox 恒 0）——
+    /// （fixture 实测 render=0x0 而 client=1000x640，mainPicBox 恒 0）——
     /// 先强制 PerformLayout；仍未落位则微扰一次尺寸（两次尺寸变更必跑布局链）。</summary>
     private void ApplyViewport(int w, int h)
     {
@@ -749,9 +847,9 @@ internal sealed class EwpHost
                 win.ClientSize = new Size(w - 1, h - 1);
                 win.ClientSize = new Size(w, h);
             }
-            // N1-b：viewport 可能把 render 画布从「初始 Config 尺寸」改到实际 client 尺寸；
-            // 原逻辑只在初始 render<=0 时补发 metrics，headless（初始 render=Config 尺寸>0）
-            // 会永远停在旧值。这里按实际变化补发一次（桌面同样受益，FE 更早拿到正确网格）。
+            // viewport 可能把 render 画布从「初始 Config 尺寸」改到实际 client 尺寸；
+            // headless 初始 render=Config 尺寸>0，若只在 render<=0 时补发 metrics 会永远停在旧值
+            // ⇒ 按实际变化补发一次（桌面同样受益，FE 更早拿到正确网格）。
             if (win.RenderWidth != metricsRenderW || win.RenderHeight != metricsRenderH)
                 EmitMetrics();
         }));
@@ -772,7 +870,7 @@ internal sealed class EwpHost
         var id = ++lineIdSeq;
         var raw = line.ToString();
         var text = ClipboardProcessor.StripHTML(raw);
-        // R-3b-1：仅在 FE 声明 legacy.spans 且 text 未被 StripHTML 改写时构建 spans；
+        // 仅在 FE 声明 legacy.spans 且 text 未被 StripHTML 改写时构建 spans；
         // 保证 span 的 start/end 与 wire 上的 text 同源（CBIgnoreTags 非常态配置时跳过并计数）。
         string spans = null;
         if (spansEnabled)
@@ -806,10 +904,10 @@ internal sealed class EwpHost
                     owner = "";
             }
         }
-        // W0：仅含运行期行内像素（rt）的行保留行对象，供 snapshot 重建 spans；
+        // 仅含运行期行内像素（rt）的行保留行对象，供 snapshot 重建 spans；
         // 普通行（绝大多数）不持有 ConsoleDisplayLine，避免无意扩大长会话 retained 面。
         // 行清理（CLEARLINE/ClearDisplay）随 liveLines 释放；引擎自动 MaxLog 裁剪不发
-        // CliLinesRemoved 属既有账本问题（文本/spans 本已保留），W1/T6 再单独处理。
+        // CliLinesRemoved 属既有账本缺口（文本/spans 本已保留），单独处理。
         bool needLine = spans != null && spans.Contains("\"rt\":true");
         liveLines.Add(new LiveLine { Id = id, Text = text, Spans = spans,
             Line = needLine ? line : null, Owner = owner, OwnerRev = ownerRev });
@@ -821,10 +919,58 @@ internal sealed class EwpHost
         if (spans != null)
             json += ",\"spans\":" + spans;
         json += "}";
-        EwpOut.Emit(json);
+        // REDRAW 0 期间缓冲（原生此刻不重绘）；其余直发。
+        if (!BufferOrEmit(json))
+            EwpOut.Emit(json);
     }
 
-    /// <summary>R-3b-1：构建 legacy.line.spans（可选；仅 FE 声明 legacy.spans 且 text 未被
+    /// <summary>REDRAW 0 期间把 legacy 族与 channel 控制事件（EmitChannel）JSON 缓冲（返回 true）；
+    /// 否则直发（返回 false）。阀门（条数/字节）触发即时放行，防无重绘长循环积压。</summary>
+    private bool BufferOrEmit(string json)
+    {
+        var console = attachedConsole ?? GameConsole;
+        if (console == null || console.Redraw != ConsoleRedraw.None)
+        {
+            // 直发前必须先放行积压批——⛔ 否则新行先于缓冲行到达 FE
+            // （SetRedraw 只有 (i&2) 才 force 重绘，REDRAW 1 本身不画；此刻 batchBuf 可能
+            // 仍非空，直接 Emit 会让行序倒挂）。
+            FlushLegacyBatch();
+            return false;
+        }
+        lock (batchGate)
+        {
+            batchBuf.Add(json);
+            // 按 UTF-8 实际字节计数（json.Length 是 UTF-16 字符数，会把 16MB 阀门
+            // 放宽到约 32MB 内存）。⚠️ 仅阀门口径，不影响事件内容/顺序。
+            batchBufBytes += Encoding.UTF8.GetByteCount(json);
+            if (batchBuf.Count >= BatchCapEvents || batchBufBytes >= BatchCapBytes)
+                FlushLegacyBatchLocked();
+        }
+        return true;
+    }
+
+    /// <summary>把缓冲的 legacy／channel 控制事件按序整批放行（任意线程；原生重绘点/输入边界/
+    /// snapshot/sys.state/终局前调用）。</summary>
+    private void FlushLegacyBatch()
+    {
+        lock (batchGate)
+        {
+            FlushLegacyBatchLocked();
+        }
+    }
+
+    private void FlushLegacyBatchLocked()
+    {
+        if (batchBuf.Count == 0)
+            return;
+        string[] burst = batchBuf.ToArray();
+        batchBuf.Clear();
+        batchBufBytes = 0;
+        foreach (var j in burst)
+            EwpOut.Emit(j);
+    }
+
+    /// <summary>构建 legacy.line.spans（可选；仅 FE 声明 legacy.spans 且 text 未被
     /// StripHTML 改写时调用）。start/end 为 text 的 Unicode 码点偏移；div 整体跳过，
     /// 由 FE F-div 继续负责。发 x/advance 与解析色，文本的 x 含引擎对齐位移。</summary>
     private string BuildSpans(ConsoleDisplayLine line)
@@ -836,6 +982,11 @@ internal sealed class EwpHost
         {
             if (button?.StrArray == null)
                 continue;
+            // HTML `<button value='…'>` 的 span 导出。按钮元数据在
+            // ConsoleButtonString 上（IsButton/Inputs），节点循环只认节点 ⇒ 在按钮跨度
+            // 边界补一条 kind:"button"（value＋几何；样式/文本仍由 text/img spans 承担）。
+            // FE 命中即 input.submit；旧 FE 落 unsupported 计数（向后兼容）。
+            int btnStartCp = cp;
             foreach (var node in button.StrArray)
             {
                 if (node == null)
@@ -923,15 +1074,15 @@ internal sealed class EwpHost
                         sb.Append(",\"missing\":true");
                     if (img.HasColorMatrix)
                         sb.Append(",\"cm\":true");
-                    // R-3b-2b：运行期 G 名（SpriteG）在 span 构建时冻结像素快照；
-                    // FE 用 (src,rev) 发 sprite.req，旧 rev 永不返回新图。literal（SpriteF）走 2a。
+                    // 运行期 G 名（SpriteG）在 span 构建时冻结像素快照；
+                    // FE 用 (src,rev) 发 sprite.req，旧 rev 永不返回新图。literal（SpriteF）不带 rt/rev，FE 按 src 直接取资源。
                     if (spriteExport.Enabled && img.Image is SpriteG && dr.Width > 0 && dr.Height > 0)
                     {
                         long rtRev = spriteExport.CaptureInline(img.Image, dr.Width, dr.Height, img.ColorMatrix);
                         if (rtRev > 0)
                             sb.Append(",\"rt\":true,\"rev\":").Append(rtRev);
                     }
-                    // R-3c：动画精灵（SpriteAnimated 动图 webp / SpriteAnime ANIME CSV 多帧）⇒ 帧表；
+                    // 动画精灵（SpriteAnimated 动图 webp / SpriteAnime ANIME CSV 多帧）⇒ 帧表；
                     // FE 按 delays 轮播、按帧请求（sprite.req 负 rev＝-(frame+1)）。
                     if (spriteExport.Enabled && TryAnimInfo(img.Image, out int animCount, out int[] animDelays))
                     {
@@ -975,12 +1126,15 @@ internal sealed class EwpHost
                 }
                 if (node is ConsoleDivPart div)
                 {
-                    // R-3b-3（W1）：div 整块附带**有界** children（text/img/shape/div 同形），
+                    // div 整块附带**有界** children（text/img/shape/div 同形），
                     // 坐标相对 div 内容框；递归深度与载荷上限固定，截断时标 truncated。
                     int budget = MaxDivChildSpans;
                     var sb = new StringBuilder(256);
                     sb.Append("{\"start\":").Append(start).Append(",\"end\":").Append(end)
-                        .Append(",\"kind\":\"div\",\"x\":").Append(div.PointX);
+                        .Append(",\"kind\":\"div\",\"x\":").Append(div.PointX)
+                        // 层叠序 z＝div 的 depth（绘制按 depth 降序：值大者先画、在下；文字本体固定在 depth 0 槽）。
+                        // 键名用 z 而非 depth——children 嵌套的 "depth" 已是递归层级，撞名会污染语义。
+                        .Append(",\"z\":").Append(div.Depth);
                     int picHeight = GameConsole?.ClientHeight ?? 0;
                     var content = div.GetContentRect(picHeight, 0);
                     var children = BuildDivChildrenCore(div, start, 0, content.X, content.Y,
@@ -1002,6 +1156,20 @@ internal sealed class EwpHost
                 // 未知节点：保守当作不可绘制跨度（只推进码点，不画）。
                 spans.Add("{\"start\":" + start + ",\"end\":" + end + ",\"kind\":\"unsupported\"}");
             }
+            // 按钮跨度（value＋几何）。顶层行的 y＝行槽，FE 按 line_top 补。
+            if (button.IsButton && !string.IsNullOrEmpty(button.Inputs))
+            {
+                anyNonText = true;
+                var bb = new StringBuilder(128);
+                bb.Append("{\"start\":").Append(btnStartCp).Append(",\"end\":").Append(cp)
+                    .Append(",\"kind\":\"button\",\"x\":").Append(button.PointX)
+                    .Append(",\"advance\":").Append(button.Width)
+                    .Append(",\"value\":").Append(J(button.Inputs));
+                if (!string.IsNullOrEmpty(button.Title))
+                    bb.Append(",\"title\":").Append(J(button.Title));
+                bb.Append('}');
+                spans.Add(bb.ToString());
+            }
         }
         if (!anyNonText && !anyStyled && line.Align == DisplayLineAlignment.LEFT)
             return null;
@@ -1022,7 +1190,7 @@ internal sealed class EwpHost
         return n;
     }
 
-    /// <summary>R-3b-3（W1）：div 子节点 spans（坐标相对 div 内容框；start/end 仍对应
+    /// <summary>div 子节点 spans（坐标相对 div 内容框；start/end 仍对应
     /// legacy.line.text 的 Unicode 码点区间，供 FE 从原始行取同一段文本）。
     /// budget＝整棵 div 子树共享的载荷配额；超限即停并置 truncated（⛔ 静默丢节点）。</summary>
     private List<string> BuildDivChildrenCore(ConsoleDivPart div, int divStart, int depth,
@@ -1044,6 +1212,9 @@ internal sealed class EwpHost
                 {
                     if (button?.StrArray == null)
                         continue;
+                    // div 子级按钮（400 页页签＝<div><button value=…>）。
+                    // 坐标系与 div 子级 spans 同源：x 相对内容框、y=lineY。
+                    int btnStartCp = cp;
                     foreach (var node in button.StrArray)
                     {
                         if (node == null)
@@ -1064,6 +1235,21 @@ internal sealed class EwpHost
                             truncated = true;
                         if (json != null)
                             list.Add(json);
+                    }
+                    if (budget > 0 && button.IsButton && !string.IsNullOrEmpty(button.Inputs))
+                    {
+                        budget--;
+                        var bb = new StringBuilder(160);
+                        bb.Append("{\"start\":").Append(btnStartCp).Append(",\"end\":").Append(cp)
+                            .Append(",\"kind\":\"button\",\"x\":").Append(button.PointX - contentXAbs)
+                            .Append(",\"y\":").Append(lineY)
+                            .Append(",\"advance\":").Append(button.Width)
+                            .Append(",\"value\":").Append(J(button.Inputs))
+                            .Append(",\"depth\":").Append(depth);
+                        if (!string.IsNullOrEmpty(button.Title))
+                            bb.Append(",\"title\":").Append(J(button.Title));
+                        bb.Append('}');
+                        list.Add(bb.ToString());
                     }
                 }
             }
@@ -1161,7 +1347,7 @@ internal sealed class EwpHost
                 if (rtRev > 0)
                     sb.Append(",\"rt\":true,\"rev\":").Append(rtRev);
             }
-            // N-4：div.children 内的动画精灵也带帧表（与顶层 span 同形；旧 FE 忽略）。
+            // div.children 内的动画精灵也带帧表（与顶层 span 同形；旧 FE 忽略）。
             if (spriteExport.Enabled && TryAnimInfo(img.Image, out int animCount, out int[] animDelays))
             {
                 sb.Append(",\"anim\":{\"count\":").Append(animCount)
@@ -1268,19 +1454,33 @@ internal sealed class EwpHost
         int removed = Math.Min(count, liveLines.Count);
         long fromId = liveLines[liveLines.Count - removed].Id;
         liveLines.RemoveRange(liveLines.Count - removed, removed);
-        EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId
-            + ",\"count\":" + removed + "}");
+        // 缓冲进 legacy 族（与缓冲行保持次序 ⇒ FE 先收行再收 clear，语义自洽）。
+        if (!BufferOrEmit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId
+            + ",\"count\":" + removed + "}"))
+            EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId
+                + ",\"count\":" + removed + "}");
     }
 
     /// <summary>ClearDisplay 全量清场：清快照行/频道/段/栈，向 FE 发一条清空通知。
     /// v0.2 不发 channel.destroy；重连以无旧状态的 snapshot 为准。</summary>
     private void OnDisplayCleared()
     {
+        // 整屏换场——缓冲中的 legacy 事件属于已死场景，直接丢弃（防 clear 后幽灵行），
+        // 其后的 legacy.clear 也走缓冲（保序）。
+        lock (batchGate)
+        {
+            batchBuf.Clear();
+            batchBufBytes = 0;
+        }
         int count = liveLines.Count;
         long fromId = count > 0 ? liveLines[0].Id : -1;
         liveLines.Clear();
         spriteExport.Clear();
-        // EG-1b/EG-1d：ClearDisplay＝整屏换场（启动/GotoTitle/读档前），图层与 island 账本
+        // ClearDisplay 已把快照与 expired 一起清空（旧 rev ⇒ not_found，非失效）
+        // ⇒ 挂起的 invalidate 事件失去意义，直接丢弃，免得 FE 收到无对应快照的失效。
+        spriteInvalidations.Clear();
+        Interlocked.Exchange(ref spriteInvalidateAllRev, 0);
+        // ClearDisplay＝整屏换场（启动/GotoTitle/读档前），图层与 island 账本
         // 必须同源清空；否则新会话快照会带出已 Dispose 的旧 sprite（DrawTo 跳过但账本残留）。
         bool hadSprites = liveSprites.Count > 0;
         liveSprites.Clear();
@@ -1294,7 +1494,7 @@ internal sealed class EwpHost
         }
         if (hadSprites)
             EwpOut.Emit("{\"t\":\"sprite.clear\",\"all\":true}");
-        // R-IMG-1a：整屏换场（启动/GotoTitle/读档前）⇒ 背景快照作废。下一帧若 CBG 已重建，
+        // 整屏换场（启动/GotoTitle/读档前）⇒ 背景快照作废。下一帧若 CBG 已重建，
         // 会自然发新的 bg.set；这里先清，避免 FE 留着上一场景的背景。
         if (bgEnabled && bgExport.HasContent)
         {
@@ -1308,18 +1508,31 @@ internal sealed class EwpHost
         if (hadIsland)
             EwpOut.Emit("{\"t\":\"overlay.island.clear\"}");
         if (count > 0)
-            EwpOut.Emit("{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId + ",\"count\":-1}");
+        {
+            string clearJson = "{\"t\":\"legacy.clear\",\"fromLineId\":" + fromId + ",\"count\":-1}";
+            if (!BufferOrEmit(clearJson))
+                EwpOut.Emit(clearJson);
+        }
     }
 
     private void OnWaitInput()
     {
         var console = GameConsole;
-        if (console == null || console.inputReq == null)
+        if (console == null)
             return;
-        // R-IMG-1a：输入边界兜底——CBG 变更后若没有重绘（无文本变化）也要把背景补发出去
+        // 输入边界兜底放行（原生 WaitInput 进场前 RefreshStrings(true) 已触发
+        // CliFramePainted；这里是同点保险，防 frame 节流跳过时 input.request 先于行到达）。
+        // ⛔ 必须放在 inputReq 判空之前：没有 inputReq 的 WAIT 也要放行缓冲行，
+        // 否则该场景的行会被扣到下一次重绘/终局才到。
+        FlushLegacyBatch();
+        if (console.inputReq == null)
+            return;
+        // 输入边界兜底——CBG 变更后若没有重绘（无文本变化）也要把背景补发出去
         FlushBackground();
+        // 失效事件同口径兜底（⛔ 让 FE 在没有重绘的场景漏收）
+        FlushSpriteInvalidations();
         var req = console.inputReq;
-        // I3-b：Subscribe 期窗口若未完成布局，meta.metrics 的 renderW/H 会读到 0（最小化实测）。
+        // Subscribe 期窗口若未完成布局，meta.metrics 的 renderW/H 会读到 0（最小化实测）。
         // 首个 input.request 时窗口必已就绪 ⇒ 补发一次，让 FE 在拿到 rect 之前就有画布尺寸。
         if (!metricsRenderResent && metricsRenderW <= 0)
         {
@@ -1331,7 +1544,7 @@ internal sealed class EwpHost
                 EmitMetrics();
             }
         }
-        // I3-b：统一走几何版本（同一遍历，多算几个 int，开销可忽略），
+        // 统一走几何版本（同一遍历，多算几个 int，开销可忽略），
         // 是否把 rect 写进 wire 由 FE 请求的 input.rect cap 决定。
         var buttons = console.GetSelectableButtonRects();
         var reqId = ++reqIdSeq;
@@ -1361,9 +1574,9 @@ internal sealed class EwpHost
                 .Append(",\"isInteger\":").Append(button.IsInteger ? "true" : "false");
             if (rectEnabled && button.HasRect)
             {
-                // I3-c 生产护栏：先跑连通性自检（中心＋共同区四角共 5 点须全部命中同一按钮）。
+                // 生产护栏：先跑连通性自检（中心＋共同区四角共 5 点须全部命中同一按钮）。
                 // 不过就降级不发 rect（FE 回退文本/值），只计数——⛔ 宁可没有 rect，不可点错。
-                // I3-d：div 按钮（HitTestOracle=false）跳过自检——其 hit-test 与绘制在绝对定位下分叉
+                // div 按钮（HitTestOracle=false）跳过自检——其 hit-test 与绘制在绝对定位下分叉
                 // （设计卡 §3.3），rect 由 GetContentRect 的绘制矩形推出，拿 hit-test 当 oracle 必误判。
                 bool selfCheckOk = !button.HitTestOracle
                     || console.RectSelfCheckPoints(button.Button, button.Rect) == 0;
@@ -1388,17 +1601,26 @@ internal sealed class EwpHost
 
     private void OnTerminalState()
     {
+        // 终局前放行缓冲（FE 须能收到最后的行再收 meta.state/exit）。
+        FlushLegacyBatch();
         EwpOut.Emit("{\"t\":\"meta.state\",\"state\":" + J(GameConsole?.CliStateName ?? "Unknown") + "}");
     }
 
-    /// <summary>SETIMAGELAYER(L)→sprite.set（EWP §4.3；colormatrix 留 v1＝A1-③）。
-    /// R-3a：先用实际 ImageLayer 对象同步冻结快照，再发事件；rev 只在启用导出时出现。</summary>
+    /// <summary>SETIMAGELAYER(L)→sprite.set（EWP §4.3；colormatrix 留 v1）。
+    /// 先用实际 ImageLayer 对象同步冻结快照，再发事件；rev 只在启用导出时出现。
+    /// ALIGN-18：动画层（SpriteAnime/SpriteAnimated）静态快照必 fail（CaptureCore not_exportable/
+    /// animated）——不签静态 rev，改发帧表 anim{count,delays}（与行内 span.anim 同形、TryAnimInfo
+    /// 统一口径），FE 按帧 sprite.req 负 rev 取纹理。旧 FE（未声明 sprite.export）零 anim、零 rev。</summary>
     private void OnImageLayerSet(ImageLayer layer)
     {
-        long rev = spriteExport.Capture(layer);
+        int animCount = 0;
+        int[] animDelays = null;
+        bool animated = spriteExport.Enabled && TryAnimInfo(layer.Image, out animCount, out animDelays);
+        long rev = animated ? 0 : spriteExport.Capture(layer);
         string tex = layer.Image?.Name ?? "";
+        string animJson = animated ? AnimTableJson(animCount, animDelays) : null;
         liveSprites.Add((layer.Depth, tex, layer.X, layer.Y, layer.Width, layer.Height,
-            layer.Opacity, layer.FollowScroll, rev));
+            layer.Opacity, layer.FollowScroll, rev, animJson));
         var sb = new StringBuilder(160);
         sb.Append("{\"t\":\"sprite.set\",\"depth\":").Append(layer.Depth)
             .Append(",\"texture\":").Append(J(tex))
@@ -1410,8 +1632,27 @@ internal sealed class EwpHost
             .Append(",\"follow\":").Append(layer.FollowScroll ? "true" : "false");
         if (rev > 0)
             sb.Append(",\"rev\":").Append(rev);
+        if (animJson != null)
+            sb.Append(",\"anim\":").Append(animJson);
         sb.Append('}');
         EwpOut.Emit(sb.ToString());
+    }
+
+    /// <summary>ALIGN-18：帧表 JSON（count/delays），与行内 span.anim 载荷同形。</summary>
+    private static string AnimTableJson(int count, int[] delays)
+    {
+        var sb = new StringBuilder(32 + (delays?.Length ?? 0) * 4);
+        sb.Append("{\"count\":").Append(count).Append(",\"delays\":[");
+        if (delays != null)
+        {
+            for (int i = 0; i < delays.Length; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append(delays[i]);
+            }
+        }
+        sb.Append("]}");
+        return sb.ToString();
     }
 
     private void OnImageLayerCleared(long depth)
@@ -1426,7 +1667,75 @@ internal sealed class EwpHost
         EwpOut.Emit("{\"t\":\"sprite.clear\",\"all\":true}");
     }
 
-    /// <summary>HTML_PRINT_ISLAND→overlay.island（v0 载荷＝原始 HTML 透传，A1-④ 单实例）。</summary>
+    /// <summary>`SPRITEDISPOSE` → 立刻作废该名快照（线程安全），事件留给帧边界合并发。
+    /// 旧 FE 未声明 `sprite.export` ⇒ 零事件、零账本开销（导出根本没启用）。</summary>
+    private void OnSpriteDisposed(string name)
+    {
+        if (!spriteExport.Enabled || string.IsNullOrEmpty(name))
+            return;
+        long floor = spriteExport.Invalidate(name);
+        if (floor <= 0)
+            return;   // 该名从未导出过快照 ⇒ 无需通知
+        spriteInvalidations.Enqueue((name.ToUpperInvariant(), floor));
+    }
+
+    /// <summary>`SPRITEDISPOSEALL` → 作废全部快照，事件在帧边界合并成一条 `all:true`。</summary>
+    private void OnSpriteDisposedAll()
+    {
+        if (!spriteExport.Enabled)
+            return;
+        long floor = spriteExport.InvalidateAll();
+        if (floor <= 0)
+            return;
+        // 多批 DISPOSEALL 的水位单调：取大值（CompareExchange 循环避免丢更大水位）
+        long cur;
+        while ((cur = Interlocked.Read(ref spriteInvalidateAllRev)) < floor)
+        {
+            if (Interlocked.CompareExchange(ref spriteInvalidateAllRev, floor, cur) == cur)
+                break;
+        }
+    }
+
+    /// <summary>帧边界把本帧的失效合并成事件（同名多次只发一条、取最大水位）。
+    /// 水位语义见 `EwpSpriteExport.Invalidate`：FE 只丢 `rev <= 水位` 的缓存，
+    /// ⇒ 失效之后新签发的 rev 不会被这条事件误删。</summary>
+    private void FlushSpriteInvalidations()
+    {
+        if (!spriteExport.Enabled)
+        {
+            spriteInvalidations.Clear();
+            Interlocked.Exchange(ref spriteInvalidateAllRev, 0);
+            return;
+        }
+        long allRev = Interlocked.Exchange(ref spriteInvalidateAllRev, 0);
+        if (allRev > 0)
+        {
+            // all 覆盖单名事件：本帧排队的名作废条目已无意义
+            spriteInvalidations.Clear();
+            EwpOut.Emit("{\"t\":\"sprite.invalidate\",\"all\":true,\"rev\":" + allRev + "}");
+            return;
+        }
+        if (spriteInvalidations.IsEmpty)
+            return;
+        var merged = new Dictionary<string, long>();
+        while (spriteInvalidations.TryDequeue(out var item))
+        {
+            if (merged.TryGetValue(item.Texture, out long prev))
+            {
+                if (item.Rev > prev)
+                    merged[item.Texture] = item.Rev;
+            }
+            else
+            {
+                merged[item.Texture] = item.Rev;
+            }
+        }
+        foreach (var kv in merged)
+            EwpOut.Emit("{\"t\":\"sprite.invalidate\",\"texture\":" + J(kv.Key)
+                + ",\"rev\":" + kv.Value + "}");
+    }
+
+    /// <summary>HTML_PRINT_ISLAND→overlay.island（v0 载荷＝原始 HTML 透传，单实例）。</summary>
     private void OnIslandPrinted(string html)
     {
         liveIslandHtml = html;
@@ -1455,7 +1764,7 @@ internal sealed class EwpHost
 
     private static string J(string s) => JsonSerializer.Serialize(s ?? "");
 
-    /// <summary>EG-1b：统计用浮点 JSON 数值（invariant，最多 3 位小数）。</summary>
+    /// <summary>统计用浮点 JSON 数值（invariant，最多 3 位小数）。</summary>
     private static string D(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     private void HandleLine(string line)
@@ -1490,7 +1799,7 @@ internal sealed class EwpHost
                 case "view.ack":
                     EwpOut.NoteAck();
                     break;
-                // R-AUD-4：FE 回供（通知型：⛔ 不产生 result、⛔ 进 frame.commit、⛔ 占信用窗）。
+                // FE 回供（通知型：⛔ 不产生 result、⛔ 进 frame.commit、⛔ 占信用窗）。
                 // 传输线程直接更新账本（⛔ 走 UI Dispatch），锁内只写账本。
                 case "audio.state":
                     HandleAudioFeedback(root, isFail: false);
@@ -1516,14 +1825,14 @@ internal sealed class EwpHost
                 case "sys.snapshot":
                     Dispatch(() => DoSnapshot());
                     break;
-                // T7-b：程序化滚动（可见面对拍需要把目标行滚进窗口；与滚轮同一状态路径）。
+                // 程序化滚动（可见面对拍需要把目标行滚进窗口；与滚轮同一状态路径）。
                 case "sys.scroll":
                     Dispatch(() => DoScroll(root.Clone()));
                     break;
                 case "sys.quit":
                     DispatchQuit();
                     break;
-                // EG-1d：sys.title 落 console.GotoTitle（ClearDisplay ⇒ 精灵快照缓存清空）。
+                // sys.title 落 console.GotoTitle（ClearDisplay ⇒ 精灵快照缓存清空）。
                 case "sys.title":
                     Dispatch(() => DoTitle());
                     break;
@@ -1600,8 +1909,8 @@ internal sealed class EwpHost
     /// 早于 Subscribe 启用也无妨，CliFramePainted 未挂前捕获不会发生）。</summary>
     private void DoHelloOk(JsonElement root)
     {
-        // H4：caps 缺失＝旧 FE，保持 channel 常开；显式数组按是否含 channel 降级。
-        // I3-b：同一次遍历顺带解析 input.rect（旧 FE 不请求 ⇒ rectEnabled=false，不发 rect）。
+        // caps 缺失＝旧 FE，保持 channel 常开；显式数组按是否含 channel 降级。
+        // 同一次遍历顺带解析 input.rect（旧 FE 不请求 ⇒ rectEnabled=false，不发 rect）。
         // caps 存在但不是数组视为旧格式，按常开兼容。
         if (!root.TryGetProperty("caps", out var caps) || caps.ValueKind != JsonValueKind.Array)
         {
@@ -1660,7 +1969,7 @@ internal sealed class EwpHost
             spansEnabled = hasSpans;
             bgEnabled = hasBg;
             bgExport.Enabled = hasBg;
-            // 1.1/C-14：feedback 无 audio ⇒ 忽略 feedback 位、ignored++、不断会话（⛔ cap_mismatch）
+            // feedback 无 audio ⇒ 忽略 feedback 位、ignored++、不断会话（⛔ cap_mismatch）
             if (hasAudioFeedback && !hasAudio)
             {
                 hasAudioFeedback = false;
@@ -1704,16 +2013,16 @@ internal sealed class EwpHost
             && mode.TryGetProperty("pixel", out var pe) && pe.ValueKind == JsonValueKind.True)
         {
             // 防呆（静默失效陷阱）：TEXTRENDERER 界面无 Skia 画布（mainPicBox 恒 0 尺寸，
-            // OnPaint WINAPI 分支也不画 Skia 内容）——显性报错而非零帧静默（2026-10-25 fixture 实锤）
+            // OnPaint WINAPI 分支也不画 Skia 内容）——显性报错而非零帧静默（fixture 实测）
             if (Config.TextDrawingMode == TextDrawingMode.WINAPI)
                 EwpOut.Emit("{\"t\":\"error\",\"code\":\"pixel_unavailable\",\"fatal\":false,"
                     + "\"detail\":\"pixel.frame requires SKIASHARP drawing interface (config DRAWING INTERFACE)\"}");
             else
                 pixel.Enable();
         }
-        // R-AUD-8：v1 握手后、放行游戏前发一次 audio.sync（S1.2/S1.3）。
+        // v1 握手后、放行游戏前发一次 audio.sync。
         EmitAudioSyncIfPending();
-        // R-IMG-1a：握手即补发当前背景（TITLE 等可能在 FE 连上之前就画好了）；⛔ 直接在此捕获
+        // 握手即补发当前背景（TITLE 等可能在 FE 连上之前就画好了）；⛔ 直接在此捕获
         // （传输线程），必须走 UI 泵。
         if (bgEnabled)
         {
@@ -1728,14 +2037,21 @@ internal sealed class EwpHost
             }
             catch { }
         }
-        // G3：握手完成——与 Subscribe 一起放行 TCP 启动门（stdio 无人在等，置位无副作用）。
+        // ALIGN-16：握手即补发动画时钟有效值——Subscribe 时的初始发射被 cap 门挡住
+        // （sprite.export 在 hello.ok 才就绪＝初始发不出，FE 缺初值）。旧 FE（未声明
+        // sprite.export）此处仍是零发射（OnAnimeTimer 自门控）。
+        if (spriteExport.Enabled)
+        {
+            try { win.Invoke(new Action(() => OnAnimeTimer())); } catch { }
+        }
+        // 握手完成——与 Subscribe 一起放行 TCP 启动门（stdio 无人在等，置位无副作用）。
         Volatile.Write(ref helloOkSeen, 1);
         MaybeReleaseGameStart();
     }
 
-    /// <summary>R-3a：FE 请求精确快照。只读不可变快照缓存，不查 activeSprites、不现画。
+    /// <summary>FE 请求精确快照。只读不可变快照缓存，不查 activeSprites、不现画。
     /// 成功回 sprite.data；失败回 sprite.data.fail；⛔ 不返回 result。</summary>
-    /// <summary>R-3c：动画精灵的帧数与逐帧延时（两种类型统一口径）。</summary>
+    /// <summary>动画精灵的帧数与逐帧延时（两种类型统一口径）。</summary>
     private static bool TryAnimInfo(ASprite sprite, out int count, out int[] delays)
     {
         switch (sprite)
@@ -1756,7 +2072,7 @@ internal sealed class EwpHost
         return count > 1 && delays != null && delays.Length == count;
     }
 
-    /// <summary>R-IMG-1a：FE 按 rev 重取背景快照（snapshot 重建/读档）。rev 命中缓存 ⇒ 重发
+    /// <summary>FE 按 rev 重取背景快照（snapshot 重建/读档）。rev 命中缓存 ⇒ 重发
     /// bg.data；否则 bg.fail（expired/not_found）。⛔ 不返回 result，⛔ 现画近似图。</summary>
     private void DoBgRequest(JsonElement root)
     {
@@ -1779,7 +2095,7 @@ internal sealed class EwpHost
 
     private void DoSpriteRequest(JsonElement root)
     {
-        // EG-1b：旧 FE（caps 未声明 sprite.export）明确忽略——⛔不回 data/fail，只计数。
+        // 旧 FE（caps 未声明 sprite.export）明确忽略——⛔不回 data/fail，只计数。
         if (!spriteExport.Enabled)
         {
             spriteExport.NoteIgnoredRequest();
@@ -1791,12 +2107,12 @@ internal sealed class EwpHost
             texture = texEl.GetString();
         if (root.TryGetProperty("rev", out var revEl) && revEl.ValueKind == JsonValueKind.Number)
             revEl.TryGetInt64(out rev);
-        // R-3c：可选 frame（动态 webp 按帧导出；与 rev 互斥，frame>=0 时忽略 rev）
+        // 可选 frame（动态 webp 按帧导出；与 rev 互斥，frame>=0 时忽略 rev）
         int frameIndex = -1;
         if (root.TryGetProperty("frame", out var frameEl) && frameEl.ValueKind == JsonValueKind.Number)
             frameEl.TryGetInt32(out frameIndex);
         if (rev < 0)
-            frameIndex = (int)(-rev - 1);   // R-3c：负 rev＝动画帧伪键（frame = -rev-1）
+            frameIndex = (int)(-rev - 1);   // 负 rev＝动画帧伪键（frame = -rev-1）
         if (string.IsNullOrEmpty(texture) || (frameIndex < 0 && rev <= 0))
         {
             EmitSpriteFail(texture ?? "", rev, "bad_request",
@@ -1860,7 +2176,7 @@ internal sealed class EwpHost
         EwpOut.Emit(sb.ToString());
     }
 
-    /// <summary>EG-1d：返回标题（console.GotoTitle 封装）。ClearDisplay 会清空精灵快照缓存，
+    /// <summary>返回标题（console.GotoTitle 封装）。ClearDisplay 会清空精灵快照缓存，
     /// 旧 rev 之后必须报 not_found（不是 expired）。</summary>
     private void DoTitle()
     {
@@ -1883,7 +2199,11 @@ internal sealed class EwpHost
     private void DoState()
     {
         var console = GameConsole;
+        // 对账前先放行缓冲行（行先于 state 到达，FE 状态收敛后再对账）
+        FlushLegacyBatch();
         FlushBackground();
+        // 对账前先把挂起的失效事件放出去（FE 拿到 state 时缓存已一致）
+        FlushSpriteInvalidations();
         int channelCount;
         long mismatch;
         lock (channelGate)
@@ -1926,6 +2246,7 @@ internal sealed class EwpHost
             + ",\"failures\":" + spriteStats.Failures
             + ",\"lastRev\":" + spriteStats.LastRev
             + ",\"requestsIgnored\":" + spriteStats.RequestsIgnored
+            + ",\"invalidated\":" + spriteStats.Invalidated
             + ",\"captureMsLast\":" + D(spriteStats.CaptureMsLast)
             + ",\"captureMsP50\":" + D(spriteStats.CaptureMsP50)
             + ",\"captureMsP95\":" + D(spriteStats.CaptureMsP95)
@@ -1933,16 +2254,16 @@ internal sealed class EwpHost
             + ",\"encodeMsP50\":" + D(spriteStats.EncodeMsP50)
             + ",\"encodeMsP95\":" + D(spriteStats.EncodeMsP95) + "}"
             + ",\"scroll\":" + ScrollJson();
-        // Q15/R-AUD-4：cap 未启用 ⇒ sys.state 不出现 audio 键（旧 FE 零字段副作用）
+        // cap 未启用 ⇒ sys.state 不出现 audio 键（旧 FE 零字段副作用）
         if (audioEnabled)
             json += ",\"audio\":" + AudioStateJson();
-        // R-IMG-1a：cap 未启用 ⇒ 不出现 bg 键（旧 FE 逐字节不变）
+        // cap 未启用 ⇒ 不出现 bg 键（旧 FE 逐字节不变）
         if (bgEnabled)
             json += ",\"bg\":" + BackgroundStateJson();
         EwpOut.Emit(json + "}");
     }
 
-    /// <summary>R-IMG-1a：背景快照当前态（rev/w/h/has）＋ TEXT_BGC 全局色。
+    /// <summary>背景快照当前态（rev/w/h/has）＋ TEXT_BGC 全局色。
     /// FE 拿到 rev 与自己持有的不同 ⇒ 发 bg.req 重取；textbgc 为 null ⇒ 关闭。</summary>
     private string BackgroundStateJson()
     {
@@ -1962,7 +2283,7 @@ internal sealed class EwpHost
             + ",\"textbgc\":" + textBgc + "}";
     }
 
-    // ---------------- R-AUD-4：audio（caps/事件/回供/状态） ----------------
+    // ---------------- audio（caps/事件/回供/状态） ----------------
 
     private void ApplyAudioCaps(bool audio, bool feedback, bool instances,
         bool bus, bool transitions, bool meta)
@@ -1990,7 +2311,7 @@ internal sealed class EwpHost
         }
         else if (v1)
         {
-            // S1.2/S1.3：sync 是首条 v1 控制事件；握手期意图已在 shadow 里。
+            // sync 是首条 v1 控制事件；握手期意图已在 shadow 里。
             AudioHooks.BeginV1Sync();
             AudioHooks.Mode = AudioMode.V1;
             audioV1Ledger?.Configure(audioBusCap, audioTransitionsCap, audioMetaCap,
@@ -2005,7 +2326,7 @@ internal sealed class EwpHost
         }
         if (newlyEnabled)
         {
-            // Q1：FE 声明 audio ⇒ VM 静音本机。启动期可能已有原生 BGM/SE 在响（hello.ok 之前
+            // FE 声明 audio ⇒ VM 静音本机。启动期可能已有原生 BGM/SE 在响（hello.ok 之前
             // 指令层走原生路径），一次性停掉；此后所有音频指令都走账本，不再碰本机后端。
             try
             {
@@ -2016,7 +2337,7 @@ internal sealed class EwpHost
         }
     }
 
-    /// <summary>握手 v1 后发一次全量重建（§6.1/S1.2）；超限 fail-closed（§6.2 A-01）。</summary>
+    /// <summary>握手 v1 后发一次全量重建（§6.1）；超限 fail-closed（§6.2）。</summary>
     private void EmitAudioSyncIfPending()
     {
         if (!audioSyncPending)
@@ -2142,7 +2463,7 @@ internal sealed class EwpHost
         EwpOut.Emit(sb.ToString());
     }
 
-    // ---------------- R-AUD-8：audio v1 事件/回供/状态 ----------------
+    // ---------------- audio v1 事件/回供/状态 ----------------
 
     /// <summary>AudioHooks v1 sink：序列化 + 体积 fail-closed（普通 ≤2 KiB，sync ≤128 KiB）。</summary>
     private void OnAudioV1Event(AudioV1Event ev)
@@ -2632,7 +2953,7 @@ internal sealed class EwpHost
             .Append(",\"badReports\":").Append(st.BadReports)
             .Append(",\"queryFallback\":").Append(st.QueryFallback)
             .Append(",\"trackMismatch\":").Append(st.TrackMismatch)
-            // 测试诊断（⛔ 业务事件；G2/Q1 的 nativeSuppressed 读数）
+            // 测试诊断（⛔ 业务事件；nativeSuppressed 读数）
             .Append(",\"diag\":{\"nativeSuppressed\":").Append(st.NativeSuppressed)
             .Append(",\"mixerInitialized\":").Append(MixerStateJson()).Append('}')
             .Append(",\"channels\":[");
@@ -2760,7 +3081,7 @@ internal sealed class EwpHost
         return sb.ToString();
     }
 
-    /// <summary>W2a：rect 导出诊断（console.LastRectDiag——最近一次 GetSelectableButtonRects 的
+    /// <summary>rect 导出诊断（console.LastRectDiag——最近一次 GetSelectableButtonRects 的
     /// 失败原因分布与几何快照）。只读观测，⛔ 门禁语义仍用累计的 rectSelfCheckFailed。</summary>
     private static string EmitRectDiag(EmueraConsole? console)
     {
@@ -2784,12 +3105,16 @@ internal sealed class EwpHost
             + ",\"lineCount\":" + d.LineCount + "}";
     }
 
-    /// <summary>结构化快照（B2/S1）：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；
+    /// <summary>结构化快照：行数组＋世代＋挂起输入＋行 owner 映射/频道段/open 栈；
     /// 断线重连按此原子重建。</summary>
     private void DoSnapshot()
     {
         var console = GameConsole;
+        // snapshot 是全量对账面——先放行缓冲行（快照含同一批行，FE 以 snapshot 为准替换）
+        FlushLegacyBatch();
         FlushBackground();
+        // 快照重建前先发失效（FE 会把缓存里 rev<=水位的条目丢掉，再按 spans 重取）
+        FlushSpriteInvalidations();
         var sb = new StringBuilder(4096);
         sb.Append("{\"t\":\"snapshot.full\",\"lineCount\":").Append(liveLines.Count)
             .Append(",\"generation\":").Append(currentGeneration)
@@ -2803,7 +3128,7 @@ internal sealed class EwpHost
         for (int i = 0; i < liveLines.Count; i++)
         {
             if (i > 0) sb.Append(',');
-            // W0：retained 行若含运行期行内像素（rt），快照必须重建 spans 并重捕获新 rev；
+            // retained 行若含运行期行内像素（rt），快照必须重建 spans 并重捕获新 rev；
             // 不得复用可能已被 LRU 淘汰的旧 rev（旧 rev 仍按不可变语义返回旧图）。
             // 非 rt 行（文本/几何）保持原 spans，避免无意义重建与文本漂移。
             var ll = liveLines[i];
@@ -2827,6 +3152,9 @@ internal sealed class EwpHost
                 .Append(",\"follow\":").Append(s.Follow ? "true" : "false");
             if (s.Rev > 0)
                 sb.Append(",\"rev\":").Append(s.Rev);
+            // ALIGN-18：动画层帧表（重连恢复帧请求面；静态层无此键——旧 FE 快照逐字节不变）。
+            if (s.Anim != null)
+                sb.Append(",\"anim\":").Append(s.Anim);
             sb.Append('}');
         }
         sb.Append("],\"island\":").Append(liveIslandHtml != null ? J(liveIslandHtml) : "null");
@@ -2902,19 +3230,23 @@ internal sealed class EwpHost
                     sb.Append("]}");
                 }
             }
-            // T7-b：快照附带控制台滚动位置（FE 可按同一窗口渲染 backlog；旧 FE 忽略该键）。
+            // 快照附带控制台滚动位置（FE 可按同一窗口渲染 backlog；旧 FE 忽略该键）。
             // ⚠ 必须在对象闭合前追加（最后一处 "]}")，否则 JSON 结构破裂。
             sb.Append("],\"scroll\":").Append(ScrollJson());
-            // R-IMG-1a：背景快照态（rev/has/textbgc）。FE 若未持有该 rev ⇒ bg.req 重取；
+            // 背景快照态（rev/has/textbgc）。FE 若未持有该 rev ⇒ bg.req 重取；
             // 旧 FE 未声明 bg ⇒ 零键（⛔ 不能无条件追加，否则旧 FE 快照逐字节变化）。
             if (bgEnabled)
                 sb.Append(",\"bg\":").Append(BackgroundStateJson());
+            // ALIGN-16：动画时钟有效值（重连恢复「是否自主重绘」）。
+            // 旧 FE（caps 未声明 sprite.export）零键——⛔ 不能无条件追加，否则旧 FE 快照逐字节变化。
+            if (spriteExport.Enabled)
+                sb.Append(",\"animeTimer\":").Append(console?.AnimeTimer ?? 0);
             sb.Append('}');
         }
         EwpOut.Emit(sb.ToString());
     }
 
-    /// <summary>T7-b：控制台滚动位置（单位＝行）。value＝ScrollValue（底边下一行的索引），
+    /// <summary>控制台滚动位置（单位＝行）。value＝ScrollValue（底边下一行的索引），
     /// max＝ScrollMaximum（总行数），visible＝floor(RenderHeight/LineHeight)，
     /// top＝value-visible＝可见窗口首行索引（与引擎绘制口径一致）。</summary>
     private string ScrollJson()
@@ -2938,7 +3270,7 @@ internal sealed class EwpHost
         return Math.Max(1, height / lineHeight);
     }
 
-    /// <summary>T7-b：程序化滚动。走与鼠标滚轮相同的状态路径
+    /// <summary>程序化滚动。走与鼠标滚轮相同的状态路径
     /// （ScrollValue → NotifyUserScrolled → RefreshStrings(force)）；value＝绝对行，delta＝相对行，
     /// 一律 clamp 到 [0, ScrollMaximum]。响应回带滚动后的 scroll 对象。</summary>
     private void DoScroll(JsonElement root)

@@ -1,6 +1,6 @@
 # Emuera-SKIA
 
-> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav16.6.14
+> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav18.0
 
 [![Base](https://img.shields.io/badge/base-Emuera%201.824%20%2B%20EEv56-blue)](#)
 [![Lang](https://img.shields.io/badge/lang-C%23%20%2F%20ERABASIC-green)](#)
@@ -18,20 +18,22 @@
 | **渲染引擎** | SkiaSharp 替代 GDI+，OpenGL 硬件加速 + 自动降级，SRGB 色彩空间修复；F11 全屏比例缩放；GDI 字体回退（MS Gothic 等光栅字体） |
 | **HTML 渲染** | 统一 depth 绘制管线，`<div>` 容器/定位/层级/ARGB 透明/`height` auto/自闭合、`<font size/valign>` 垂直对齐、`<img>` 颜色矩阵 + `display` 绝对定位 |
 | **图像图层** | `SETIMAGELAYER` 独立图层系统（多精灵同层）、`SETIMAGELAYERL` 行相对定位、`GETLINEY` 物理 Y 坐标；`SPRITECREATE`/`SPRITECREATEFROMFILE` 偏移与目标尺寸；`CBGSETSPRITE` 缩放/透明度/颜色矩阵；视口裁剪、动图离窗暂停 |
-| **浮点类型** | `#DIMF` / `#FUNCTIONF` / `LOCALF` / `ARGF` / `RESULTF`；`TOSTRF` / `TOFLOAT` / `TOINT` 转换；POWER/SQRT/ABS 等函数根据参数动态返回 Integer/Float；存档双精度 |
+| **资源包** | `resources.pak` 单文件资源包（RPK）：立绘/表情/差分/背景与图片 CSV 收进一个 ZIP 容器，磁盘同名文件优先、包只补缺口；索引态 `RandomAccess` 直读（宽高 0 I/O），索引缺失或损坏自动退化 `ZipArchive`；`ERATW_FORCE_PAK=1` 强制查包；`SpriteMeta` 内存字典化（装载中位 −46%）；`MemoryDiagnostic` 增 pak 条目数与体积 |
+| **浮点类型** | `#DIMF` / `#FUNCTIONF` / `LOCALF` / `ARGF` / `RESULTF`；`TOSTRF` / `TOFLOAT` / `TOINT` 转换；POWER/SQRT/ABS 等函数根据参数动态返回 Integer/Float；存档双精度；`#DIMF` 支持 1–3 维（普通/`SAVEDATA`/`GLOBAL`/函数内静态与动态局部） |
 | **数学扩展** | 三角函数（`SIN`/`COS`/`TAN`/`ASIN`/`ACOS`/`ATAN`）、取整（`FLOOR`/`CEIL`/`ROUND`）、`UNCHECKED_*` 回环溢出 |
-| **变量系统** | ExecutionContext 栈式函数上下文（修复 ARG 递归覆写）、SparseArray 稀疏存储、SafeArithmetic 溢出保护、ERD 用户定义变量 `.als` 别名（按变量域隔离）、ALS 多对一映射 |
+| **变量系统** | ExecutionContext 栈式函数上下文（修复 ARG 递归覆写）、SparseArray 稀疏存储、SafeArithmetic 溢出保护、ERD 用户定义变量 `.als` 别名（按变量域隔离）、ALS 多对一映射；一维内置数组按 `VariableSize.CSV` 声明长度保底存档 |
+| **常数表** | `#DIM` / `#DIMS` / `#DIMF` 的 `CONSTTABLE` 声明（别名 `常数表`/`常数数组`）：值与维度名称从 `CSV/<名称>.csv`、`CSV/<名称>.erd`、`ERB/**/<名称>.ERD` 读取，支持一维/二维、名称下标、主/补充表合并与 `.als` 别名；声明必须写尺寸、不得写内联初始值 |
 | **语法扩展** | `VARIADIC` 可变参数 + `ARGLEN()`、`#REF`/`#REFS` 元素引用、`OUT` 输出参数、`@FUNCNAME:LOCAL` 调试窗口函数名访问 |
 | **动态调用** | `EVAL`/`EVALS` 表达式求值、`CALLSTR`/`JUMPSTR`/`TRYCALLSTR` 动态函数名调用、函数调用三层安全性修复 |
 | **像素制表** | `HTML_PRINTC`/`HTML_PRINTLC` 右/左对齐输出；`PRINTC`/`PRINTFORMC` 像素制表重构（跨平台 CJK 列对齐） |
 | **SQL 系统** | 参数化查询（`SQL_P_EXECUTE_*`）、XML 导入导出（`SQL_IMPORT_XML_CUSTOM`）、连接便利函数（`SQL_CONNECTION_OPEN`） |
-| **输入系统** | `TINPUTNF`/`TINPUTSNF`/`TONEINPUTNF`/`TONEINPUTSNF` 不强制回底、自由滚动、`HOVER_PAUSE` 悬停暂停、用户上滚意图保留、`SEQUENCEINPUT` 输入排程、`DISABLE_INPUT_MACRO`/`ENABLE_INPUT_MACRO` 输入宏开关 |
+| **输入系统** | `TINPUTNF`/`TINPUTSNF`/`TONEINPUTNF`/`TONEINPUTSNF` 不强制回底、自由滚动、`HOVER_PAUSE` 悬停暂停、悬停高亮跨整屏重排保活（tooltip 判据改内容键）、用户上滚意图保留、`SEQUENCEINPUT` 输入排程、`DISABLE_INPUT_MACRO`/`ENABLE_INPUT_MACRO` 输入宏开关 |
 | **模态与超时** | 模态窗口（剪贴板/文件/确认框/配置/热键提示）打开期间暂停带时限输入的定时器（`ModalTimerGuard` 统一闸＋`tickTimer` 兜底），杜绝超时在窗口背后抢跑脚本；关窗后重新计满 |
 | **显示控制** | F11 全屏比例缩放、`GETDISPLAYLINE` 负数倒数索引（-1=最后一行）、`STRICT_FONT_FALLBACK` 严格字体回退、`TEXT_BGC_ON/OFF` 文本背景色 |
 | **错误处理** | `BEFORE_THROW`/`BEFORE_ERROR` 事件函数、`DisableBeforeErrorThrow` 配置项、8 条 Float 错误消息修正、调试窗口调用栈保留 |
-| **编码与存档** | 非日文编码（GBK 等）下 CJK 文本长度/子串计算修正（`GetStrlenLang`/`GetUFTIndex`/`GetSubStringLang`）；`CHKDATA` 返回存档版本信息 |
+| **编码与存档** | 文件编码探测仅请求读取权限，I/O 错误不作为 CP932 回退；非日文编码（GBK 等）下 CJK 文本长度/子串计算修正（`GetStrlenLang`/`GetUFTIndex`/`GetSubStringLang`）；`CHKDATA` 返回存档版本信息 |
 | **诊断工具** | 调试窗口 `LOCAL@FUNCNAME` 监视、变量监视「锁定」列与直接赋值、当前函数栈保留、`ProcessState.ContextStackCount` 计数、变量写入监视（`var_write.log` 明细 + 汇总报告）、打印监视（`print_trace.log` 实时视图 + 汇总报告）；两者均可选记录调用栈（GUI 勾选项 / CLI `watch` 的 `stack`） |
-| **外部协议（EWP）** | `--ewp` 事件流宿主（stdio/TCP，MessagePack 默认 / `--ewp-json` 调试形态）：legacy 行流＋行 ID＋input.request/submit 闭环＋信用窗背压；hello.metrics 网格基准、视口回传、结构化 snapshot、sprite/overlay 语义流、`pixel.frame` 离屏整帧像素流、`UI_CHANNEL_*` 频道边界事件；**EWP v0.3（冻结）**：`sprite.export` 运行期快照（`sprite.req`/`data`/`fail`＋`rev`）、`sys.title`、`hello.proto=EWP/0.3`；**16.6.11/16.6.12**：动画精灵帧表 `anim{count,delays}`（顶层 span 与 `div.children` 子节点同形）、`sprite.req` 负 rev 按帧取值 |
+| **外部协议（EWP）** | `--ewp` 事件流宿主（stdio/TCP，MessagePack 默认 / `--ewp-json` 调试形态）：legacy 行流＋行 ID＋input.request/submit 闭环＋信用窗背压；hello.metrics 网格基准、视口回传、结构化 snapshot、sprite/overlay 语义流、`pixel.frame` 离屏整帧像素流、`UI_CHANNEL_*` 频道边界事件；**EWP v0.3（冻结）**：`sprite.export` 运行期快照（`sprite.req`/`data`/`fail`＋`rev`）、`sys.title`、`hello.proto=EWP/0.3`；**16.6.11/16.6.12**：动画精灵帧表 `anim{count,delays}`（顶层 span 与 `div.children` 子节点同形）、`sprite.req` 负 rev 按帧取值；**16.6.15**：CBG 合成快照 `bg`（`bg.set/data/fail/clear`＋FE `bg.req`＋`legacy.textbgc` 全局底色）；**17.1**：运行期 sprite 失效 `sprite.invalidate{texture|all,rev}`（`rev`＝作废水位，旧 rev 回 `expired`）；**17.2**：HTML 按钮 span `kind:"button"{value,几何}`（顶层与 div 子级）、`REDRAW 0` 期间 legacy 事件在原生重绘点整批放行、`--ewp` 不再吃 `Config.FPS` 节流 |
 | **音频（EWP）** | `AUDIO_PLAY`／`AUDIO_CTL`／`AUDIO_BUS`／`AUDIO_DUCK`／`AUDIO_QUERY`／`AUDIO_BUS_QUERY` 六个 ERB 内建；v1 账本（单调句柄不复用／0＝拒绝、8 态机与终态保留、`priority`／`steal:none`／`maxVoices`／`maxInstances` 准入与抢占）、`master`/`bgm`/`se`/`voice` 总线与 duck、`fadeIn`/`crossfade`/`seek`/`if_changed` 过渡、重连 `audio.sync` 全量重建；v0.2 会话 fail-closed |
 | **性能优化** | `SELECTCASE` 编译期跳转表（O(1) 查找）、SQL 图片缓存、SharedBitmapCache 字节预算 LRU（256 MB）、AnimSpriteCache LRU（6 个 / 256 MB 双限）、DIV 渲染 O(1) 命中测试 |
 | **跨平台** | SkiaX — LazyLoading 仓库内的 Xamarin.Android 移植端（`feature/xamarin` 分支），直接编译内核，详见 [Emuera.Xamarin/](Emuera.Xamarin/) |
@@ -83,4 +85,4 @@
 
 ---
 
-> 版本 V16.6.14
+> 版本 V18.0.0

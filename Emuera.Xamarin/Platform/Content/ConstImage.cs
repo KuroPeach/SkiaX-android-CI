@@ -40,10 +40,20 @@ namespace MinorShift.Emuera.Content
 
 				try
 				{
-					bmp = SKBitmap.Decode(filepath);
-					// SkiaSharp 解码失败时（如 Android 上某些 WebP），尝试平台回退
+					// 包内图片：整条读到内存再解；未命中（含磁盘优先／两侧都没有）走原路径
+					var pakBytes = ResourceStore.ReadAllBytes(filepath);
+					if (pakBytes != null)
+					{
+						using var data = SKData.CreateCopy(pakBytes);
+						bmp = SKBitmap.Decode(data);
+					}
+					else
+					{
+						bmp = SKBitmap.Decode(filepath);
+					}
+					// SkiaSharp 解码失败时（如 Android 上某些 WebP），尝试平台回退（字节优先、路径兜底）
 					if (bmp == null)
-						bmp = PlatformInterop.DecodeBitmapFallback(filepath);
+						bmp = PlatformInterop.DecodeBitmapFallback(pakBytes, filepath);
 					if (bmp == null) return null;
 
 					if (cache.Count >= MaxCache)
@@ -79,22 +89,42 @@ namespace MinorShift.Emuera.Content
 				}
 			}
 
+			// 索引态：包内宽高直接来自索引（0 I/O）。磁盘有同名文件时它返回 false（磁盘优先）
+			if (ResourceStore.TryGetInfo(filepath, out width, out height))
+				return true;
+
+			byte[] pakBytes = null;
 			try
 			{
-				using var codec = SKCodec.Create(filepath);
-				if (codec != null)
+				pakBytes = ResourceStore.ReadAllBytes(filepath);
+				if (pakBytes != null)
 				{
-					width = codec.Info.Width;
-					height = codec.Info.Height;
-					return true;
+					using var data = SKData.CreateCopy(pakBytes);
+					using var codec = SKCodec.Create(data);
+					if (codec != null)
+					{
+						width = codec.Info.Width;
+						height = codec.Info.Height;
+						return true;
+					}
+				}
+				else
+				{
+					using var codec = SKCodec.Create(filepath);
+					if (codec != null)
+					{
+						width = codec.Info.Width;
+						height = codec.Info.Height;
+						return true;
+					}
 				}
 			}
 			catch { }
 
-			// SkiaSharp 无法识别格式时（如 Android 上某些 WebP），尝试平台回退
+			// SkiaSharp 无法识别格式时（如 Android 上某些 WebP），尝试平台回退（字节优先、路径兜底）
 			try
 			{
-				var info = PlatformInterop.GetBitmapInfoFallback(filepath);
+				var info = PlatformInterop.GetBitmapInfoFallback(pakBytes, filepath);
 				if (info != null)
 				{
 					width = info.Value.Width;
