@@ -59,11 +59,16 @@ jobs:
         run: dotnet restore Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj
 
       # ---------- 1) 首选：只编 arm64-v8a ----------
-      # 用 -r（单数，官方推荐路径）把整个项目按一个 RID 编译，产物只含
-      # arm64-v8a 的 lib 与 assemblies blob，体积最小。
-      # 注意不能用 -p:RuntimeIdentifiers=<单个 RID>：那是复数列表属性的
-      # 全局覆盖，会让 Core 的 TargetPath 指向 obj/<cfg>/<tfm>/<rid>/ 而实际
-      # 产物在无 RID 目录，GetAssemblyAttributes 报 MSB4018。
+      # 两个坑叠在一起，必须同时处理：
+      #   a) Android csproj 里写死了 <RuntimeIdentifiers>android-arm;android-x86;
+      #      android-x64;android-arm64</RuntimeIdentifiers>，只给 -r 的话
+      #      打包仍按这个列表来，产物照样是四架构（静默失败，体积一点没小）。
+      #      → 必须再用 -p:RuntimeIdentifiers=android-arm64 覆盖它。
+      #   b) 用 -p:RuntimeIdentifiers=<单个 RID> 覆盖后，Core 的 TargetPath 会
+      #      带上 rid 子目录（obj/<cfg>/<tfm>/<rid>/），而实际编译产物落在无
+      #      rid 目录 → GetAssemblyAttributes 报 MSB4018 FileNotFound。
+      #      → 加 -p:AppendRuntimeIdentifierToOutputPath=false 让两边对齐。
+      # 最后再校验产物里真的只有 arm64，不是就判失败走兜底（防止再次静默）。
       - name: Build arm64 APK
         id: build_arm64
         continue-on-error: true
@@ -72,16 +77,21 @@ jobs:
           dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
             -c Release -f net8.0-android \
             -r android-arm64 \
+            -p:RuntimeIdentifiers=android-arm64 \
+            -p:AppendRuntimeIdentifierToOutputPath=false \
             -p:AndroidPackageFormat=apk \
             -p:AndroidKeyStore=false \
             -p:RunAOTCompilation=false \
             -p:CheckEolWorkloads=false
           mkdir -p keep
-          # -r 编译的产物在 bin/Release/net8.0-android/<rid>/ 下，要递归找
           APK=$(find Emuera.Xamarin.Android/bin/Release -name '*.apk' \
                   ! -name '*-Signed.apk' | head -1)
-          test -n "$APK" || { echo "::warning::-r 单架构编译没出包，转合一包"; exit 1; }
+          test -n "$APK" || { echo "::warning::没出 APK"; exit 1; }
           echo "取自：$APK"
+
+          echo "==== 校验产物架构 ===="
+          python3 scripts/check_apk_abi.py "$APK" arm64-v8a
+
           cp "$APK" keep/Emuera.SkiaX-arm64-v8a.apk
           ls -la keep/
 

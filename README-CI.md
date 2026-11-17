@@ -47,20 +47,42 @@
 `android-x64`。也可以同时保留多个（`-r android-arm64 -r android-x64`），
 MSBuild 会按 RID 各出一个包。
 
-### `-r` 与 `-p:RuntimeIdentifiers=` 的区别（踩过的坑）
+### 单架构编译：三个坑要一起处理（实测复盘）
 
-早先 CI 写的是循环 `dotnet publish -p:RuntimeIdentifiers=<单个 RID>`，四个
-架构全部失败（`continue-on-error` 兜住，历史 run `41878619612`、
-`44155973656` 都是这样）：
+`Emuera.Xamarin.Android.csproj:45` 写死了四个 RID：
 
-- 报 **MSB4018** `GetAssemblyAttributes` → `FileNotFoundException:
-  Emuera.Xamarin.Core/obj/Release/net8.0/<rid>/XEmuera.Core.dll`
-- 根因：`RuntimeIdentifiers` 是**复数列表**属性，命令行全局覆盖它之后
-  Core 的 `TargetPath` 会带 RID 子目录，而实际编译产物落在无 RID 目录。
+```xml
+<RuntimeIdentifiers>android-arm;android-x86;android-x64;android-arm64</RuntimeIdentifiers>
+```
 
-正确写法是 `-r <rid>`（单数 `RuntimeIdentifier`），它作用于整个项目引用
-图，路径一致。官方也是这么建议的：`$(AndroidCreatePackagePerAbi)` 自
-.NET 9 起弃用（dotnet/android PR #9586），推荐改用 `-r` 逐个编译。
+由此引出一连串坑，**踩过两次才全打通**：
+
+1. **只给 `-r android-arm64` 会静默失败**。`-r` 只设 `RuntimeIdentifier`，
+   打包仍按 `RuntimeIdentifiers` 列表来，产物还是四架构——而且 CI 报成功，
+   文件名却叫 `arm64-v8a`，体积一点没小。所以必须**再用
+   `-p:RuntimeIdentifiers=android-arm64` 覆盖列表**。
+2. **光覆盖列表会报 MSB4018**。`-p:RuntimeIdentifiers=<单个 RID>` 让 Core
+   的 `TargetPath` 带上 rid 子目录（`obj/<cfg>/<tfm>/<rid>/`），而实际编译
+   产物落在无 rid 目录 → `GetAssemblyAttributes` `FileNotFoundException`。
+   解法：加 `-p:AppendRuntimeIdentifierToOutputPath=false` 把两边对齐。
+3. **所以必须验产物**。光看步骤成功不够，编完用
+   `scripts/check_apk_abi.py <apk> arm64-v8a` 检查 `lib/` 里真的只有一个
+   ABI，不是就判失败转兜底。
+
+完整命令：
+
+```bash
+dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
+  -c Release -f net8.0-android \
+  -r android-arm64 \
+  -p:RuntimeIdentifiers=android-arm64 \
+  -p:AppendRuntimeIdentifierToOutputPath=false \
+  -p:AndroidPackageFormat=apk -p:AndroidKeyStore=false \
+  -p:RunAOTCompilation=false -p:CheckEolWorkloads=false
+```
+
+背景：`$(AndroidCreatePackagePerAbi)` 自 .NET 9 起弃用（dotnet/android
+PR #9586），官方推荐改用 `-r` 逐个编译。
 
 ## 安装注意
 
