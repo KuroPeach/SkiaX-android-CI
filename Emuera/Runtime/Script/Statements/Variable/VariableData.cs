@@ -66,6 +66,10 @@ internal sealed partial class VariableData : IDisposable
 
 	readonly Dictionary<string, VariableToken> varTokenDic = new(Config.StrComper);
 	readonly Dictionary<string, VariableLocal> localvarTokenDic = new(Config.StrComper);
+	/// <summary>
+	/// 一维内置数组的声明长度，按数组实例索引。用户定义变量不登记。
+	/// </summary>
+	readonly Dictionary<object, int> declaredArrayLengths = [];
 
 	/// <summary>
 	/// ユーザー変数のうちStaticかつ非Globalなもの。ERHでのDIM(非GLOBAL) と関数でのDIM (STATIC)の両方。ロードやリセットで初期化が必要。キャラクタ変数は除く。
@@ -104,6 +108,7 @@ internal sealed partial class VariableData : IDisposable
 		{
 			dataIntegerArray[i] = new SparseArray<long>();
 			dataIntegerArray[i].Length = constant.VariableIntArrayLength[i];
+			declaredArrayLengths.Add(dataIntegerArray[i], constant.VariableIntArrayLength[i]);
 		}
 
 		dataString = new string[(int)VariableCode.__COUNT_STRING__];
@@ -114,6 +119,7 @@ internal sealed partial class VariableData : IDisposable
 		{
 			dataStringArray[i] = new SparseArray<string>();
 			dataStringArray[i].Length = constant.VariableStrArrayLength[i];
+			declaredArrayLengths.Add(dataStringArray[i], constant.VariableStrArrayLength[i]);
 		}
 
 
@@ -470,6 +476,8 @@ internal sealed partial class VariableData : IDisposable
 			switch (data.Dimension)
 			{
 				case 1: ret = new StaticFloat1DVariableToken(data); break;
+				case 2: ret = new StaticFloat2DVariableToken(data); break;
+				case 3: ret = new StaticFloat3DVariableToken(data); break;
 				default: throw new ExeEE(trerror.AbnormalVarDeclaration.Text);
 			}
 		else if (data.TypeIsStr)
@@ -556,6 +564,8 @@ internal sealed partial class VariableData : IDisposable
 				switch (data.Dimension)
 				{
 					case 1: ret = new StaticFloat1DVariableToken(data); break;
+					case 2: ret = new StaticFloat2DVariableToken(data); break;
+					case 3: ret = new StaticFloat3DVariableToken(data); break;
 					default: throw new ExeEE(trerror.AbnormalVarDeclaration.Text);
 				}
 			}
@@ -588,6 +598,8 @@ internal sealed partial class VariableData : IDisposable
 				switch (data.Dimension)
 				{
 					case 1: ret = new PrivateFloat1DVariableToken(data); break;
+					case 2: ret = new PrivateFloat2DVariableToken(data); break;
+					case 3: ret = new PrivateFloat3DVariableToken(data); break;
 					default: throw new ExeEE(trerror.AbnormalVarDeclaration.Text);
 				}
 			}
@@ -1224,6 +1236,17 @@ internal sealed partial class VariableData : IDisposable
 	}
 	#endregion
 
+	/// <summary>
+	/// 一维内置数组的声明长度（VariableSize.CSV）。
+	/// SparseArray.Length 在读档时会被存档长度覆盖；存档长度小于声明长度时，
+	/// 该值既不能作为存档写入的截断边界，也不能作为数组运算的有效边界。
+	/// 用户定义变量未登记，返回 0，其长度仍由存档决定。
+	/// </summary>
+	private int DeclaredArrayLength(object array)
+	{
+		return declaredArrayLengths.TryGetValue(array, out int length) ? length : 0;
+	}
+
 	public void SaveGlobalToStreamBinary(EraBinaryDataWriter writer)
 	{
 		foreach (KeyValuePair<string, VariableToken> pair in varTokenDic)
@@ -1233,9 +1256,9 @@ internal sealed partial class VariableData : IDisposable
 			{
 				object arr = var.GetArray();
 				if (arr is SparseArray<long> sparseLong)
-					writer.WriteWithKey(pair.Key, sparseLong.ToArray(sparseLong.Length));
+					writer.WriteWithKey(pair.Key, sparseLong.ToArray(Math.Max(sparseLong.Length, DeclaredArrayLength(sparseLong))));
 				else if (arr is SparseArray<string> sparseStr)
-					writer.WriteWithKey(pair.Key, sparseStr.ToArray(sparseStr.Length));
+					writer.WriteWithKey(pair.Key, sparseStr.ToArray(Math.Max(sparseStr.Length, DeclaredArrayLength(sparseStr))));
 				else
 					writer.WriteWithKey(pair.Key, arr);
 			}
@@ -1264,9 +1287,9 @@ internal sealed partial class VariableData : IDisposable
 			{
 				object arr = var.GetArray();
 				if (arr is SparseArray<long> sparseLong)
-					writer.WriteWithKey(pair.Key, sparseLong.ToArray(sparseLong.Length));
+					writer.WriteWithKey(pair.Key, sparseLong.ToArray(Math.Max(sparseLong.Length, DeclaredArrayLength(sparseLong))));
 				else if (arr is SparseArray<string> sparseStr)
-					writer.WriteWithKey(pair.Key, sparseStr.ToArray(sparseStr.Length));
+					writer.WriteWithKey(pair.Key, sparseStr.ToArray(Math.Max(sparseStr.Length, DeclaredArrayLength(sparseStr))));
 				else
 					writer.WriteWithKey(pair.Key, arr);
 			}
@@ -1436,7 +1459,7 @@ internal sealed partial class VariableData : IDisposable
 					if (arrObj is SparseArray<long> sparse)
 					{
 						long[] tmp = reader.ReadIntArrayIntoNew(true);
-						sparse.Length = tmp.Length;
+						sparse.Length = Math.Max(tmp.Length, DeclaredArrayLength(sparse));
 						sparse.FromArray(tmp);
 					}
 					else
@@ -1464,7 +1487,7 @@ internal sealed partial class VariableData : IDisposable
 					if (arrObj is SparseArray<string> sparse)
 					{
 						string[] tmp = reader.ReadStrArrayIntoNew(true);
-						sparse.Length = tmp.Length;
+						sparse.Length = Math.Max(tmp.Length, DeclaredArrayLength(sparse));
 						sparse.FromArray(tmp);
 					}
 					else
@@ -1503,7 +1526,7 @@ internal sealed partial class VariableData : IDisposable
 					{
 						double[] tmp = new double[len];
 						for (int i = 0; i < len; i++) tmp[i] = reader.ReadDouble();
-						sparse.Length = tmp.Length;
+						sparse.Length = Math.Max(tmp.Length, DeclaredArrayLength(sparse));
 						sparse.FromArray(tmp);
 					}
 					else
