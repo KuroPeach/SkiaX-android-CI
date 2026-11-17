@@ -109,6 +109,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **声明区间内的数组元素不再被旧档长度截断**：`VariableData` 为一维内置数组登记 VariableSize.CSV 的声明长度；`SaveToStreamBinary` / `SaveGlobalToStreamBinary` 的写入长度，以及 `LoadVariableBinary` 读档后的 `SparseArray.Length`，均取 `max(运行时长度, 声明长度)`。此前读取长度较小的旧档会把 `SparseArray.Length` 覆盖为旧档长度，之后保存只写出旧档长度，声明区间内下标更大的元素（例如 ITEM:1165）在存档中丢失。用户定义变量未登记，行为不变。
 
+- **Android 版本**：`0.80.0` → `0.81.0`（versionCode 80 → 81，对应内核 Skiav18.0）
+
 ***
 
 ## [17.4.0] — 资源包单文件化（resources.pak）＋ 文件编码探测只读访问（开发构建，未发布）
