@@ -4,42 +4,7 @@ All notable changes to Emuera-SKIA will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [17.4.0] — 资源包单文件化（resources.pak）＋ 文件编码探测只读访问（开发构建，未发布）
-
-### Added
-
-- **`resources.pak` 单文件资源包（RPK）**：新增 `Runtime/Utils/ResourceStore.cs`，把 `resources/` 下的图片与 CSV 收进一个 ZIP 容器随包分发。查找顺序＝**磁盘 → 包**，磁盘有同名文件时一律返回未命中、由调用方走原路径，包只补磁盘缺口；无包时所有接口返回未命中，行为与接入前逐字节一致。
-  - `ToEntryName` 归一：`\`→`/`、前缀比较 `OrdinalIgnoreCase`、拒绝 `..` 越界段。CSV 里实测有写 `infoThumb\blank.webp` 的，包内条目是 `infoThumb/blank.webp`，不归一即静默缺图。
-  - 两种运行态：**索引态**＝启动读一次包内 `.rpk-index.bin`（magic `RPKI` v1，20 B 头＋26 B/条＋UTF-8 名表），之后 `RandomAccess.Read` 直读、`ArrayPool` 复用缓冲、无锁，UI 与 ERB 线程可并发；**退化态**＝索引缺失或损坏（第三方重打包）时持 `ZipArchive`＋全局锁整条读，语义与索引态逐条等价。
-  - 探测顺序 `resources.pak` → `resources.zip`；`Configure(exeDir, contentDir)` 只记路径，包在首次查询时才打开（无图场景不占句柄）。
-  - `ERATW_FORCE_PAK=1` 跳过「磁盘优先」强制查包，用于在散图仍在磁盘的开发目录上验证包路径本身（条目名归一、大小写）；只读环境变量，不写 config。
-  - 诊断：`MemoryDiagnostic` 新增「resources.pak 条目数」「resources.pak 体积」两行。
-- **图片层接入**（桌面 6 组 8 处读取点）：`SharedBitmapCache.Get`／`GetInfo`、`AnimatedImageHelper.GetAnimInfo`／`Decode`、`AppContents` 三处 `File.Exists`、`GCREATEFROMFILE` 全部改为「包内字节优先、磁盘路径兜底」；包内条目整条读成字节后用 `SKData`／`SKCodec` 解，编码仍走 `EncodingHandler`。`GetInfo` 先取索引宽高（**0 I/O**：建 200 个 `ConstImage` 3~4 ms／112 KiB，磁盘态 103~125 ms），索引未填尺寸才回退解码读头。
-- **CSV 入包**：`AppContents.LoadContents` 的 CSV 来源改为「磁盘 ∪ 包内」，按整条绝对路径 `OrdinalIgnoreCase` 去重且磁盘优先；包内 CSV 走 `MemoryStream` ＋ `EncodingHandler.DetectEncoding(Stream)` 解析（⛔ 不直接 UTF-8 解码，CP932 的 CSV 会乱码）。`ResourceStore.EnumerateRelative(suffix)` 返回 posix 相对名供枚举，调用方负责合成绝对路径（`Path.GetDirectoryName` 依赖它）。
-- **`SpriteMeta` 内存化**：`AppContents` 的内存 SQLite（建表＋逐行 `INSERT OR REPLACE`＋事务）换为 `Dictionary<string, List<MetaRow>>`（`StringComparer.Ordinal`，对齐旧实现的「大写后精确匹配」）。行序＝CSV 行序，与旧 `ORDER BY FrameIndex` 逐行等价；`metaRowCount` 口径仍是**行数**（不是名字数）。磁盘场景端到端装载 590/633/845 → 320/323/397 ms（交错 6 轮，中位 −46%）。
-- **Android 端同步接入**（SkiaX `feature/xamarin`，安卓版本 0.80.0）：`Platform/Content/{ConstImage,AnimatedImageHelper,AppContents}.cs` 与两处 `PlatformInterop` 的四回退委托改为「字节优先、路径兜底」（`Func<byte[], string, …>`，bytes 为 null 时只有磁盘路径）；`AndroidHost` 在 `PathProvider` 构造之后注入 `ResourceStore.Configure`。`FileUtils` 本体未改（它服务于 ERB／存档等非资源路径）。
-- 新增 `tests/EncodingHandler.Tests`，直接引用构建后的引擎程序集，覆盖编码、只读文件、I/O 异常、流位置，以及磁盘／pak 资源装载与 CSV 错误回显。
-
-### Changed
-
-- `AppContents.LoadContents` 的早退条件由「`ContentDir` 不存在」改为「`ContentDir` 不存在 **且** 无可用包」——发布包里 `resources/` 可以只剩一份说明文件，CSV 全部来自包。
-- `GCREATEFROMFILE` 的判存在由 `File.Exists` 换 `ResourceStore.Exists`（磁盘 ∪ 包内，是前者的超集）。
-
-### Fixed
-
-- 编码探测仅请求读取权限，保持原有独占共享模式；可读但不可写的资源 CSV 不再因多余的写访问请求而装载失败。
-- 文件与流探测仅在 UTF-8 解码失败时回退 CP932；文件不存在、拒绝访问及其他 I/O 错误原样上抛，不跳过 CSV 或把资源装载失败报告为成功。
-- 流探测在成功与异常路径均恢复调用方位置并保持流打开；短文件的 BOM 判断只比较实际读到的完整前缀。
-- CSV 错误源行回显从 CSV 目录探测编码，与实际读取的文件保持一致。
-
-### 验证
-
-- 新增 `tests/EncodingHandler.Tests`，直接引用构建后的引擎程序集，覆盖编码、只读文件、I/O 异常、流位置，以及磁盘／pak 资源装载与 CSV 错误回显。
-- 2026-11-17：Release-x64 回归 303 项通过、0 失败；开发仓 267 CSV、39,975 个精灵名与 40,829 条元数据逐项一致，背景和立绘各一张实际解码通过。
-- 2026-11-17：用户对开发仓 17.4 的窗口启动／立绘／背景冒烟回复「测试通过」。此为人工验收回执，不将程序集测试改记为 GUI 测试；正式发布包尚未按本版重打。
-
-***
-## [17.2.2] — 常数表声明（CONSTTABLE）与 `#DIMF` 多维
+## [18.0.0] — 常数表声明（CONSTTABLE）与 `#DIMF` 多维；一维数组存档长度保底（开发构建，未发布）
 
 - **`#DIM` / `#DIMS` / `#DIMF` 的 `CONSTTABLE` 声明**（别名 `常数表` / `常数数组`）：值与维度名称从同名文件读取，无需内联初始值，支持一维与二维数组，编译期按常量折叠，可用名称下标访问。原生 `CONST` 的语义与错误检查不变。
 - **值表格式**：二维表用 `@1` / `@2` 两个定位单元格决定纵横维度方向；纵向标记下方与横向标记右方分别读取橙色注册数、蓝色注册名，夹出的灰色区域为数值。**标记必须放在 (2,1) 与 (1,2) 两处**（哪个标记在哪一处均可）：位置写错时这张表不会被当成二维表，而会按一维表解读（`@1` 落在注册数列就按「不是非负整数」的坏格报出来）。一维表为 `[注册数, 注册名, 值]`。空行与 `;` 注释行忽略，越界索引不读；**写了注册名就必须写注册数**，只有注册数与注册名都留空的格子才按前一格顺延，否则主表报出「第 N 个有效行、第 M 列写了注册名「X」却没有注册数」并失败，补充表只警告并跳过该行/该列；**留空的单元格就是默认值**（整数 `0`、浮点 `0.0`、字符串 `""`），三种类型一致。
@@ -140,11 +105,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 > 注意：名称下标里的行名 / 列名不要用单个英文字母（如 `A`），会取不到值；这是名称下标本来的行为，与常数表无关。
 
-## [17.2.1] — 二进制存档一维数组长度按声明长度保底
-
 ### Fixed
 
 - **声明区间内的数组元素不再被旧档长度截断**：`VariableData` 为一维内置数组登记 VariableSize.CSV 的声明长度；`SaveToStreamBinary` / `SaveGlobalToStreamBinary` 的写入长度，以及 `LoadVariableBinary` 读档后的 `SparseArray.Length`，均取 `max(运行时长度, 声明长度)`。此前读取长度较小的旧档会把 `SparseArray.Length` 覆盖为旧档长度，之后保存只写出旧档长度，声明区间内下标更大的元素（例如 ITEM:1165）在存档中丢失。用户定义变量未登记，行为不变。
+
+***
+
+## [17.4.0] — 资源包单文件化（resources.pak）＋ 文件编码探测只读访问（开发构建，未发布）
+
+### Added
+
+- **`resources.pak` 单文件资源包（RPK）**：新增 `Runtime/Utils/ResourceStore.cs`，把 `resources/` 下的图片与 CSV 收进一个 ZIP 容器随包分发。查找顺序＝**磁盘 → 包**，磁盘有同名文件时一律返回未命中、由调用方走原路径，包只补磁盘缺口；无包时所有接口返回未命中，行为与接入前逐字节一致。
+  - `ToEntryName` 归一：`\`→`/`、前缀比较 `OrdinalIgnoreCase`、拒绝 `..` 越界段。CSV 里实测有写 `infoThumb\blank.webp` 的，包内条目是 `infoThumb/blank.webp`，不归一即静默缺图。
+  - 两种运行态：**索引态**＝启动读一次包内 `.rpk-index.bin`（magic `RPKI` v1，20 B 头＋26 B/条＋UTF-8 名表），之后 `RandomAccess.Read` 直读、`ArrayPool` 复用缓冲、无锁，UI 与 ERB 线程可并发；**退化态**＝索引缺失或损坏（第三方重打包）时持 `ZipArchive`＋全局锁整条读，语义与索引态逐条等价。
+  - 探测顺序 `resources.pak` → `resources.zip`；`Configure(exeDir, contentDir)` 只记路径，包在首次查询时才打开（无图场景不占句柄）。
+  - `ERATW_FORCE_PAK=1` 跳过「磁盘优先」强制查包，用于在散图仍在磁盘的开发目录上验证包路径本身（条目名归一、大小写）；只读环境变量，不写 config。
+  - 诊断：`MemoryDiagnostic` 新增「resources.pak 条目数」「resources.pak 体积」两行。
+- **图片层接入**（桌面 6 组 8 处读取点）：`SharedBitmapCache.Get`／`GetInfo`、`AnimatedImageHelper.GetAnimInfo`／`Decode`、`AppContents` 三处 `File.Exists`、`GCREATEFROMFILE` 全部改为「包内字节优先、磁盘路径兜底」；包内条目整条读成字节后用 `SKData`／`SKCodec` 解，编码仍走 `EncodingHandler`。`GetInfo` 先取索引宽高（**0 I/O**：建 200 个 `ConstImage` 3~4 ms／112 KiB，磁盘态 103~125 ms），索引未填尺寸才回退解码读头。
+- **CSV 入包**：`AppContents.LoadContents` 的 CSV 来源改为「磁盘 ∪ 包内」，按整条绝对路径 `OrdinalIgnoreCase` 去重且磁盘优先；包内 CSV 走 `MemoryStream` ＋ `EncodingHandler.DetectEncoding(Stream)` 解析（⛔ 不直接 UTF-8 解码，CP932 的 CSV 会乱码）。`ResourceStore.EnumerateRelative(suffix)` 返回 posix 相对名供枚举，调用方负责合成绝对路径（`Path.GetDirectoryName` 依赖它）。
+- **`SpriteMeta` 内存化**：`AppContents` 的内存 SQLite（建表＋逐行 `INSERT OR REPLACE`＋事务）换为 `Dictionary<string, List<MetaRow>>`（`StringComparer.Ordinal`，对齐旧实现的「大写后精确匹配」）。行序＝CSV 行序，与旧 `ORDER BY FrameIndex` 逐行等价；`metaRowCount` 口径仍是**行数**（不是名字数）。磁盘场景端到端装载 590/633/845 → 320/323/397 ms（交错 6 轮，中位 −46%）。
+- **Android 端同步接入**（SkiaX `feature/xamarin`，安卓版本 0.80.0）：`Platform/Content/{ConstImage,AnimatedImageHelper,AppContents}.cs` 与两处 `PlatformInterop` 的四回退委托改为「字节优先、路径兜底」（`Func<byte[], string, …>`，bytes 为 null 时只有磁盘路径）；`AndroidHost` 在 `PathProvider` 构造之后注入 `ResourceStore.Configure`。`FileUtils` 本体未改（它服务于 ERB／存档等非资源路径）。
+- 新增 `tests/EncodingHandler.Tests`，直接引用构建后的引擎程序集，覆盖编码、只读文件、I/O 异常、流位置，以及磁盘／pak 资源装载与 CSV 错误回显。
+
+### Changed
+
+- `AppContents.LoadContents` 的早退条件由「`ContentDir` 不存在」改为「`ContentDir` 不存在 **且** 无可用包」——发布包里 `resources/` 可以只剩一份说明文件，CSV 全部来自包。
+- `GCREATEFROMFILE` 的判存在由 `File.Exists` 换 `ResourceStore.Exists`（磁盘 ∪ 包内，是前者的超集）。
+
+### Fixed
+
+- 编码探测仅请求读取权限，保持原有独占共享模式；可读但不可写的资源 CSV 不再因多余的写访问请求而装载失败。
+- 文件与流探测仅在 UTF-8 解码失败时回退 CP932；文件不存在、拒绝访问及其他 I/O 错误原样上抛，不跳过 CSV 或把资源装载失败报告为成功。
+- 流探测在成功与异常路径均恢复调用方位置并保持流打开；短文件的 BOM 判断只比较实际读到的完整前缀。
+- CSV 错误源行回显从 CSV 目录探测编码，与实际读取的文件保持一致。
+
+### 验证
+
+- 新增 `tests/EncodingHandler.Tests`，直接引用构建后的引擎程序集，覆盖编码、只读文件、I/O 异常、流位置，以及磁盘／pak 资源装载与 CSV 错误回显。
+- 2026-11-17：Release-x64 回归 303 项通过、0 失败；开发仓 267 CSV、39,975 个精灵名与 40,829 条元数据逐项一致，背景和立绘各一张实际解码通过。
+- 2026-11-17：用户对开发仓 17.4 的窗口启动／立绘／背景冒烟回复「测试通过」。此为人工验收回执，不将程序集测试改记为 GUI 测试；正式发布包尚未按本版重打。
 
 ## [17.2.0] — EWP 按钮面与重绘时序（G1／H5）＋ 悬停保活
 
