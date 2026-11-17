@@ -1,6 +1,6 @@
 # Emuera-SKIA
 
-> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav17.2
+> **画蛇又添足改造版** — Emuera 1824+v24+EMv18+EEv56+Skiav17.4
 
 [![Base](https://img.shields.io/badge/base-Emuera%201.824%20%2B%20EEv56-blue)](#)
 [![Lang](https://img.shields.io/badge/lang-C%23%20%2F%20ERABASIC-green)](#)
@@ -29,7 +29,7 @@
 | **模态与超时** | 模态窗口（剪贴板/文件/确认框/配置/热键提示）打开期间暂停带时限输入的定时器（`ModalTimerGuard` 统一闸＋`tickTimer` 兜底），杜绝超时在窗口背后抢跑脚本；关窗后重新计满 |
 | **显示控制** | F11 全屏比例缩放、`GETDISPLAYLINE` 负数倒数索引（-1=最后一行）、`STRICT_FONT_FALLBACK` 严格字体回退、`TEXT_BGC_ON/OFF` 文本背景色 |
 | **错误处理** | `BEFORE_THROW`/`BEFORE_ERROR` 事件函数、`DisableBeforeErrorThrow` 配置项、8 条 Float 错误消息修正、调试窗口调用栈保留 |
-| **编码与存档** | 非日文编码（GBK 等）下 CJK 文本长度/子串计算修正（`GetStrlenLang`/`GetUFTIndex`/`GetSubStringLang`）；`CHKDATA` 返回存档版本信息 |
+| **编码与存档** | 文件编码探测仅请求读取权限，I/O 错误不作为 CP932 回退；非日文编码（GBK 等）下 CJK 文本长度/子串计算修正（`GetStrlenLang`/`GetUFTIndex`/`GetSubStringLang`）；`CHKDATA` 返回存档版本信息 |
 | **诊断工具** | 调试窗口 `LOCAL@FUNCNAME` 监视、变量监视「锁定」列与直接赋值、当前函数栈保留、`ProcessState.ContextStackCount` 计数、变量写入监视（`var_write.log` 明细 + 汇总报告）、打印监视（`print_trace.log` 实时视图 + 汇总报告）；两者均可选记录调用栈（GUI 勾选项 / CLI `watch` 的 `stack`） |
 | **外部协议（EWP）** | `--ewp` 事件流宿主（stdio/TCP，MessagePack 默认 / `--ewp-json` 调试形态）：legacy 行流＋行 ID＋input.request/submit 闭环＋信用窗背压；hello.metrics 网格基准、视口回传、结构化 snapshot、sprite/overlay 语义流、`pixel.frame` 离屏整帧像素流、`UI_CHANNEL_*` 频道边界事件；**EWP v0.3（冻结）**：`sprite.export` 运行期快照（`sprite.req`/`data`/`fail`＋`rev`）、`sys.title`、`hello.proto=EWP/0.3`；**16.6.11/16.6.12**：动画精灵帧表 `anim{count,delays}`（顶层 span 与 `div.children` 子节点同形）、`sprite.req` 负 rev 按帧取值；**16.6.15**：CBG 合成快照 `bg`（`bg.set/data/fail/clear`＋FE `bg.req`＋`legacy.textbgc` 全局底色）；**17.1**：运行期 sprite 失效 `sprite.invalidate{texture|all,rev}`（`rev`＝作废水位，旧 rev 回 `expired`）；**17.2**：HTML 按钮 span `kind:"button"{value,几何}`（顶层与 div 子级）、`REDRAW 0` 期间 legacy 事件在原生重绘点整批放行、`--ewp` 不再吃 `Config.FPS` 节流 |
 | **音频（EWP）** | `AUDIO_PLAY`／`AUDIO_CTL`／`AUDIO_BUS`／`AUDIO_DUCK`／`AUDIO_QUERY`／`AUDIO_BUS_QUERY` 六个 ERB 内建；v1 账本（单调句柄不复用／0＝拒绝、8 态机与终态保留、`priority`／`steal:none`／`maxVoices`／`maxInstances` 准入与抢占）、`master`/`bgm`/`se`/`voice` 总线与 duck、`fadeIn`/`crossfade`/`seek`/`if_changed` 过渡、重连 `audio.sync` 全量重建；v0.2 会话 fail-closed |
@@ -83,4 +83,4 @@
 
 ---
 
-> 版本 V17.2.0
+> 版本 V17.4.0（开发构建，未发布）
