@@ -11,7 +11,7 @@
 | 基点提交 | `be44a9a` — `docs(release): 18.0 转正式版标记` |
 | 内核版本 | Emuera 1824 + v24 + EMv18 + EEv56 + **Skiav18.0** |
 | 应用版本 | `versionCode 81` / `versionName 0.81.0` |
-| 产物 | `Emuera.SkiaX-arm64-v8a-signed.apk`（单架构，约 46–51 MB） |
+| 产物 | 首选 `Emuera.SkiaX-arm64-v8a-signed.apk`（约 46 MB）<br>单架构编不出来时退回 `Emuera.SkiaX-universal-signed.apk`（四合一，约 70 MB） |
 
 ## 为什么有这个仓库
 
@@ -29,11 +29,12 @@
 2. `dotnet workload install android`（runner 自带 Android SDK，不另装）
 3. `dotnet publish -c Release -f net8.0-android -r android-arm64` —— 只编
    arm64-v8a，出未签名 APK
-4. 如果第 3 步失败，自动转**兜底路径**：编合一包，再用
-   `scripts/split_apk_abi.py` 裁出 arm64（纯裁剪，秒级完成）
+4. 如果第 3 步失败，自动转**兜底路径**：编四合一包，**原样交付不裁剪**
+   （代价是体积大，好处是一定能装）
 5. `zipalign -f -p 4` 对齐后，CI 内临时生成 keystore 并用 `apksigner` 签名
-   （keystore 用完即删，不进产物）
-6. 上传 artifact `skiax-apk`，保留 30 天
+   （keystore 用完即删，不进产物），最后 `verify --print-certs` 回显
+6. 上传 artifact `skiax-apk`，保留 30 天；Job Summary 里写明本次走的是
+   哪条路径、产物多大
 
 ### 只出 arm64 的理由
 
@@ -65,7 +66,8 @@ MSBuild 会按 RID 各出一个包。
 
 - **CI 签名证书与上游官方包不同**。若设备上装过官方 SkiaX，必须先卸载再装
   （不同签名的 APK 无法覆盖安装）。
-- 产物只有 **arm64-v8a 单架构包**（约 46–51 MB）。
+- 正常情况是 **arm64-v8a 单架构包**（约 46 MB）；若单架构编译失败，本次
+  会退回**四合一包**（约 70 MB）——名字里带 `universal` 就是没裁剪的。
 - 包由 `zipalign -f -p 4` 对齐后再签名。
 - 应用包名 `Emuera.SkiaX`，显示名 `Emuera skiaX`。
 

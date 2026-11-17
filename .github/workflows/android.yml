@@ -58,9 +58,9 @@ jobs:
       - name: Restore
         run: dotnet restore Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj
 
-      # ---------- 1) 只出 arm64-v8a ----------
-      # 用 -r（单数，官方推荐路径）把整个项目按一个 RID 编译，产出的 APK
-      # 只含 arm64-v8a 的 lib 与 assemblies blob，体积最小。
+      # ---------- 1) 首选：只编 arm64-v8a ----------
+      # 用 -r（单数，官方推荐路径）把整个项目按一个 RID 编译，产物只含
+      # arm64-v8a 的 lib 与 assemblies blob，体积最小。
       # 注意不能用 -p:RuntimeIdentifiers=<单个 RID>：那是复数列表属性的
       # 全局覆盖，会让 Core 的 TargetPath 指向 obj/<cfg>/<tfm>/<rid>/ 而实际
       # 产物在无 RID 目录，GetAssemblyAttributes 报 MSB4018。
@@ -80,19 +80,19 @@ jobs:
           # -r 编译的产物在 bin/Release/net8.0-android/<rid>/ 下，要递归找
           APK=$(find Emuera.Xamarin.Android/bin/Release -name '*.apk' \
                   ! -name '*-Signed.apk' | head -1)
-          test -n "$APK" || { echo "::warning::-r 单架构编译没出包，转合一包裁剪兜底"; exit 1; }
+          test -n "$APK" || { echo "::warning::-r 单架构编译没出包，转合一包"; exit 1; }
           echo "取自：$APK"
           cp "$APK" keep/Emuera.SkiaX-arm64-v8a.apk
           ls -la keep/
 
-      # ---------- 1-fallback) 合一包 + 裁剪出 arm64 ----------
-      # 只在上面 -r 路线失败时跑。合一包是已验证可用的路径，
-      # 裁剪脚本在本地用真包验过（720→690 条目，testzip=None）。
-      - name: Fallback universal + split arm64
+      # ---------- 2) 兜底：单架构编不出来就直接出四合一，不裁剪 ----------
+      # 只在上面失败时跑。合一包是早就验证过能用的路径，直接原样交付，
+      # 省掉裁剪这一层（体积大些但一定能装）。
+      - name: Fallback universal APK
         if: steps.build_arm64.outcome != 'success'
         run: |
           set -e
-          # 上一次 -r 构建失败的 bin/obj 必须清掉，否则新旧产物会混在一起
+          # 上一次 -r 构建失败留下的 bin/obj 必须清掉，否则新旧产物会混
           rm -rf Emuera.Xamarin.Android/bin Emuera.Xamarin.Android/obj \
                  Emuera.Xamarin.Core/bin Emuera.Xamarin.Core/obj
           dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
@@ -105,35 +105,61 @@ jobs:
           UNIV=$(find Emuera.Xamarin.Android/bin/Release -name '*.apk' \
                   ! -name '*-Signed.apk' | head -1)
           test -n "$UNIV" || { echo "::error::未找到合一包 APK"; exit 1; }
+          echo "取自：$UNIV"
           cp "$UNIV" keep/Emuera.SkiaX-universal.apk
-          python3 scripts/split_apk_abi.py keep/Emuera.SkiaX-universal.apk \
-            keep/Emuera.SkiaX-arm64-v8a.apk arm64-v8a
           ls -la keep/
 
       - name: Sign APK
         run: |
           set -e
           mkdir -p out
-          SRC=keep/Emuera.SkiaX-arm64-v8a.apk
-          test -f "$SRC" || { echo "::error::没有可签名的 arm64 包"; exit 1; }
+          # 两个包里挑一个：优先 arm64 单架构，否则用合一包
+          if [ -f keep/Emuera.SkiaX-arm64-v8a.apk ]; then
+            SRC=keep/Emuera.SkiaX-arm64-v8a.apk
+            NAME=Emuera.SkiaX-arm64-v8a
+          elif [ -f keep/Emuera.SkiaX-universal.apk ]; then
+            SRC=keep/Emuera.SkiaX-universal.apk
+            NAME=Emuera.SkiaX-universal
+            echo "::notice::单架构构建未成功，本次产出四合一包"
+          else
+            echo "::error::keep/ 里没有任何 APK 可签名"
+            exit 1
+          fi
+          echo "签哪个：$SRC"
+
           PASS=$(openssl rand -hex 16)
           keytool -genkeypair -v -keystore out/dev.keystore -storepass "$PASS" -keypass "$PASS" \
             -alias skiax -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=SkiaX CI, OU=Community Build, O=SkiaX, L=-, S=-, C=-"
           BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
 
-          DST=out/Emuera.SkiaX-arm64-v8a-signed.apk
-          # 裁剪出来的包是重新打包的，条目偏移不再对齐（resources.arsc 要
-          # 4 字节、未压缩 .so 要 4K 页对齐），所以签名前一律 zipalign；
-          # -r 直接编出来的包本来就对齐，过一遍也无害。
+          DST="out/$NAME-signed.apk"
+          # zipalign 保证 resources.arsc 4 字节、未压缩 .so 4K 页对齐。
+          # 两种来源本来就对齐，过一遍是保险。
           "$BT/zipalign" -f -p 4 "$SRC" "$DST.aligned"
           "$BT/apksigner" sign --ks out/dev.keystore --ks-pass "pass:$PASS" \
             --key-pass "pass:$PASS" --ks-key-alias skiax \
             --out "$DST" "$DST.aligned"
           rm -f "$DST.aligned" out/dev.keystore
+
           echo "==== 最终产物 ===="
           ls -la out/
           "$BT/apksigner" verify --print-certs "$DST" | head -5
+          echo "APK_SIZE=$(stat -c %s "$DST")" >> "$GITHUB_ENV"
+          echo "APK_NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### SkiaX 构建结果"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "| --- | --- |"
+            echo "| arm64 单架构编译 | ${{ steps.build_arm64.outcome }} |"
+            echo "| 产物 | \`${APK_NAME:-未知}\` |"
+            echo "| 体积 | ${APK_SIZE:-?} 字节 |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload all APKs
         uses: actions/upload-artifact@v4
