@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using XEmuera;
 using trerror = MinorShift.Emuera.Runtime.Utils.EvilMask.Lang.Error;
@@ -120,7 +121,8 @@ namespace MinorShift.Emuera.Content
 				for (int i = 1; i < rows.Count; i++)
 				{
 					var r = rows[i];
-					if (!File.Exists(r.FilePath)) continue;
+					// 包内条目没有磁盘文件：必须查 ResourceStore.Exists（磁盘 ‖ 包），否则全量精灵被判缺失
+					if (!ResourceStore.Exists(r.FilePath)) continue;
 
 					if (!sharedConstImages.TryGetValue(r.FilePath, out ConstImage img))
 					{
@@ -137,7 +139,7 @@ namespace MinorShift.Emuera.Content
 			else
 			{
 				var r = rows[0];
-				if (!File.Exists(r.FilePath)) return null;
+				if (!ResourceStore.Exists(r.FilePath)) return null;
 
 				// 检查是否为原生动画文件（GIF/WebP 等）
 				if (AnimatedImageHelper.GetAnimInfo(r.FilePath, out int w, out int h, out int fCount, out int[] delays))
@@ -191,7 +193,8 @@ namespace MinorShift.Emuera.Content
 			name = name.ToUpper(CultureInfo.InvariantCulture);
 			if (imageDictionary.ContainsKey(name))
 				return true;
-			if (!FileUtils.Exists(ref filepath))
+			// 磁盘优先：FileUtils.Exists 会按大小写回退并回写真实路径；包内条目只能由 ResourceStore 认
+			if (!FileUtils.Exists(ref filepath) && !ResourceStore.Exists(filepath))
 				return false;
 
 			ASprite newSprite = null;
@@ -261,14 +264,20 @@ namespace MinorShift.Emuera.Content
 		static public Exception LoadContents(bool useAsync = false)
 		{
 			System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: ContentDir={Program.ContentDir}");
-			if (!Directory.Exists(Program.ContentDir))
+			// 包存在但目录不存在时，CSV 全部来自包；两者都无才是真空
+			if (!Directory.Exists(Program.ContentDir) && !ResourceStore.Enabled)
 			{
 				System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: ContentDir does not exist, skipping");
 				return null;
 			}
 			try
 			{
-				string[] csvFiles = FileUtils.GetFiles(Program.ContentDir, "*.csv", SearchOption.AllDirectories);
+				// 磁盘 ∪ 包内，磁盘优先（去重键＝整条绝对路径的 OrdinalIgnoreCase）
+				// 包内相对名必须合成绝对路径：下游 Path.GetDirectoryName 依赖它，相对名会得空串
+				var csvFiles = FileUtils.GetFiles(Program.ContentDir, "*.csv", SearchOption.AllDirectories)
+					.Concat(ResourceStore.EnumerateRelative(".csv").Select(rel => Program.ContentDir + rel.Replace('/', Path.DirectorySeparatorChar)))
+					.Distinct(StringComparer.OrdinalIgnoreCase)
+					.ToArray();
 				System.Diagnostics.Debug.WriteLine($"[Emuera] AppContents.LoadContents: found {csvFiles.Length} csv files, writing metadata to SQLite");
 
 				using var trans = metaDb.BeginTransaction();
@@ -299,7 +308,7 @@ namespace MinorShift.Emuera.Content
 					SpriteAnime currentAnime = null;
 					string directory = Path.GetDirectoryName(filepath) + Path.DirectorySeparatorChar;
 					string filename = Path.GetFileName(filepath);
-					string[] lines = File.ReadAllLines(filepath, EncodingHandler.DetectEncoding(filepath));
+					string[] lines = ReadCsvLines(filepath);
 					int lineNo = 0;
 					int frameIndex = 0;
 
@@ -354,7 +363,8 @@ namespace MinorShift.Emuera.Content
 							continue;
 
 						string parentName = directory + arg2;
-						if (!FileUtils.Exists(ref parentName))
+						// 磁盘优先；包内条目没有磁盘文件，不能只判 FileUtils.Exists（否则 Warn 刷屏 + 图静默丢失）
+						if (!FileUtils.Exists(ref parentName) && !ResourceStore.Exists(parentName))
 						{
 							ParserMediator.Warn(string.Format(trerror.NotExistImageFile.Text, arg2), sp, 1);
 							continue;
@@ -422,6 +432,30 @@ namespace MinorShift.Emuera.Content
 				return ex;
 			}
 			return null;
+		}
+
+		/// <summary>
+		/// 读一个 CSV：磁盘命中走原逻辑（含编码探测），否则从包内整条读、用同一套编码探测解析。
+		/// ⛔ 不能直接 Encoding.UTF8.GetString——CP932 的 CSV 会变乱码。
+		/// 包内条目读不出来（路径来自 EnumerateRelative 却取不到字节）＝包损坏 ⇒ 如实抛出，
+		/// 由 LoadContents 的 catch 返回 Exception；⛔ 静默跳过该文件（会变成「CSV 少读一份」的隐性缺图）。
+		/// </summary>
+		static string[] ReadCsvLines(string path)
+		{
+			if (File.Exists(path))
+				return File.ReadAllLines(path, EncodingHandler.DetectEncoding(path));
+
+			var bytes = ResourceStore.ReadAllBytes(path);
+			if (bytes == null)
+				throw new FileNotFoundException("包内 CSV 读取失败（条目缺失或包损坏）", path);
+
+			// DetectEncoding(Stream) 各分支都会恢复 Position，可安全复用；StreamReader 再按 BOM 走一遍
+			using var stream = new MemoryStream(bytes, writable: false);
+			using var reader = new StreamReader(stream, EncodingHandler.DetectEncoding(stream), detectEncodingFromByteOrderMarks: true);
+			var lines = new List<string>();
+			while (reader.ReadLine() is { } line)
+				lines.Add(line);
+			return lines.ToArray();
 		}
 
 		static public void UnloadContents()
