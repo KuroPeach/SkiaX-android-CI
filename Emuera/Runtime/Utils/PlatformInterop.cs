@@ -37,13 +37,14 @@ namespace MinorShift.Emuera
 
 		public static Func<Point> GetMousePosition { get; set; } = () => Point.Empty;
 
-		public static Func<string, SKBitmap> DecodeBitmapFallback { get; set; } = _ => null;
+		// 图片回退委托：字节优先、路径兜底（RPK P3）。bytes 为 null ⇒ 只有磁盘路径可用。
+		public static Func<byte[], string, SKBitmap> DecodeBitmapFallback { get; set; } = (_, __) => null;
 
-		public static Func<string, (int Width, int Height)?> GetBitmapInfoFallback { get; set; } = _ => null;
+		public static Func<byte[], string, (int Width, int Height)?> GetBitmapInfoFallback { get; set; } = (_, __) => null;
 
-		public static Func<string, List<(SKBitmap Bitmap, int DelayMs)>> DecodeAnimatedFallback { get; set; } = _ => null;
+		public static Func<byte[], string, List<(SKBitmap Bitmap, int DelayMs)>> DecodeAnimatedFallback { get; set; } = (_, __) => null;
 
-		public static Func<string, (int Width, int Height, int FrameCount, int[] Delays)?> GetAnimInfoFallback { get; set; } = _ => null;
+		public static Func<byte[], string, (int Width, int Height, int FrameCount, int[] Delays)?> GetAnimInfoFallback { get; set; } = (_, __) => null;
 
 		public static Action<string> DebugLog { get; set; } = msg => System.Diagnostics.Debug.WriteLine(msg);
 	}
