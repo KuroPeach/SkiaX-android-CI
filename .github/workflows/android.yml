@@ -58,93 +58,82 @@ jobs:
       - name: Restore
         run: dotnet restore Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj
 
-      # ---------- 1) 全 ABI 合一包（兼容所有设备，体积大）----------
-      - name: Build universal APK
+      # ---------- 1) 只出 arm64-v8a ----------
+      # 用 -r（单数，官方推荐路径）把整个项目按一个 RID 编译，产出的 APK
+      # 只含 arm64-v8a 的 lib 与 assemblies blob，体积最小。
+      # 注意不能用 -p:RuntimeIdentifiers=<单个 RID>：那是复数列表属性的
+      # 全局覆盖，会让 Core 的 TargetPath 指向 obj/<cfg>/<tfm>/<rid>/ 而实际
+      # 产物在无 RID 目录，GetAssemblyAttributes 报 MSB4018。
+      - name: Build arm64 APK
+        id: build_arm64
+        continue-on-error: true
         run: |
+          set -e
+          dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
+            -c Release -f net8.0-android \
+            -r android-arm64 \
+            -p:AndroidPackageFormat=apk \
+            -p:AndroidKeyStore=false \
+            -p:RunAOTCompilation=false \
+            -p:CheckEolWorkloads=false
+          mkdir -p keep
+          # -r 编译的产物在 bin/Release/net8.0-android/<rid>/ 下，要递归找
+          APK=$(find Emuera.Xamarin.Android/bin/Release -name '*.apk' \
+                  ! -name '*-Signed.apk' | head -1)
+          test -n "$APK" || { echo "::warning::-r 单架构编译没出包，转合一包裁剪兜底"; exit 1; }
+          echo "取自：$APK"
+          cp "$APK" keep/Emuera.SkiaX-arm64-v8a.apk
+          ls -la keep/
+
+      # ---------- 1-fallback) 合一包 + 裁剪出 arm64 ----------
+      # 只在上面 -r 路线失败时跑。合一包是已验证可用的路径，
+      # 裁剪脚本在本地用真包验过（720→690 条目，testzip=None）。
+      - name: Fallback universal + split arm64
+        if: steps.build_arm64.outcome != 'success'
+        run: |
+          set -e
+          # 上一次 -r 构建失败的 bin/obj 必须清掉，否则新旧产物会混在一起
+          rm -rf Emuera.Xamarin.Android/bin Emuera.Xamarin.Android/obj \
+                 Emuera.Xamarin.Core/bin Emuera.Xamarin.Core/obj
           dotnet publish Emuera.Xamarin.Android/Emuera.Xamarin.Android.csproj \
             -c Release -f net8.0-android \
             -p:AndroidPackageFormat=apk \
             -p:AndroidKeyStore=false \
             -p:RunAOTCompilation=false \
             -p:CheckEolWorkloads=false
-
-      # 合一包先另存，后面分架构构建会清空 bin/obj
-      - name: Keep universal APK
-        run: |
-          set -e
           mkdir -p keep
-          UNIV=$(find Emuera.Xamarin.Android/bin/Release/net8.0-android -maxdepth 1 -name '*.apk' ! -name '*-Signed.apk' | head -1)
-          if [ -z "$UNIV" ]; then
-            UNIV=$(find Emuera.Xamarin.Android/bin/Release/net8.0-android -maxdepth 1 -name '*.apk' | head -1)
-          fi
+          UNIV=$(find Emuera.Xamarin.Android/bin/Release -name '*.apk' \
+                  ! -name '*-Signed.apk' | head -1)
           test -n "$UNIV" || { echo "::error::未找到合一包 APK"; exit 1; }
           cp "$UNIV" keep/Emuera.SkiaX-universal.apk
+          python3 scripts/split_apk_abi.py keep/Emuera.SkiaX-universal.apk \
+            keep/Emuera.SkiaX-arm64-v8a.apk arm64-v8a
           ls -la keep/
 
-      # ---------- 2) 按 ABI 拆分的独立包（每个体积小很多）----------
-      # 不再逐个 RID 重新 publish：.NET 8 + Android workload 下重复 publish
-      # 会因 obj/ 布局与 GetAssemblyAttributes 期望不一致而报 MSB4018
-      # （obj/Release/net8.0/<rid>/XEmuera.Core.dll 找不到），且每架构重编
-      # 一次要 4 倍时间。直接在合一包上裁掉其它架构的 lib/<abi>/ 即可，
-      # assemblies/*.blob 保留全部（约 7 MB，删错会导致运行时缺程序集）。
-      - name: Split per-ABI APKs
-        continue-on-error: true
-        run: |
-          set -e
-          SRC=keep/Emuera.SkiaX-universal.apk
-          test -f "$SRC" || { echo "::error::未找到合一包，无法拆分"; exit 1; }
-          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
-            echo "==== 拆分 $ABI ===="
-            mkdir -p "perabi/$ABI"
-            python3 scripts/split_apk_abi.py "$SRC" \
-              "perabi/$ABI/Emuera.SkiaX-$ABI-unsigned.apk" "$ABI"
-          done
-          find perabi -name '*.apk' -exec ls -la {} \;
-
-      - name: Sign all APKs
-        continue-on-error: true
+      - name: Sign APK
         run: |
           set -e
           mkdir -p out
+          SRC=keep/Emuera.SkiaX-arm64-v8a.apk
+          test -f "$SRC" || { echo "::error::没有可签名的 arm64 包"; exit 1; }
           PASS=$(openssl rand -hex 16)
           keytool -genkeypair -v -keystore out/dev.keystore -storepass "$PASS" -keypass "$PASS" \
             -alias skiax -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=SkiaX CI, OU=Community Build, O=SkiaX, L=-, S=-, C=-"
           BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
 
-          sign() {
-            local src="$1" dst="$2"
-            # 拆分出来的包是重新打包的，条目偏移已不再对齐（resources.arsc
-            # 必须 4 字节对齐，Android 12+ 对未压缩 .so 还要 4K 页对齐），
-            # 所以签名前一律 zipalign 一遍；合一包本来就是对齐的，无害。
-            "$BT/zipalign" -f -p 4 "$src" "$dst.aligned"
-            "$BT/apksigner" sign --ks out/dev.keystore --ks-pass "pass:$PASS" \
-              --key-pass "pass:$PASS" --ks-key-alias skiax \
-              --out "$dst" "$dst.aligned"
-            rm -f "$dst.aligned"
-            echo "signed: $dst ($(du -h "$dst" | cut -f1))"
-          }
-
-          # 合一包（前面已另存到 keep/）
-          test -f keep/Emuera.SkiaX-universal.apk || { echo "::error::合一包未保存"; exit 1; }
-          sign keep/Emuera.SkiaX-universal.apk out/Emuera.SkiaX-universal-signed.apk
-
-          # 分架构包
-          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
-            APK=$(find "perabi/$ABI" -maxdepth 2 -name '*.apk' ! -name '*-Signed.apk' | head -1)
-            if [ -z "$APK" ]; then
-              APK=$(find "perabi/$ABI" -maxdepth 2 -name '*.apk' | head -1)
-            fi
-            if [ -z "$APK" ]; then
-              echo "::warning::$ABI 未产出 APK，跳过"
-              continue
-            fi
-            sign "$APK" "out/Emuera.SkiaX-$ABI-signed.apk"
-          done
-
-          rm -f out/dev.keystore
+          DST=out/Emuera.SkiaX-arm64-v8a-signed.apk
+          # 裁剪出来的包是重新打包的，条目偏移不再对齐（resources.arsc 要
+          # 4 字节、未压缩 .so 要 4K 页对齐），所以签名前一律 zipalign；
+          # -r 直接编出来的包本来就对齐，过一遍也无害。
+          "$BT/zipalign" -f -p 4 "$SRC" "$DST.aligned"
+          "$BT/apksigner" sign --ks out/dev.keystore --ks-pass "pass:$PASS" \
+            --key-pass "pass:$PASS" --ks-key-alias skiax \
+            --out "$DST" "$DST.aligned"
+          rm -f "$DST.aligned" out/dev.keystore
           echo "==== 最终产物 ===="
           ls -la out/
+          "$BT/apksigner" verify --print-certs "$DST" | head -5
 
       - name: Upload all APKs
         uses: actions/upload-artifact@v4
